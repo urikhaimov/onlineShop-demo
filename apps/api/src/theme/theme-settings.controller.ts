@@ -1,22 +1,40 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
-
+import { UpdateThemeSettingsDto } from './dto/update-theme-settings.dto';
+import { ProductCardVariant } from '@client/shared/types/product-card-invariant.enum';
 export interface ThemeSettings {
   primaryColor?: string;
   secondaryColor?: string;
   darkMode?: boolean;
   fontFamily?: string;
+  borderRadius: number;
+  spacingScale: number;
+
+  // Optional extended settings
+  maxWidth?: string;
+  storeName?: string;
+  font?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  logoUrl?: string;
+  homepageLayout?: string;
+  productCardVariant?: ProductCardVariant;
+  categoryStyle?: string;
+  showSidebar?: boolean;
+  stickyHeader?: boolean;
 }
 
 const defaultThemeSettings: ThemeSettings = {
   primaryColor: '#1976d2',
   secondaryColor: '#dc004e',
   darkMode: false,
-  fontFamily: 'Roboto, sans-serif',
+  fontFamily: 'Roboto',
+  borderRadius: 8,
+  spacingScale: 8,
 };
 
 @Controller('theme/settings')
 export class ThemeSettingsController {
-  private currentSettings = { ...defaultThemeSettings };
+  private currentSettings: ThemeSettings = { ...defaultThemeSettings };
 
   @Get()
   getThemeSettings(): ThemeSettings {
@@ -24,7 +42,9 @@ export class ThemeSettingsController {
   }
 
   @Post()
-  updateThemeSettings(@Body() updatedSettings: ThemeSettings): ThemeSettings {
+  updateThemeSettings(
+    @Body() updatedSettings: UpdateThemeSettingsDto,
+  ): ThemeSettings {
     this.currentSettings = { ...this.currentSettings, ...updatedSettings };
     return this.currentSettings;
   }

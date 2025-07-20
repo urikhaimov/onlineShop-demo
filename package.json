@@ -154,6 +154,7 @@
     "motion-dom": "^12.23.6",
     "notistack": "^3.0.2",
     "react": "^18.3.1",
+    "react-color": "^2.19.3",
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.3.8",
     "react-easy-crop": "^5.5.0",

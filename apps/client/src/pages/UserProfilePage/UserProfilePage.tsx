@@ -21,7 +21,7 @@ import { useUserProfileQuery } from '../../hooks/useUserProfileQuery';
 import { useUpdateUserProfileMutation } from '../../hooks/useUpdateUserProfileMutation';
 import { useUploadAvatarMutation } from '../../hooks/useUploadAvatarMutation';
 import { useDeleteAvatarMutation } from '../../hooks/useDeleteAvatarMutation';
-import AvatarUploaderWithCrop from '@client/components/AvatarUploaderWithCrop';
+import PictureUploaderWithCrop from '@client/components/PictureUploaderWithCrop';
 import LoadingProgress from '@client/components/LoadingProgress';
 import { reducer, initialState } from './LocalReducer';
 import { localUIReducer, initialLocalUIState } from './LocalUIReducer';
@@ -134,7 +134,7 @@ export default function UserProfilePage() {
         </Typography>
 
         <Stack spacing={3} mt={2} alignItems="center">
-          <AvatarUploaderWithCrop
+          <PictureUploaderWithCrop
             avatarUrl={userDoc?.photoURL ? `${userDoc.photoURL}?v=${uiState.avatarVer}` : null}
             onCropUpload={handleAvatarUpload}
             onDeleteAvatar={() => uiDispatch({ type: 'SET_DELETE_DIALOG', payload: true })}

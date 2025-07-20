@@ -1,4 +1,4 @@
-// src/components/AvatarUploader.tsx
+// src/components/PictureUploader.tsx
 import React, { useEffect, useRef } from 'react';
 import {
   Box,
@@ -11,7 +11,7 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useDropzone } from 'react-dropzone';
 
-interface AvatarUploaderProps {
+interface PictureUploaderProps {
   avatarUrl: string | null;
   onDrop: (file: File) => void;
   errorMessage?: string;
@@ -21,13 +21,13 @@ interface AvatarUploaderProps {
 
 const MAX_FILE_SIZE_MB = 5;
 
-export default function AvatarUploader({
+export default function PictureUploader({
   avatarUrl,
   onDrop,
   errorMessage,
   showSnackbar,
   onCloseSnackbar,
-}: AvatarUploaderProps) {
+}: PictureUploaderProps) {
   const previewRef = useRef<string | null>(null);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

@@ -10,6 +10,8 @@ export type ThemeSettings = {
   font?: string;
   fontSize?: number;
   fontWeight?: number;
+    borderRadius: number;
+  spacingScale: number;
   logoUrl?: string;
   homepageLayout?: 'hero' | 'grid' | 'list';
   productCardVariant?: 'compact' | 'detailed';

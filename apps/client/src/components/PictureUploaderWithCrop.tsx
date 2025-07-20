@@ -1,4 +1,4 @@
-// ✅ AvatarUploaderWithCrop.tsx
+// ✅ PictureUploaderWithCrop.tsx
 import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import {
@@ -25,7 +25,7 @@ interface Props {
   disabled?: boolean;
 }
 
-export default function AvatarUploaderWithCrop({
+export default function PictureUploaderWithCrop({
   avatarUrl,
   onCropUpload,
   onDeleteAvatar,
