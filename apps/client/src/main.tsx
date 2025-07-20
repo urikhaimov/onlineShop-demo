@@ -1,3 +1,4 @@
+// src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -20,33 +21,35 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 
 import { loadStoreConfig } from './utils/loadStoreConfig';
 
+import { ThemeProvider } from './context/ThemeContext';
+
 import 'react-quill/dist/quill.snow.css';
 import './styles.less';
 
-// 💡 Store ID from localStorage, fallback to default
+// Load store config
 const storeId = localStorage.getItem('storeId') || 'store1';
 const storeConfig = loadStoreConfig(storeId) ?? defaultConfig;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ErrorBoundary
-        fallback={<p>⚠ Something went wrong. Our team has been notified!</p>}
-      >
+      <ErrorBoundary fallback={<p>⚠ Something went wrong. Our team has been notified!</p>}>
         <StoreConfigContext.Provider value={storeConfig}>
-          <StoreBoundThemeProvider>
-            <AuthProvider>
-              <QueryClientProvider client={queryClient}>
-                <RedirectProvider>
-                  <LocalizationProvider dateAdapter={AdapterDayjs}>
-                    <App />
-                  </LocalizationProvider>
-                </RedirectProvider>
-              </QueryClientProvider>
-            </AuthProvider>
-          </StoreBoundThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <ThemeProvider> {/* ✅ Must be inside QueryClientProvider */}
+              <StoreBoundThemeProvider>
+                <AuthProvider>
+                  <RedirectProvider>
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                      <App />
+                    </LocalizationProvider>
+                  </RedirectProvider>
+                </AuthProvider>
+              </StoreBoundThemeProvider>
+            </ThemeProvider>
+          </QueryClientProvider>
         </StoreConfigContext.Provider>
       </ErrorBoundary>
     </BrowserRouter>
-  </React.StrictMode>,
+  </React.StrictMode>
 );

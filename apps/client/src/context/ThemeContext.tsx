@@ -1,6 +1,6 @@
 // src/context/ThemeContext.tsx
 import React, { createContext, useContext, useMemo } from 'react';
-import { createTheme, Theme } from '@mui/material/styles';
+import { createTheme, ThemeProvider as MuiThemeProvider, CssBaseline, Theme } from '@mui/material';
 import { useStoreTheme } from '../hooks/useStoreTheme';
 
 type ThemeContextType = {
@@ -13,8 +13,14 @@ type ThemeContextType = {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const { data, isLoading, error } = useStoreTheme('store1'); // ✅ fixed ID
+export const ThemeProvider = ({
+  children,
+  storeId = 'store1',
+}: {
+  children: React.ReactNode;
+  storeId?: string;
+}) => {
+  const { data, isLoading, error } = useStoreTheme(storeId);
   const mode = data?.darkMode ? 'dark' : 'light';
 
   const theme = useMemo(() => {
@@ -27,16 +33,23 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       typography: {
         fontFamily: data?.font || 'Roboto',
       },
+      shape: {
+        borderRadius: data?.borderRadius ?? 8,
+      },
+      spacing: data?.spacingScale ?? 8,
     });
   }, [data, mode]);
 
   const toggleMode = () => {
-    console.warn('toggleMode not implemented for single store static theme');
+    console.warn('toggleMode not implemented for static theme');
   };
 
   return (
     <ThemeContext.Provider value={{ theme, mode, toggleMode, isLoading, error: error?.message || null }}>
-      {children}
+      <MuiThemeProvider theme={theme}>
+        <CssBaseline />
+        {children}
+      </MuiThemeProvider>
     </ThemeContext.Provider>
   );
 };

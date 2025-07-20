@@ -1,3 +1,4 @@
+// src/pages/HomePage.tsx
 import React from 'react';
 import {
   Box,
@@ -14,15 +15,26 @@ import { useLandingPage } from '../../hooks/useLandingPage';
 import LoadingProgress from '../../components/LoadingProgress';
 import BestSellers from '../../components/BestSellers';
 import type { LandingPageData } from '../../types/landing';
-import PageWithStickyFilters from '../../layouts/PageWithStickyFilters';
+import { useThemeStore } from '../../stores/useThemeStore';
+import {
+  HOMEPAGE_LAYOUTS,
+  HomepageLayout,
+} from '@client/shared/types/theme-settings.enum';
 
 export default function HomePage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
+  const { themeSettings } = useThemeStore();
+ const layout: HomepageLayout =
+  themeSettings?.homepageLayout in HOMEPAGE_LAYOUTS
+    ? (themeSettings?.homepageLayout as HomepageLayout)
+    : HOMEPAGE_LAYOUTS.Hero;
+  const productCardVariant = themeSettings?.productCardVariant ?? 'standard';
+
   const { data, isLoading, isError } = useLandingPage();
 
-if (isLoading) return <LoadingProgress />;
+  if (isLoading) return <LoadingProgress />;
   if (isError)
     return (
       <Box
@@ -52,147 +64,131 @@ if (isLoading) return <LoadingProgress />;
   const sections = landingData.sections ?? [];
 
   return (
-    <PageWithStickyFilters>
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        {/* Banner Section */}
-        {landingData.bannerImageUrl && (
-          <>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {layout === HOMEPAGE_LAYOUTS.Hero && landingData.bannerImageUrl && (
+        <>
+          <Box
+            sx={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '16 / 7',
+              borderRadius: 2,
+              overflow: 'hidden',
+              mb: 2,
+            }}
+          >
+            <Box
+              component="img"
+              src={landingData.bannerImageUrl}
+              alt="Banner"
+              sx={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: 'center top',
+                display: 'block',
+                opacity: 0.5,
+              }}
+            />
             <Box
               sx={{
-                position: 'relative',
-                width: '100%',
-                aspectRatio: '16 / 7',
-                borderRadius: 2,
-                overflow: 'hidden',
-                mb: 2,
+                position: 'absolute',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                zIndex: 1,
+              }}
+            />
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                px: 2,
+                pt: 6,
+                zIndex: 2,
+                color: 'white',
+                textAlign: 'center',
               }}
             >
-              <Box
-                component="img"
-                src={landingData.bannerImageUrl}
-                alt="Banner"
-                sx={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  objectPosition: 'center top',
-                  display: 'block',
-                  opacity: 0.5,
-                }}
-              />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                  zIndex: 1,
-                }}
-              />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  px: 2,
-                  pt: 6,
-                  zIndex: 2,
-                  color: 'white',
-                  textAlign: 'center',
-                }}
-              >
-                {landingData.title && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
-                  >
-                    <Typography variant="h1" fontWeight="bold" gutterBottom>
-                      {landingData.title}
-                    </Typography>
-                  </motion.div>
-                )}
-                {landingData.subtitle && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.9, delay: 0.2 }}
-                  >
-                    <Typography variant="h2">{landingData.subtitle}</Typography>
-                  </motion.div>
-                )}
-              </Box>
-            </Box>
-
-            {landingData.ctaButtonText && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 1, delay: 0.4 }}
-                style={{ textAlign: 'center', marginBottom: '2rem' }}
-              >
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="large"
-                  component={Link}
-                  to={landingData.ctaButtonLink || '/products'}
+              {landingData.title && (
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8 }}
                 >
-                  {landingData.ctaButtonText}
-                </Button>
-              </motion.div>
-            )}
-          </>
-        )}
-
-        {/* Featured Sections */}
-        {sections.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7 }}
-            viewport={{ once: true }}
-          >
-            <Box mb={6}>
-              <Typography variant="h5" textAlign="center" gutterBottom>
-                🧩 Featured Sections
-              </Typography>
-              <Box display="flex" flexDirection="column" gap={4}>
-                {sections.map((section, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: index * 0.15 }}
-                    viewport={{ once: true }}
-                  >
-                    <Box>
-                      {section.title && (
-                        <Typography variant="h6" fontWeight="bold" gutterBottom>
-                          {section.title}
-                        </Typography>
-                      )}
-                      {section.subtitle && (
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                          {section.subtitle}
-                        </Typography>
-                      )}
-                      {section.content && (
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {section.content}
-                        </Typography>
-                      )}
-                    </Box>
-                  </motion.div>
-                ))}
-              </Box>
+                  <Typography variant="h1" fontWeight="bold" gutterBottom>
+                    {landingData.title}
+                  </Typography>
+                </motion.div>
+              )}
+              {landingData.subtitle && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.9, delay: 0.2 }}
+                >
+                  <Typography variant="h2">{landingData.subtitle}</Typography>
+                </motion.div>
+              )}
             </Box>
-          </motion.div>
-        )}
+          </Box>
 
-        {/* Best Sellers */}
-        <BestSellers />
-      </Container>
-    </PageWithStickyFilters>
+          {landingData.ctaButtonText && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 0.4 }}
+              style={{ textAlign: 'center', marginBottom: '2rem' }}
+            >
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                component={Link}
+                to={landingData.ctaButtonLink || '/products'}
+              >
+                {landingData.ctaButtonText}
+              </Button>
+            </motion.div>
+          )}
+        </>
+      )}
+
+      {layout === HOMEPAGE_LAYOUTS.Minimal && (
+        <Box mt={4} textAlign="center">
+          <Typography variant="h4">{landingData.title}</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            {landingData.subtitle}
+          </Typography>
+        </Box>
+      )}
+
+      {layout === HOMEPAGE_LAYOUTS.Grid && sections.length > 0 && (
+        <Box
+          display="grid"
+          gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }}
+          gap={3}
+          mt={4}
+        >
+          {sections.map((section, index) => (
+            <Box key={index} p={2} borderRadius={2} boxShadow={1}>
+              {section.title && <Typography variant="h6">{section.title}</Typography>}
+              {section.content && <Typography variant="body2">{section.content}</Typography>}
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {layout === HOMEPAGE_LAYOUTS.Promo && (
+        <Box mt={6}>
+          <Typography variant="h5" textAlign="center">
+            Promotional layout coming soon!
+          </Typography>
+        </Box>
+      )}
+
+      <BestSellers variant={productCardVariant} />
+    </Container>
   );
 }

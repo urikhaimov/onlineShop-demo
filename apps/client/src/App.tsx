@@ -43,6 +43,7 @@ import { getThemeFromSettings } from './utils/themeBuilder';
 import { StripeProvider } from './stripe/StripeProvider';
 import AdminSecurityLogsPage from './pages/admin/AdminSecurityLogsPage';
 import './App.css';
+import LoadingProgress from './components/LoadingProgress';
 
 export default function App() {
   const navigate = useNavigate();
@@ -89,16 +90,8 @@ useEffect(() => {
   // You can remove this condition if themeSettings is always preloaded
   if (!authInitialized || !themeSettings) {
     return (
-      <Box
-        height="100vh"
-        width="100vw"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        bgcolor="#fff"
-      >
-        <CircularProgress size={60} color="primary" />
-      </Box>
+      <LoadingProgress />
+
     );
   }
 

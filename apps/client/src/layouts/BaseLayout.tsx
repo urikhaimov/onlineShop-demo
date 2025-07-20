@@ -1,21 +1,18 @@
 // src/layouts/BaseLayout.tsx
+import React from 'react';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
-import { ReactNode } from 'react';
 import Header from '../components/Header/Header';
 import Footer from '../components/Footer';
 import ScrollContainer from '../components/ScrollContainer';
 import LeftMenu from '../components/LeftMenu/LeftMenu';
-import { footerHeight, sidebarWidth , } from '../config/themeConfig';
+import { footerHeight, sidebarWidth } from '../config/themeConfig';
 
 interface BaseLayoutProps {
-  children: ReactNode;
+  children: React.ReactNode;
   showFooter?: boolean;
 }
 
-export default function BaseLayout({
-  children,
-  showFooter = true,
-}: BaseLayoutProps) {
+export default function BaseLayout({ children, showFooter = true }: BaseLayoutProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -27,6 +24,8 @@ export default function BaseLayout({
         height: '100vh',
         width: '100vw',
         overflow: 'hidden',
+        fontFamily: theme.typography.fontFamily,
+        bgcolor: theme.palette.background.default,
       }}
     >
       <Header />
@@ -44,12 +43,13 @@ export default function BaseLayout({
             minHeight: 0,
             overflow: 'auto',
             position: 'relative',
+            px: theme.spacing(2),
+            py: theme.spacing(2),
           }}
         >
           {children}
         </Box>
       </Box>
-
       {showFooter && !isMobile && (
         <Box sx={{ height: `${footerHeight}px`, flexShrink: 0 }}>
           <Footer />

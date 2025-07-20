@@ -3,6 +3,7 @@ export const HOMEPAGE_LAYOUTS = {
   Hero: 'hero',
   Minimal: 'minimal',
   Promo: 'promo',
+   List: 'list', // ✅ Add this
 } as const;
 
 export type HomepageLayout = (typeof HOMEPAGE_LAYOUTS)[keyof typeof HOMEPAGE_LAYOUTS];

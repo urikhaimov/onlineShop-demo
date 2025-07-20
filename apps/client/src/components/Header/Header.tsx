@@ -22,7 +22,7 @@ import { useSafeAuth } from '../../hooks/useAuth';
 import { useStoreSettings } from '../../stores/useStoreSettings';
 import { useCartStore } from '../../stores/useCartStore';
 import { useSidebarStore } from '../../stores/useSidebarStore';
-import { useThemeStore } from '../../stores/useThemeStore';
+import { useThemeContext } from '../../context/ThemeContext'; // ✅ new context-based theme
 
 const DEFAULT_AVATAR = '/default-avatar.png';
 
@@ -39,7 +39,8 @@ const Header: React.FC = () => {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const { toggleMobileDrawer } = useSidebarStore();
-  const { toggleDarkMode, themeSettings } = useThemeStore();
+
+  const { theme: muiTheme, toggleMode, mode, isLoading, error } = useThemeContext(); // ✅ context
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -52,8 +53,8 @@ const Header: React.FC = () => {
     setTimeout(() => window.location.reload(), 1000);
   };
 
-  const handleToggleDarkMode = async () => {
-    await toggleDarkMode();
+  const handleToggleDarkMode = () => {
+    toggleMode(); // just shows warning if not implemented
     setShowThemeToast(true);
   };
 
@@ -64,6 +65,8 @@ const Header: React.FC = () => {
         zIndex: (theme) => theme.zIndex.drawer + 1,
         boxShadow: 'none',
         px: { xs: 0, sm: 3 },
+        bgcolor: muiTheme.palette.background.paper, // ✅ use context theme
+        color: muiTheme.palette.text.primary,
       }}
     >
       <Toolbar sx={{ justifyContent: 'space-between', alignItems: 'center', minHeight: 56 }}>
@@ -81,7 +84,7 @@ const Header: React.FC = () => {
             </IconButton>
           )}
           <Typography variant="h6" fontWeight="bold" noWrap component="div">
-            {themeSettings.storeName || 'My Store'}
+            {storeId || 'My Store'}
           </Typography>
         </Box>
 
@@ -141,7 +144,7 @@ const Header: React.FC = () => {
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert severity="success" sx={{ width: '100%' }}>
-          {themeSettings.darkMode ? 'Dark Mode Enabled 🌙' : 'Light Mode Enabled ☀️'}
+          {mode === 'dark' ? 'Dark Mode Enabled 🌙' : 'Light Mode Enabled ☀️'}
         </Alert>
       </Snackbar>
     </AppBar>

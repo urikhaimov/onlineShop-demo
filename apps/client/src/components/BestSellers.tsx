@@ -1,7 +1,7 @@
 // src/components/BestSellers.tsx
+import React from 'react';
 import {
   Box,
-  Grid,
   Typography,
   Container,
   Button,
@@ -10,7 +10,12 @@ import ProductCard from './ProductCard';
 import LoadingProgress from './LoadingProgress';
 import { useBestSellers } from '../hooks/useBestSellers';
 
-export default function BestSellers() {
+interface BestSellersProps {
+  variant?: "compact" | "detailed" | "standard"; // adjust based on supported card variants
+}
+
+
+export default function BestSellers({ variant = 'standard' }: BestSellersProps) {
   const {
     data,
     fetchNextPage,
@@ -35,13 +40,22 @@ export default function BestSellers() {
         </Typography>
       ) : (
         <>
-          <Grid container spacing={3}>
+          <Box
+            display="grid"
+            gridTemplateColumns={{
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            }}
+            gap={3}
+          >
             {allProducts.map((product) => (
-              <Grid item key={product.id} xs={12} sm={6} md={4} lg={3}>
-                <ProductCard product={product} />
-              </Grid>
+              <Box key={product.id}>
+                <ProductCard product={product} variant={variant} />
+              </Box>
             ))}
-          </Grid>
+          </Box>
 
           {hasNextPage && (
             <Box display="flex" justifyContent="center" mt={4}>
