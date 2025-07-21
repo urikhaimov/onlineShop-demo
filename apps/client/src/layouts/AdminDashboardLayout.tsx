@@ -5,19 +5,18 @@ import {
 } from '@mui/material';
 import BaseLayout from './BaseLayout';
 import { Outlet } from 'react-router-dom';
-export const sidebarWidth = 260;
-import { headerHeight, footerHeight,  } from '@client/config/themeConfig';
+
+import { headerHeight, footerHeight, sidebarWidth } from '@client/config/themeConfig';
 export default function AdminDashboardLayout() {
-  return <BaseLayout showFooter={false}>
+  return <>
     <Box
       sx={{
-        mt: `${headerHeight}px`,
-        mb: `${footerHeight}px`,
-        height: `calc(100vh - ${headerHeight + footerHeight +140}px)`,
-    
+        height: '100%',
+        width: '100%',
+        overflow: 'hidden',
         mx: 'auto',
       }}
     >{<Outlet />}</Box>
     
-    </BaseLayout>;
+    </>;
 }
