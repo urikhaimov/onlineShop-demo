@@ -41,7 +41,7 @@ export default function BaseLayout({ children, showFooter = true }: BaseLayoutPr
           sx={{
             flex: 1,
             minHeight: 0,
-            overflow: 'auto',
+            overflow: 'hidden',
             position: 'relative',
             px: theme.spacing(2),
             py: theme.spacing(2),
