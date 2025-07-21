@@ -1,7 +1,7 @@
 // src/stores/useThemeStore.ts
 import { create } from 'zustand';
 import axiosInstance from '../api/axiosInstance';
-import type { ThemeSettings } from '../types/theme';
+import { ThemeSettings } from '@client/api/theme'; // ✅ Correct import
 
 interface ThemeState {
   themeSettings: ThemeSettings;
@@ -10,7 +10,7 @@ interface ThemeState {
   updateTheme: (newSettings: Partial<ThemeSettings>) => void;
   toggleDarkMode: () => void;
   setTheme: (settings: ThemeSettings) => void;
-  loadTheme: () => Promise<void>; // ✅ ADDED
+  loadTheme: () => Promise<void>;
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
@@ -19,7 +19,6 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     darkMode: false,
     primaryColor: '#1976d2',
     secondaryColor: '#ff4081',
-    font: 'Roboto',
     fontFamily: 'Roboto',
     fontSize: 16,
     fontWeight: 400,
@@ -30,6 +29,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     showSidebar: true,
     maxWidth: 'xl',
     stickyHeader: true,
+    spacingScale: 1, // ✅ Added
+    borderRadius: 8, // ✅ Added
   },
   isLoading: true,
   error: null,
@@ -66,7 +67,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   loadTheme: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { data } = await axiosInstance.get<ThemeSettings>('/theme/settings');
+      const { data } =
+        await axiosInstance.get<ThemeSettings>('/theme/settings');
       get().setTheme(data);
     } catch (error: any) {
       console.error('❌ Failed to load theme:', error);

@@ -1,6 +1,6 @@
 // src/components/theme/StoreNameField.tsx
 import React from 'react';
-import { Grid, TextField } from '@mui/material';
+import { Box, TextField } from '@mui/material';
 import { Controller } from 'react-hook-form';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 
 export default function StoreNameField({ control }: Props) {
   return (
-    <Grid item xs={12}>
+    <Box>
       <Controller
         name="storeName"
         control={control}
@@ -17,6 +17,6 @@ export default function StoreNameField({ control }: Props) {
           <TextField label="Store Name" fullWidth variant="outlined" {...field} />
         )}
       />
-    </Grid>
+    </Box>
   );
 }

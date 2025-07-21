@@ -4,26 +4,31 @@ import {
   Box, Button, Stack, TextField, MenuItem, Typography, Switch, FormControlLabel,
 } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
-import { themePresets } from '../constants/themePresets';
-import { ThemeSettings } from '../api/theme';
-import { useThemeSettings, useUpdateThemeSettingsMutation } from '../hooks/useThemeHooks';
+import { themePresets } from '@client/constants/themePresets';
+import { ThemeSettings } from '@client/api/theme';
+import { useThemeSettings, useUpdateThemeSettingsMutation } from '@client/hooks/useThemeHooks';
 
-const fontOptions = [
-  'Roboto, sans-serif',
-  'Open Sans, sans-serif',
-  'Inter, sans-serif',
-  'Orbitron, sans-serif',
-  'Poppins, sans-serif',
-];
+const fontOptions = ['Roboto', 'Open Sans', 'Inter', 'Orbitron', 'Poppins'];
 
-const maxWidthOptions = ['1024px', '1280px', '1440px', '1600px'];
+const maxWidthOptions: ThemeSettings['maxWidth'][] = ['sm', 'md', 'lg', 'xl', 'full'];
 
 const defaultValues: ThemeSettings = {
+  storeName: '',
+  logoUrl: null,
+  darkMode: false,
   primaryColor: '#1976d2',
   secondaryColor: '#dc004e',
-  darkMode: false,
-  fontFamily: 'Roboto, sans-serif',
-  maxWidth: '1280px',
+  fontFamily: 'Roboto',
+  fontSize: 16,
+  fontWeight: 400,
+  spacingScale: 2,
+  borderRadius: 12,
+  maxWidth: 'lg',
+  homepageLayout: 'hero',
+  productCardVariant: 'compact',
+  categoryStyle: 'tabs',
+  showSidebar: true,
+  stickyHeader: true,
 };
 
 export default function ThemeEditorForm() {
@@ -44,10 +49,8 @@ export default function ThemeEditorForm() {
   };
 
   const handlePresetChange = (presetKey: string) => {
-    const preset = themePresets[presetKey];
-    if (preset) {
-      reset({ ...preset, maxWidth: '1280px' });
-    }
+    const preset = themePresets[presetKey as keyof typeof themePresets];
+    if (preset) reset({ ...preset, maxWidth: 'lg' });
   };
 
   return (
@@ -55,7 +58,6 @@ export default function ThemeEditorForm() {
       <Typography variant="h5" mb={2}>🎨 Theme Settings</Typography>
 
       <Stack spacing={2}>
-        {/* Preset Selector */}
         <TextField
           select
           label="Theme Preset"
@@ -70,77 +72,68 @@ export default function ThemeEditorForm() {
           ))}
         </TextField>
 
-        {/* Primary Color */}
+        <Controller
+          name="storeName"
+          control={control}
+          rules={{ required: 'Store name is required' }}
+          render={({ field }) => (
+            <TextField {...field} label="Store Name" fullWidth error={!!errors.storeName} helperText={errors.storeName?.message} />
+          )}
+        />
+
         <Controller
           name="primaryColor"
           control={control}
           rules={{ required: 'Primary color is required' }}
           render={({ field }) => (
-            <TextField
-              {...field}
-              label="Primary Color"
-              type="color"
-              error={!!errors.primaryColor}
-              helperText={errors.primaryColor?.message}
-              fullWidth
-            />
+            <TextField {...field} label="Primary Color" type="color" fullWidth error={!!errors.primaryColor} helperText={errors.primaryColor?.message} />
           )}
         />
 
-        {/* Secondary Color */}
         <Controller
           name="secondaryColor"
           control={control}
           rules={{ required: 'Secondary color is required' }}
           render={({ field }) => (
-            <TextField
-              {...field}
-              label="Secondary Color"
-              type="color"
-              error={!!errors.secondaryColor}
-              helperText={errors.secondaryColor?.message}
-              fullWidth
-            />
+            <TextField {...field} label="Secondary Color" type="color" fullWidth error={!!errors.secondaryColor} helperText={errors.secondaryColor?.message} />
           )}
         />
 
-        {/* Font Family */}
         <Controller
           name="fontFamily"
           control={control}
-          rules={{ required: 'Font is required' }}
           render={({ field }) => (
-            <TextField
-              {...field}
-              select
-              label="Font Family"
-              error={!!errors.fontFamily}
-              helperText={errors.fontFamily?.message}
-              fullWidth
-            >
+            <TextField {...field} label="Font Family" select fullWidth>
               {fontOptions.map((font) => (
                 <MenuItem key={font} value={font}>
-                  {font.split(',')[0]}
+                  {font}
                 </MenuItem>
               ))}
             </TextField>
           )}
         />
 
-        {/* Max Width */}
+        <Controller
+          name="fontSize"
+          control={control}
+          render={({ field }) => (
+            <TextField {...field} type="number" label="Font Size" fullWidth />
+          )}
+        />
+
+        <Controller
+          name="fontWeight"
+          control={control}
+          render={({ field }) => (
+            <TextField {...field} type="number" label="Font Weight" fullWidth />
+          )}
+        />
+
         <Controller
           name="maxWidth"
           control={control}
-          rules={{ required: 'Max width is required' }}
           render={({ field }) => (
-            <TextField
-              {...field}
-              select
-              label="Max Width"
-              error={!!errors.maxWidth}
-              helperText={errors.maxWidth?.message}
-              fullWidth
-            >
+            <TextField {...field} select label="Max Width" fullWidth>
               {maxWidthOptions.map((size) => (
                 <MenuItem key={size} value={size}>{size}</MenuItem>
               ))}
@@ -148,19 +141,39 @@ export default function ThemeEditorForm() {
           )}
         />
 
-        {/* Dark Mode */}
         <Controller
           name="darkMode"
           control={control}
           render={({ field }) => (
             <FormControlLabel
-              control={<Switch {...field} checked={field.value ?? false} onChange={(e) => field.onChange(e.target.checked)} />}
+              control={<Switch checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
               label="Enable Dark Mode"
             />
           )}
         />
 
-        {/* Submit */}
+        <Controller
+          name="showSidebar"
+          control={control}
+          render={({ field }) => (
+            <FormControlLabel
+              control={<Switch checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
+              label="Show Sidebar"
+            />
+          )}
+        />
+
+        <Controller
+          name="stickyHeader"
+          control={control}
+          render={({ field }) => (
+            <FormControlLabel
+              control={<Switch checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
+              label="Sticky Header"
+            />
+          )}
+        />
+
         <Button type="submit" variant="contained" disabled={isSubmitting}>
           Save Theme
         </Button>

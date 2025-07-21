@@ -1,6 +1,6 @@
 // src/components/theme/HomepageLayoutSelect.tsx
 import React from 'react';
-import { Grid, TextField, MenuItem } from '@mui/material';
+import { Box, TextField, MenuItem } from '@mui/material';
 import { Controller } from 'react-hook-form';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 
 export default function HomepageLayoutSelect({ control }: Props) {
   return (
-    <Grid item xs={12} sm={6}>
+    <Box>
       <Controller
         name="homepageLayout"
         control={control}
@@ -27,6 +27,6 @@ export default function HomepageLayoutSelect({ control }: Props) {
           </TextField>
         )}
       />
-    </Grid>
+    </Box>
   );
 }

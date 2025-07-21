@@ -12,7 +12,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import Cropper from 'react-easy-crop';
-import { getCroppedImg } from '../utils/cropImage';
+import { getCroppedImg } from '../utils/cropUtils';
 import { storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useStoreContext } from '../stores/useStoreContext';
@@ -58,7 +58,7 @@ const onCropComplete = useCallback(
   const handleCropAndUpload = async () => {
     setUploading(true);
     try {
-      const blob = await getCroppedImg(preview!, croppedAreaPixels, zoom);
+      const blob = await getCroppedImg(preview!, croppedAreaPixels);
       if (!blob) throw new Error('Cropping failed');
 
       const fileRef = ref(storage, `stores/${storeId}/logo.png`);

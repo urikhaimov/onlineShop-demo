@@ -12,8 +12,8 @@ export type Product = {
   stock: number;
   categoryId?: string;
   images: string[];
-  createdAt?: string; // make optional
-  updatedAt?: string;
+  createdAt?: string  | Date; // make optional
+  updatedAt?: string  | Date;
   createdBy?: string;
   order?: number; // ✅ optional, for sorting
   imageUrl?: string; // ✅ Add this line

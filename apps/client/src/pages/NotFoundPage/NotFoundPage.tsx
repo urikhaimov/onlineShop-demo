@@ -8,9 +8,15 @@ const NotFoundPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <PageWithStickyFilters>
+    <PageWithStickyFilters
+      title="Not Found"
+      sidebar={<Box />} // placeholder
+    >
       {/* Icon or Image */}
-      <SentimentVeryDissatisfiedIcon sx={{ fontSize: '6rem', mb: 2 }} color="primary" />
+      <SentimentVeryDissatisfiedIcon
+        sx={{ fontSize: '6rem', mb: 2 }}
+        color="primary"
+      />
 
       {/* Main 404 Message */}
       <Typography variant="h4" component="h1" gutterBottom>

@@ -36,7 +36,7 @@ const AdminLogsPage: React.FC = () => {
   const logsArray: SecurityLog[] = logs ?? [];
 
   return (
-    <PageWithStickyFilters title="Admin Logs">
+    <PageWithStickyFilters title="Admin Logs" sidebar={<Box />}>
       <FormControl sx={{ mb: 2, minWidth: 200 }}>
         <InputLabel>Filter by Category</InputLabel>
         <Select

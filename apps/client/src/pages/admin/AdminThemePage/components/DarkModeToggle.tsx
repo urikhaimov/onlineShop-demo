@@ -1,6 +1,6 @@
 // src/components/theme/DarkModeToggle.tsx
 import React from 'react';
-import { Grid, FormControlLabel, Switch } from '@mui/material';
+import { Box, FormControlLabel, Switch } from '@mui/material';
 import { Controller } from 'react-hook-form';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 
 export default function DarkModeToggle({ control }: Props) {
   return (
-    <Grid item xs={12}>
+    <Box>
       <Controller
         name="darkMode"
         control={control}
@@ -20,6 +20,6 @@ export default function DarkModeToggle({ control }: Props) {
           />
         )}
       />
-    </Grid>
+    </Box>
   );
 }

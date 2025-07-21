@@ -1,25 +1,35 @@
 import api from './axiosInstance';
 
 export type ThemeSettings = {
+  storeName: string;
+  logoUrl: string | null;
   darkMode: boolean;
   primaryColor: string;
   secondaryColor: string;
   fontFamily: string;
-  maxWidth: 'sm' | 'md' | 'lg' | 'xl' | 'full';
-  storeName?: string;
-  font?: string;
-  fontSize?: number;
-  fontWeight?: number;
-    borderRadius: number;
+  fontSize: number;
+  fontWeight: number;
   spacingScale: number;
-  logoUrl?: string;
-  homepageLayout?: 'hero' | 'grid' | 'list';
-  productCardVariant?: 'compact' | 'detailed';
-  categoryStyle?: 'tabs' | 'dropdown';
-  showSidebar?: boolean;
-  stickyHeader?: boolean;
-  // optionally add footerLinks, announcementBar, etc.
+  borderRadius: number;
+  maxWidth: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  homepageLayout: 'hero' | 'grid' | 'list';
+  productCardVariant: 'compact' | 'detailed';
+  categoryStyle: 'tabs' | 'dropdown';
+  showSidebar: boolean;
+  stickyHeader: boolean;
+
+  // ✅ Add these if they're used in the app:
+  backgroundImageUrl?: string;
+  font?: string;
+  announcementBar?: {
+    text: string;
+    backgroundColor: string;
+    textColor: string;
+    visible: boolean;
+  };
 };
+
+
 
 export const updateThemeSettings = async (
   settings: Partial<ThemeSettings>,

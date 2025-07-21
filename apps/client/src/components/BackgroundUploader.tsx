@@ -12,7 +12,7 @@ import {
   Typography,
 } from '@mui/material';
 import Cropper from 'react-easy-crop';
-import { getCroppedImg } from '../utils/cropImage';
+import { getCroppedImg } from '../utils/cropUtils';
 import { storage } from '../firebase';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useStoreContext } from '../stores/useStoreContext';
@@ -64,7 +64,7 @@ export default function BackgroundUploader({
   const handleCropAndUpload = async () => {
     setUploading(true);
     try {
-      const blob = await getCroppedImg(preview!, croppedAreaPixels, zoom);
+      const blob = await getCroppedImg(preview!, croppedAreaPixels);
       if (!blob) throw new Error('Cropping failed');
 
       const fileRef = ref(storage, `stores/${storeId}/background.png`);

@@ -1,6 +1,5 @@
-// src/components/theme/ColorPickerSection.tsx
 import React from 'react';
-import { Grid, TextField } from '@mui/material';
+import { Box, Stack, TextField } from '@mui/material';
 import { Controller } from 'react-hook-form';
 
 interface Props {
@@ -9,8 +8,8 @@ interface Props {
 
 export default function ColorPickerSection({ control }: Props) {
   return (
-    <>
-      <Grid item xs={12} sm={6}>
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+      <Box flex={1}>
         <Controller
           name="primaryColor"
           control={control}
@@ -25,9 +24,9 @@ export default function ColorPickerSection({ control }: Props) {
             />
           )}
         />
-      </Grid>
+      </Box>
 
-      <Grid item xs={12} sm={6}>
+      <Box flex={1}>
         <Controller
           name="secondaryColor"
           control={control}
@@ -42,7 +41,7 @@ export default function ColorPickerSection({ control }: Props) {
             />
           )}
         />
-      </Grid>
-    </>
+      </Box>
+    </Stack>
   );
 }
