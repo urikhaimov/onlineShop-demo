@@ -2,7 +2,10 @@
 import React from 'react';
 import { Box, Typography, Stack, Button } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
-import { useThemeSettings, useUpdateThemeSettingsMutation } from '@client/hooks/useThemeHooks';
+import {
+  useThemeSettings,
+  useUpdateThemeSettingsMutation,
+} from '@client/hooks/useThemeHooks';
 import { ThemeSettings } from '@client/api/theme';
 import { headerHeight, footerHeight } from '@client/config/themeConfig';
 import { themePresets } from '@client/constants/themePresets';
@@ -19,17 +22,12 @@ import FontSelectWithControls from './components/FontSelectWithControls';
 import ThemeSpacingControls from './components/ThemeSpacingControls';
 import LayoutAndCardControls from './components/LayoutAndCardControls';
 import CategoryStyleSelect from './components/CategoryStyleSelect';
-import uploadSingleFileAndReturnUrl from '@client/utils/uploadSingleFileAndReturnUrl'
+import uploadSingleFileAndReturnUrl from '@client/utils/uploadSingleFileAndReturnUrl';
 export default function AdminThemePage() {
   const { data, isLoading } = useThemeSettings();
   const { mutate, isPending } = useUpdateThemeSettingsMutation();
 
-  const {
-    control,
-    handleSubmit,
-    watch,
-    reset,
-  } = useForm<ThemeSettings>({
+  const { control, handleSubmit, watch, reset } = useForm<ThemeSettings>({
     defaultValues: data,
   });
 
@@ -48,10 +46,10 @@ export default function AdminThemePage() {
   return (
     <Box
       sx={{
+        position: 'relative',
         mt: `${headerHeight}px`,
-        mb: `${footerHeight}px`,
-        minHeight: `calc(100vh - ${headerHeight + footerHeight}px)`,
-        mx: 'auto',
+        height: `calc(100vh - ${headerHeight + footerHeight}px)`,
+        overflowY: 'auto',
         px: 2,
         py: 4,
       }}
@@ -66,7 +64,9 @@ export default function AdminThemePage() {
           <Button
             key={key}
             variant="outlined"
-            onClick={() => reset(themePresets[key as keyof typeof themePresets])}
+            onClick={() =>
+              reset(themePresets[key as keyof typeof themePresets])
+            }
           >
             {key}
           </Button>

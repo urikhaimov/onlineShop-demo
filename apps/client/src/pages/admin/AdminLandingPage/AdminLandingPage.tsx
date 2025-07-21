@@ -73,8 +73,15 @@ export default function AdminLandingPage() {
 
   return (
     <Box
-      
-    >
+          sx={{
+            position: 'relative',
+            mt: `${headerHeight}px`,
+            height: `calc(100vh - ${headerHeight + footerHeight}px)`,
+            overflowY: 'auto',
+            px: 2,
+            py: 4,
+          }}
+        >
       <Typography variant="h4" mb={3}>
         Edit Landing Page
       </Typography>
