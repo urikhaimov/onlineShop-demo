@@ -77,13 +77,15 @@ export default function EditOrderPage() {
 
   return (
     <Box
-      sx={{
-        mt: `${headerHeight+20}px`,
-        mb: `${footerHeight}px`,
-        minHeight: `calc(100vh - ${headerHeight + footerHeight}px)`,
-        mx: 'auto',
-      }}
-    >
+          sx={{
+            position: 'relative',
+            mt: `${headerHeight}px`,
+            height: `calc(100vh - ${headerHeight + footerHeight}px)`,
+            overflowY: 'auto',
+            px: 2,
+            py: 4,
+          }}
+        >
       <Typography variant="h5" gutterBottom>
         Edit Order #{order?.id ?? ''}
       </Typography>

@@ -15,24 +15,24 @@ import {
   DialogContentText,
   DialogActions,
   Button,
-  TextField,
   Pagination,
   Tooltip,
   useMediaQuery,
   useTheme,
-  CardActions
+  CardActions,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
 import useDebounce from '../../../hooks/useDebouncedValue';
 import { useAdminUsersQuery } from '../../../hooks/useAdminUsersQuery';
+import { uiReducer, initialUIState } from './LocalUiReducer';
 import type { User } from '../../../types/User';
 import type { Role } from '../../../types/Role';
 import LoadingProgress from '../../../components/LoadingProgress';
+import AdminUsersFilters from './AdminUsersFilters';
 
 export default function AdminUsersPage() {
   const { users, isLoading, error, updateUserRole, deleteUser } = useAdminUsersQuery();
-
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -41,19 +41,7 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const usersPerPage = 10;
 
-  const [state, dispatch] = useReducer(
-    (state: any, action: any) => {
-      switch (action.type) {
-        case 'OPEN_CONFIRM':
-          return { confirmOpen: true, selectedUser: action.payload };
-        case 'CLOSE_CONFIRM':
-          return { confirmOpen: false, selectedUser: null };
-        default:
-          return state;
-      }
-    },
-    { confirmOpen: false, selectedUser: null }
-  );
+  const [state, dispatch] = useReducer(uiReducer, initialUIState);
 
   const handleDelete = async () => {
     if (!state.selectedUser) return;
@@ -77,27 +65,29 @@ export default function AdminUsersPage() {
   if (isLoading) return <LoadingProgress />;
   if (error) return <Typography p={4}>❌ Error loading users</Typography>;
 
+  const hasFilters = !!searchText;
+
   return (
     <PageWithStickyFilters
       title="Manage Users"
       sidebar={
-        <Box display="flex" flexDirection="column" gap={2}>
-          <TextField
-            label="Search by email"
-            variant="outlined"
-            size="small"
-            value={searchText}
-            onChange={(e) => {
-              setSearchText(e.target.value);
-              setPage(1); // Reset page on search
-            }}
-            fullWidth
-          />
-          <Typography variant="body2" color="text.secondary">
-            Showing {filteredUsers.length} users
-          </Typography>
-        </Box>
+        <AdminUsersFilters
+          searchText={searchText}
+          setSearchText={(text) => {
+            setSearchText(text);
+            setPage(1);
+          }}
+          total={filteredUsers.length}
+        />
       }
+      mobileOpen={state.mobileDrawerOpen}
+      onMobileOpen={() => dispatch({ type: 'OPEN_MOBILE_DRAWER' })}
+      onMobileClose={() => dispatch({ type: 'CLOSE_MOBILE_DRAWER' })}
+      hasFilters={hasFilters}
+      onReset={() => {
+        setSearchText('');
+        setPage(1);
+      }}
     >
       <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 1, py: 1 }}>
         <List>
