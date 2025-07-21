@@ -1,15 +1,14 @@
 // src/hooks/useStoreTheme.ts
 import { useQuery } from '@tanstack/react-query';
 import axiosInstance from '../api/axiosInstance';
+import { ThemeSettings } from '@client/api/theme';
 
-export const useStoreTheme = (storeId: string) => {
-  return useQuery({
-    queryKey: ['store-theme', storeId],
+export const useStoreTheme = (storeId: string = 'store1') => {
+  return useQuery<ThemeSettings>({
+    queryKey: ['storeTheme', storeId],
     queryFn: async () => {
-      const { data } = await axiosInstance.get(`/themes/${storeId}`);
+      const { data } = await axiosInstance.get<ThemeSettings>(`/theme/settings?storeId=${storeId}`);
       return data;
     },
-    retry: 1,
-    staleTime: 1000 * 60 * 5, // 5 min
   });
 };

@@ -1,4 +1,3 @@
-// src/components/Header.tsx
 import React, { useState } from 'react';
 import {
   AppBar,
@@ -22,7 +21,7 @@ import { useSafeAuth } from '../../hooks/useAuth';
 import { useStoreSettings } from '../../stores/useStoreSettings';
 import { useCartStore } from '../../stores/useCartStore';
 import { useSidebarStore } from '../../stores/useSidebarStore';
-import { useThemeContext } from '../../context/ThemeContext'; // ✅ new context-based theme
+import { useThemeContext } from '../../context/ThemeContext';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
 
@@ -40,7 +39,14 @@ const Header: React.FC = () => {
 
   const { toggleMobileDrawer } = useSidebarStore();
 
-  const { theme: muiTheme, toggleMode, mode, isLoading, error } = useThemeContext(); // ✅ context
+  const {
+    theme: muiTheme,
+    themeSettings,
+    toggleMode,
+    mode,
+    isLoading,
+    error,
+  } = useThemeContext();
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -54,7 +60,7 @@ const Header: React.FC = () => {
   };
 
   const handleToggleDarkMode = () => {
-    toggleMode(); // just shows warning if not implemented
+    toggleMode();
     setShowThemeToast(true);
   };
 
@@ -65,7 +71,7 @@ const Header: React.FC = () => {
         zIndex: (theme) => theme.zIndex.drawer + 1,
         boxShadow: 'none',
         px: { xs: 0, sm: 3 },
-        bgcolor: muiTheme.palette.background.paper, // ✅ use context theme
+        bgcolor: muiTheme.palette.background.paper,
         color: muiTheme.palette.text.primary,
       }}
     >
@@ -83,8 +89,15 @@ const Header: React.FC = () => {
               <MenuIcon />
             </IconButton>
           )}
+          {themeSettings?.logoUrl && (
+            <Avatar
+              src={themeSettings.logoUrl}
+              alt="Logo"
+              sx={{ width: 32, height: 32, mr: 1 }}
+            />
+          )}
           <Typography variant="h6" fontWeight="bold" noWrap component="div">
-            {storeId || 'My Store'}
+            {themeSettings?.storeName || 'My Store'}
           </Typography>
         </Box>
 
@@ -93,22 +106,6 @@ const Header: React.FC = () => {
           <IconButton color="inherit" onClick={handleToggleDarkMode}>
             <Brightness4Icon />
           </IconButton>
-
-          <IconButton color="inherit">
-            <Badge badgeContent={itemCount} color="error">
-              <ShoppingCartIcon />
-            </Badge>
-          </IconButton>
-
-          {user && (
-            <IconButton onClick={handleMenuClick} color="inherit">
-              <Avatar
-                src={user.photoURL || DEFAULT_AVATAR}
-                alt={user.name || user.email || 'User'}
-                sx={{ width: 32, height: 32 }}
-              />
-            </IconButton>
-          )}
 
           <Menu
             anchorEl={anchorEl}
