@@ -5,8 +5,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { fetchOrderById, updateOrderById } from '../api/orderApi';
-import { useSafeAuth } from './useGetSafeAuth';
 import type { Order } from '../types/order';
+import { useAuth } from './useAuth';
 
 // Fetch a single order
 function useOrder(id?: string) {
@@ -31,14 +31,14 @@ function useUpdateOrder(
   Partial<Order> & { previousStatus?: string }
 > {
   const queryClient = useQueryClient();
-  const { user: admin } = useSafeAuth();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (
       update: Partial<Order> & { previousStatus?: string },
     ) => {
       if (!id) throw new Error('Order ID is required');
-      if (!admin) throw new Error('Admin user required');
+      if (!user) throw new Error('Admin user required');
 
       const patch: Partial<Order> = {
         ...update,
@@ -51,7 +51,7 @@ function useUpdateOrder(
           {
             status: update.status,
             timestamp: new Date().toISOString(),
-            changedBy: admin.name || admin.email || 'admin',
+            changedBy: user.displayName || user.email || 'admin',
           },
         ];
       }

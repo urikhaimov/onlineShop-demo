@@ -1,10 +1,9 @@
 import React from 'react';
-import { Controller } from 'react-hook-form';
-import { TextField, MenuItem } from '@mui/material';
 import type { Control } from 'react-hook-form';
-import type { ThemeSettings } from '@client/api/theme';
-
-import { CATEGORY_STYLES } from '@client/shared/types/category-style.enum';
+import { Controller } from 'react-hook-form';
+import { MenuItem, TextField } from '@mui/material';
+import { ThemeSettings } from '../../../../api/theme';
+import { CATEGORY_STYLES } from '@common/types';
 
 interface Props {
   control: Control<ThemeSettings>;

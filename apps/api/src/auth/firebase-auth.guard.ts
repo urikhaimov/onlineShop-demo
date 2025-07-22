@@ -1,7 +1,7 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
+  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { auth, firestore } from 'firebase-admin';
@@ -31,7 +31,7 @@ export class FirebaseAuthGuard implements CanActivate {
     try {
       const decodedToken = await auth().verifyIdToken(token);
 
-      // 🔍 Fetch user role from Firestore
+      // 🔍 Fetch a user role from Firestore
       const userDoc = await firestore()
         .collection('users')
         .doc(decodedToken.uid)
@@ -46,9 +46,10 @@ export class FirebaseAuthGuard implements CanActivate {
         role,
       };
 
-      const isProd = getEnv('NODE_ENV', { defaultValue: 'development' }) === 'production';
+      const isProd =
+        getEnv('NODE_ENV', { defaultValue: 'development' }) === 'production';
       if (!isProd) {
-        logger.info(`[FirebaseAuthGuard] Authenticated user`, request.user);
+        logger.info('[FirebaseAuthGuard] Authenticated user', request.user);
       }
 
       return true;
@@ -56,7 +57,9 @@ export class FirebaseAuthGuard implements CanActivate {
       logger.error(
         `[FirebaseAuthGuard] Token verification failed: ${error.message || error}`,
       );
-      const err = new AppError(ECommonErrors.FIREBASE_TOKEN_VERIFICATION_FAILED);
+      const err = new AppError(
+        ECommonErrors.FIREBASE_TOKEN_VERIFICATION_FAILED,
+      );
       throw new UnauthorizedException(err.message);
     }
   }

@@ -1,23 +1,23 @@
 import {
-  Controller,
-  Get,
-  Put,
-  Delete,
-  Post,
-  Param,
-  Body,
-  NotFoundException,
-  InternalServerErrorException,
   BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  InternalServerErrorException,
+  NotFoundException,
+  Param,
+  Post,
+  Put,
   UploadedFile,
-  UseInterceptors,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
-import { adminDb, admin } from '../firebase/firebase-admin';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as mime from 'mime-types';
+import { admin, adminDb } from '@common/firebase';
 
 @Controller('users')
 @UseGuards(FirebaseAuthGuard)

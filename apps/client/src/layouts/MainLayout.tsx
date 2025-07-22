@@ -1,3 +1,4 @@
+import React from 'react';
 import BaseLayout from './BaseLayout';
 
 interface Props {

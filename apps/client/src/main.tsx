@@ -10,11 +10,13 @@ import { queryClient } from './api/queryClient';
 
 import { StoreBoundThemeProvider } from './providers/StoreBoundThemeProvider';
 import {
-  StoreConfigContext,
   defaultConfig,
+  StoreConfigContext,
 } from './context/StoreConfigContext';
 import { RedirectProvider } from './context/RedirectContext';
 import { AuthProvider } from './context/AuthContext';
+import { AbilityContext } from './context/AbilityContext';
+import { defineAbilityFor } from './services/ability.service';
 
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -33,17 +35,25 @@ const storeConfig = loadStoreConfig(storeId) ?? defaultConfig;
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ErrorBoundary fallback={<p>⚠ Something went wrong. Our team has been notified!</p>}>
+      <ErrorBoundary
+        fallback={<p>⚠ Something went wrong. Our team has been notified!</p>}
+      >
         <StoreConfigContext.Provider value={storeConfig}>
           <QueryClientProvider client={queryClient}>
-            <ThemeProvider> {/* ✅ Must be inside QueryClientProvider */}
+            <ThemeProvider>
+              {' '}
+              {/* ✅ Must be inside QueryClientProvider */}
               <StoreBoundThemeProvider>
                 <AuthProvider>
-                  <RedirectProvider>
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <App />
-                    </LocalizationProvider>
-                  </RedirectProvider>
+                  <AbilityContext.Provider
+                    value={defineAbilityFor({ user: null, role: null })}
+                  >
+                    <RedirectProvider>
+                      <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <App />
+                      </LocalizationProvider>
+                    </RedirectProvider>
+                  </AbilityContext.Provider>
                 </AuthProvider>
               </StoreBoundThemeProvider>
             </ThemeProvider>
@@ -51,5 +61,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </StoreConfigContext.Provider>
       </ErrorBoundary>
     </BrowserRouter>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

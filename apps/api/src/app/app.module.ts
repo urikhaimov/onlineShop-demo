@@ -10,6 +10,7 @@ import { StripeController } from '../stripe/stripe.controller';
 import { ThemeSettingsModule } from '../theme/theme-settings.module';
 import { LandingPageModule } from '../landing-page/landing-page.module';
 import { SecurityLogsModule } from '../security-logs/security-logs.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -17,13 +18,14 @@ import { SecurityLogsModule } from '../security-logs/security-logs.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    AuthModule,
     ProductsModule,
     OrdersModule,
     UsersModule,
     CategoriesModule,
     LandingPageModule,
     ThemeSettingsModule,
-    SecurityLogsModule
+    SecurityLogsModule,
   ],
   controllers: [ImageProxyController, StripeController],
 })

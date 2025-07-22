@@ -1,26 +1,20 @@
-import React, { useEffect, useReducer, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useReducer, useState } from 'react';
 import {
   Box,
-  Typography,
-  Paper,
+  Button,
   Divider,
+  Paper,
+  Typography,
   useMediaQuery,
   useTheme,
-  Button,
 } from '@mui/material';
-import { VariableSizeList, ListChildComponentProps } from 'react-window';
+import { ListChildComponentProps, VariableSizeList } from 'react-window';
 import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
-import { useAuthReady } from '@client/hooks/useAuthReady';
-import LoadingProgress from '@client/components/LoadingProgress';
-import { useOrders, Order } from '@client/hooks/useOrders';
+import LoadingProgress from '../../../components/LoadingProgress';
+import { useOrders } from '../../../hooks/useOrders';
 import { useNavigate } from 'react-router-dom';
 import AdminOrderFilters from './AdminOrderFilters';
-import {
-  FilterState,
-  FilterAction,
-  initialFilterState,
-  filterReducer,
-} from './LocalReducer';
+import { filterReducer, initialFilterState } from './LocalReducer';
 
 type UIState = {
   mobileDrawerOpen: boolean;
@@ -41,11 +35,12 @@ export default function AdminOrdersPage() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { ready } = useAuthReady();
   const [page, setPage] = useState(1);
 
   const [state, dispatch] = useReducer(filterReducer, initialFilterState);
-  const [uiState, uiDispatch] = useReducer(uiReducer, { mobileDrawerOpen: false });
+  const [uiState, uiDispatch] = useReducer(uiReducer, {
+    mobileDrawerOpen: false,
+  });
 
   useEffect(() => {
     const handler = () => setPage(1);
@@ -169,8 +164,12 @@ export default function AdminOrdersPage() {
     <PageWithStickyFilters
       title="Admin Orders"
       sidebar={<AdminOrderFilters state={state} dispatch={dispatch} />}
-      onMobileOpen={() => uiDispatch({ type: 'setMobileDrawerOpen', payload: true })}
-      onMobileClose={() => uiDispatch({ type: 'setMobileDrawerOpen', payload: false })}
+      onMobileOpen={() =>
+        uiDispatch({ type: 'setMobileDrawerOpen', payload: true })
+      }
+      onMobileClose={() =>
+        uiDispatch({ type: 'setMobileDrawerOpen', payload: false })
+      }
       mobileOpen={uiState.mobileDrawerOpen}
       hasFilters={hasFilters}
       onReset={() => dispatch({ type: 'RESET_FILTERS' })}
@@ -184,7 +183,9 @@ export default function AdminOrdersPage() {
           Failed to load orders: {error.message}
         </Typography>
       ) : (
-        <Box sx={{ px: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
+        <Box
+          sx={{ px: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 240px)' }}
+        >
           <VariableSizeList
             height={isMobile ? 320 : 380}
             width="100%"

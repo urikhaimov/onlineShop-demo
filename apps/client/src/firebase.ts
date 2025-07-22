@@ -13,6 +13,7 @@ const firebaseConfig = {
   messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', {
     env,
   }) as string,
+  measurementId: getEnv('VITE_FIREBASE_MEASUREMENT_ID', { env }) as string,
   appId: getEnv('VITE_FIREBASE_APP_ID', { env }) as string,
 };
 

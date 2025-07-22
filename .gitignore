@@ -30,3 +30,5 @@ tsconfig.tsbuildinfo
 
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
+
+.eslintcache

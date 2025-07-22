@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
 import {
-  Box,
-  Stack,
-  Typography,
-  TextField,
-  Button,
-  InputAdornment,
-  IconButton,
-  Snackbar,
   Alert,
+  Box,
+  Button,
+  IconButton,
+  InputAdornment,
+  Snackbar,
+  Stack,
+  TextField,
+  Typography,
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import { useForm, Controller } from 'react-hook-form';
-import { useAuthStore } from '../../../stores/useAuthStore';
+import { Controller, useForm } from 'react-hook-form';
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
 } from 'firebase/auth';
 import { auth } from '../../../firebase';
+import { useAuth } from '../../../hooks/useAuth';
 
 interface PasswordFormData {
   oldPassword: string;
@@ -27,7 +27,7 @@ interface PasswordFormData {
 }
 
 export default function ChangePasswordForm() {
-  const { user } = useAuthStore();
+  const { user } = useAuth();
   const {
     control,
     handleSubmit,
@@ -58,7 +58,10 @@ export default function ChangePasswordForm() {
         throw new Error('Not authenticated');
       }
 
-      const credential = EmailAuthProvider.credential(user.email, data.oldPassword);
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        data.oldPassword,
+      );
       await reauthenticateWithCredential(auth.currentUser, credential);
       await updatePassword(auth.currentUser, data.newPassword);
 
@@ -91,7 +94,10 @@ export default function ChangePasswordForm() {
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowOld((prev) => !prev)} edge="end">
+                    <IconButton
+                      onClick={() => setShowOld((prev) => !prev)}
+                      edge="end"
+                    >
                       {showOld ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
@@ -116,7 +122,10 @@ export default function ChangePasswordForm() {
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowNew((prev) => !prev)} edge="end">
+                    <IconButton
+                      onClick={() => setShowNew((prev) => !prev)}
+                      edge="end"
+                    >
                       {showNew ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
@@ -141,7 +150,10 @@ export default function ChangePasswordForm() {
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowConfirm((prev) => !prev)} edge="end">
+                    <IconButton
+                      onClick={() => setShowConfirm((prev) => !prev)}
+                      edge="end"
+                    >
                       {showConfirm ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>

@@ -1,53 +1,55 @@
 // src/components/LeftMenu/LeftMenu.tsx
-import React, { useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
-  Drawer,
+  Avatar,
+  Badge,
   Box,
+  Divider,
+  Drawer,
+  IconButton,
   List,
   ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  IconButton,
-  Divider,
-  Tooltip,
-  useTheme,
-  useMediaQuery,
-  Badge,
-  Avatar,
-  Typography,
   Menu,
   MenuItem,
+  Tooltip,
+  Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Menu as MenuIcon,
-  Home as HomeIcon,
-  ShoppingCart as ShoppingCartIcon,
-  Security as SecurityIcon,
-  Category as CategoryIcon,
-  Inventory as InventoryIcon,
-  People as PeopleIcon,
-  Brush as BrushIcon,
-  Receipt as ReceiptIcon,
-  Logout as LogoutIcon,
-  AdminPanelSettings as AdminPanelSettingsIcon,
   AccountCircle as AccountCircleIcon,
+  AdminPanelSettings as AdminPanelSettingsIcon,
+  Brush as BrushIcon,
+  Category as CategoryIcon,
+  Home as HomeIcon,
+  Inventory as InventoryIcon,
+  Logout as LogoutIcon,
+  Menu as MenuIcon,
+  People as PeopleIcon,
+  Receipt as ReceiptIcon,
+  Security as SecurityIcon,
+  ShoppingCart as ShoppingCartIcon,
 } from '@mui/icons-material';
 
-import { useAuthStore } from '../../stores/useAuthStore';
 import { useCartStore } from '../../stores/useCartStore';
 import { useSidebarStore } from '../../stores/useSidebarStore';
 import ScrollContainer from '../ScrollContainer';
 import CartDrawer from '../CartDrawer';
+import { useAuth } from '../../hooks/useAuth';
+import { isAdmin } from '../../context/AuthContext';
 
 export default function LeftMenu() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user } = useAuthStore();
+  const { signOut, user, role } = useAuth();
   const cartItems = useCartStore((s) => s.items);
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const isAdmin = !!user && (user.role === 'admin' || user.role === 'superadmin');
+  // const isAdmin =
+  //   !!user && (user.role === 'admin' || user.role === 'superadmin');
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -74,9 +76,12 @@ export default function LeftMenu() {
 
   const handleProfileMenuOpen = useCallback(
     (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget),
-    [setAnchorEl]
+    [setAnchorEl],
   );
-  const handleProfileMenuClose = useCallback(() => setAnchorEl(null), [setAnchorEl]);
+  const handleProfileMenuClose = useCallback(
+    () => setAnchorEl(null),
+    [setAnchorEl],
+  );
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -97,14 +102,22 @@ export default function LeftMenu() {
   ];
 
   const adminLinks = [
-    { label: 'Dashboard Home', icon: <AdminPanelSettingsIcon />, path: '/admin' },
+    {
+      label: 'Dashboard Home',
+      icon: <AdminPanelSettingsIcon />,
+      path: '/admin',
+    },
     { label: 'Categories', icon: <CategoryIcon />, path: '/admin/categories' },
     { label: 'Users', icon: <PeopleIcon />, path: '/admin/users' },
     { label: 'Products', icon: <InventoryIcon />, path: '/admin/products' },
     { label: 'Orders', icon: <ReceiptIcon />, path: '/admin/orders' },
     { label: 'Theme', icon: <BrushIcon />, path: '/admin/theme' },
     { label: 'Landing Page', icon: <HomeIcon />, path: '/admin/landingPage' },
-    { label: 'Security Logs', icon: <SecurityIcon />, path: '/admin/security-logs' },
+    {
+      label: 'Security Logs',
+      icon: <SecurityIcon />,
+      path: '/admin/security-logs',
+    },
   ];
 
   const renderLink = ({
@@ -137,7 +150,12 @@ export default function LeftMenu() {
 
   const drawerContent = (
     <ScrollContainer>
-      <Box width={drawerWidth} display="flex" flexDirection="column" sx={{ px: isMobile ? 0 : 1 }}>
+      <Box
+        width={drawerWidth}
+        display="flex"
+        flexDirection="column"
+        sx={{ px: isMobile ? 0 : 1 }}
+      >
         {/* Toggle Button */}
         {!isMobile && (
           <IconButton onClick={() => setExpanded(!expanded)} sx={{ m: 1 }}>
@@ -155,8 +173,15 @@ export default function LeftMenu() {
             sx={{ cursor: 'pointer' }}
             onClick={handleProfileMenuOpen}
           >
-            <Avatar src={user.photoURL || '/default-avatar.png'} sx={{ width: 32, height: 32 }} />
-            {showLabel && <Typography variant="subtitle2" noWrap>{user.name || user.email}</Typography>}
+            <Avatar
+              src={user.photoURL || '/default-avatar.png'}
+              sx={{ width: 32, height: 32 }}
+            />
+            {showLabel && (
+              <Typography variant="subtitle2" noWrap>
+                {user.displayName || user.email}
+              </Typography>
+            )}
           </Box>
         )}
 
@@ -167,8 +192,22 @@ export default function LeftMenu() {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
           transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         >
-          <MenuItem onClick={() => { navigate('/profile'); handleProfileMenuClose(); }}>Edit Profile</MenuItem>
-          <MenuItem onClick={() => { logout(); handleProfileMenuClose(); }}>Logout</MenuItem>
+          <MenuItem
+            onClick={() => {
+              navigate('/profile');
+              handleProfileMenuClose();
+            }}
+          >
+            Edit Profile
+          </MenuItem>
+          <MenuItem
+            onClick={async () => {
+              await signOut();
+              handleProfileMenuClose();
+            }}
+          >
+            Logout
+          </MenuItem>
         </Menu>
 
         <Divider />
@@ -176,21 +215,21 @@ export default function LeftMenu() {
         {/* Store Section */}
         <List>
           {storeLinks.map(({ label, icon, path, action }) =>
-            renderLink({ label, icon, path, action })
+            renderLink({ label, icon, path, action }),
           )}
         </List>
 
         {/* Admin Section */}
-        {isAdmin && (
+        {isAdmin(role) ? (
           <>
             <Divider />
             <List>
               {adminLinks.map(({ label, icon, path }) =>
-                renderLink({ label, icon, path })
+                renderLink({ label, icon, path }),
               )}
             </List>
           </>
-        )}
+        ) : null}
 
         <Box flexGrow={1} />
 
@@ -199,8 +238,10 @@ export default function LeftMenu() {
         <List>
           <Tooltip title={!showLabel ? 'Logout' : ''} placement="right">
             <ListItem disablePadding>
-              <ListItemButton onClick={logout}>
-                <ListItemIcon><LogoutIcon /></ListItemIcon>
+              <ListItemButton onClick={signOut}>
+                <ListItemIcon>
+                  <LogoutIcon />
+                </ListItemIcon>
                 {showLabel && <ListItemText primary="Logout" />}
               </ListItemButton>
             </ListItem>
@@ -218,11 +259,13 @@ export default function LeftMenu() {
         open={mobileOpen}
         onClose={closeMobileDrawer}
         ModalProps={{ keepMounted: true }}
-        PaperProps={{
-          sx: {
-            width: '100vw',
-            maxWidth: drawerWidth,
-            zIndex: (theme) => theme.zIndex.drawer + 2,
+        slotProps={{
+          paper: {
+            sx: {
+              width: '100vw',
+              maxWidth: drawerWidth,
+              zIndex: (theme) => theme.zIndex.drawer + 2,
+            },
           },
         }}
       >

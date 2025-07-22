@@ -1,4 +1,4 @@
-import { storesConfig } from '../config/store.config';
+import { storesConfig } from '../config/storeConfig';
 import type { StoreConfig } from '../types/StoreConfig';
 
 export function loadStoreConfig(storeId: string): StoreConfig {

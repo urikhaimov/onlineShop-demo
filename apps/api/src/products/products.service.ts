@@ -1,10 +1,11 @@
 import {
-  Injectable,
   ConflictException,
+  Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { adminDb } from '../firebase/firebase-admin';
-import { InternalServerErrorException } from '@nestjs/common';
+import { adminDb } from '@common/firebase';
+
 export interface ProductWithOrder {
   id: string;
   order?: number;
@@ -47,7 +48,10 @@ export class ProductsService {
       ? 0
       : Math.max(...all.docs.map((doc) => doc.data().order ?? 0));
 
-    const docRef = await this.productsRef.add({ ...product, order: maxOrder + 1 });
+    const docRef = await this.productsRef.add({
+      ...product,
+      order: maxOrder + 1,
+    });
     return { id: docRef.id, ...product, order: maxOrder + 1 };
   }
 
@@ -72,7 +76,9 @@ export class ProductsService {
     return { message: 'Product deleted' };
   }
 
-async reorder(orderList: { id: string; order: number }[]): Promise<{ success: boolean }> {
+  async reorder(
+    orderList: { id: string; order: number }[],
+  ): Promise<{ success: boolean }> {
     if (!orderList.length) return { success: true };
 
     try {

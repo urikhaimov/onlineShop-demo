@@ -1,24 +1,9 @@
-import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Snackbar,
-  Typography,
-} from '@mui/material';
-import React, {
-  useCallback,
-  useEffect,
-  useReducer,
-  useRef,
-  useState,
-} from 'react';
+import { Alert, Box, Snackbar, Typography } from '@mui/material';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { FixedSizeList as List } from 'react-window';
 
 import { fetchAllProducts } from '../../hooks/useProducts';
-import { useAuthReady } from '../../hooks/useAuthReady';
 import { useCategories } from '../../hooks/useCategories';
-import { useCartStore } from '../../stores/useCartStore';
 
 import PageWithStickyFilters from '../../layouts/PageWithStickyFilters';
 import UserProductFilters from './UserProductFilters';
@@ -27,7 +12,8 @@ import LoadingProgress from '../../components/LoadingProgress';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
 import { initialState, reducer as filterReducer } from './LocalReducer';
 import { IProduct } from '@common/types';
-import { uiReducer, initialUIState } from './LocalUiReducer';
+import { initialUIState, uiReducer } from './LocalUiReducer';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function ProductsPage() {
   const [state, dispatch] = useReducer(filterReducer, initialState);
@@ -36,12 +22,12 @@ export default function ProductsPage() {
   const [renderCount, setRenderCount] = useState(20);
   const observerRef = useRef<HTMLDivElement | null>(null);
 
-  const { user, ready } = useAuthReady();
+  const { user } = useAuth();
   const { data: categories = [] } = useCategories();
 
   useEffect(() => {
     const loadProducts = async () => {
-      if (!ready || !user) return;
+      if (!user) return;
       try {
         const token = await user.getIdToken();
         const res = await fetchAllProducts();
@@ -58,8 +44,8 @@ export default function ProductsPage() {
       }
     };
 
-    loadProducts();
-  }, [ready, user]);
+    void loadProducts();
+  }, [user]);
 
   const isDate = (val: unknown): val is Date => val instanceof Date;
 
@@ -133,27 +119,24 @@ export default function ProductsPage() {
           state={state}
           dispatch={dispatch}
           categories={categories}
-         
-          
         />
       }
-    onMobileOpen={() =>  uiDispatch({ type: 'setMobileDrawerOpen', payload: true })}          // 👈 Required
-    onMobileClose={() =>  uiDispatch({ type: 'setMobileDrawerOpen', payload: false })}        // 👈 Required
-    hasFilters={hasFilters} 
-    onReset={() => dispatch({ type: 'RESET_FILTERS' })}                       
-
-      
+      onMobileOpen={() =>
+        uiDispatch({ type: 'setMobileDrawerOpen', payload: true })
+      } // 👈 Required
+      onMobileClose={() =>
+        uiDispatch({ type: 'setMobileDrawerOpen', payload: false })
+      } // 👈 Required
+      hasFilters={hasFilters}
+      onReset={() => dispatch({ type: 'RESET_FILTERS' })}
       mobileOpen={uiState.mobileDrawerOpen}
-    
     >
       <Box
         display="flex"
         justifyContent="space-between"
         alignItems="center"
         mb={2}
-      >
-       
-      </Box>
+      ></Box>
 
       {filteredProducts.length === 0 ? (
         <Typography>No products found.</Typography>
@@ -175,7 +158,9 @@ export default function ProductsPage() {
                   onAddToCart={() =>
                     uiDispatch({ type: 'setSnackbarOpen', payload: true })
                   }
-                  onConfirmDelete={() => {}}
+                  onConfirmDelete={() => {
+                    // TODO: Implement delete confirmation logic
+                  }}
                 />
               </Box>
             );

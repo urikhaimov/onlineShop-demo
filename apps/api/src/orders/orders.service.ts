@@ -1,8 +1,8 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { adminDb } from '../firebase/firebase-admin';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { adminDb } from '@common/firebase';
 
 @Injectable()
 export class OrdersService {
