@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { adminDb } from '../firebase/firebase-admin';
+import { adminDb } from '@common/firebase';
 
 @Injectable()
 export class UsersService {
@@ -24,7 +24,7 @@ export class UsersService {
   }
 
   async getAllUsers() {
-  const snapshot = await adminDb.collection('users').get();
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-}
+    const snapshot = await adminDb.collection('users').get();
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  }
 }

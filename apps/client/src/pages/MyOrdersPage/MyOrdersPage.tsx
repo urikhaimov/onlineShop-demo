@@ -1,32 +1,30 @@
 import React, { useEffect, useMemo, useReducer, useState } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Divider,
-  Chip,
-} from '@mui/material';
+import { Box, Chip, Divider, Link, Paper, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { Link } from '@mui/material';
 import PageWithStickyFilters from '../../layouts/PageWithStickyFilters';
 import { retryWithBackoff } from '../../utils/retryWithBackoff';
-import { Order, filterReducer, initialFilterState } from './LocalReducer';
+import { filterReducer, initialFilterState, Order } from './LocalReducer';
 import UserOrderFilters from './UserOrderFilters';
-import { useAuthReady } from '../../hooks/useAuthReady';
 import { fetchMyOrders } from '../../api/orderApi';
 import LoadingProgress from '../../components/LoadingProgress';
 import { Timestamp } from 'firebase/firestore';
 import { formatCurrency } from '../../utils/format';
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
+import { useAuth } from '../../hooks/useAuth';
 
 function getStatusColor(status: string) {
   switch (status) {
-    case 'processing': return 'warning';
-    case 'shipped': return 'info';
-    case 'delivered': return 'success';
-    case 'cancelled': return 'error';
-    default: return 'default';
+    case 'processing':
+      return 'warning';
+    case 'shipped':
+      return 'info';
+    case 'delivered':
+      return 'success';
+    case 'cancelled':
+      return 'error';
+    default:
+      return 'default';
   }
 }
 
@@ -35,10 +33,10 @@ export default function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user, ready } = useAuthReady();
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (!ready) return;
+    if (!user) return;
 
     const loadOrders = async () => {
       try {
@@ -47,14 +45,17 @@ export default function MyOrdersPage() {
           return;
         }
 
-        const fetchFn = () => fetchMyOrders().then(res => res.data);
+        const fetchFn = () => fetchMyOrders().then((res) => res.data);
         const list = await retryWithBackoff(fetchFn);
 
         const converted = list.map((order: any) => ({
           ...order,
           email: order.email ?? '',
           createdAt: order.createdAt?.seconds
-            ? new Timestamp(order.createdAt.seconds, order.createdAt.nanoseconds)
+            ? new Timestamp(
+                order.createdAt.seconds,
+                order.createdAt.nanoseconds,
+              )
             : Timestamp.fromDate(new Date(order.createdAt)),
         }));
 
@@ -66,38 +67,53 @@ export default function MyOrdersPage() {
       }
     };
 
-    loadOrders();
-  }, [ready, user]);
+    void loadOrders();
+  }, [user]);
 
   const hasFilters = Boolean(
     filterState.status !== 'all' ||
-    filterState.startDate ||
-    filterState.endDate ||
-    filterState.minTotal !== null ||
-    filterState.maxTotal !== null ||
-    filterState.email
+      filterState.startDate ||
+      filterState.endDate ||
+      filterState.minTotal !== null ||
+      filterState.maxTotal !== null ||
+      filterState.email,
   );
 
   const filteredOrders = useMemo(() => {
     return orders
-      .filter(order => {
+      .filter((order) => {
         const created = order.createdAt.toDate();
-        const matchStatus = filterState.status === 'all' || order.status === filterState.status;
-        const matchStart = !filterState.startDate || created >= filterState.startDate;
+        const matchStatus =
+          filterState.status === 'all' || order.status === filterState.status;
+        const matchStart =
+          !filterState.startDate || created >= filterState.startDate;
         const matchEnd = !filterState.endDate || created <= filterState.endDate;
-        const matchMin = filterState.minTotal === null || order.amount >= filterState.minTotal;
-        const matchMax = filterState.maxTotal === null || order.amount <= filterState.maxTotal;
-        const matchEmail = !filterState.email || (order.email?.includes?.(filterState.email) ?? false);
-        return matchStatus && matchStart && matchEnd && matchMin && matchMax && matchEmail;
+        const matchMin =
+          filterState.minTotal === null || order.amount >= filterState.minTotal;
+        const matchMax =
+          filterState.maxTotal === null || order.amount <= filterState.maxTotal;
+        const matchEmail =
+          !filterState.email ||
+          (order.email?.includes?.(filterState.email) ?? false);
+        return (
+          matchStatus &&
+          matchStart &&
+          matchEnd &&
+          matchMin &&
+          matchMax &&
+          matchEmail
+        );
       })
       .sort((a, b) => {
         const aTime = a.createdAt.toMillis();
         const bTime = b.createdAt.toMillis();
-        return filterState.sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+        return filterState.sortDirection === 'asc'
+          ? aTime - bTime
+          : bTime - aTime;
       });
   }, [orders, filterState]);
 
-  if (!ready || loading) {
+  if (!user || loading) {
     return <LoadingProgress />;
   }
 
@@ -129,12 +145,8 @@ export default function MyOrdersPage() {
           <Typography variant="body2">
             Paid with: Visa ending in 4242
           </Typography>
-          <Typography variant="body2">
-            Shipping: Express Delivery
-          </Typography>
-          <Typography variant="body2">
-            Delivery ETA: July 8, 2025
-          </Typography>
+          <Typography variant="body2">Shipping: Express Delivery</Typography>
+          <Typography variant="body2">Delivery ETA: July 8, 2025</Typography>
           <Typography variant="body2" gutterBottom>
             Total: {formatCurrency(order.amount)}
           </Typography>
@@ -142,7 +154,8 @@ export default function MyOrdersPage() {
           <ul style={{ margin: 0, padding: 0 }}>
             {order.items.map((item, idx) => (
               <li key={idx}>
-                {item.name} × {item.quantity} — Price: {formatCurrency(item.price)}
+                {item.name} × {item.quantity} — Price:{' '}
+                {formatCurrency(item.price)}
               </li>
             ))}
           </ul>
@@ -151,29 +164,28 @@ export default function MyOrdersPage() {
     );
   };
 
-return (
-  <PageWithStickyFilters
-    title="My Orders"
-    sidebar={<UserOrderFilters state={filterState} dispatch={dispatch} />}
-    mobileOpen={mobileOpen}
-    onMobileOpen={() => setMobileOpen(true)}          // 👈 Required
-    onMobileClose={() => setMobileOpen(false)}        // 👈 Required
-    hasFilters={hasFilters}                           // 👈 Required
-    onReset={() => dispatch({ type: 'RESET_FILTERS' })} // 👈 Required
-  >
-    {filteredOrders.length === 0 ? (
-      <Typography>No orders found.</Typography>
-    ) : (
-      <List
-        height={window.innerHeight - (headerHeight + footerHeight + 140)}
-        itemCount={filteredOrders.length}
-        itemSize={280}
-        width="100%"
-      >
-        {Row}
-      </List>
-    )}
-  </PageWithStickyFilters>
-);
-
+  return (
+    <PageWithStickyFilters
+      title="My Orders"
+      sidebar={<UserOrderFilters state={filterState} dispatch={dispatch} />}
+      mobileOpen={mobileOpen}
+      onMobileOpen={() => setMobileOpen(true)} // 👈 Required
+      onMobileClose={() => setMobileOpen(false)} // 👈 Required
+      hasFilters={hasFilters} // 👈 Required
+      onReset={() => dispatch({ type: 'RESET_FILTERS' })} // 👈 Required
+    >
+      {filteredOrders.length === 0 ? (
+        <Typography>No orders found.</Typography>
+      ) : (
+        <List
+          height={window.innerHeight - (headerHeight + footerHeight + 140)}
+          itemCount={filteredOrders.length}
+          itemSize={280}
+          width="100%"
+        >
+          {Row}
+        </List>
+      )}
+    </PageWithStickyFilters>
+  );
 }

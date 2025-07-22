@@ -63,6 +63,7 @@
     "@types/node": "^20.19.8",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@types/react-window": "^1.8.8",
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.37.0",
     "@typescript-eslint/parser": "^8.37.0",
@@ -111,6 +112,8 @@
   },
   "nx": {},
   "dependencies": {
+    "@casl/ability": "^6.7.3",
+    "@casl/react": "^5.0.0",
     "@date-io/dayjs": "^3.2.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
@@ -124,6 +127,7 @@
     "@nestjs/common": "^11.1.4",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.4",
+    "@nestjs/jwt": "^11.0.0",
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/platform-express": "^11.1.4",
     "@nestjs/swagger": "^11.2.0",
@@ -145,11 +149,14 @@
     "faker": "^6.6.6",
     "firebase": "^11.10.0",
     "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.4.0",
     "framer-motion": "^12.23.6",
     "googleapis": "^153.0.0",
+    "gravatar": "^1.8.2",
     "hoist-non-react-statics": "^3.3.2",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
+    "jwt-decode": "^4.0.0",
     "lodash": "^4.17.21",
     "motion-dom": "^12.23.6",
     "notistack": "^3.0.2",
@@ -175,6 +182,7 @@
     "uuid": "^11.1.0",
     "winston": "^3.17.0",
     "yup": "^1.6.1",
+    "zod": "^4.0.5",
     "zustand": "^5.0.6"
   }
 }

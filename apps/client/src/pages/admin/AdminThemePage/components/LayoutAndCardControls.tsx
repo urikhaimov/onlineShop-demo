@@ -1,11 +1,9 @@
 import React from 'react';
+import type { Control } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 import { MenuItem, Stack, TextField } from '@mui/material';
-import type { Control } from 'react-hook-form';
-import type { ThemeSettings } from '@client/api/theme';
-
-import { HOMEPAGE_LAYOUTS } from '@client/shared/types/theme-settings.enum';
-import { PRODUCT_CARD_VARIANT_LABELS } from '@client/shared/types/product-card-invariant.enum';
+import { ThemeSettings } from '../../../../api/theme';
+import { HOMEPAGE_LAYOUTS, PRODUCT_CARD_VARIANT_LABELS } from '@common/types';
 
 interface Props {
   control: Control<ThemeSettings>;
@@ -33,11 +31,13 @@ export default function LayoutAndCardControls({ control }: Props) {
         control={control}
         render={({ field }) => (
           <TextField select label="Product Card Variant" {...field}>
-            {Object.entries(PRODUCT_CARD_VARIANT_LABELS).map(([label, value]) => (
-              <MenuItem key={value} value={value}>
-                {label}
-              </MenuItem>
-            ))}
+            {Object.entries(PRODUCT_CARD_VARIANT_LABELS).map(
+              ([label, value]) => (
+                <MenuItem key={value} value={value}>
+                  {label}
+                </MenuItem>
+              ),
+            )}
           </TextField>
         )}
       />

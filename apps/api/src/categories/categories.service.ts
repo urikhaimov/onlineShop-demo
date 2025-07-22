@@ -1,5 +1,5 @@
-import { Injectable, ConflictException } from '@nestjs/common';
-import { adminDb } from '../firebase/firebase-admin'; // Ensure this exports Firestore from admin SDK
+import { ConflictException, Injectable } from '@nestjs/common';
+import { adminDb } from '@common/firebase';
 
 @Injectable()
 export class CategoriesService {
@@ -32,12 +32,12 @@ export class CategoriesService {
     return { message: 'Category deleted' };
   }
   async updateCategory(id: string, name: string) {
-  if (!name || !name.trim()) {
-    throw new ConflictException('Name is required');
-  }
+    if (!name || !name.trim()) {
+      throw new ConflictException('Name is required');
+    }
 
-  const ref = this.categoriesRef.doc(id);
-  await ref.update({ name: name.trim() });
-  return { id, name };
-}
+    const ref = this.categoriesRef.doc(id);
+    await ref.update({ name: name.trim() });
+    return { id, name };
+  }
 }

@@ -1,20 +1,19 @@
 import {
-  IsOptional,
-  IsString,
-  IsBoolean,
-  IsNumber,
-  IsIn,
-  IsEnum,
-} from 'class-validator';
-import { HOMEPAGE_LAYOUTS } from '@client/shared/types/theme-settings.enum';
-import {
-  PRODUCT_CARD_VARIANTS,
-  ProductCardVariant,
-} from '@client/shared/types/product-card-invariant.enum';
-import {
   CATEGORY_STYLES,
   CategoryStyle,
-} from '@client/shared/types/category-style.enum';
+  HOMEPAGE_LAYOUTS,
+  PRODUCT_CARD_VARIANTS,
+  ProductCardVariant,
+} from '@common/types';
+import {
+  IsBoolean,
+  IsEnum,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+
 export class UpdateThemeSettingsDto {
   @IsOptional()
   @IsString()

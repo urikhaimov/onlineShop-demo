@@ -6,4 +6,5 @@ export const CATEGORY_STYLES = {
   Boxed: 'boxed',
 } as const;
 
-export type CategoryStyle = (typeof CATEGORY_STYLES)[keyof typeof CATEGORY_STYLES];
+export type CategoryStyle =
+  (typeof CATEGORY_STYLES)[keyof typeof CATEGORY_STYLES];

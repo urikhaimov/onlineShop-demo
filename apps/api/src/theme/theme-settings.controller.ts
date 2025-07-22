@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { UpdateThemeSettingsDto } from './dto/update-theme-settings.dto';
-import { ProductCardVariant } from '@client/shared/types/product-card-invariant.enum';
+import { ProductCardVariant } from '@common/types';
+
 export interface ThemeSettings {
   primaryColor?: string;
   secondaryColor?: string;

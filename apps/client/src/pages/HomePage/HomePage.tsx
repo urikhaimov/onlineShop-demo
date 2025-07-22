@@ -3,10 +3,10 @@ import React from 'react';
 import {
   Box,
   Button,
-  Typography,
   Container,
-  useTheme,
+  Typography,
   useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -16,20 +16,17 @@ import LoadingProgress from '../../components/LoadingProgress';
 import BestSellers from '../../components/BestSellers';
 import type { LandingPageData } from '../../types/landing';
 import { useThemeStore } from '../../stores/useThemeStore';
-import {
-  HOMEPAGE_LAYOUTS,
-  HomepageLayout,
-} from '@client/shared/types/theme-settings.enum';
+import { HOMEPAGE_LAYOUTS, HomepageLayout } from '@common/types';
 
 export default function HomePage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const { themeSettings } = useThemeStore();
- const layout: HomepageLayout =
-  themeSettings?.homepageLayout in HOMEPAGE_LAYOUTS
-    ? (themeSettings?.homepageLayout as HomepageLayout)
-    : HOMEPAGE_LAYOUTS.Hero;
+  const layout: HomepageLayout =
+    themeSettings?.homepageLayout in HOMEPAGE_LAYOUTS
+      ? (themeSettings?.homepageLayout as HomepageLayout)
+      : HOMEPAGE_LAYOUTS.Hero;
   const productCardVariant = themeSettings?.productCardVariant ?? 'standard';
 
   const { data, isLoading, isError } = useLandingPage();
@@ -173,8 +170,12 @@ export default function HomePage() {
         >
           {sections.map((section, index) => (
             <Box key={index} p={2} borderRadius={2} boxShadow={1}>
-              {section.title && <Typography variant="h6">{section.title}</Typography>}
-              {section.content && <Typography variant="body2">{section.content}</Typography>}
+              {section.title && (
+                <Typography variant="h6">{section.title}</Typography>
+              )}
+              {section.content && (
+                <Typography variant="body2">{section.content}</Typography>
+              )}
             </Box>
           ))}
         </Box>

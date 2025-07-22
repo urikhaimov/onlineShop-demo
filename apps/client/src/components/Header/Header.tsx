@@ -1,27 +1,25 @@
 import React, { useState } from 'react';
 import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Box,
-  Snackbar,
   Alert,
-  IconButton,
+  AppBar,
   Avatar,
-  Badge,
+  Box,
+  IconButton,
   Menu,
   MenuItem,
+  Snackbar,
+  Toolbar,
+  Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
-import { useSafeAuth } from '../../hooks/useAuth';
 import { useStoreSettings } from '../../stores/useStoreSettings';
 import { useCartStore } from '../../stores/useCartStore';
 import { useSidebarStore } from '../../stores/useSidebarStore';
 import { useThemeContext } from '../../context/ThemeContext';
+import { useAuth } from '../../hooks/useAuth';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
 
@@ -29,7 +27,7 @@ const Header: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const { user } = useSafeAuth();
+  const { user, signOut } = useAuth();
   const { storeId, setStoreId } = useStoreSettings();
   const [showStoreToast, setShowStoreToast] = useState(false);
   const [showThemeToast, setShowThemeToast] = useState(false);
@@ -50,7 +48,8 @@ const Header: React.FC = () => {
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) =>
+    setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
 
   const handleStoreChange = (newId: string) => {
@@ -75,7 +74,13 @@ const Header: React.FC = () => {
         color: muiTheme.palette.text.primary,
       }}
     >
-      <Toolbar sx={{ justifyContent: 'space-between', alignItems: 'center', minHeight: 56 }}>
+      <Toolbar
+        sx={{
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          minHeight: 56,
+        }}
+      >
         {/* LEFT: Hamburger menu and store name */}
         <Box display="flex" alignItems="center">
           {isMobile && (
@@ -114,9 +119,11 @@ const Header: React.FC = () => {
             anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
           >
-            <MenuItem disabled>{user?.name || user?.email}</MenuItem>
-            <MenuItem onClick={() => (window.location.href = '/profile')}>Profile</MenuItem>
-            <MenuItem onClick={() => (window.location.href = '/logout')}>Logout</MenuItem>
+            <MenuItem disabled>{user?.displayName || user?.email}</MenuItem>
+            <MenuItem onClick={() => (window.location.href = '/profile')}>
+              Profile
+            </MenuItem>
+            <MenuItem onClick={signOut}>Logout</MenuItem>
           </Menu>
         </Box>
       </Toolbar>

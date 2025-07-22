@@ -1,35 +1,35 @@
 import React, { useEffect, useReducer } from 'react';
 import {
-  Box,
-  Typography,
-  Paper,
-  TextField,
-  Button,
-  Stack,
-  Snackbar,
   Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Paper,
+  Snackbar,
+  Stack,
+  TextField,
+  Typography,
   useMediaQuery,
   useTheme,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from '@mui/material';
-import { useForm, Controller } from 'react-hook-form';
-import { useAuthStore } from '../../stores/useAuthStore';
+import { Controller, useForm } from 'react-hook-form';
 import { useUserProfileQuery } from '../../hooks/useUserProfileQuery';
 import { useUpdateUserProfileMutation } from '../../hooks/useUpdateUserProfileMutation';
 import { useUploadAvatarMutation } from '../../hooks/useUploadAvatarMutation';
 import { useDeleteAvatarMutation } from '../../hooks/useDeleteAvatarMutation';
-import PictureUploaderWithCrop from '@client/components/PictureUploaderWithCrop';
-import LoadingProgress from '@client/components/LoadingProgress';
-import { reducer, initialState } from './LocalReducer';
-import { localUIReducer, initialLocalUIState } from './LocalUIReducer';
-import { headerHeight, footerHeight } from '../../config/themeConfig';
+import PictureUploaderWithCrop from '../../components/PictureUploaderWithCrop';
+import LoadingProgress from '../../components/LoadingProgress';
+import { initialState, reducer } from './LocalReducer';
+import { initialLocalUIState, localUIReducer } from './LocalUIReducer';
+import { footerHeight, headerHeight } from '../../config/themeConfig';
 import ChangePasswordForm from './components/ChangePasswordForm';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function UserProfilePage() {
-  const { user, loading, authInitialized } = useAuthStore();
+  const { user, loading } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
   const [uiState, uiDispatch] = useReducer(localUIReducer, initialLocalUIState);
   const muiTheme = useTheme();
@@ -42,7 +42,9 @@ export default function UserProfilePage() {
     formState: { errors, isSubmitting },
   } = useForm({ defaultValues: { name: '', email: '' } });
 
-  const { data: userDoc, isLoading: userDocLoading } = useUserProfileQuery(user?.uid);
+  const { data: userDoc, isLoading: userDocLoading } = useUserProfileQuery(
+    user?.uid,
+  );
   const updateMutation = useUpdateUserProfileMutation(user?.uid || '');
   const uploadAvatarMutation = useUploadAvatarMutation(user?.uid || '');
   const deleteAvatarMutation = useDeleteAvatarMutation(user?.uid || '');
@@ -74,7 +76,10 @@ export default function UserProfilePage() {
       dispatch({ type: 'SET_TOAST_MESSAGE', payload: 'Profile updated' });
       dispatch({ type: 'SET_TOAST_OPEN', payload: true });
     } catch (err: any) {
-      dispatch({ type: 'SET_ERROR_MSG', payload: err?.message || 'Avatar upload failed.' });
+      dispatch({
+        type: 'SET_ERROR_MSG',
+        payload: err?.message || 'Avatar upload failed.',
+      });
     } finally {
       uiDispatch({ type: 'SET_UPLOADING', payload: false });
     }
@@ -93,7 +98,7 @@ export default function UserProfilePage() {
     }
   };
 
-  if (loading || !authInitialized || userDocLoading) {
+  if (loading || userDocLoading) {
     return <LoadingProgress />;
   }
 
@@ -135,9 +140,15 @@ export default function UserProfilePage() {
 
         <Stack spacing={3} mt={2} alignItems="center">
           <PictureUploaderWithCrop
-            avatarUrl={userDoc?.photoURL ? `${userDoc.photoURL}?v=${uiState.avatarVer}` : null}
+            avatarUrl={
+              userDoc?.photoURL
+                ? `${userDoc.photoURL}?v=${uiState.avatarVer}`
+                : null
+            }
             onCropUpload={handleAvatarUpload}
-            onDeleteAvatar={() => uiDispatch({ type: 'SET_DELETE_DIALOG', payload: true })}
+            onDeleteAvatar={() =>
+              uiDispatch({ type: 'SET_DELETE_DIALOG', payload: true })
+            }
             disabled={uiState.avatarUploading || isSubmitting}
           />
 
@@ -157,10 +168,25 @@ export default function UserProfilePage() {
                   />
                 )}
               />
-              <TextField label="Email" value={user.email ?? ''} fullWidth disabled />
-              <TextField label="UID" value={user.uid ?? ''} fullWidth disabled />
+              <TextField
+                label="Email"
+                value={user.email ?? ''}
+                fullWidth
+                disabled
+              />
+              <TextField
+                label="UID"
+                value={user.uid ?? ''}
+                fullWidth
+                disabled
+              />
               <ChangePasswordForm />
-              <Button type="submit" variant="contained" fullWidth disabled={isSubmitting}>
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                disabled={isSubmitting}
+              >
                 Save Changes
               </Button>
             </Stack>
@@ -195,7 +221,9 @@ export default function UserProfilePage() {
 
       <Dialog
         open={uiState.deleteDialogOpen}
-        onClose={() => uiDispatch({ type: 'SET_DELETE_DIALOG', payload: false })}
+        onClose={() =>
+          uiDispatch({ type: 'SET_DELETE_DIALOG', payload: false })
+        }
       >
         <DialogTitle>Reset Avatar</DialogTitle>
         <DialogContent>
@@ -204,10 +232,18 @@ export default function UserProfilePage() {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => uiDispatch({ type: 'SET_DELETE_DIALOG', payload: false })}>
+          <Button
+            onClick={() =>
+              uiDispatch({ type: 'SET_DELETE_DIALOG', payload: false })
+            }
+          >
             Cancel
           </Button>
-          <Button variant="contained" color="error" onClick={handleAvatarDelete}>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleAvatarDelete}
+          >
             Delete
           </Button>
         </DialogActions>

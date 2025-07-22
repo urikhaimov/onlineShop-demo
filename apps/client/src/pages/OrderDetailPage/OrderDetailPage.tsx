@@ -2,22 +2,22 @@
 import React from 'react';
 import {
   Box,
-  Typography,
-  Paper,
+  Button,
+  CircularProgress,
   Divider,
   List,
   ListItem,
   ListItemText,
-  CircularProgress,
-  Button,
-  useTheme,
+  Paper,
+  Typography,
   useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
-import { useAuthReady } from '../../hooks/useAuthReady';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { formatCurrency } from '../../utils/format';
-import { headerHeight, footerHeight } from '../../config/themeConfig';
+import { footerHeight, headerHeight } from '../../config/themeConfig';
+import { useAuth } from '../../hooks/useAuth';
 
 function formatDate(date?: string | { toDate?: () => Date }) {
   if (!date) return 'N/A';
@@ -27,14 +27,14 @@ function formatDate(date?: string | { toDate?: () => Date }) {
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { ready } = useAuthReady();
+  const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const { order, loading, error, downloading, downloadInvoice } =
-    useOrderDetails(id, ready);
+    useOrderDetails(id, Boolean(user));
 
-  if (!id || !ready || loading) {
+  if (!id || !user || loading) {
     return (
       <Box
         sx={{

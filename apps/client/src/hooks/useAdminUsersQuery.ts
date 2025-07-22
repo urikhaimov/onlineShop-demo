@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '../stores/useAuthStore';
 import type { User } from '../types/User';
 import api from '../api/axiosInstance';
+import { useAuth } from './useAuth';
 
 export function useAdminUsersQuery() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { user } = useAuth();
 
   const {
     data: users = [],

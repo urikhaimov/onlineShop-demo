@@ -1,10 +1,11 @@
 import React, { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../stores/useAuthStore';
 import { useRedirect } from '../context/RedirectContext';
-import { CircularProgress, Box } from '@mui/material';
+import { Box, CircularProgress } from '@mui/material';
+import { useAuth } from '../hooks/useAuth';
+
 export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuthStore();
+  const { user } = useAuth();
   const location = useLocation();
   const { setRedirectTo, setMessage } = useRedirect();
 
@@ -20,14 +21,9 @@ interface Props {
   children: ReactNode;
 }
 
-interface Props {
-  children: ReactNode;
-}
-
 export const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
-  const user = useAuthStore((state) => state.user);
-  const loading = useAuthStore((state) => state.loading);
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const { user, loading } = useAuth();
+  // const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   if (loading) {
     return (
@@ -41,9 +37,9 @@ export const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (!isAdmin) {
-    return <Navigate to="/" replace />;
-  }
+  // if (!isAdmin) {
+  //   return <Navigate to="/" replace />;
+  // }
 
   return <>{children}</>;
 };
