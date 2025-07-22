@@ -30,6 +30,8 @@ import { Location, Route, Routes } from 'react-router-dom';
 import AdminThemePage from '../pages/admin/AdminThemePage';
 import NotFoundPage from '../pages/NotFoundPage';
 import AdminSecurityLogsPage from '../pages/admin/AdminSecurityLogsPage';
+import CheckoutPage from '../pages/CheckoutPage';
+import CheckoutSuccessPage from '../pages/CheckoutPage/CheckoutSuccessPage';
 
 export enum ERoutePaths {
   HOME = '/',
@@ -70,26 +72,22 @@ export const appRoutes = (location: Location<any>) => (
     <Route path={ERoutePaths.LOGIN} element={<LoginPage />} />
     <Route path="/signup" element={<SignupPage />} />
     <Route path="/reset-password" element={<ResetPasswordPage />} />
-    {/*<Route*/}
-    {/*  path="/checkout"*/}
-    {/*  element={*/}
-    {/*    <ProtectedRoute>*/}
-    {/*      <StripeProvider>*/}
-    {/*        <CheckoutPage />*/}
-    {/*      </StripeProvider>*/}
-    {/*    </ProtectedRoute>*/}
-    {/*  }*/}
-    {/*/>*/}
-    {/*<Route*/}
-    {/*  path="/checkout/success"*/}
-    {/*  element={*/}
-    {/*    <ProtectedRoute>*/}
-    {/*      <StripeProvider>*/}
-    {/*        <CheckoutSuccessPage />*/}
-    {/*      </StripeProvider>*/}
-    {/*    </ProtectedRoute>*/}
-    {/*  }*/}
-    {/*/>*/}
+    <Route
+      path="/checkout"
+      element={
+        <ProtectedRoute>
+          <CheckoutPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/checkout/success"
+      element={
+        <ProtectedRoute>
+          <CheckoutSuccessPage />
+        </ProtectedRoute>
+      }
+    />
     <Route
       path="/order/:id"
       element={
