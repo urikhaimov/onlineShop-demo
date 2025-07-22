@@ -8,16 +8,17 @@ import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import { getEnv } from '@common/utils';
 
-const rawKey = getEnv('VITE_STRIPE_PUBLIC_KEY', {
-  env: import.meta.env,
-}) as string;
+export const stripePromise = (() => {
+  const key = getEnv('VITE_STRIPE_PUBLIC_KEY', { env: import.meta.env });
 
-if (!rawKey) {
-  console.error('Missing Stripe public key');
-}
-const stripePromise = loadStripe(rawKey);
+  if (!key) {
+    console.error('Missing Stripe public key');
+  }
 
-export const StripeProvider = ({ children }: { children: React.ReactNode }) => {
+  return loadStripe(key as string);
+})();
+
+const StripeProvider = ({ children }: { children: React.ReactNode }) => {
   if (!stripePromise) {
     console.error('Stripe public key missing or invalid');
     return null;
@@ -25,3 +26,5 @@ export const StripeProvider = ({ children }: { children: React.ReactNode }) => {
 
   return <Elements stripe={stripePromise}>{children}</Elements>;
 };
+
+export default StripeProvider;
