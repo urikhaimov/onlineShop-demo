@@ -40,11 +40,12 @@ import { useSidebarStore } from '../../stores/useSidebarStore';
 import ScrollContainer from '../ScrollContainer';
 import CartDrawer from '../CartDrawer';
 import { useAuth } from '../../hooks/useAuth';
+import { isAdmin } from '../../context/AuthContext';
 
 export default function LeftMenu() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signOut, user } = useAuth();
+  const { signOut, user, role } = useAuth();
   const cartItems = useCartStore((s) => s.items);
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   // const isAdmin =
@@ -219,16 +220,16 @@ export default function LeftMenu() {
         </List>
 
         {/* Admin Section */}
-        {/*{isAdmin && (*/}
-        {/*  <>*/}
-        {/*    <Divider />*/}
-        {/*    <List>*/}
-        {/*      {adminLinks.map(({ label, icon, path }) =>*/}
-        {/*        renderLink({ label, icon, path }),*/}
-        {/*      )}*/}
-        {/*    </List>*/}
-        {/*  </>*/}
-        {/*)}*/}
+        {isAdmin(role) ? (
+          <>
+            <Divider />
+            <List>
+              {adminLinks.map(({ label, icon, path }) =>
+                renderLink({ label, icon, path }),
+              )}
+            </List>
+          </>
+        ) : null}
 
         <Box flexGrow={1} />
 
@@ -258,11 +259,13 @@ export default function LeftMenu() {
         open={mobileOpen}
         onClose={closeMobileDrawer}
         ModalProps={{ keepMounted: true }}
-        PaperProps={{
-          sx: {
-            width: '100vw',
-            maxWidth: drawerWidth,
-            zIndex: (theme) => theme.zIndex.drawer + 2,
+        slotProps={{
+          paper: {
+            sx: {
+              width: '100vw',
+              maxWidth: drawerWidth,
+              zIndex: (theme) => theme.zIndex.drawer + 2,
+            },
           },
         }}
       >
