@@ -1,15 +1,9 @@
-import React, { useEffect, useMemo, useReducer, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
 import {
-  Box,
-  Chip,
-  Divider,
-  Link,
-  Paper,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+  VariableSizeList as List,
+  ListChildComponentProps,
+} from 'react-window';
 import PageWithStickyFilters from '../../layouts/PageWithStickyFilters';
 import { retryWithBackoff } from '../../utils/retryWithBackoff';
 import { filterReducer, initialFilterState, Order } from './LocalReducer';
@@ -17,44 +11,39 @@ import UserOrderFilters from './UserOrderFilters';
 import { fetchMyOrders } from '../../api/orderApi';
 import LoadingProgress from '../../components/LoadingProgress';
 import { Timestamp } from 'firebase/firestore';
-import { formatCurrency } from '../../utils/format';
-import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
 import { useAuth } from '../../hooks/useAuth';
-
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'processing':
-      return 'warning';
-    case 'shipped':
-      return 'info';
-    case 'delivered':
-      return 'success';
-    case 'cancelled':
-      return 'error';
-    default:
-      return 'default';
-  }
-}
+import OrderCard from './OrderCard';
 
 export default function MyOrdersPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [filterState, dispatch] = useReducer(filterReducer, initialFilterState);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const listRef = useRef<List>(null);
+  const sizeMap = useRef<{ [index: number]: number }>({});
+
+  const rowGap = 12;
   const { user } = useAuth();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const setSize = (index: number, size: number) => {
+    if (sizeMap.current[index] !== size) {
+      sizeMap.current = { ...sizeMap.current, [index]: size };
+      listRef.current?.resetAfterIndex(index);
+    }
+  };
+
+  const getItemSize = (index: number) => {
+    return (sizeMap.current[index] ?? (isMobile ? 400 : 320)) + rowGap;
+  };
+
   useEffect(() => {
     if (!user) return;
 
     const loadOrders = async () => {
       try {
-        if (!user) {
-          setLoading(false);
-          return;
-        }
-
         const fetchFn = () => fetchMyOrders().then((res) => res.data);
         const list = await retryWithBackoff(fetchFn);
 
@@ -80,13 +69,15 @@ export default function MyOrdersPage() {
     void loadOrders();
   }, [user]);
 
-  const hasFilters = Boolean(
-    filterState.status !== 'all' ||
-      filterState.startDate ||
-      filterState.endDate ||
+  const hasFilters = useMemo(
+    () =>
+      filterState.status !== 'all' ||
+      !!filterState.startDate ||
+      !!filterState.endDate ||
       filterState.minTotal !== null ||
       filterState.maxTotal !== null ||
-      filterState.email,
+      !!filterState.email,
+    [filterState],
   );
 
   const filteredOrders = useMemo(() => {
@@ -105,6 +96,7 @@ export default function MyOrdersPage() {
         const matchEmail =
           !filterState.email ||
           (order.email?.includes?.(filterState.email) ?? false);
+
         return (
           matchStatus &&
           matchStart &&
@@ -123,53 +115,21 @@ export default function MyOrdersPage() {
       });
   }, [orders, filterState]);
 
-  if (!user || loading) {
-    return <LoadingProgress />;
-  }
+  if (!user || loading) return <LoadingProgress />;
 
   const Row = ({ index, style }: ListChildComponentProps) => {
     const order = filteredOrders[index];
-
     return (
-      <Box mb={2} key={order.id} style={style}>
-        <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
-          <Typography variant="subtitle1" fontWeight="bold">
-            <Link
-              component={RouterLink}
-              to={`/order/${order.id}`}
-              underline="hover"
-              sx={{ cursor: 'pointer' }}
-            >
-              Order #{order.id}
-            </Link>
-          </Typography>
-          <Chip
-            label={order.status}
-            color={getStatusColor(order.status)}
-            size="small"
-            sx={{ my: 1 }}
-          />
-          <Typography variant="body2">
-            Date: {order.createdAt.toDate().toLocaleString()}
-          </Typography>
-          <Typography variant="body2">
-            Paid with: Visa ending in 4242
-          </Typography>
-          <Typography variant="body2">Shipping: Express Delivery</Typography>
-          <Typography variant="body2">Delivery ETA: July 8, 2025</Typography>
-          <Typography variant="body2" gutterBottom>
-            Total: {formatCurrency(order.amount)}
-          </Typography>
-          <Divider sx={{ my: 1 }} />
-          <ul style={{ margin: 0, padding: 0 }}>
-            {order.items.map((item, idx) => (
-              <li key={idx}>
-                {item.name} × {item.quantity} — Price:{' '}
-                {formatCurrency(item.price)}
-              </li>
-            ))}
-          </ul>
-        </Paper>
+      <Box style={{ ...style, paddingBottom: rowGap }} key={order.id}>
+        <Box
+          ref={(el) => {
+            if (el instanceof HTMLElement) {
+              setSize(index, el.getBoundingClientRect().height);
+            }
+          }}
+        >
+          <OrderCard order={order} />
+        </Box>
       </Box>
     );
   };
@@ -179,19 +139,21 @@ export default function MyOrdersPage() {
       title="My Orders"
       sidebar={<UserOrderFilters state={filterState} dispatch={dispatch} />}
       mobileOpen={mobileOpen}
-      onMobileOpen={() => setMobileOpen(true)} // 👈 Required
-      onMobileClose={() => setMobileOpen(false)} // 👈 Required
-      hasFilters={hasFilters} // 👈 Required
-      onReset={() => dispatch({ type: 'RESET_FILTERS' })} // 👈 Required
+      onMobileOpen={() => setMobileOpen(true)}
+      onMobileClose={() => setMobileOpen(false)}
+      hasFilters={hasFilters}
+      onReset={() => dispatch({ type: 'RESET_FILTERS' })}
     >
       {filteredOrders.length === 0 ? (
         <Typography>No orders found.</Typography>
       ) : (
         <List
+          ref={listRef}
           height={window.innerHeight - (headerHeight + footerHeight + 140)}
           itemCount={filteredOrders.length}
-          itemSize={isMobile ? 380 : 320}
+          itemSize={getItemSize}
           width="100%"
+          overscanCount={3}
         >
           {Row}
         </List>
