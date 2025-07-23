@@ -18,6 +18,8 @@ import LoadingProgress from '../../../components/LoadingProgress';
 import AdminOrderFilters from './AdminOrderFilters';
 import { filterReducer, initialFilterState } from './LocalReducer';
 import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import NotFound from '../../../components/NotFound';
+
 type UIState = { mobileDrawerOpen: boolean };
 type UIAction = { type: 'setMobileDrawerOpen'; payload: boolean };
 
@@ -188,13 +190,15 @@ export default function AdminOrdersPage() {
         <Typography color="error" sx={{ p: 2 }}>
           Failed to load orders: {error.message}
         </Typography>
+      ) : visibleOrders.length === 0 ? (
+        <NotFound message="No orders found." />
       ) : (
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <VariableSizeList
             height={window.innerHeight - headerHeight - footerHeight - 164}
             width="100%"
             itemCount={visibleOrders.length}
-            itemSize={() => (isMobile ? 280 : 220)} // ⬅️ includes internal spacing
+            itemSize={() => (isMobile ? 280 : 220)}
             style={{ overflowX: 'hidden' }}
           >
             {renderRow}

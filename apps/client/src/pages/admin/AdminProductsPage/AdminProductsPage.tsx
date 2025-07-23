@@ -4,7 +4,6 @@ import {
   Divider,
   Snackbar,
   Alert,
-  CircularProgress,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -37,6 +36,7 @@ import { initialState, reducer } from './LocalReducer';
 import { uiReducer, initialUIState } from './LocalUiReducer';
 import { IProduct } from '@common/types';
 import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import NotFound from '../../../components/NotFound';
 
 export default function AdminProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -190,6 +190,8 @@ export default function AdminProductsPage() {
 
       {state.loading ? (
         <LoadingProgress />
+      ) : visibleProducts.length === 0 ? (
+        <NotFound message="No products found." />
       ) : (
         <Box
           sx={{

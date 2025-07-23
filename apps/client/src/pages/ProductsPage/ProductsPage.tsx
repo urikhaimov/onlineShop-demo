@@ -21,7 +21,7 @@ import { initialState, reducer as filterReducer } from './LocalReducer';
 import { IProduct } from '@common/types';
 import { initialUIState, uiReducer } from './LocalUiReducer';
 import { useAuth } from '../../hooks/useAuth';
-
+import NotFound from '../../components/NotFound';
 export default function ProductsPage() {
   const [state, dispatch] = useReducer(filterReducer, initialState);
   const [uiState, uiDispatch] = useReducer(uiReducer, initialUIState);
@@ -147,7 +147,7 @@ export default function ProductsPage() {
       ></Box>
 
       {filteredProducts.length === 0 ? (
-        <Typography>No products found.</Typography>
+        <NotFound message="No products found." />
       ) : (
         <List
           height={window.innerHeight - (headerHeight + footerHeight + 140)}

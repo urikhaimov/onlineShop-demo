@@ -14,7 +14,7 @@ import { Timestamp } from 'firebase/firestore';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
 import { useAuth } from '../../hooks/useAuth';
 import OrderCard from './OrderCard';
-
+import NotFound from '../../components/NotFound';
 export default function MyOrdersPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -145,7 +145,7 @@ export default function MyOrdersPage() {
       onReset={() => dispatch({ type: 'RESET_FILTERS' })}
     >
       {filteredOrders.length === 0 ? (
-        <Typography>No orders found.</Typography>
+        <NotFound message="No orders found." />
       ) : (
         <List
           ref={listRef}
