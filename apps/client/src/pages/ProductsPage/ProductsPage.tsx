@@ -1,4 +1,11 @@
-import { Alert, Box, Snackbar, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Snackbar,
+  Typography,
+  useMediaQuery,
+  useTheme,
+} from '@mui/material';
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { FixedSizeList as List } from 'react-window';
 
@@ -21,7 +28,8 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
   const [renderCount, setRenderCount] = useState(20);
   const observerRef = useRef<HTMLDivElement | null>(null);
-
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user } = useAuth();
   const { data: categories = [] } = useCategories();
 
@@ -144,7 +152,7 @@ export default function ProductsPage() {
         <List
           height={window.innerHeight - (headerHeight + footerHeight + 140)}
           itemCount={Math.min(renderCount, filteredProducts.length)}
-          itemSize={130}
+          itemSize={isMobile ? 300 : 120}
           width="100%"
           onItemsRendered={onItemsRendered}
         >

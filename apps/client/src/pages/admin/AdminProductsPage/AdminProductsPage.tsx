@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useReducer, useState } from 'react';
 import {
-  Alert,
   Box,
-  CircularProgress,
   Divider,
   Snackbar,
-  useMediaQuery,
+  Alert,
+  CircularProgress,
   useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,44 +17,65 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   verticalListSortingStrategy,
+  arrayMove,
 } from '@dnd-kit/sortable';
-import { useAllCategories } from '@client/hooks/useAllCategories';
-import { initialState, reducer } from './LocalReducer';
+import { useInView } from 'react-intersection-observer';
+import { VariableSizeList } from 'react-window';
+import { debounce } from 'lodash';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+
+import { auth, db } from '../../../firebase';
+import { useAllCategories } from '../../../hooks/useAllCategories';
+import { useProductMutations } from '../../../hooks/useProductMutations';
+import PageWithStickyFilters from '../../layouts/PageWithStickyFilters';
+import LoadingProgress from '../../../components/LoadingProgress';
 import SortableProductCard from './SortableProductCard';
 import AdminProductFilters from './AdminProductFilters';
-import { auth, db } from '@client/firebase';
-import { useProductMutations } from '@client/hooks/useProductMutations';
-import { useInView } from 'react-intersection-observer';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { debounce } from 'lodash';
-import { IProduct } from '@common/types';
-import PageWithStickyFilters from '@client/layouts/PageWithStickyFilters';
-import LoadingProgress from '@client/components/LoadingProgress';
+import { initialState, reducer } from './LocalReducer';
 import { uiReducer, initialUIState } from './LocalUiReducer';
+import { IProduct } from '@common/types';
+import { headerHeight, footerHeight } from '../../../config/themeConfig';
 
 export default function AdminProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [uiState, uiDispatch] = useReducer(uiReducer, initialUIState);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(10);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { data: categories = [] } = useAllCategories();
-  const navigate = useNavigate();
   const { reorder } = useProductMutations();
-  const { ref: sentinelRef, inView } = useInView();
+  const navigate = useNavigate();
+
   const sensors = useSensors(useSensor(PointerSensor));
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(10);
+  const { ref: sentinelRef, inView } = useInView();
 
   useEffect(() => {
-    console.log('🔥 Loaded products from Firestore:', state.products);
-  }, [state.products]);
+    const q = query(collection(db, 'products'), orderBy('order'));
+
+    const debouncedSetProducts = debounce((products: IProduct[]) => {
+      dispatch({ type: 'SET_PRODUCTS_SORTED', payload: products });
+    }, 300);
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const products: IProduct[] = snapshot.docs.map((doc) => ({
+        ...(doc.data() as IProduct),
+        id: doc.id,
+      }));
+
+      debouncedSetProducts(products);
+    });
+
+    return () => {
+      unsubscribe();
+      debouncedSetProducts.cancel();
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const term = (state.searchTerm || '').toLowerCase();
-
     return state.products.filter((p) => {
       if (!p || typeof p !== 'object' || !p.name) return false;
 
@@ -63,8 +84,7 @@ export default function AdminProductsPage() {
         p.description?.toLowerCase().includes(term);
 
       const matchesCategory =
-        !state.selectedCategoryId ||
-        p.categoryId?.toString() === state.selectedCategoryId;
+        !state.selectedCategoryId || p.categoryId === state.selectedCategoryId;
 
       let createdAtDate: Date | null = null;
       if (p.createdAt) {
@@ -75,7 +95,8 @@ export default function AdminProductsPage() {
       const matchesDate =
         !state.createdAfter ||
         (createdAtDate &&
-          createdAtDate.getTime() >= state.createdAfter.valueOf());
+          state.createdAfter &&
+          createdAtDate.getTime() >= state.createdAfter.toDate().getTime());
 
       return matchesText && matchesCategory && matchesDate;
     });
@@ -88,9 +109,14 @@ export default function AdminProductsPage() {
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  const handleAddProduct = () => {
-    navigate('/admin/products/add');
-  };
+  useEffect(() => {
+    if (inView && visibleCount < filteredProducts.length) {
+      const timeout = setTimeout(() => {
+        setVisibleCount((prev) => prev + 10);
+      }, 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [inView, visibleCount, filteredProducts.length]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -137,52 +163,8 @@ export default function AdminProductsPage() {
     }
   };
 
-  useEffect(() => {
-    const q = query(collection(db, 'products'), orderBy('order'));
-
-    const debouncedSetProducts = debounce((products: IProduct[]) => {
-      dispatch({ type: 'SET_PRODUCTS_SORTED', payload: products });
-    }, 300);
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const products: IProduct[] = snapshot.docs.map((doc) => ({
-        ...(doc.data() as IProduct),
-        id: doc.id,
-      }));
-
-      const invalid = products.filter(
-        (p) =>
-          !p ||
-          typeof p !== 'object' ||
-          !p.id ||
-          typeof p.price === 'undefined',
-      );
-      if (invalid.length > 0) {
-        console.warn('⚠️ Invalid products found:', invalid);
-      }
-
-      debouncedSetProducts(products);
-    });
-
-    return () => {
-      unsubscribe();
-      debouncedSetProducts.cancel();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (inView && visibleCount < filteredProducts.length) {
-      const timeout = setTimeout(() => {
-        setVisibleCount((prev) => prev + 10);
-      }, 300);
-      return () => clearTimeout(timeout);
-    }
-  }, [inView, filteredProducts.length, visibleCount]);
-
   const hasFilters =
-    !!state.searchTerm ||
-    !!state.createdAfter ||
-    !!state.selectedCategoryId;
+    !!state.searchTerm || !!state.createdAfter || !!state.selectedCategoryId;
 
   return (
     <PageWithStickyFilters
@@ -192,7 +174,6 @@ export default function AdminProductsPage() {
           state={state}
           dispatch={dispatch}
           categories={categories}
-          //onAddProduct={handleAddProduct}
         />
       }
       onMobileOpen={() =>
@@ -216,34 +197,43 @@ export default function AdminProductsPage() {
             pb: 3,
             flex: 1,
             minHeight: 0,
-            overflowY: 'auto',
+            overflow: 'hidden',
           }}
         >
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
             <SortableContext
-              items={state.products.map((p) => p.id)}
+              items={visibleProducts.map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
-              {visibleProducts
-                .filter(
-                  (p): p is IProduct =>
-                    !!p && typeof p === 'object' && 'id' in p,
-                )
-                .map((product) => (
-                  <Box
-                    key={product.id}
-                    mb={2}
-                    sx={{ opacity: state.reorderPending ? 0.4 : 1 }}
-                  >
-                    <SortableProductCard
-                      product={product}
-                      disabled={state.reorderPending}
-                      onConfirmDelete={(id) =>
-                        dispatch({ type: 'REMOVE_PRODUCT', payload: id })
-                      }
-                    />
-                  </Box>
-                ))}
+              <VariableSizeList
+                height={window.innerHeight - headerHeight - footerHeight - 164}
+                width="100%"
+                itemCount={visibleProducts.length}
+                itemSize={() => (isMobile ? 300 : 120)}
+                overscanCount={4}
+                style={{ overflowX: 'hidden' }}
+              >
+                {({ index, style }) => {
+                  const product = visibleProducts[index];
+                  return (
+                    <div key={product.id} style={style}>
+                      <Box
+                        mb={2}
+                        sx={{ opacity: state.reorderPending ? 0.4 : 1 }}
+                      >
+                        <SortableProductCard
+                          product={product}
+                          disabled={state.reorderPending}
+                          onConfirmDelete={(id) =>
+                            dispatch({ type: 'REMOVE_PRODUCT', payload: id })
+                          }
+                        />
+                      </Box>
+                    </div>
+                  );
+                }}
+              </VariableSizeList>
+
               <Box
                 ref={sentinelRef}
                 display="flex"

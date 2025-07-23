@@ -5,21 +5,20 @@ import {
   Divider,
   Paper,
   Typography,
-  useMediaQuery,
   useTheme,
+  useMediaQuery,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { ListChildComponentProps, VariableSizeList } from 'react-window';
+import { useNavigate } from 'react-router-dom';
+import { useOrders } from '../../../hooks/useOrders';
 import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
 import LoadingProgress from '../../../components/LoadingProgress';
-import { useOrders } from '../../../hooks/useOrders';
-import { useNavigate } from 'react-router-dom';
 import AdminOrderFilters from './AdminOrderFilters';
 import { filterReducer, initialFilterState } from './LocalReducer';
-
-type UIState = {
-  mobileDrawerOpen: boolean;
-};
-
+import { headerHeight, footerHeight } from '../../../config/themeConfig';
+type UIState = { mobileDrawerOpen: boolean };
 type UIAction = { type: 'setMobileDrawerOpen'; payload: boolean };
 
 const uiReducer = (state: UIState, action: UIAction): UIState => {
@@ -32,23 +31,24 @@ const uiReducer = (state: UIState, action: UIAction): UIState => {
 };
 
 export default function AdminOrdersPage() {
-  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [page, setPage] = useState(1);
+  const navigate = useNavigate();
 
   const [state, dispatch] = useReducer(filterReducer, initialFilterState);
   const [uiState, uiDispatch] = useReducer(uiReducer, {
     mobileDrawerOpen: false,
   });
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [page, setPage] = useState(1);
+
+  const { data: allOrders = [], isLoading, error } = useOrders();
 
   useEffect(() => {
     const handler = () => setPage(1);
     window.addEventListener('admin-orders-reset-page', handler);
     return () => window.removeEventListener('admin-orders-reset-page', handler);
   }, []);
-
-  const { data: allOrders = [], isLoading, error } = useOrders();
 
   const filteredOrders = useMemo(() => {
     return allOrders
@@ -101,14 +101,6 @@ export default function AdminOrdersPage() {
 
   const visibleOrders = filteredOrders;
 
-  const hasFilters =
-    !!state.email ||
-    state.status !== 'all' ||
-    !!state.minTotal ||
-    !!state.maxTotal ||
-    !!state.startDate ||
-    !!state.endDate;
-
   const renderRow = ({ index, style }: ListChildComponentProps) => {
     const order = visibleOrders[index];
     if (!order) return null;
@@ -119,46 +111,60 @@ export default function AdminOrdersPage() {
         : (order.createdAt?.toDate?.() ?? new Date());
 
     return (
-      <Paper
+      <Box
         key={order.id}
         sx={{
-          p: 2,
-          borderRadius: 2,
-          boxShadow: 2,
-          backgroundColor: theme.palette.background.paper,
-          boxSizing: 'border-box',
-          mx: 1,
           ...style,
+          px: 1,
+          py: 1.5,
+          boxSizing: 'border-box',
         }}
       >
-        <Typography variant="subtitle2" fontWeight="bold" noWrap>
-          Order ID: {order.id}
-        </Typography>
-        <Typography variant="body2" noWrap>
-          User ID: {order.userId}
-        </Typography>
-        <Typography variant="body2" noWrap>
-          Email: {order.email}
-        </Typography>
-        <Typography variant="body2">
-          Total: $
-          {typeof order.total === 'number' ? order.total.toFixed(2) : 'N/A'}
-        </Typography>
-        <Typography variant="body2">Date: {date.toLocaleString()}</Typography>
-        <Typography variant="body2">Status: {order.status}</Typography>
+        <Paper
+          sx={{
+            p: 2,
+            borderRadius: 2,
+            boxShadow: 2,
+            backgroundColor: theme.palette.background.paper,
+          }}
+        >
+          <Typography variant="subtitle2" fontWeight="bold" noWrap>
+            Order ID: {order.id}
+          </Typography>
+          <Typography variant="body2" noWrap>
+            User ID: {order.userId}
+          </Typography>
+          <Typography variant="body2" noWrap>
+            Email: {order.email}
+          </Typography>
+          <Typography variant="body2">
+            Total: $
+            {typeof order.total === 'number' ? order.total.toFixed(2) : 'N/A'}
+          </Typography>
+          <Typography variant="body2">Date: {date.toLocaleString()}</Typography>
+          <Typography variant="body2">Status: {order.status}</Typography>
 
-        <Box mt={1}>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => navigate(`/admin/orders/${order.id}`)}
-          >
-            Edit
-          </Button>
-        </Box>
-      </Paper>
+          <Box mt={1}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate(`/admin/orders/${order.id}`)}
+            >
+              Edit
+            </Button>
+          </Box>
+        </Paper>
+      </Box>
     );
   };
+
+  const hasFilters =
+    !!state.email ||
+    state.status !== 'all' ||
+    !!state.minTotal ||
+    !!state.maxTotal ||
+    !!state.startDate ||
+    !!state.endDate;
 
   return (
     <PageWithStickyFilters
@@ -183,20 +189,29 @@ export default function AdminOrdersPage() {
           Failed to load orders: {error.message}
         </Typography>
       ) : (
-        <Box
-          sx={{ px: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 240px)' }}
-        >
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <VariableSizeList
-            height={isMobile ? 320 : 380}
+            height={window.innerHeight - headerHeight - footerHeight - 164}
             width="100%"
             itemCount={visibleOrders.length}
-            itemSize={() => (isMobile ? 240 : 180)}
+            itemSize={() => (isMobile ? 280 : 220)} // ⬅️ includes internal spacing
             style={{ overflowX: 'hidden' }}
           >
             {renderRow}
           </VariableSizeList>
         </Box>
       )}
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" variant="filled">
+          Action completed successfully
+        </Alert>
+      </Snackbar>
     </PageWithStickyFilters>
   );
 }

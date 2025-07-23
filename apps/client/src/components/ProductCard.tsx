@@ -1,11 +1,13 @@
 // src/components/ProductCard.tsx
 import {
+  Box,
   Button,
   Card,
   CardActions,
   CardContent,
   CardMedia,
   Typography,
+  useMediaQuery,
   useTheme,
 } from '@mui/material';
 import { IProduct } from '@common/types';
@@ -13,71 +15,78 @@ import { IProduct } from '@common/types';
 type Props = {
   product: IProduct;
   variant?: 'compact' | 'detailed' | 'standard';
+  onAddToCart?: () => void;
 };
 
-export default function ProductCard({ product, variant = 'standard' }: Props) {
+export default function ProductCard({
+  product,
+  variant = 'standard',
+  onAddToCart,
+}: Props) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const formattedPrice = Number(product.price).toFixed(2);
 
   const cardSx = {
-    height: '100%',
     display: 'flex',
-    flexDirection: 'column' as const,
-    ...(variant === 'compact' && {
-      p: 1,
-      border: `1px solid ${theme.palette.divider}`,
-    }),
-    ...(variant === 'detailed' && {
-      flexDirection: 'row' as const,
-      height: 200,
-    }),
+    flexDirection:
+      variant === 'detailed' ? { xs: 'column', sm: 'row' } : 'column',
+    height: variant === 'detailed' ? { xs: 'auto', sm: 200 } : '100%',
+    p: variant === 'compact' ? 1 : 2,
+    border:
+      variant === 'compact' ? `1px solid ${theme.palette.divider}` : undefined,
   };
 
-  const mediaProps =
-    variant === 'detailed'
-      ? { width: 200, height: '100%' }
-      : { height: 180 };
+  const mediaSx = {
+    objectFit: 'cover',
+    width: variant === 'detailed' ? { xs: '100%', sm: 200 } : '100%',
+    height: variant === 'detailed' ? { xs: 180, sm: '100%' } : 180,
+    borderRadius: 1,
+  };
 
   return (
     <Card sx={cardSx}>
       {product.imageUrl && product.images && (
         <CardMedia
           component="img"
-          image={product.images.length > 0 ? product.images[0] : product.imageUrl}
+          image={
+            product.images.length > 0 ? product.images[0] : product.imageUrl
+          }
           alt={product.name}
-          sx={{
-            objectFit: 'cover',
-            ...mediaProps,
-          }}
+          sx={mediaSx}
         />
       )}
 
-      <CardContent
-        sx={{
-          flexGrow: 1,
-          ...(variant === 'detailed' && { px: 2 }),
-        }}
+      <Box
+        display="flex"
+        flexDirection="column"
+        justifyContent="space-between"
+        flex={1}
+        px={variant === 'detailed' ? 2 : 0}
+        py={1}
       >
-        <Typography variant="subtitle1" fontWeight={600} gutterBottom noWrap>
-          {product.name}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          ${formattedPrice}
-        </Typography>
-      </CardContent>
+        <CardContent sx={{ flexGrow: 1 }}>
+          <Typography variant="subtitle1" fontWeight={600} gutterBottom noWrap>
+            {product.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            ${formattedPrice}
+          </Typography>
+        </CardContent>
 
-      <CardActions
-        sx={{
-          px: 2,
-          pt: 0,
-          pb: 2,
-          ...(variant === 'detailed' && { flexDirection: 'column', alignItems: 'start' }),
-        }}
-      >
-        <Button size="small" variant="outlined" fullWidth>
-          View
-        </Button>
-      </CardActions>
+        {onAddToCart && (
+          <CardActions sx={{ pt: 0, pb: 2, px: 2 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              fullWidth={isMobile}
+              onClick={onAddToCart}
+            >
+              Add to Cart
+            </Button>
+          </CardActions>
+        )}
+      </Box>
     </Card>
   );
 }
