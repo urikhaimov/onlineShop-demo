@@ -23,9 +23,10 @@
     "paths": {
       "@client/*": ["apps/client/src/*"],
       "@client/logger": ["libs/utils/src/lib/logger/logger.client.ts"],
+      "@common/firebase": ["libs/firebase/src/index.ts"],
       "@common/types": ["libs/types/src/index.ts"],
       "@common/utils": ["libs/utils/src/index.ts"],
-      "@common/firebase": ["libs/firebase/src/index.ts"]
+      "auth-client": ["libs/auth-client/src/index.ts"]
     }
   },
   "include": ["env.d.ts", "apps/**/*.ts", "libs/**/*.ts"]

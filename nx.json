@@ -84,7 +84,7 @@
       "options": {
         "targetName": "test"
       },
-      "exclude": ["apps/api-e2e/**/*"]
+      "exclude": ["apps/api-e2e/**/*", "apps/ms/auth-e2e/**/*"]
     },
     {
       "plugin": "@nx/react/router-plugin",

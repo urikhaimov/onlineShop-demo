@@ -10,7 +10,8 @@ import { StripeController } from '../stripe/stripe.controller';
 import { ThemeSettingsModule } from '../theme/theme-settings.module';
 import { LandingPageModule } from '../landing-page/landing-page.module';
 import { SecurityLogsModule } from '../security-logs/security-logs.module';
-import { AuthModule } from '../auth/auth.module';
+import { AuthClientModule } from 'auth-client';
+import { ApiAuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -18,7 +19,8 @@ import { AuthModule } from '../auth/auth.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    AuthModule,
+    AuthClientModule,
+    ApiAuthModule,
     ProductsModule,
     OrdersModule,
     UsersModule,

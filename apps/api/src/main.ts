@@ -71,9 +71,9 @@ async function swaggerBootstrap() {
 }
 
 appBootstrap().then(() => {
-  logger.info('Bootstrap completed successfully');
+  logger.info('API Bootstrap completed successfully');
 });
 
 swaggerBootstrap().then(() => {
-  logger.info('Swagger bootstrap completed successfully');
+  logger.info('API Swagger bootstrap completed successfully');
 });
