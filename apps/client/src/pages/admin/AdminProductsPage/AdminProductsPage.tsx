@@ -29,7 +29,7 @@ import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { auth, db } from '../../../firebase';
 import { useAllCategories } from '../../../hooks/useAllCategories';
 import { useProductMutations } from '../../../hooks/useProductMutations';
-import PageWithStickyFilters from '../../layouts/PageWithStickyFilters';
+import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
 import LoadingProgress from '../../../components/LoadingProgress';
 import SortableProductCard from './SortableProductCard';
 import AdminProductFilters from './AdminProductFilters';
