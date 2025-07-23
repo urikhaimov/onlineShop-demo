@@ -67,9 +67,9 @@ export default function LeftMenu() {
     setAnchorEl,
   } = useSidebarStore();
 
-  const drawerWidth = expanded ? 240 : 72;
-  const showLabel = expanded && !isMobile;
-
+  const drawerWidth = 240;
+  //const showLabel = expanded && !isMobile;
+  const showLabel = true;
   useEffect(() => {
     setExpanded(!isMobile);
   }, [isMobile, setExpanded]);

@@ -1,7 +1,11 @@
 // src/components/LoadingProgress.tsx
 import { Box, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
-import { sidebarWidth } from '../config/themeConfig';
-
+import {} from '../config/themeConfig';
+import {
+  headerHeight,
+  footerHeight,
+  sidebarWidth,
+} from '../config/themeConfig';
 const LoadingProgress = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -12,12 +16,10 @@ const LoadingProgress = () => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        height: '80vh',
-        width: '60vw',
+        height: `calc(100vh - ${headerHeight + footerHeight}px)`,
         overflowX: 'hidden',
-        ml: isMobile ? 0 : `${sidebarWidth}px`,
         position: 'relative',
-        maxWidth: '100%',
+        width: '100%',
       }}
     >
       <CircularProgress />
