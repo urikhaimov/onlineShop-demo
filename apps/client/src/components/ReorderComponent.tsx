@@ -1,5 +1,5 @@
 // src/components/ReorderComponent.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, forwardRef } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -35,18 +35,22 @@ interface Props {
   onRemove: (id: string) => void;
 }
 
-export default function ReorderComponent({ images, onReorder, onRemove }: Props) {
+export default function ReorderComponent({
+  images,
+  onReorder,
+  onRemove,
+}: Props) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
-    })
+    }),
   );
 
   const [localImages, setLocalImages] = useState(images);
-const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setLocalImages(images);
@@ -76,11 +80,27 @@ const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={localImages.map((img) => img.id)} strategy={verticalListSortingStrategy}>
-        <Box display="flex" flexWrap="wrap" gap={2} justifyContent={isMobile ? 'center' : 'flex-start'}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={localImages.map((img) => img.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <Box
+          display="flex"
+          flexWrap="wrap"
+          gap={2}
+          justifyContent={isMobile ? 'center' : 'flex-start'}
+        >
           {localImages.map((img) => (
-            <SortableImage key={img.id} image={img} onRemove={() => onRemove(img.id)} />
+            <SortableImage
+              key={img.id}
+              image={img}
+              onRemove={() => onRemove(img.id)}
+            />
           ))}
         </Box>
       </SortableContext>
@@ -88,8 +108,21 @@ const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   );
 }
 
-function SortableImage({ image, onRemove }: { image: CombinedImage; onRemove: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: image.id });
+const SortableImage = ({
+  image,
+  onRemove,
+}: {
+  image: CombinedImage;
+  onRemove: () => void;
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: image.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -99,7 +132,7 @@ function SortableImage({ image, onRemove }: { image: CombinedImage; onRemove: ()
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <Box ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <Card
         sx={{
           width: { xs: 90, sm: 100 },
@@ -120,7 +153,13 @@ function SortableImage({ image, onRemove }: { image: CombinedImage; onRemove: ()
           <LinearProgress
             variant="determinate"
             value={image.progress}
-            sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4 }}
+            sx={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+            }}
           />
         )}
 
@@ -155,6 +194,6 @@ function SortableImage({ image, onRemove }: { image: CombinedImage; onRemove: ()
           <DeleteIcon fontSize="small" />
         </IconButton>
       </Card>
-    </div>
+    </Box>
   );
-}
+};

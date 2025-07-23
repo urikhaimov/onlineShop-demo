@@ -1,12 +1,6 @@
 // src/components/ImageUploader.tsx
 import React, { useEffect, useRef } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Snackbar,
-  Alert,
-} from '@mui/material';
+import { Box, Typography, Paper, Snackbar, Alert } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useDropzone } from 'react-dropzone';
 import ReorderComponent from './ReorderComponent';
@@ -45,7 +39,9 @@ export default function ImageUploader({
 
   const handleDropRejected = () => {
     onCloseSnackbar();
-    alert(`❌ Some files were rejected. Only images up to ${MAX_FILE_SIZE_MB}MB are allowed.`);
+    alert(
+      `❌ Some files were rejected. Only images up to ${MAX_FILE_SIZE_MB}MB are allowed.`,
+    );
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -57,7 +53,7 @@ export default function ImageUploader({
     disabled: images.length >= MAX_IMAGES,
   });
 
-  // Track and cleanup preview blob URLs for new images
+  // Track new preview blobs
   useEffect(() => {
     const newBlobUrls = images
       .filter((img) => img.type === 'new' && img.url.startsWith('blob:'))
@@ -67,7 +63,7 @@ export default function ImageUploader({
     createdPreviewsRef.current.push(...newBlobUrls);
   }, [images]);
 
-  // Revoke blob URLs on unmount
+  // Clean up blob URLs on unmount
   useEffect(() => {
     return () => {
       createdPreviewsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -108,13 +104,17 @@ export default function ImageUploader({
           {isDragActive
             ? 'Drop files here...'
             : images.length >= MAX_IMAGES
-            ? `Upload limit reached (${MAX_IMAGES})`
-            : `Drag or click to upload (max ${MAX_FILE_SIZE_MB}MB each)`}
+              ? `Upload limit reached (${MAX_IMAGES})`
+              : `Drag or click to upload (max ${MAX_FILE_SIZE_MB}MB each)`}
         </Typography>
       </Paper>
 
       {errorMessage && (
-        <Snackbar open={showSnackbar} autoHideDuration={5000} onClose={onCloseSnackbar}>
+        <Snackbar
+          open={showSnackbar}
+          autoHideDuration={5000}
+          onClose={onCloseSnackbar}
+        >
           <Alert severity="error" onClose={onCloseSnackbar}>
             {errorMessage}
           </Alert>

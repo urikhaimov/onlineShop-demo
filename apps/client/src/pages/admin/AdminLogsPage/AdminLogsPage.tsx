@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Box,
   Typography,
-  CircularProgress,
   Paper,
   List,
   ListItem,
@@ -17,6 +16,7 @@ import { SelectChangeEvent } from '@mui/material';
 import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
 import { useLogs } from '../../../hooks/useLogs';
 import type { SecurityLog } from '../../../api/logs';
+import LoadingProgress from '../../../components/LoadingProgress';
 
 const CATEGORY_OPTIONS = [
   { id: '', label: 'All' },
@@ -54,9 +54,11 @@ const AdminLogsPage: React.FC = () => {
       </FormControl>
 
       {isLoading ? (
-        <CircularProgress />
+        <LoadingProgress />
       ) : error ? (
-        <Typography color="error">Failed to load logs: {error.message}</Typography>
+        <Typography color="error">
+          Failed to load logs: {error.message}
+        </Typography>
       ) : logsArray.length > 0 ? (
         <Paper>
           <List>

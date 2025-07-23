@@ -18,6 +18,7 @@ import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { formatCurrency } from '../../utils/format';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
 import { useAuth } from '../../hooks/useAuth';
+import LoadingProgress from '../../components/LoadingProgress';
 
 function formatDate(date?: string | { toDate?: () => Date }) {
   if (!date) return 'N/A';
@@ -35,18 +36,7 @@ export default function OrderDetailPage() {
     useOrderDetails(id, Boolean(user));
 
   if (!id || !user || loading) {
-    return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    );
+    return <LoadingProgress />;
   }
 
   if (error || !order) {

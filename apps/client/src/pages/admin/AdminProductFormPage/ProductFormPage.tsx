@@ -23,7 +23,7 @@ import {
 } from './productFormReducer';
 import FormTextField from '../../../components/FormTextField';
 import { useCategories } from '../../../hooks/useCategories';
-import { headerHeight, footerHeight } from '@client/config/themeConfig';
+import { headerHeight, footerHeight } from '../../../config/themeConfig';
 export type FormState = {
   name: string;
   description: string;
@@ -139,7 +139,10 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
       uploadTask.on(
         'state_changed',
-        () => {},
+        () => {
+          // TODO (urikhaimov): do something.
+          return false;
+        },
         (error) => reject(error),
         async () => {
           const url = await getDownloadURL(uploadTask.snapshot.ref);
@@ -222,14 +225,24 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   return (
     <Box
       sx={{
-        mt: `${headerHeight+20}px`,
+        mt: `${headerHeight + 20}px`,
         mb: `${footerHeight}px`,
-        minHeight: `calc(100vh - ${headerHeight + footerHeight}px)`,
-
-        mx: 'auto',
+        height: `calc(100vh - ${headerHeight + footerHeight + 20}px)`,
+        display: 'flex',
+        justifyContent: 'center',
       }}
     >
-      <Paper elevation={1} sx={{ p: 3, maxWidth: 700, mx: 'auto' }}>
+      <Paper
+        elevation={1}
+        sx={{
+          width: '100%',
+          maxWidth: 700,
+          overflowY: 'auto',
+          height: '100%',
+          px: 3,
+          py: 2,
+        }}
+      >
         <Typography variant="h6" mb={2}>
           {mode === 'add' ? 'Add New Product' : 'Edit Product'}
         </Typography>
@@ -349,7 +362,10 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   dispatch({ type: 'SET_COMBINED_IMAGES', payload: newOrder })
                 }
                 showSnackbar={false}
-                onCloseSnackbar={() => {}}
+                onCloseSnackbar={() => {
+                  // TODO (urikhaimov): do something.
+                  return false;
+                }}
               />
             </Box>
 

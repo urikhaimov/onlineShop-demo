@@ -5,7 +5,6 @@ import {
   Button,
   Paper,
   Stack,
-  CircularProgress,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -14,6 +13,7 @@ import DOMPurify from 'dompurify';
 import ImageGallery from '../../components/ImageGallery';
 import { useProductById } from '../../hooks/useProductById';
 import { headerHeight, footerHeight } from '../../config/themeConfig';
+import LoadingProgress from '../../components/LoadingProgress';
 
 export default function ProductDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,18 +28,7 @@ export default function ProductDetailsPage() {
   } = useProductById(id ? decodeURIComponent(id) : undefined);
 
   if (isLoading) {
-    return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    );
+    return <LoadingProgress />;
   }
 
   if (error || !product) {

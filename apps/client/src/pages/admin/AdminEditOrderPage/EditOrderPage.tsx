@@ -11,14 +11,16 @@ import {
   Alert,
   Stack,
 } from '@mui/material';
-import { useForm, Controller, SubmitHandler } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
+import type { SubmitHandler } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
-import { headerHeight, footerHeight } from '@client/config/themeConfig';
+import { headerHeight, footerHeight } from '../../../config/themeConfig';
 import { useOrder, useUpdateOrder, Order } from '../../../hooks/useOrder';
 
 import OrderSummaryCard from './components/OrderSummaryCard';
 import OrderItemsTable from './components/OrderItemsTable';
 import OrderStatusBadge from './components/OrderStatusBadge';
+import LoadingProgress from '../../../components/LoadingProgress';
 
 const STATUS_OPTIONS = [
   'pending',
@@ -60,11 +62,11 @@ export default function EditOrderPage() {
       { ...formData, previousStatus: order?.status },
       {
         onSuccess: () => setToastOpen(true),
-      }
+      },
     );
   };
 
-  if (isLoading) return <CircularProgress />;
+  if (isLoading) return <LoadingProgress />;
 
   if (isError)
     return (
@@ -77,15 +79,15 @@ export default function EditOrderPage() {
 
   return (
     <Box
-          sx={{
-            position: 'relative',
-            mt: `${headerHeight}px`,
-            height: `calc(100vh - ${headerHeight + footerHeight}px)`,
-            overflowY: 'auto',
-            px: 2,
-            py: 4,
-          }}
-        >
+      sx={{
+        position: 'relative',
+        mt: `${headerHeight}px`,
+        height: `calc(100vh - ${headerHeight + footerHeight}px)`,
+        overflowY: 'auto',
+        px: 2,
+        py: 4,
+      }}
+    >
       <Typography variant="h5" gutterBottom>
         Edit Order #{order?.id ?? ''}
       </Typography>

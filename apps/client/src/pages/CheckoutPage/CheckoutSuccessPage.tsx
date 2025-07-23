@@ -10,6 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useConfirmOrder } from '../../hooks/useConfirmOrder';
 import React, { Suspense } from 'react';
+import LoadingProgress from '../../components/LoadingProgress';
 
 const StripeProvider = React.lazy(() => import('../../stripe/StripeProvider'));
 
@@ -31,7 +32,7 @@ export default function CheckoutSuccessPage() {
         >
           <Paper sx={{ p: 4, maxWidth: 480, textAlign: 'center' }}>
             {loading ? (
-              <CircularProgress />
+              <LoadingProgress />
             ) : error ? (
               <Typography color="error">{error}</Typography>
             ) : (

@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useReducer, useState } from 'react';
-import { Box, Chip, Divider, Link, Paper, Typography } from '@mui/material';
+import {
+  Box,
+  Chip,
+  Divider,
+  Link,
+  Paper,
+  Typography,
+  useMediaQuery,
+  useTheme,
+} from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import PageWithStickyFilters from '../../layouts/PageWithStickyFilters';
 import { retryWithBackoff } from '../../utils/retryWithBackoff';
@@ -34,7 +43,8 @@ export default function MyOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user } = useAuth();
-
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   useEffect(() => {
     if (!user) return;
 
@@ -180,7 +190,7 @@ export default function MyOrdersPage() {
         <List
           height={window.innerHeight - (headerHeight + footerHeight + 140)}
           itemCount={filteredOrders.length}
-          itemSize={280}
+          itemSize={isMobile ? 380 : 320}
           width="100%"
         >
           {Row}

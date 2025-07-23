@@ -240,9 +240,7 @@ export default function AdminProductsPage() {
                 justifyContent="center"
                 py={3}
               >
-                {visibleCount < filteredProducts.length && (
-                  <CircularProgress size={28} />
-                )}
+                {visibleCount < filteredProducts.length && <LoadingProgress />}
               </Box>
             </SortableContext>
           </DndContext>
