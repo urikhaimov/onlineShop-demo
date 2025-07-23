@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const claims = await getUserClaims();
 
-        if (!claims?.role) {
+        if (claims?.role) {
           logger.info('Role is already available in claims');
           setRoleState(claims.role as TUserRole);
         } else {
