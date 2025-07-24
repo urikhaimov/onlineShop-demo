@@ -18,6 +18,7 @@ export default [
   {
     ignores: [
       '**/dist',
+      '**/webpack.config.*',
       '**/vite.config.*.timestamp*',
       '**/vitest.config.*.timestamp*',
     ],
