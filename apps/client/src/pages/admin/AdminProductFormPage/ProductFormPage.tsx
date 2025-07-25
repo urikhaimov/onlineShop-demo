@@ -32,7 +32,10 @@ export type FormState = {
   categoryId: string;
 };
 
+import { useSaveProductMutation } from '../../../hooks/useSaveProductMutation';
+
 export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
+  const saveMutation = useSaveProductMutation();
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(
@@ -152,65 +155,32 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     });
   }
 
-  const onSubmit = async (data: FormState) => {
+  const onSubmit = async (formData: FormState) => {
     try {
       dispatch({ type: 'SET_UPLOADING_IMAGES', payload: true });
 
-      let productDocId = productId ?? '';
-      if (mode === 'add' && !productDocId) {
-        const newDocRef = doc(collection(db, 'products'));
-        productDocId = newDocRef.id;
-      }
-
-      const newImages = state.combinedImages.filter(
-        (img) => img.type === 'new',
-      );
-      const uploadedUrls = await Promise.all(
-        newImages.map((img) => {
-          if (!img.file) throw new Error('Missing file for upload');
-          return uploadFile(img.file, productDocId);
-        }),
-      );
-
-      const existingUrls = state.combinedImages
-        .filter(
-          (img) =>
-            img.type === 'existing' &&
-            !state.deletedImageIds?.includes(img.id.replace('existing-', '')),
-        )
-        .map((img) => img.url);
-
-      const allImageUrls = [...existingUrls, ...uploadedUrls];
-
-      const productData = {
-        name: data.name,
-        description: data.description,
-        price: Number(data.price),
-        stock: Number(data.stock),
-        categoryId: data.categoryId,
-        images: allImageUrls,
-        updatedAt: serverTimestamp(),
+      const payload = {
+        productId,
+        mode,
+        data: {
+          ...formData,
+          price: Number(formData.price),
+          stock: Number(formData.stock),
+        },
+        images: state.combinedImages,
+        deletedImageIds: state.deletedImageIds,
       };
 
-      if (mode === 'edit' && productId) {
-        const productRef = doc(db, 'products', productId);
-        await updateDoc(productRef, productData);
-      } else {
-        const newDocRef = doc(db, 'products', productDocId);
-        await setDoc(newDocRef, {
-          ...productData,
-          createdAt: serverTimestamp(),
-        });
-      }
+      const savedProductId = await saveMutation.mutateAsync(payload);
 
       dispatch({ type: 'SET_SHOW_SUCCESS_SNACKBAR', payload: true });
-      dispatch({ type: 'SET_UPLOADING_IMAGES', payload: false });
       alert('Product saved successfully!');
       navigate('/admin/products');
-    } catch (error) {
-      console.error('Failed to save product:', error);
-      dispatch({ type: 'SET_UPLOADING_IMAGES', payload: false });
+    } catch (err) {
+      console.error('Failed to save product:', err);
       alert('Failed to save product. Check console for details.');
+    } finally {
+      dispatch({ type: 'SET_UPLOADING_IMAGES', payload: false });
     }
   };
 

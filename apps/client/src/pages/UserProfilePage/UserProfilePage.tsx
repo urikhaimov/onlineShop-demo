@@ -113,15 +113,12 @@ export default function UserProfilePage() {
   return (
     <Box
       sx={{
+        height: `calc(100vh - ${headerHeight + footerHeight}px)`,
+        overflowY: 'auto',
         mt: `${headerHeight}px`,
         mb: `${footerHeight}px`,
-        minHeight: `calc(100vh - ${headerHeight + footerHeight}px)`,
-        px: 2,
-        py: 4,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'start',
-        overflowY: 'auto',
+        px: { xs: 2, md: 4 },
+        py: { xs: 2, md: 3 },
       }}
     >
       <Paper

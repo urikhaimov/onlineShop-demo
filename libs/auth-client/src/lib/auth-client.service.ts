@@ -6,6 +6,7 @@ import {
 } from '@nestjs/microservices';
 import { User } from 'firebase/auth';
 import { MSCommands } from './msCommands.type';
+import { Observable } from 'rxjs';
 
 @Injectable()
 export class AuthClientService implements OnModuleDestroy {
@@ -22,7 +23,7 @@ export class AuthClientService implements OnModuleDestroy {
   }
 
   // Example method to call auth microservice
-  setUserRole(payload: { user: User }) {
+  setUserRole(payload: { user: User }): Observable<any> {
     return this.client.send({ cmd: MSCommands.AUTH_SET_USER_ROLE }, payload);
   }
 
