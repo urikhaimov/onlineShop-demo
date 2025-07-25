@@ -9,7 +9,5 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "setRole": "ts-node functions/src/setRole.ts"
-  },
-  "dependencies": {},
-  "devDependencies": {}
+  }
 }
