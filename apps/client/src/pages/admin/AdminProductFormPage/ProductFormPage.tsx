@@ -4,15 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import ReactQuill from 'react-quill';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import {
-  doc,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-  collection,
-} from 'firebase/firestore';
-
-import { storage, db } from '../../../firebase';
+import { storage } from '../../../firebase';
 import { useProduct } from '../../../hooks/useProduct';
 import ImageUploader, {
   CombinedImage,
