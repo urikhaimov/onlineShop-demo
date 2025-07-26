@@ -1,20 +1,20 @@
 import React from 'react';
 import {
-  TextField,
+  FormControl,
+  FormHelperText,
+  InputLabel,
   MenuItem,
   Select,
-  FormControl,
-  InputLabel,
-  FormHelperText,
+  TextField,
 } from '@mui/material';
 import type { TextFieldProps } from '@mui/material/TextField';
 import {
+  type Control,
   Controller,
   type FieldError,
   type FieldErrorsImpl,
   type Merge,
   type UseFormRegisterReturn,
-  type Control,
 } from 'react-hook-form';
 
 type FormChangeEvent = React.SyntheticEvent | React.ChangeEvent<any>;
@@ -22,7 +22,7 @@ type FormChangeEvent = React.SyntheticEvent | React.ChangeEvent<any>;
 interface Props extends Omit<TextFieldProps, 'defaultValue'> {
   label: string;
   register?: UseFormRegisterReturn;
-  errorObject?: FieldError | Merge<FieldError, FieldErrorsImpl<unknown>>;
+  errorObject?: FieldError | Merge<FieldError, FieldErrorsImpl<any>>;
   control?: Control<any>; // Prefer Control<ThemeSettings> where possible
   name?: string;
   isSelect?: boolean;

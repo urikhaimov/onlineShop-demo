@@ -1,4 +1,4 @@
-import { User, UserCredential } from 'firebase/auth';
+import { UserCredential } from 'firebase/auth';
 
 import type { Role } from '../constants/roles';
 

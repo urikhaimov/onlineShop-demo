@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
-  Box,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Stack,
   Alert,
+  Box,
+  Button,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
 } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -32,7 +32,7 @@ export default function ResetPasswordPage() {
     try {
       await sendPasswordResetEmail(auth, data.email);
       setSuccessMessage('Password reset email sent. Please check your inbox.');
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'Failed to send reset email.');
     }

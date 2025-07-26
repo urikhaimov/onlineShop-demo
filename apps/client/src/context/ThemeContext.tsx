@@ -2,8 +2,8 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import {
   createTheme,
-  ThemeProvider as MuiThemeProvider,
   CssBaseline,
+  ThemeProvider as MuiThemeProvider,
 } from '@mui/material';
 import { Theme } from '@mui/material/styles';
 import { useStoreTheme } from '../hooks/useStoreTheme';
@@ -13,9 +13,9 @@ export interface ThemeContextType {
   mode: 'light' | 'dark';
   toggleMode: () => void;
   isLoading: boolean;
-  error: unknown;
-  theme: Theme;
-  themeSettings: ThemeSettings;
+  error: any;
+  theme: Theme; // MUI theme
+  themeSettings: ThemeSettings; // ✅ Include raw settings
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);

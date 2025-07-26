@@ -3,8 +3,7 @@ import { Box, Fab, Stack, useMediaQuery, useTheme } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import dayjs, { Dayjs } from 'dayjs';
 
-import { FilterState, FilterAction } from './LocalReducer';
-import AdminFilterLayout from '../../../components/AdminFilterLayout';
+import { FilterAction, FilterState } from './LocalReducer';
 import UserFilterTextField from '../../../components/UserFilterTextField';
 import UserFilterDatePicker from '../../../components/UserFilterDatePicker';
 

@@ -1,10 +1,10 @@
 // ✅ ToggleOptions.tsx
 import React from 'react';
 import { Controller } from 'react-hook-form';
-import { FormControlLabel, Switch, Stack } from '@mui/material';
+import { FormControlLabel, Stack, Switch } from '@mui/material';
 
 interface Props {
-  control: unknown;
+  control: any;
 }
 
 export default function ToggleOptions({ control }: Props) {

@@ -1,6 +1,6 @@
 // src/components/BestSellers.tsx
 import React from 'react';
-import { Box, Typography, Container, Button } from '@mui/material';
+import { Box, Button, Container, Typography } from '@mui/material';
 import ProductCard from './ProductCard';
 import LoadingProgress from './LoadingProgress';
 import { useBestSellers } from '../hooks/useBestSellers';

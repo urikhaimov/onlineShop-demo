@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
   Box,
+  Button,
+  Divider,
   Drawer,
   IconButton,
   Typography,
-  Divider,
-  useTheme,
   useMediaQuery,
-  Button,
+  useTheme,
 } from '@mui/material';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 
@@ -56,11 +56,13 @@ export default function ResponsiveDrawerWrapper({
           anchor="left"
           open={open}
           onClose={toggleDrawer}
-          PaperProps={{
-            sx: {
-              width: 300,
-              zIndex: theme.zIndex.drawer + 5,
-              p: 2,
+          slotProps={{
+            paper: {
+              sx: {
+                width: 300,
+                zIndex: theme.zIndex.drawer + 5,
+                p: 2,
+              },
             },
           }}
         >

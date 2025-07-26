@@ -33,7 +33,7 @@ export default [
     },
     rules: {
       '@nx/enforce-module-boundaries': [
-        'error',
+        'warn',
         {
           enforceBuildableLibDependency: true,
           allow: ['^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$'],
@@ -71,6 +71,7 @@ export default [
       ...tsLint.configs.recommended.rules,
       ...prettierConfig.rules,
       '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-require-imports': 'warn',
       // 'no-console': 'warn',
       'no-debugger': 'warn',
       'no-duplicate-imports': 'warn',

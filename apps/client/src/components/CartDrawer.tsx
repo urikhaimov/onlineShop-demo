@@ -1,25 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  SwipeableDrawer,
-  List,
-  ListItemText,
-  IconButton,
-  Typography,
+  Alert,
   Box,
   Button,
   Divider,
   Fade,
-  Snackbar,
-  Alert,
+  IconButton,
+  List,
+  ListItemText,
   Slide,
+  Snackbar,
+  SwipeableDrawer,
+  Typography,
 } from '@mui/material';
 import type { TransitionProps } from '@mui/material/transitions';
 import CloseIcon from '@mui/icons-material/Close';
 import { useCartStore } from '../stores/useCartStore';
 import { useSwipeable } from 'react-swipeable';
 import { Product } from '../types/firebase';
+
 export type CartItem = Product & { quantity: number };
+
 const SlideTransition = React.forwardRef(function SlideTransition(
   props: TransitionProps & { children: React.ReactElement },
   ref: React.Ref<unknown>,

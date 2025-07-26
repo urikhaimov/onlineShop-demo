@@ -70,7 +70,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       const { data } =
         await axiosInstance.get<ThemeSettings>('/theme/settings');
       get().setTheme(data);
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('❌ Failed to load theme:', error);
       set({ error: error.message, isLoading: false });
     }

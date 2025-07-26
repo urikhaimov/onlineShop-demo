@@ -1,5 +1,5 @@
 import React from 'react';
-import { Paper, Typography, Box, useTheme } from '@mui/material';
+import { Box, Paper, Typography, useTheme } from '@mui/material';
 import { ThemeSettings } from '../../../../api/theme';
 
 interface Props {

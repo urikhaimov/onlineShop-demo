@@ -1,8 +1,3 @@
-type FormData = {
-  ownerName: string;
-  passportId: string;
-};
-
 export type State = {
   clientSecret: string | null;
   loading: boolean;

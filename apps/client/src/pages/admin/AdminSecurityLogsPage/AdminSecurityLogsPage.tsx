@@ -2,7 +2,7 @@
 import React from 'react';
 import {
   Box,
-  Typography,
+  CircularProgress,
   Paper,
   Table,
   TableBody,
@@ -10,7 +10,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  CircularProgress,
+  Typography,
 } from '@mui/material';
 import { useSecurityLogs } from '../../../hooks/useSecurityLogs';
 

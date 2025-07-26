@@ -4,7 +4,7 @@ import { Box, FormControlLabel, Switch } from '@mui/material';
 import { Controller } from 'react-hook-form';
 
 interface Props {
-  control: unknown;
+  control: any;
 }
 
 export default function DarkModeToggle({ control }: Props) {

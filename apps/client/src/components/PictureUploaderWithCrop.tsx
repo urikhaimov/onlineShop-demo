@@ -1,21 +1,21 @@
 // ✅ PictureUploaderWithCrop.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import Cropper from 'react-easy-crop';
 import {
   Avatar,
   Box,
+  Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
-  Stack,
-  Button,
-  Slider,
   Fade,
-  CircularProgress,
+  IconButton,
+  Slider,
+  Stack,
 } from '@mui/material';
-import { PhotoCamera, Delete } from '@mui/icons-material';
+import { Delete, PhotoCamera } from '@mui/icons-material';
 import { getCroppedImg } from '../utils/cropUtils';
 
 interface Props {
@@ -35,7 +35,7 @@ export default function PictureUploaderWithCrop({
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<unknown>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
   const [avatarFadeIn, setAvatarFadeIn] = useState(true);
 
@@ -50,7 +50,7 @@ export default function PictureUploaderWithCrop({
     reader.readAsDataURL(file);
   };
 
-  const onCropComplete = useCallback((_: unknown, cropped: unknown) => {
+  const onCropComplete = useCallback((_: any, cropped: any) => {
     setCroppedAreaPixels(cropped);
   }, []);
 

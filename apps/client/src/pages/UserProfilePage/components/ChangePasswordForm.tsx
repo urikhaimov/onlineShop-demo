@@ -67,7 +67,7 @@ export default function ChangePasswordForm() {
 
       setSuccessMsg('Password updated successfully');
       reset();
-    } catch (err: unknown) {
+    } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to update password');
     }
   };

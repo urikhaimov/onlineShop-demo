@@ -12,7 +12,6 @@ const parseProductDate = (createdAt: TimestampLike): Date | null => {
   if (isDate(createdAt)) return createdAt;
   if (
     typeof createdAt === 'object' &&
-    createdAt !== null &&
     typeof (createdAt as { toDate?: () => Date }).toDate === 'function'
   ) {
     return (createdAt as { toDate: () => Date }).toDate();

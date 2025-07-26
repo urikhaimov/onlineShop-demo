@@ -3,7 +3,7 @@
 import React from 'react';
 import { Stack } from '@mui/material';
 import type { Control } from 'react-hook-form';
-import type { ThemeSettings } from '../../../../api/theme';
+import { ThemeSettings } from '../../../../api/theme';
 import { loadGoogleFont } from '../../../../utils/loadGoogleFont';
 import FormTextField from '../../../../components/FormTextField';
 
@@ -37,7 +37,7 @@ export default function FontSelectWithControls({ control }: Props) {
         name="fontSize"
         control={control}
         type="number"
-        inputProps={{ min: 10, max: 32 }}
+        slotProps={{ htmlInput: { min: 10, max: 32 } }}
       />
 
       <FormTextField
@@ -45,7 +45,7 @@ export default function FontSelectWithControls({ control }: Props) {
         name="fontWeight"
         control={control}
         type="number"
-        inputProps={{ min: 100, max: 900, step: 100 }}
+        slotProps={{ htmlInput: { min: 100, max: 900, step: 100 } }}
       />
     </Stack>
   );

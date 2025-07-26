@@ -20,7 +20,6 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-  
     "paths": {
       "@client/*": ["apps/client/src/*"],
       "@client/logger": ["libs/utils/src/lib/logger/logger.client.ts"],

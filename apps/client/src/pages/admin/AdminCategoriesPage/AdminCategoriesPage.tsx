@@ -1,12 +1,12 @@
-import React, { useReducer, useState, useMemo } from 'react';
+import React, { useMemo, useReducer, useState } from 'react';
 import {
   Box,
   Button,
-  TextField,
+  IconButton,
   List,
   ListItem,
   ListItemText,
-  IconButton,
+  TextField,
   Typography,
   useTheme,
 } from '@mui/material';
@@ -17,15 +17,15 @@ import CloseIcon from '@mui/icons-material/Close';
 
 import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
 import {
-  useCategories,
   useAddCategory,
+  useCategories,
   useDeleteCategory,
   useUpdateCategory,
 } from '../../../hooks/useCategories';
 import { categoryReducer, initialCategoryState } from './categoryReducer';
-import { uiReducer, initialUIState } from './LocalUiReducer';
+import { initialUIState, uiReducer } from './LocalUiReducer';
 import AdminCategoriesFilters from './AdminCategoriesFilters';
-import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import { footerHeight, headerHeight } from '../../../config/themeConfig';
 
 export default function AdminCategoriesPage() {
   const [state, dispatch] = useReducer(categoryReducer, initialCategoryState);

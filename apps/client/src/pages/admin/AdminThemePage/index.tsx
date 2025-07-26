@@ -1,13 +1,13 @@
 // ... all existing imports
 import React from 'react';
-import { Box, Typography, Stack, Button } from '@mui/material';
-import { useForm, Controller } from 'react-hook-form';
+import { Box, Button, Stack, Typography } from '@mui/material';
+import { Controller, useForm } from 'react-hook-form';
 import {
   useThemeSettings,
   useUpdateThemeSettingsMutation,
 } from '../../../hooks/useThemeHooks';
 import { ThemeSettings } from '../../../api/theme';
-import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import { footerHeight, headerHeight } from '../../../config/themeConfig';
 import { themePresets } from '../../../constants/themePresets';
 
 import DarkModeToggle from './components/DarkModeToggle';
@@ -23,6 +23,7 @@ import ThemeSpacingControls from './components/ThemeSpacingControls';
 import LayoutAndCardControls from './components/LayoutAndCardControls';
 import CategoryStyleSelect from './components/CategoryStyleSelect';
 import uploadSingleFileAndReturnUrl from '../../../utils/uploadSingleFileAndReturnUrl';
+
 export default function AdminThemePage() {
   const { data, isLoading } = useThemeSettings();
   const { mutate, isPending } = useUpdateThemeSettingsMutation();

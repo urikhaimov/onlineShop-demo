@@ -2,11 +2,11 @@ import React, { useEffect } from 'react';
 import {
   Box,
   Button,
-  Stack,
-  MenuItem,
-  Typography,
-  Switch,
   FormControlLabel,
+  MenuItem,
+  Stack,
+  Switch,
+  Typography,
 } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { themePresets } from '../constants/themePresets';

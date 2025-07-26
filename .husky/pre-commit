@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MAX_FILES=1000  # Set the limit
+MAX_FILES=100  # Set the limit
 
 FILES_CHANGED=$(git diff --cached --name-only | wc -l)
 

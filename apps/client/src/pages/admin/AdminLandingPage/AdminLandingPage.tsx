@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
-  Typography,
   CircularProgress,
   Snackbar,
-  Alert,
+  Typography,
 } from '@mui/material';
 import { useForm } from 'react-hook-form';
 
@@ -13,8 +13,8 @@ import {
   useLandingPage,
   useUpdateLandingPage,
 } from '../../../hooks/useLandingPage';
-import type { LandingPageData } from '../../../types/landing';
-import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import { LandingPageData } from '../../../types/landing';
+import { footerHeight, headerHeight } from '../../../config/themeConfig';
 import FormTextField from '../../../components/FormTextField';
 
 export default function AdminLandingPage() {

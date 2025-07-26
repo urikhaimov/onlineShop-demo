@@ -1,6 +1,6 @@
 // src/components/ThemePreviewCard.tsx
 import React from 'react';
-import { Box, Card, CardContent, Typography, Button } from '@mui/material';
+import { Box, Button, Card, CardContent, Typography } from '@mui/material';
 import { useThemeStore } from '../stores/useThemeStore';
 
 export default function ThemePreviewCard() {

@@ -1,20 +1,20 @@
 // src/components/LogoUploader.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Box,
-  Typography,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Slider,
-  CircularProgress,
+  Typography,
 } from '@mui/material';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../utils/cropUtils';
 import { storage } from '../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useStoreContext } from '../stores/useStoreContext';
 import { useDropzone } from 'react-dropzone';
 
@@ -35,6 +35,7 @@ export default function LogoUploader({ value, onChange }: LogoUploaderProps) {
     width: number;
     height: number;
   } | null>(null);
+
   const [openCropDialog, setOpenCropDialog] = useState(false);
 
   const onCropComplete = useCallback(

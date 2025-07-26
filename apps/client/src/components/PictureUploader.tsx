@@ -1,6 +1,6 @@
 // src/components/PictureUploader.tsx
 import React, { useEffect, useRef } from 'react';
-import { Box, Typography, Paper, Snackbar, Alert, Avatar } from '@mui/material';
+import { Alert, Avatar, Box, Paper, Snackbar, Typography } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useDropzone } from 'react-dropzone';
 
