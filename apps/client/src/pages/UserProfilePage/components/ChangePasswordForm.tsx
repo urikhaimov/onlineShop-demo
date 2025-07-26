@@ -7,11 +7,10 @@ import {
   InputAdornment,
   Snackbar,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -19,6 +18,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import FormTextField from '../../../components/FormTextField';
 
 interface PasswordFormData {
   oldPassword: string;
@@ -67,7 +67,7 @@ export default function ChangePasswordForm() {
 
       setSuccessMsg('Password updated successfully');
       reset();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrorMsg(err?.message || 'Failed to update password');
     }
   };
@@ -79,88 +79,67 @@ export default function ChangePasswordForm() {
       </Typography>
 
       <Stack spacing={2}>
-        <Controller
+        <FormTextField
+          label="Old Password"
           name="oldPassword"
           control={control}
-          rules={{ required: 'Old password is required' }}
-          render={({ field }) => (
-            <TextField
-              {...field}
-              label="Old Password"
-              fullWidth
-              type={showOld ? 'text' : 'password'}
-              error={!!errors.oldPassword}
-              helperText={errors.oldPassword?.message}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowOld((prev) => !prev)}
-                      edge="end"
-                    >
-                      {showOld ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-          )}
+          required
+          type={showOld ? 'text' : 'password'}
+          errorObject={errors.oldPassword}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => setShowOld((prev) => !prev)}
+                  edge="end"
+                >
+                  {showOld ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
         />
 
-        <Controller
+        <FormTextField
+          label="New Password"
           name="newPassword"
           control={control}
-          rules={{ required: 'New password is required' }}
-          render={({ field }) => (
-            <TextField
-              {...field}
-              label="New Password"
-              fullWidth
-              type={showNew ? 'text' : 'password'}
-              error={!!errors.newPassword}
-              helperText={errors.newPassword?.message}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowNew((prev) => !prev)}
-                      edge="end"
-                    >
-                      {showNew ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-          )}
+          required
+          type={showNew ? 'text' : 'password'}
+          errorObject={errors.newPassword}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => setShowNew((prev) => !prev)}
+                  edge="end"
+                >
+                  {showNew ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
         />
 
-        <Controller
+        <FormTextField
+          label="Confirm Password"
           name="confirmPassword"
           control={control}
-          rules={{ required: 'Please confirm your password' }}
-          render={({ field }) => (
-            <TextField
-              {...field}
-              label="Confirm Password"
-              fullWidth
-              type={showConfirm ? 'text' : 'password'}
-              error={!!errors.confirmPassword}
-              helperText={errors.confirmPassword?.message}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowConfirm((prev) => !prev)}
-                      edge="end"
-                    >
-                      {showConfirm ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-          )}
+          required
+          type={showConfirm ? 'text' : 'password'}
+          errorObject={errors.confirmPassword}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => setShowConfirm((prev) => !prev)}
+                  edge="end"
+                >
+                  {showConfirm ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
         />
 
         <Button type="submit" variant="outlined" fullWidth>

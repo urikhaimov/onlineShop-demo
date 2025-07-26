@@ -10,12 +10,9 @@ import {
   Paper,
   Snackbar,
   Stack,
-  TextField,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useUserProfileQuery } from '../../hooks/useUserProfileQuery';
 import { useUpdateUserProfileMutation } from '../../hooks/useUpdateUserProfileMutation';
 import { useUploadAvatarMutation } from '../../hooks/useUploadAvatarMutation';
@@ -27,13 +24,12 @@ import { initialLocalUIState, localUIReducer } from './LocalUIReducer';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
 import ChangePasswordForm from './components/ChangePasswordForm';
 import { useAuth } from '../../hooks/useAuth';
+import FormTextField from '../../components/FormTextField';
 
 export default function UserProfilePage() {
   const { user, loading } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
   const [uiState, uiDispatch] = useReducer(localUIReducer, initialLocalUIState);
-  const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
 
   const {
     control,
@@ -63,7 +59,7 @@ export default function UserProfilePage() {
       await updateMutation.mutateAsync({ name: data.name });
       dispatch({ type: 'SET_TOAST_MESSAGE', payload: 'Profile updated' });
       dispatch({ type: 'SET_TOAST_OPEN', payload: true });
-    } catch (err) {
+    } catch {
       dispatch({ type: 'SET_ERROR_MSG', payload: 'Failed to update profile.' });
     }
   };
@@ -75,10 +71,12 @@ export default function UserProfilePage() {
       uiDispatch({ type: 'INCREMENT_AVATAR_VER' });
       dispatch({ type: 'SET_TOAST_MESSAGE', payload: 'Profile updated' });
       dispatch({ type: 'SET_TOAST_OPEN', payload: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Avatar upload failed.';
       dispatch({
         type: 'SET_ERROR_MSG',
-        payload: err?.message || 'Avatar upload failed.',
+        payload: errorMessage,
       });
     } finally {
       uiDispatch({ type: 'SET_UPLOADING', payload: false });
@@ -91,7 +89,7 @@ export default function UserProfilePage() {
       uiDispatch({ type: 'INCREMENT_AVATAR_VER' });
       dispatch({ type: 'SET_TOAST_MESSAGE', payload: 'Avatar deleted' });
       dispatch({ type: 'SET_TOAST_OPEN', payload: true });
-    } catch (err) {
+    } catch {
       dispatch({ type: 'SET_ERROR_MSG', payload: 'Failed to delete avatar' });
     } finally {
       uiDispatch({ type: 'SET_DELETE_DIALOG', payload: false });
@@ -151,31 +149,26 @@ export default function UserProfilePage() {
 
           <Box component="form" onSubmit={handleSubmit(onSubmit)} width="100%">
             <Stack spacing={2}>
-              <Controller
+              <FormTextField
                 name="name"
+                label="Name"
                 control={control}
-                rules={{ required: 'Name is required' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Name"
-                    fullWidth
-                    error={!!errors.name}
-                    helperText={errors.name?.message}
-                  />
-                )}
+                required
+                errorObject={errors.name}
               />
-              <TextField
+              <FormTextField
+                name="email"
                 label="Email"
+                control={control}
+                disabled
                 value={user.email ?? ''}
-                fullWidth
-                disabled
               />
-              <TextField
+              <FormTextField
+                name="uid"
                 label="UID"
-                value={user.uid ?? ''}
-                fullWidth
+                control={control}
                 disabled
+                value={user.uid ?? ''}
               />
               <ChangePasswordForm />
               <Button

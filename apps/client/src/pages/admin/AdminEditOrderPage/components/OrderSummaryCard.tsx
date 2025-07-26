@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  Paper,
-  Typography,
-  Divider,
-  Box,
-  Chip,
-} from '@mui/material';
+import { Paper, Typography, Divider, Box, Chip } from '@mui/material';
 
 interface Props {
   order: {
@@ -31,7 +25,10 @@ interface Props {
 
 export default function OrderSummaryCard({ order }: Props) {
   const items = order.items ?? [];
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
 
   const paymentStatus = order.payment?.status ?? 'unpaid';
   const paymentColor = paymentStatus === 'paid' ? 'success' : 'warning';
@@ -53,7 +50,9 @@ export default function OrderSummaryCard({ order }: Props) {
           <Box sx={{ mb: 1 }}>
             <Typography variant="subtitle2">Customer:</Typography>
             <Typography>{order.shippingAddress.fullName || '—'}</Typography>
-            <Typography variant="body2">{order.shippingAddress.phone || '—'}</Typography>
+            <Typography variant="body2">
+              {order.shippingAddress.phone || '—'}
+            </Typography>
           </Box>
 
           <Divider sx={{ my: 1 }} />
@@ -74,7 +73,9 @@ export default function OrderSummaryCard({ order }: Props) {
           <Divider sx={{ my: 1 }} />
           <Box sx={{ mb: 1 }}>
             <Typography variant="subtitle2">Payment:</Typography>
-            <Typography variant="body2">{order.payment.method || 'N/A'}</Typography>
+            <Typography variant="body2">
+              {order.payment.method || 'N/A'}
+            </Typography>
             <Chip
               label={paymentStatus.toUpperCase()}
               color={paymentColor}

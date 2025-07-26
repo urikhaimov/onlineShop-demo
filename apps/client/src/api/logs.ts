@@ -1,7 +1,7 @@
 // src/api/logs.ts
 export interface SecurityLog {
   id: string;
-  timestamp: string;  // ISO string datetime from API
+  timestamp: string; // ISO string datetime from API
   email?: string;
   uid?: string;
   type?: string;

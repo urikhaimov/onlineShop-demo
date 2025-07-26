@@ -57,7 +57,10 @@ export const initialFilterState: FilterState = {
   inStockOnly: false,
 };
 
-export function filterReducer(state: FilterState, action: FilterAction): FilterState {
+export function filterReducer(
+  state: FilterState,
+  action: FilterAction,
+): FilterState {
   switch (action.type) {
     case 'setEmail':
       return { ...state, email: action.payload, page: 1 };

@@ -43,23 +43,20 @@ export class OrdersController {
   getOrderById(@Req() req, @Param('id') id: string) {
     return this.ordersService.getOrderById(req.user.uid, id, req.user.role);
   }
-@Post()
-async createOrder(@Req() req, @Body() dto: CreateOrderDto) {
-  const completeDto = {
-    ...dto,
-    userId: req.user.uid,
-  };
+  @Post()
+  async createOrder(@Req() req, @Body() dto: CreateOrderDto) {
+    const completeDto = {
+      ...dto,
+      userId: req.user.uid,
+    };
 
-  console.log('Received createOrder DTO:', completeDto);
+    console.log('Received createOrder DTO:', completeDto);
 
-  return this.ordersService.createOrder(completeDto);
-}
+    return this.ordersService.createOrder(completeDto);
+  }
 
   @Post('create-payment-intent')
-  createPaymentIntent(
-    @Req() req,
-    @Body() body: CreatePaymentIntentDto,
-  ) {
+  createPaymentIntent(@Req() req, @Body() body: CreatePaymentIntentDto) {
     return this.ordersService.createPaymentIntent(
       body.amount,
       body.ownerName,

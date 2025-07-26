@@ -2,8 +2,9 @@
 
 import React, { createContext, useEffect, useState } from 'react';
 import gravatar from 'gravatar';
-import type { User } from 'firebase/auth';
+
 import {
+  type User,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,

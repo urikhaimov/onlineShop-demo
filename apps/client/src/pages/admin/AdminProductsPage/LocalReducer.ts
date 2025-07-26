@@ -3,7 +3,7 @@ import { Dayjs } from 'dayjs';
 
 export interface State {
   products: IProduct[];
-  lastDoc: any;
+  lastDoc: unknown;
   loading: boolean;
   hasMore: boolean;
   searchTerm: string;
@@ -21,7 +21,7 @@ export type Action =
   | { type: 'SET_PRODUCTS_SORTED'; payload: IProduct[] }
   | { type: 'ADD_PRODUCTS'; payload: IProduct[] }
   | { type: 'REMOVE_PRODUCT'; payload: string }
-  | { type: 'SET_LAST_DOC'; payload: any }
+  | { type: 'SET_LAST_DOC'; payload: unknown }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_HAS_MORE'; payload: boolean }
   | { type: 'SET_SEARCH_TERM'; payload: string }

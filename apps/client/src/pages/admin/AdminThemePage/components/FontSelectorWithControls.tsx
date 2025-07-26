@@ -44,7 +44,11 @@ export default function FontSelectorWithControls() {
 
       <FormControl fullWidth sx={{ mb: 2 }}>
         <InputLabel>Font</InputLabel>
-        <Select value={themeSettings.font} label="Font" onChange={handleFontChange}>
+        <Select
+          value={themeSettings.font}
+          label="Font"
+          onChange={handleFontChange}
+        >
           {Object.entries(FONT_GROUPS).map(([group, fonts]) => (
             <optgroup key={group} label={group}>
               {fonts.map((font) => (

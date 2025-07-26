@@ -22,21 +22,15 @@ export const useSidebarStore = create<SidebarState>((set) => ({
   cartOpen: false,
   anchorEl: null,
 
-  toggleMobileDrawer: () =>
-    set((state) => ({ mobileOpen: !state.mobileOpen })),
+  toggleMobileDrawer: () => set((state) => ({ mobileOpen: !state.mobileOpen })),
 
-  closeMobileDrawer: () =>
-    set({ mobileOpen: false }),
+  closeMobileDrawer: () => set({ mobileOpen: false }),
 
-  setExpanded: (expanded) =>
-    set({ expanded }),
+  setExpanded: (expanded) => set({ expanded }),
 
-  openCartDrawer: () =>
-    set({ cartOpen: true }),
+  openCartDrawer: () => set({ cartOpen: true }),
 
-  closeCartDrawer: () =>
-    set({ cartOpen: false }),
+  closeCartDrawer: () => set({ cartOpen: false }),
 
-  setAnchorEl: (el) =>
-    set({ anchorEl: el }),
+  setAnchorEl: (el) => set({ anchorEl: el }),
 }));

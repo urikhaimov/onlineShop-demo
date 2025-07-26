@@ -11,7 +11,7 @@ export const csp = [
 
   "connect-src 'self' http://localhost:3000 https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebase.googleapis.com https://storage.googleapis.com https://firebasestorage.googleapis.com https://www.googleapis.com",
 
-  "frame-src https://js.stripe.com https://hooks.stripe.com",
+  'frame-src https://js.stripe.com https://hooks.stripe.com',
 
-  "worker-src 'self' blob:"
+  "worker-src 'self' blob:",
 ].join('; ');

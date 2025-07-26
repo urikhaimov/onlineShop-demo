@@ -1,13 +1,21 @@
 import React from 'react';
 import { Chip } from '@mui/material';
 
-type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
 
 interface Props {
   status?: string; // Made optional + looser to allow flexibility
 }
 
-const statusColors: Record<OrderStatus, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
+const statusColors: Record<
+  OrderStatus,
+  'default' | 'info' | 'warning' | 'success' | 'error'
+> = {
   pending: 'default',
   confirmed: 'info',
   shipped: 'warning',

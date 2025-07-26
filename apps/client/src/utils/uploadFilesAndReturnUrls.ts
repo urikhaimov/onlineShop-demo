@@ -4,16 +4,13 @@ import {
   ref,
   uploadBytesResumable,
   getDownloadURL,
-  
 } from 'firebase/storage';
 import { storage } from '../firebase';
 
 export async function uploadFilesAndReturnUrls(
   files: File[],
-  folderPath: string
+  folderPath: string,
 ): Promise<string[]> {
-  
-
   // Generate an array of upload promises
   const uploadPromises = files.map((file) => {
     const fileName = `${Date.now()}_${file.name}`;
@@ -32,7 +29,7 @@ export async function uploadFilesAndReturnUrls(
           } catch (err) {
             reject(err);
           }
-        }
+        },
       );
     });
   });

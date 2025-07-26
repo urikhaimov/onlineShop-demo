@@ -1,11 +1,7 @@
 import React from 'react';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { Dayjs } from 'dayjs';
-import {
-  IconButton,
-  InputAdornment,
-  TextFieldProps,
-} from '@mui/material';
+import { IconButton, InputAdornment, TextFieldProps } from '@mui/material';
 import ClearIcon from '@mui/icons-material/Clear';
 
 interface Props {
@@ -33,21 +29,22 @@ export default function UserFilterDatePicker({
       slotProps={{
         textField: {
           fullWidth,
-          InputProps: clearable && value
-            ? {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => onClear?.()}
-                      size="small"
-                      edge="end"
-                    >
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }
-            : undefined,
+          InputProps:
+            clearable && value
+              ? {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => onClear?.()}
+                        size="small"
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }
+              : undefined,
         } satisfies TextFieldProps,
       }}
     />

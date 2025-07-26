@@ -28,7 +28,7 @@ export default function ResponsiveDrawerWrapper({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const toggleDrawer = () => setOpen(prev => !prev);
+  const toggleDrawer = () => setOpen((prev) => !prev);
 
   if (isMobile) {
     return (

@@ -35,7 +35,7 @@ export default function PictureUploaderWithCrop({
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<unknown>(null);
   const [uploading, setUploading] = useState(false);
   const [avatarFadeIn, setAvatarFadeIn] = useState(true);
 
@@ -50,7 +50,7 @@ export default function PictureUploaderWithCrop({
     reader.readAsDataURL(file);
   };
 
-  const onCropComplete = useCallback((_: any, cropped: any) => {
+  const onCropComplete = useCallback((_: unknown, cropped: unknown) => {
     setCroppedAreaPixels(cropped);
   }, []);
 

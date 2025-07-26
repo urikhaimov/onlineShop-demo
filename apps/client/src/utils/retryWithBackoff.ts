@@ -2,7 +2,7 @@ export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   retries = 3,
   delay = 500,
-  factor = 2
+  factor = 2,
 ): Promise<T> {
   try {
     return await fn();

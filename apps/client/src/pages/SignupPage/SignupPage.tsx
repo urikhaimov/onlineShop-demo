@@ -37,7 +37,11 @@ export default function SignupPage() {
 
   const onSubmit = async (data: SignUpInputs) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        data.email,
+        data.password,
+      );
       const user = userCredential.user;
 
       // Set display name in Firebase Auth
@@ -111,7 +115,10 @@ export default function SignupPage() {
                 label="Password"
                 type="password"
                 fullWidth
-                {...register('password', { required: 'Password is required', minLength: 6 })}
+                {...register('password', {
+                  required: 'Password is required',
+                  minLength: 6,
+                })}
                 error={!!errors.password}
                 helperText={errors.password?.message}
               />

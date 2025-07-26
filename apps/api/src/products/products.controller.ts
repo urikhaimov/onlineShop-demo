@@ -16,7 +16,7 @@ import { Req, UseGuards } from '@nestjs/common';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard'; // or wherever your guard is
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) { }
+  constructor(private readonly productsService: ProductsService) {}
 
   @Get()
   getAllProducts(): Promise<ProductWithOrder[]> {
@@ -47,16 +47,16 @@ export class ProductsController {
     return this.productsService.remove(id);
   }
 
-@Get(':id')
-async getOne(@Param('id') id: string) {
-  const product = await this.productsService.findById(id);
-  console.log('✅ Found product:', product);
-  return product;
-}
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    const product = await this.productsService.findById(id);
+    console.log('✅ Found product:', product);
+    return product;
+  }
 
   @Post('reorder')
   @UseGuards(FirebaseAuthGuard) // or your custom guard
   async reorder(@Body() dto: ReorderProductsDto, @Req() req: any) {
-   return this.productsService.reorder(dto.orderList); // ✅ correct
+    return this.productsService.reorder(dto.orderList); // ✅ correct
   }
 }

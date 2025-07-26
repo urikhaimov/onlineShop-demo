@@ -1,13 +1,9 @@
+import { Alert, Box, Snackbar, useMediaQuery, useTheme } from '@mui/material';
+import React, { useEffect, useReducer, useState } from 'react';
 import {
-  Alert,
-  Box,
-  Snackbar,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
-import React, { useEffect, useReducer, useRef, useState } from 'react';
-import { FixedSizeList as List } from 'react-window';
+  FixedSizeList as List,
+  type ListOnItemsRenderedProps,
+} from 'react-window';
 
 import { fetchAllProducts } from '../../hooks/useProducts';
 import { useCategories } from '../../hooks/useCategories';
@@ -22,12 +18,13 @@ import { IProduct } from '@common/types';
 import { initialUIState, uiReducer } from './LocalUiReducer';
 import { useAuth } from '../../hooks/useAuth';
 import NotFound from '../../components/NotFound';
+
 export default function ProductsPage() {
   const [state, dispatch] = useReducer(filterReducer, initialState);
   const [uiState, uiDispatch] = useReducer(uiReducer, initialUIState);
   const [products, setProducts] = useState<IProduct[]>([]);
   const [renderCount, setRenderCount] = useState(20);
-  const observerRef = useRef<HTMLDivElement | null>(null);
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user } = useAuth();
@@ -37,7 +34,6 @@ export default function ProductsPage() {
     const loadProducts = async () => {
       if (!user) return;
       try {
-        const token = await user.getIdToken();
         const res = await fetchAllProducts();
         if (!Array.isArray(res.data)) {
           console.error('❌ Invalid product response:', res.data);
@@ -71,14 +67,38 @@ export default function ProductsPage() {
       !state.createdAfter ||
       (() => {
         if (!p.createdAt) return false;
+
         let productDate: Date | null = null;
-        if (typeof p.createdAt === 'string')
+
+        if (typeof p.createdAt === 'string') {
           productDate = new Date(p.createdAt);
-        else if (typeof (p.createdAt as any)?.toDate === 'function')
-          productDate = (p.createdAt as any).toDate();
-        else if (isDate(p.createdAt)) productDate = p.createdAt;
-        if (!productDate) return false;
-        return productDate.getTime() >= state.createdAfter!.toDate().getTime();
+        } else if (
+          typeof p.createdAt === 'object' &&
+          p.createdAt !== null &&
+          'toDate' in p.createdAt &&
+          typeof (p.createdAt as { toDate: () => Date }).toDate === 'function'
+        ) {
+          productDate = (p.createdAt as { toDate: () => Date }).toDate();
+        } else if (p.createdAt instanceof Date) {
+          productDate = p.createdAt;
+        }
+
+        if (
+          !productDate ||
+          !(
+            state.createdAfter instanceof Date ||
+            typeof state.createdAfter.toDate === 'function'
+          )
+        ) {
+          return false;
+        }
+
+        const createdAfterDate =
+          state.createdAfter instanceof Date
+            ? state.createdAfter
+            : state.createdAfter.toDate();
+
+        return productDate.getTime() >= createdAfterDate.getTime();
       })();
 
     const inStock = !state.inStockOnly || p.stock > 0;
@@ -96,14 +116,7 @@ export default function ProductsPage() {
     }
   };
 
-  const onItemsRendered = ({
-    visibleStopIndex,
-  }: {
-    overscanStartIndex: number;
-    overscanStopIndex: number;
-    visibleStartIndex: number;
-    visibleStopIndex: number;
-  }) => {
+  const onItemsRendered = ({ visibleStopIndex }: ListOnItemsRenderedProps) => {
     if (visibleStopIndex >= renderCount - 5) {
       loadMore();
     }
@@ -131,10 +144,10 @@ export default function ProductsPage() {
       }
       onMobileOpen={() =>
         uiDispatch({ type: 'setMobileDrawerOpen', payload: true })
-      } // 👈 Required
+      }
       onMobileClose={() =>
         uiDispatch({ type: 'setMobileDrawerOpen', payload: false })
-      } // 👈 Required
+      }
       hasFilters={hasFilters}
       onReset={() => dispatch({ type: 'RESET_FILTERS' })}
       mobileOpen={uiState.mobileDrawerOpen}

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Drawer,
   SwipeableDrawer,
   List,
   ListItemText,
@@ -15,16 +14,23 @@ import {
   Alert,
   Slide,
 } from '@mui/material';
+import type { TransitionProps } from '@mui/material/transitions';
 import CloseIcon from '@mui/icons-material/Close';
 import { useCartStore } from '../stores/useCartStore';
 import { useSwipeable } from 'react-swipeable';
+import { Product } from '../types/firebase';
+export type CartItem = Product & { quantity: number };
+const SlideTransition = React.forwardRef(function SlideTransition(
+  props: TransitionProps & { children: React.ReactElement },
+  ref: React.Ref<unknown>,
+) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 interface CartDrawerProps {
   open: boolean;
   onClose: () => void;
 }
-
-const SlideTransition = (props: any) => <Slide {...props} direction="up" />;
 
 function SwipeableCartItem({
   item,
@@ -32,7 +38,7 @@ function SwipeableCartItem({
   onUpdate,
   showToast,
 }: {
-  item: any;
+  item: CartItem;
   onRemove: () => void;
   onUpdate: (quantity: number) => void;
   showToast: (msg: string) => void;
@@ -41,7 +47,9 @@ function SwipeableCartItem({
     onSwipedLeft: onRemove,
     delta: 50,
   });
-const formattedPrice = Number(item.price).toFixed(2);
+
+  const formattedPrice = Number(item.price).toFixed(2);
+
   return (
     <Fade in>
       <Box
@@ -127,12 +135,23 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
   const clearCart = useCartStore((s) => s.clearCart);
   const subtotal = items.reduce((s, i) => s + i.quantity * i.price, 0);
 
-  const [toast, setToast] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+  const [toast, setToast] = useState<{ open: boolean; message: string }>({
+    open: false,
+    message: '',
+  });
+  const noop = () => undefined;
   const showToast = (message: string) => setToast({ open: true, message });
 
   return (
-    <SwipeableDrawer anchor="right" open={open} onClose={onClose} onOpen={() => {}}>
-      <Box sx={{ width: 350, display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <SwipeableDrawer anchor="right" open={open} onClose={onClose} onOpen={noop}>
+      <Box
+        sx={{
+          width: 350,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+        }}
+      >
         <Box
           sx={{
             display: 'flex',
@@ -215,7 +234,11 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
         TransitionComponent={SlideTransition}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity="info" variant="filled" onClose={() => setToast({ open: false, message: '' })}>
+        <Alert
+          severity="info"
+          variant="filled"
+          onClose={() => setToast({ open: false, message: '' })}
+        >
           {toast.message}
         </Alert>
       </Snackbar>

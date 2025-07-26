@@ -1,8 +1,8 @@
-// src/pages/admin/AdminThemePage/components/ThemeSpacingControls.tsx
 import React from 'react';
-import { Stack, TextField } from '@mui/material';
-import { Controller, Control } from 'react-hook-form';
-import { ThemeSettings } from '@client/api/theme';
+import { Stack } from '@mui/material';
+import type { Control } from 'react-hook-form';
+import { ThemeSettings } from '../../api/theme';
+import FormTextField from '../../components/FormTextField';
 
 interface Props {
   control: Control<ThemeSettings>;
@@ -11,29 +11,19 @@ interface Props {
 export default function ThemeSpacingControls({ control }: Props) {
   return (
     <Stack spacing={2}>
-      <Controller
+      <FormTextField
+        label="Border Radius (px)"
         name="borderRadius"
         control={control}
-        render={({ field }) => (
-          <TextField
-            {...field}
-            type="number"
-            label="Border Radius (px)"
-            inputProps={{ min: 0, max: 64 }}
-          />
-        )}
+        type="number"
+        inputProps={{ min: 0, max: 64 }}
       />
-      <Controller
+      <FormTextField
+        label="Spacing Scale"
         name="spacingScale"
         control={control}
-        render={({ field }) => (
-          <TextField
-            {...field}
-            type="number"
-            label="Spacing Scale"
-            inputProps={{ min: 0, max: 64 }}
-          />
-        )}
+        type="number"
+        inputProps={{ min: 0, max: 64 }}
       />
     </Stack>
   );

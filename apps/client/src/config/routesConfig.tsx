@@ -26,7 +26,7 @@ import ResetPasswordPage from '../pages/ResetPasswordPage';
 import SignupPage from '../pages/SignupPage';
 import ThankYouPage from '../pages/ThankYouPage';
 import UserProfilePage from '../pages/UserProfilePage';
-import { Location, Route, Routes } from 'react-router-dom';
+import { type Location, Route, Routes } from 'react-router-dom';
 import AdminThemePage from '../pages/admin/AdminThemePage';
 import NotFoundPage from '../pages/NotFoundPage';
 import AdminSecurityLogsPage from '../pages/admin/AdminSecurityLogsPage';

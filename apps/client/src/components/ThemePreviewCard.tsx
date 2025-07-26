@@ -21,7 +21,13 @@ export default function ThemePreviewCard() {
         color: themeSettings.darkMode ? '#fff' : 'inherit',
       }}
     >
-      <CardContent sx={{ backdropFilter: themeSettings.backgroundImageUrl ? 'blur(2px)' : 'none' }}>
+      <CardContent
+        sx={{
+          backdropFilter: themeSettings.backgroundImageUrl
+            ? 'blur(2px)'
+            : 'none',
+        }}
+      >
         <Box display="flex" alignItems="center" gap={2}>
           {themeSettings.logoUrl && (
             <img

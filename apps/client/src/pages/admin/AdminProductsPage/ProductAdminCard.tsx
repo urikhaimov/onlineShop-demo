@@ -20,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import React, { useReducer } from 'react';
 import { initialState, reducer } from './CardReducer';
 import { IProduct } from '@common/types';
-import { deleteProduct } from '@client/hooks/useProducts';
+import { deleteProduct } from '../../../hooks/useProducts';
 
 export type Props = {
   product: IProduct;

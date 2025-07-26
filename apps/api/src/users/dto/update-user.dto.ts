@@ -4,7 +4,6 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   name?: string;
-  
 
   @IsOptional()
   @IsUrl()

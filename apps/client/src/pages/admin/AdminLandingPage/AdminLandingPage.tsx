@@ -6,16 +6,17 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
-  TextField,
 } from '@mui/material';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 
 import {
   useLandingPage,
   useUpdateLandingPage,
 } from '../../../hooks/useLandingPage';
 import type { LandingPageData } from '../../../types/landing';
-import { headerHeight, footerHeight } from '@client/config/themeConfig';
+import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import FormTextField from '../../../components/FormTextField';
+
 export default function AdminLandingPage() {
   const { data, isLoading, isError } = useLandingPage();
   const updateMutation = useUpdateLandingPage();
@@ -24,7 +25,7 @@ export default function AdminLandingPage() {
     control,
     handleSubmit,
     reset,
-    formState: { isDirty, isSubmitting },
+    formState: { isDirty, isSubmitting, errors },
   } = useForm<LandingPageData>({
     defaultValues: {
       title: '',
@@ -38,12 +39,10 @@ export default function AdminLandingPage() {
 
   const [toastOpen, setToastOpen] = useState(false);
 
-  // Reset form values when data changes
   useEffect(() => {
     if (data) reset(data);
   }, [data, reset]);
 
-  // Form submit handler
   const onSubmit = async (formData: LandingPageData) => {
     try {
       await updateMutation.mutateAsync(formData);
@@ -73,91 +72,59 @@ export default function AdminLandingPage() {
 
   return (
     <Box
-          sx={{
-            position: 'relative',
-            mt: `${headerHeight}px`,
-            height: `calc(100vh - ${headerHeight + footerHeight}px)`,
-            overflowY: 'auto',
-            px: 2,
-            py: 4,
-          }}
-        >
+      sx={{
+        position: 'relative',
+        mt: `${headerHeight}px`,
+        height: `calc(100vh - ${headerHeight + footerHeight}px)`,
+        overflowY: 'auto',
+        px: 2,
+        py: 4,
+      }}
+    >
       <Typography variant="h4" mb={3}>
         Edit Landing Page
       </Typography>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <Controller
+        <FormTextField
+          label="Title"
           name="title"
           control={control}
-          rules={{ required: 'Title is required' }}
-          render={({ field, fieldState }) => (
-            <TextField
-              label="Title"
-              fullWidth
-              margin="normal"
-              {...field}
-              error={!!fieldState.error}
-              helperText={fieldState.error?.message}
-              disabled={saving}
-            />
-          )}
+          errorObject={errors.title}
+          required
+          disabled={saving}
         />
 
-        <Controller
+        <FormTextField
+          label="Subtitle"
           name="subtitle"
           control={control}
-          render={({ field }) => (
-            <TextField
-              label="Subtitle"
-              fullWidth
-              margin="normal"
-              {...field}
-              disabled={saving}
-            />
-          )}
+          errorObject={errors.subtitle}
+          disabled={saving}
         />
 
-        <Controller
+        <FormTextField
+          label="Banner Image URL"
           name="bannerImageUrl"
           control={control}
-          render={({ field }) => (
-            <TextField
-              label="Banner Image URL"
-              fullWidth
-              margin="normal"
-              {...field}
-              disabled={saving}
-            />
-          )}
+          errorObject={errors.bannerImageUrl}
+          disabled={saving}
         />
 
-        <Controller
+        <FormTextField
+          label="CTA Button Text"
           name="ctaButtonText"
           control={control}
-          render={({ field }) => (
-            <TextField
-              label="CTA Button Text"
-              fullWidth
-              margin="normal"
-              {...field}
-              disabled={saving}
-            />
-          )}
+          errorObject={errors.ctaButtonText}
+          disabled={saving}
         />
 
-        <Controller
+        <FormTextField
+          label="CTA Button Link"
           name="ctaButtonLink"
           control={control}
-          render={({ field }) => (
-            <TextField
-              label="CTA Button Link"
-              fullWidth
-              margin="normal"
-              {...field}
-              disabled={saving}
-            />
-          )}
+          errorObject={errors.ctaButtonLink}
+          disabled={saving}
         />
 
         <Button

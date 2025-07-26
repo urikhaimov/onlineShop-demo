@@ -51,15 +51,21 @@ export const useCartStore = create<CartState>()(
                 i.id === item.id
                   ? {
                       ...i,
-                      quantity: Math.min(i.quantity + (item.quantity ?? 1), i.stock),
+                      quantity: Math.min(
+                        i.quantity + (item.quantity ?? 1),
+                        i.stock,
+                      ),
                     }
-                  : i
+                  : i,
               ),
               _persistedAt: now,
             });
           } else {
             set({
-              items: [...get().items, { ...item, quantity: item.quantity ?? 1 }],
+              items: [
+                ...get().items,
+                { ...item, quantity: item.quantity ?? 1 },
+              ],
               _persistedAt: now,
             });
           }
@@ -77,7 +83,7 @@ export const useCartStore = create<CartState>()(
             items: get().items.map((item) =>
               item.id === id
                 ? { ...item, quantity: Math.min(quantity, item.stock) }
-                : item
+                : item,
             ),
             _persistedAt: Date.now(),
           });
@@ -91,9 +97,16 @@ export const useCartStore = create<CartState>()(
           return get().items.some((item) => item.id === id);
         },
 
-        getCartTotal: ({ shipping = 0, taxRate = 0, discount = 0 }: CartTotalOptions = {}) => {
+        getCartTotal: ({
+          shipping = 0,
+          taxRate = 0,
+          discount = 0,
+        }: CartTotalOptions = {}) => {
           const subtotal = get().items.reduce((sum, item) => {
-            const price = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
+            const price =
+              typeof item.price === 'string'
+                ? parseFloat(item.price)
+                : item.price;
             return sum + price * item.quantity;
           }, 0);
 
@@ -123,6 +136,6 @@ export const useCartStore = create<CartState>()(
 
         return persistedState as CartState;
       },
-    }
-  )
+    },
+  ),
 );

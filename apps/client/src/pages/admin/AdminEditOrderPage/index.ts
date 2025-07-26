@@ -1,2 +1,2 @@
-import EditOrderPage from "./EditOrderPage";
+import EditOrderPage from './EditOrderPage';
 export default EditOrderPage;

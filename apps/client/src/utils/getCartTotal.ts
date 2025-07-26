@@ -9,10 +9,11 @@ interface CartTotalOptions {
 
 export function getCartTotal(
   cart: CartItem[],
-  { shipping = 0, taxRate = 0, discount = 0 }: CartTotalOptions = {}
+  { shipping = 0, taxRate = 0, discount = 0 }: CartTotalOptions = {},
 ): number {
   const subtotal = cart.reduce((sum, item) => {
-    const price = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
+    const price =
+      typeof item.price === 'string' ? parseFloat(item.price) : item.price;
     return sum + price * item.quantity;
   }, 0);
 

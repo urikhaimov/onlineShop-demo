@@ -1,31 +1,27 @@
-// src/components/theme/HomepageLayoutSelect.tsx
-import React from 'react';
-import { Box, TextField, MenuItem } from '@mui/material';
-import { Controller } from 'react-hook-form';
+import { Box } from '@mui/material';
+import type { Control } from 'react-hook-form';
+import FormTextField from '../../../../components/FormTextField';
+import { ThemeSettings } from '../../../../api/theme';
 
 interface Props {
-  control: any;
+  control: Control<ThemeSettings>;
 }
 
 export default function HomepageLayoutSelect({ control }: Props) {
+  const layoutOptions = [
+    { label: 'Hero', value: 'hero' },
+    { label: 'Carousel', value: 'carousel' },
+    { label: 'Grid', value: 'grid' },
+  ];
+
   return (
     <Box>
-      <Controller
+      <FormTextField
+        label="Homepage Layout"
         name="homepageLayout"
         control={control}
-        render={({ field }) => (
-          <TextField
-            select
-            label="Homepage Layout"
-            fullWidth
-            variant="outlined"
-            {...field}
-          >
-            <MenuItem value="hero">Hero</MenuItem>
-            <MenuItem value="carousel">Carousel</MenuItem>
-            <MenuItem value="grid">Grid</MenuItem>
-          </TextField>
-        )}
+        isSelect
+        selectOptions={layoutOptions}
       />
     </Box>
   );

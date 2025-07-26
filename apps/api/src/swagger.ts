@@ -20,7 +20,8 @@ export const buildSwagger = (
     .addBearerAuth(
       {
         // I was also testing it without the prefix 'Bearer' before the JWT
-        description: `Copy JWT Token (without Bearer prefix) from the login response and paste it here`,
+        description:
+          'Copy JWT Token (without Bearer prefix) from the login response and paste it here',
         name: 'Authorization',
         bearerFormat: 'Bearer', // I've tested not to use this field, but the result was the same
         scheme: 'Bearer',

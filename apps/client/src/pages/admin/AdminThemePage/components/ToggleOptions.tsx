@@ -4,7 +4,7 @@ import { Controller } from 'react-hook-form';
 import { FormControlLabel, Switch, Stack } from '@mui/material';
 
 interface Props {
-  control: any;
+  control: unknown;
 }
 
 export default function ToggleOptions({ control }: Props) {

@@ -1,13 +1,6 @@
 // src/components/PictureUploader.tsx
 import React, { useEffect, useRef } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Snackbar,
-  Alert,
-  Avatar,
-} from '@mui/material';
+import { Box, Typography, Paper, Snackbar, Alert, Avatar } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useDropzone } from 'react-dropzone';
 
@@ -41,7 +34,9 @@ export default function PictureUploader({
     },
     onDropRejected: () => {
       onCloseSnackbar();
-      alert(`❌ File rejected. Only images up to ${MAX_FILE_SIZE_MB}MB allowed.`);
+      alert(
+        `❌ File rejected. Only images up to ${MAX_FILE_SIZE_MB}MB allowed.`,
+      );
     },
     accept: { 'image/*': [] },
     multiple: false,
@@ -83,12 +78,18 @@ export default function PictureUploader({
         <input {...getInputProps()} />
         <CloudUploadIcon fontSize="large" />
         <Typography mt={1}>
-          {isDragActive ? 'Drop file here...' : `Drag or click to upload (max ${MAX_FILE_SIZE_MB}MB)`}
+          {isDragActive
+            ? 'Drop file here...'
+            : `Drag or click to upload (max ${MAX_FILE_SIZE_MB}MB)`}
         </Typography>
       </Paper>
 
       {errorMessage && (
-        <Snackbar open={showSnackbar} autoHideDuration={4000} onClose={onCloseSnackbar}>
+        <Snackbar
+          open={showSnackbar}
+          autoHideDuration={4000}
+          onClose={onCloseSnackbar}
+        >
           <Alert severity="error" onClose={onCloseSnackbar}>
             {errorMessage}
           </Alert>

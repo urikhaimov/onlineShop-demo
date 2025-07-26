@@ -13,7 +13,9 @@ export default function Footer() {
         backgroundColor: 'background.paper',
       }}
     >
-      <Typography variant="body2">© {new Date().getFullYear()} My Online Store</Typography>
+      <Typography variant="body2">
+        © {new Date().getFullYear()} My Online Store
+      </Typography>
     </Box>
   );
 }

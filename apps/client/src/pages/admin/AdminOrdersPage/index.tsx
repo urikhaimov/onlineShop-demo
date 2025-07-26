@@ -1,2 +1,2 @@
-import AdminOrdersPage from "./AdminOrdersPage";
+import AdminOrdersPage from './AdminOrdersPage';
 export default AdminOrdersPage;

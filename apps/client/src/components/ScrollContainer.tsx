@@ -3,7 +3,7 @@ import { Box } from '@mui/material';
 import { styled } from '@mui/system';
 import React from 'react';
 
-const ScrollContainer: React.ComponentType<any> = styled(Box)(({ theme }) => ({
+const ScrollContainer: React.ComponentType<unknown> = styled(Box)(() => ({
   overflowY: 'auto',
   overflowX: 'hidden',
   maxHeight: '100vh',

@@ -1,2 +1,2 @@
-import MyOrdersPage from "./MyOrdersPage";
+import MyOrdersPage from './MyOrdersPage';
 export default MyOrdersPage;

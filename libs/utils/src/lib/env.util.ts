@@ -13,10 +13,7 @@ export interface IGetEnvOptions<T = Record<string, any>> {
 /**
  * Retrieves an environment variable value safely.
  */
-export const getEnv = (
-  key: string,
-  opts?: IGetEnvOptions,
-): string | number => {
+export const getEnv = (key: string, opts?: IGetEnvOptions): string | number => {
   try {
     const target = opts?.env ?? process.env;
     const value = target?.[key];

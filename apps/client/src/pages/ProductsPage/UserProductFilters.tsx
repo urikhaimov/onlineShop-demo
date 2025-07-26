@@ -19,7 +19,6 @@ interface Props {
   state: FilterState;
   dispatch: React.Dispatch<FilterAction>;
   categories: Category[];
-
 }
 
 export default function UserProductFilters({
@@ -77,7 +76,10 @@ export default function UserProductFilters({
             <Checkbox
               checked={state.inStockOnly}
               onChange={(e) =>
-                dispatch({ type: 'SET_IN_STOCK_ONLY', payload: e.target.checked })
+                dispatch({
+                  type: 'SET_IN_STOCK_ONLY',
+                  payload: e.target.checked,
+                })
               }
             />
           }

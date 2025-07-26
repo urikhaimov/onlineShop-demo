@@ -3,8 +3,8 @@ export type Order = {
   id: string;
   userId: string;
   ownerName?: string;
-  email?: string;        // ✅ Add this
-  total?: number;        // ✅ Add this
+  email?: string; // ✅ Add this
+  total?: number; // ✅ Add this
   items: Array<{
     productId: string;
     name: string;

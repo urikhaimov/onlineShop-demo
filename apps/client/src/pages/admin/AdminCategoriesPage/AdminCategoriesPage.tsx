@@ -16,7 +16,12 @@ import SaveIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 
 import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
-import { useCategories, useAddCategory, useDeleteCategory, useUpdateCategory } from '../../../hooks/useCategories';
+import {
+  useCategories,
+  useAddCategory,
+  useDeleteCategory,
+  useUpdateCategory,
+} from '../../../hooks/useCategories';
 import { categoryReducer, initialCategoryState } from './categoryReducer';
 import { uiReducer, initialUIState } from './LocalUiReducer';
 import AdminCategoriesFilters from './AdminCategoriesFilters';
@@ -36,7 +41,7 @@ export default function AdminCategoriesPage() {
 
   const filteredCategories = useMemo(() => {
     return categories.filter((cat) =>
-      cat.name.toLowerCase().includes(searchText.toLowerCase())
+      cat.name.toLowerCase().includes(searchText.toLowerCase()),
     );
   }, [categories, searchText]);
 
@@ -49,7 +54,7 @@ export default function AdminCategoriesPage() {
     }
 
     const exists = categories.some(
-      (c) => c.name.toLowerCase() === newCategory.trim().toLowerCase()
+      (c) => c.name.toLowerCase() === newCategory.trim().toLowerCase(),
     );
     if (exists) {
       dispatch({ type: 'SET_ERROR', payload: 'Category already exists' });
@@ -74,7 +79,7 @@ export default function AdminCategoriesPage() {
         onSuccess: () => {
           dispatch({ type: 'CLEAR_EDIT' });
         },
-      }
+      },
     );
   };
 
@@ -138,7 +143,9 @@ export default function AdminCategoriesPage() {
                     <IconButton onClick={handleSave}>
                       <SaveIcon />
                     </IconButton>
-                    <IconButton onClick={() => dispatch({ type: 'CLEAR_EDIT' })}>
+                    <IconButton
+                      onClick={() => dispatch({ type: 'CLEAR_EDIT' })}
+                    >
                       <CloseIcon />
                     </IconButton>
                   </>
@@ -147,7 +154,10 @@ export default function AdminCategoriesPage() {
                     <IconButton onClick={() => handleEdit(cat.id, cat.name)}>
                       <EditIcon />
                     </IconButton>
-                    <IconButton color="error" onClick={() => deleteCategory.mutate(cat.id)}>
+                    <IconButton
+                      color="error"
+                      onClick={() => deleteCategory.mutate(cat.id)}
+                    >
                       <DeleteIcon />
                     </IconButton>
                   </>

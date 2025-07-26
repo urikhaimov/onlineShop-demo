@@ -7,10 +7,8 @@ export interface AppUser {
   email: string;
   name?: string;
   role: Role;
-   photoURL?: string;
-   
+  photoURL?: string;
 }
-
 
 export interface AuthContextType {
   user: AppUser | null;

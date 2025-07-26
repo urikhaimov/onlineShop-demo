@@ -1,6 +1,6 @@
 import React from 'react';
 import { Paper, Typography, Box, useTheme } from '@mui/material';
-import { ThemeSettings } from '@client/api/theme';
+import { ThemeSettings } from '../../../../api/theme';
 
 interface Props {
   watch: () => ThemeSettings;
@@ -30,7 +30,8 @@ export default function ThemePreview({ watch }: Props) {
         </Typography>
 
         <Typography variant="body1" sx={{ mb: 2 }}>
-          This is a preview of your current theme settings. Adjust the options above to see changes reflected here.
+          This is a preview of your current theme settings. Adjust the options
+          above to see changes reflected here.
         </Typography>
 
         <Box

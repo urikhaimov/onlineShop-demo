@@ -29,15 +29,23 @@ export default function LogoUploader({ value, onChange }: LogoUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [openCropDialog, setOpenCropDialog] = useState(false);
 
-const onCropComplete = useCallback(
-  (_: unknown, croppedPixels: { x: number; y: number; width: number; height: number }) => {
-    setCroppedAreaPixels(croppedPixels);
-  },
-  []
-);
+  const onCropComplete = useCallback(
+    (
+      _: unknown,
+      croppedPixels: { x: number; y: number; width: number; height: number },
+    ) => {
+      setCroppedAreaPixels(croppedPixels);
+    },
+    [],
+  );
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -58,6 +66,7 @@ const onCropComplete = useCallback(
   const handleCropAndUpload = async () => {
     setUploading(true);
     try {
+      if (!croppedAreaPixels) throw new Error('No cropped area');
       const blob = await getCroppedImg(preview!, croppedAreaPixels);
       if (!blob) throw new Error('Cropping failed');
 

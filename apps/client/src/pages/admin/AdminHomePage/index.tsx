@@ -1,2 +1,2 @@
-import AdminHomePage from "./AdminHomePage";
+import AdminHomePage from './AdminHomePage';
 export default AdminHomePage;

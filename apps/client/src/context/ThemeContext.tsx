@@ -4,24 +4,24 @@ import {
   createTheme,
   ThemeProvider as MuiThemeProvider,
   CssBaseline,
-  Theme,
 } from '@mui/material';
+import { Theme } from '@mui/material/styles';
 import { useStoreTheme } from '../hooks/useStoreTheme';
-import { ThemeSettings } from '@client/api/theme';
+import { ThemeSettings } from '../api/theme';
 
 export interface ThemeContextType {
   mode: 'light' | 'dark';
   toggleMode: () => void;
   isLoading: boolean;
-  error: any;
-  theme: Theme; // MUI theme
-  themeSettings: ThemeSettings; // ✅ Include raw settings
+  error: unknown;
+  theme: Theme;
+  themeSettings: ThemeSettings;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const { data, isLoading, error } = useStoreTheme(); // ✅ No storeId
+  const { data, isLoading, error } = useStoreTheme();
   const mode = data?.darkMode ? 'dark' : 'light';
 
   const theme = useMemo(() => {
@@ -50,7 +50,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!data) {
-    return null; // or loading spinner
+    return null;
   }
 
   return (
@@ -61,7 +61,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
         toggleMode,
         isLoading,
         error: error?.message || null,
-        themeSettings: data, // ✅ Pass it in
+        themeSettings: data,
       }}
     >
       <MuiThemeProvider theme={theme}>

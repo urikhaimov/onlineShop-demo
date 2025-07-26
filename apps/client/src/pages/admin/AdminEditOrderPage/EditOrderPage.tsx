@@ -3,16 +3,14 @@ import {
   Box,
   Typography,
   Paper,
-  TextField,
   Button,
-  MenuItem,
   CircularProgress,
   Snackbar,
   Alert,
   Stack,
+  Divider,
 } from '@mui/material';
-import { useForm, Controller } from 'react-hook-form';
-import type { SubmitHandler } from 'react-hook-form';
+
 import { useParams } from 'react-router-dom';
 import { headerHeight, footerHeight } from '../../../config/themeConfig';
 import { useOrder, useUpdateOrder, Order } from '../../../hooks/useOrder';
@@ -21,7 +19,9 @@ import OrderSummaryCard from './components/OrderSummaryCard';
 import OrderItemsTable from './components/OrderItemsTable';
 import OrderStatusBadge from './components/OrderStatusBadge';
 import LoadingProgress from '../../../components/LoadingProgress';
-
+import FormTextField from '../../../components/FormTextField';
+import { useForm } from 'react-hook-form';
+import type { SubmitHandler } from 'react-hook-form';
 const STATUS_OPTIONS = [
   'pending',
   'confirmed',
@@ -41,7 +41,7 @@ export default function EditOrderPage() {
     handleSubmit,
     reset,
     watch,
-    formState: { isSubmitting },
+    formState: { isSubmitting, errors },
   } = useForm<Order>({
     defaultValues: order || {
       status: 'pending',
@@ -93,92 +93,101 @@ export default function EditOrderPage() {
       </Typography>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-        <Stack flex={2} spacing={2}>
+        {/* LEFT MAIN COLUMN */}
+        <Stack flex={2} spacing={3}>
+          {/* Status */}
           <Paper sx={{ p: 2 }}>
-            <Typography variant="h6">Order Status</Typography>
-            <Controller
+            <Typography variant="h6" fontWeight="bold" gutterBottom>
+              Order Status
+            </Typography>
+            <FormTextField
+              label="Status"
               name="status"
               control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  select
-                  fullWidth
-                  label="Status"
-                  margin="normal"
-                >
-                  {STATUS_OPTIONS.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option.toUpperCase()}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              )}
+              errorObject={errors.status}
+              isSelect
+              selectOptions={STATUS_OPTIONS.map((value) => ({
+                label: value.toUpperCase(),
+                value,
+              }))}
+              required
+              fullWidth
             />
-            <OrderStatusBadge status={currentStatus} />
+            <Box mt={2}>
+              <OrderStatusBadge status={currentStatus} />
+            </Box>
           </Paper>
 
+          {/* Delivery */}
           <Paper sx={{ p: 2 }}>
-            <Typography variant="h6">Delivery Information</Typography>
+            <Typography variant="h6" fontWeight="bold" gutterBottom>
+              Delivery Information
+            </Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <Controller
+              <FormTextField
+                label="Provider"
                 name="delivery.provider"
                 control={control}
-                render={({ field }) => (
-                  <TextField {...field} label="Provider" fullWidth />
-                )}
+                errorObject={errors?.delivery?.provider}
+                fullWidth
               />
-              <Controller
+              <FormTextField
+                label="Tracking Number"
                 name="delivery.trackingNumber"
                 control={control}
-                render={({ field }) => (
-                  <TextField {...field} label="Tracking Number" fullWidth />
-                )}
+                errorObject={errors?.delivery?.trackingNumber}
+                fullWidth
               />
             </Stack>
             <Box mt={2}>
-              <Controller
+              <FormTextField
+                label="ETA (ISO or text)"
                 name="delivery.eta"
                 control={control}
-                render={({ field }) => (
-                  <TextField {...field} label="ETA (ISO or text)" fullWidth />
-                )}
+                errorObject={errors?.delivery?.eta}
+                fullWidth
               />
             </Box>
           </Paper>
 
+          {/* Notes */}
           <Paper sx={{ p: 2 }}>
-            <Typography variant="h6">Admin Notes</Typography>
-            <Controller
+            <Typography variant="h6" fontWeight="bold" gutterBottom>
+              Admin Notes
+            </Typography>
+            <FormTextField
+              label="Internal Notes"
               name="notes"
               control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Internal Notes"
-                  fullWidth
-                  multiline
-                  rows={3}
-                />
-              )}
+              errorObject={errors.notes}
+              multiline
+              rows={3}
+              fullWidth
             />
           </Paper>
 
-          <Button
-            variant="contained"
-            onClick={handleSubmit(onSubmit)}
-            disabled={updateOrderMutation.status === 'pending' || isSubmitting}
-          >
-            {updateOrderMutation.status === 'pending' ? (
-              <CircularProgress size={24} />
-            ) : (
-              'Save Changes'
-            )}
-          </Button>
+          {/* Save Button */}
+          <Box textAlign="right">
+            <Button
+              variant="contained"
+              onClick={handleSubmit(onSubmit)}
+              disabled={
+                updateOrderMutation.status === 'pending' || isSubmitting
+              }
+            >
+              {updateOrderMutation.status === 'pending' ? (
+                <CircularProgress size={24} />
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </Box>
         </Stack>
 
+        {/* RIGHT SIDEBAR */}
         <Stack flex={1} spacing={2}>
-          <OrderSummaryCard order={order!} />
+          {order && <OrderSummaryCard order={order} />} {/* ✅ Fixed warning */}
+          <Divider />
           <OrderItemsTable items={order?.items ?? []} />
         </Stack>
       </Stack>

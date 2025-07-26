@@ -8,7 +8,11 @@ import {
   Alert,
   Typography,
 } from '@mui/material';
-import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
+import {
+  useStripe,
+  useElements,
+  PaymentElement,
+} from '@stripe/react-stripe-js';
 import { useForm } from 'react-hook-form';
 import FormTextField from '../../components/FormTextField';
 import { reducer, initialState } from './StripeFormReducer';

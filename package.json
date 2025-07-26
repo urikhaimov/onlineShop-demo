@@ -10,6 +10,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "husky",
+    "lint": "eslint --cache --fix .",
     "nx:all": "npx nx run-many --target=build --all",
     "nx:run-all": "npx nx run-many -p auth api client --target=serve",
     "nx:latest": "npm i -g nx && npx nx migrate latest && npx nx --version"
@@ -61,7 +62,7 @@
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.20",
     "@types/multer": "^2.0.0",
-    "@types/node": "^20.19.9",
+    "@types/node": "^24.1.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/react-window": "^1.8.8",

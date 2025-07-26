@@ -15,7 +15,7 @@ export default function AdminCategoriesFilters({
   total,
 }: Props) {
   return (
-     <Box display="flex" flexDirection="column" gap={2} px={1} py={1}>
+    <Box display="flex" flexDirection="column" gap={2} px={1} py={1}>
       <TextField
         label="Search by email"
         variant="outlined"
@@ -29,5 +29,4 @@ export default function AdminCategoriesFilters({
       </Typography>
     </Box>
   );
- 
 }

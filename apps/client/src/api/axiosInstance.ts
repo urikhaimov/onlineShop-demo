@@ -7,7 +7,9 @@ const axiosInstance = axios.create({
 });
 
 axiosInstance.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> => {
+  async (
+    config: InternalAxiosRequestConfig,
+  ): Promise<InternalAxiosRequestConfig> => {
     const token = await getFirebaseToken();
 
     if (token && config.headers) {
@@ -16,7 +18,7 @@ axiosInstance.interceptors.request.use(
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 export default axiosInstance;

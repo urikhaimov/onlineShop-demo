@@ -1,5 +1,10 @@
 import React, { useEffect } from 'react';
-import { ThemeProvider, CssBaseline, CircularProgress, Box } from '@mui/material';
+import {
+  ThemeProvider,
+  CssBaseline,
+  CircularProgress,
+  Box,
+} from '@mui/material';
 import { createTheme } from '@mui/material/styles';
 
 import { useThemeStore } from '../stores/useThemeStore';

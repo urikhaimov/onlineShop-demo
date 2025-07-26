@@ -12,10 +12,13 @@ export function fetchProductById(id: string) {
 export function reorderProducts(orderList: { id: string; order: number }[]) {
   return axiosInstance.post('/products/reorder', { orderList });
 }
-export function createProduct(productData: Record<string, any>) {
+export function createProduct(productData: Record<string, unknown>) {
   return axiosInstance.post('/products', productData);
 }
-export function updateProduct(id: string, productData: Record<string, any>) {
+export function updateProduct(
+  id: string,
+  productData: Record<string, unknown>,
+) {
   return axiosInstance.put(`/products/${id}`, productData);
 }
 export function deleteProduct(id: string) {

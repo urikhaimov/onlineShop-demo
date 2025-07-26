@@ -1,28 +1,19 @@
 // src/components/BestSellers.tsx
 import React from 'react';
-import {
-  Box,
-  Typography,
-  Container,
-  Button,
-} from '@mui/material';
+import { Box, Typography, Container, Button } from '@mui/material';
 import ProductCard from './ProductCard';
 import LoadingProgress from './LoadingProgress';
 import { useBestSellers } from '../hooks/useBestSellers';
 
 interface BestSellersProps {
-  variant?: "compact" | "detailed" | "standard"; // adjust based on supported card variants
+  variant?: 'compact' | 'detailed' | 'standard'; // adjust based on supported card variants
 }
 
-
-export default function BestSellers({ variant = 'standard' }: BestSellersProps) {
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-  } = useBestSellers();
+export default function BestSellers({
+  variant = 'standard',
+}: BestSellersProps) {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useBestSellers();
 
   const allProducts = data?.pages.flatMap((page) => page.products) || [];
 

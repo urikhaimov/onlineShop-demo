@@ -32,7 +32,8 @@ import LoadingProgress from '../../../components/LoadingProgress';
 import AdminUsersFilters from './AdminUsersFilters';
 
 export default function AdminUsersPage() {
-  const { users, isLoading, error, updateUserRole, deleteUser } = useAdminUsersQuery();
+  const { users, isLoading, error, updateUserRole, deleteUser } =
+    useAdminUsersQuery();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -52,14 +53,14 @@ export default function AdminUsersPage() {
   const filteredUsers = useMemo(
     () =>
       users.filter((user) =>
-        user.email.toLowerCase().includes(debouncedSearch.toLowerCase())
+        user.email.toLowerCase().includes(debouncedSearch.toLowerCase()),
       ),
-    [users, debouncedSearch]
+    [users, debouncedSearch],
   );
 
   const paginatedUsers = useMemo(
     () => filteredUsers.slice((page - 1) * usersPerPage, page * usersPerPage),
-    [filteredUsers, page]
+    [filteredUsers, page],
   );
 
   if (isLoading) return <LoadingProgress />;
@@ -116,7 +117,9 @@ export default function AdminUsersPage() {
                 <Select
                   size="small"
                   value={user.role}
-                  onChange={(e) => updateUserRole(user.id, e.target.value as Role)}
+                  onChange={(e) =>
+                    updateUserRole(user.id, e.target.value as Role)
+                  }
                   sx={{ minWidth: 120 }}
                 >
                   <MenuItem value="user">User</MenuItem>
@@ -126,7 +129,9 @@ export default function AdminUsersPage() {
                 <IconButton
                   edge="end"
                   color="error"
-                  onClick={() => dispatch({ type: 'OPEN_CONFIRM', payload: user })}
+                  onClick={() =>
+                    dispatch({ type: 'OPEN_CONFIRM', payload: user })
+                  }
                 >
                   <DeleteIcon />
                 </IconButton>

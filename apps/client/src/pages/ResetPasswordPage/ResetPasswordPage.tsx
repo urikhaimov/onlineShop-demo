@@ -32,7 +32,7 @@ export default function ResetPasswordPage() {
     try {
       await sendPasswordResetEmail(auth, data.email);
       setSuccessMessage('Password reset email sent. Please check your inbox.');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setErrorMessage(err.message || 'Failed to send reset email.');
     }
@@ -46,9 +46,11 @@ export default function ResetPasswordPage() {
       minHeight="100vh"
       minWidth="100vw"
       px={2}
-    
     >
-      <Paper elevation={6} sx={{ p: 4, maxWidth: 400, width: '100%', borderRadius: 3 }}>
+      <Paper
+        elevation={6}
+        sx={{ p: 4, maxWidth: 400, width: '100%', borderRadius: 3 }}
+      >
         <Typography variant="h5" textAlign="center" gutterBottom>
           Reset Your Password
         </Typography>

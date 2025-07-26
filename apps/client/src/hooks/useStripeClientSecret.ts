@@ -47,7 +47,7 @@ export const useStripeClientSecret = () => {
 
         if (!res.data.clientSecret) throw new Error('Missing clientSecret');
         setClientSecret(res.data.clientSecret);
-      } catch (err: any) {
+      } catch (err: unknown) {
         cLogger.error('[Stripe] Failed to fetch clientSecret:', err);
         setError(err.message || 'Something went wrong');
       } finally {

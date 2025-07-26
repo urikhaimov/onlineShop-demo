@@ -1,2 +1,2 @@
-import AdminCategoriesPage from "./AdminCategoriesPage";
+import AdminCategoriesPage from './AdminCategoriesPage';
 export default AdminCategoriesPage;

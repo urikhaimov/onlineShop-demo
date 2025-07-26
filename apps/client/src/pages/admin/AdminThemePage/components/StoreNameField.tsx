@@ -1,21 +1,21 @@
-// src/components/theme/StoreNameField.tsx
 import React from 'react';
-import { Box, TextField } from '@mui/material';
-import { Controller } from 'react-hook-form';
+import { Box } from '@mui/material';
+import type { Control } from 'react-hook-form';
+import FormTextField from '../../../../components/FormTextField';
+import { ThemeSettings } from '../../../../api/theme';
 
 interface Props {
-  control: any;
+  control: Control<ThemeSettings>;
 }
 
 export default function StoreNameField({ control }: Props) {
   return (
     <Box>
-      <Controller
+      <FormTextField
+        label="Store Name"
         name="storeName"
         control={control}
-        render={({ field }) => (
-          <TextField label="Store Name" fullWidth variant="outlined" {...field} />
-        )}
+        required
       />
     </Box>
   );

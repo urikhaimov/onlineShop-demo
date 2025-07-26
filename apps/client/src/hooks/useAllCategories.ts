@@ -1,6 +1,6 @@
 // src/hooks/useAllCategories.ts
 import { useQuery } from '@tanstack/react-query';
-import axiosInstance  from '../api/axiosInstance'; // make sure this is preconfigured with baseURL
+import axiosInstance from '../api/axiosInstance'; // make sure this is preconfigured with baseURL
 
 export interface Category {
   id: string;

@@ -85,6 +85,7 @@ export default function CheckoutPage() {
             autoHideDuration={5000}
             onClose={() => {
               // TODO: Handle error close
+              console.log('Error closed');
             }}
             anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
           >

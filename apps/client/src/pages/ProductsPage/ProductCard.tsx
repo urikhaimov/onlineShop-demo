@@ -24,7 +24,7 @@ export default function ProductCard({
     addToCart(product);
     onAddToCart?.(); // trigger snackbar if provided
   };
- const formattedPrice = Number(product.price).toFixed(2);
+  const formattedPrice = Number(product.price).toFixed(2);
   return (
     <Card
       sx={{
@@ -85,8 +85,7 @@ export default function ProductCard({
         </Typography>
 
         <Typography variant="body2" color="text.secondary">
-          ${formattedPrice ?? 'N/A'} • Stock:{' '}
-          {product?.stock ?? 'N/A'}
+          ${formattedPrice ?? 'N/A'} • Stock: {product?.stock ?? 'N/A'}
         </Typography>
       </CardContent>
 

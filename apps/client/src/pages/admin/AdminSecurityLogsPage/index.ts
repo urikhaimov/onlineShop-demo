@@ -1,2 +1,2 @@
-import AdminSecurityLogsPage from "./AdminSecurityLogsPage";
+import AdminSecurityLogsPage from './AdminSecurityLogsPage';
 export default AdminSecurityLogsPage;

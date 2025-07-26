@@ -1,7 +1,7 @@
 // src/stores/useThemeStore.ts
 import { create } from 'zustand';
 import axiosInstance from '../api/axiosInstance';
-import { ThemeSettings } from '@client/api/theme'; // ✅ Correct import
+import { ThemeSettings } from '../api/theme'; // ✅ Correct import
 
 interface ThemeState {
   themeSettings: ThemeSettings;
@@ -70,7 +70,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       const { data } =
         await axiosInstance.get<ThemeSettings>('/theme/settings');
       get().setTheme(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Failed to load theme:', error);
       set({ error: error.message, isLoading: false });
     }

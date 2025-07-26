@@ -1,6 +1,6 @@
 import type { ThemeOptions, PaletteMode } from '@mui/material';
 
-export function getThemeFromSettings(settings: any): ThemeOptions {
+export function getThemeFromSettings(settings: unknown): ThemeOptions {
   const mode: PaletteMode = settings?.darkMode ? 'dark' : 'light';
   const font = settings?.font || 'Roboto';
   const fontWeights = '400;500;700'; // preload these weights

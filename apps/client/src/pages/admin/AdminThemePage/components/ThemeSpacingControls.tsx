@@ -1,8 +1,6 @@
-import React from 'react';
-import { Controller } from 'react-hook-form';
+import { Controller, type Control } from 'react-hook-form'; // ✅ Combined import
 import { Slider, Stack, Typography } from '@mui/material';
-import type { Control } from 'react-hook-form';
-import type { ThemeSettings } from '@client/api/theme';
+import type { ThemeSettings } from '../../../../api/theme';
 
 interface Props {
   control: Control<ThemeSettings>;

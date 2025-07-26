@@ -29,8 +29,6 @@ export type ThemeSettings = {
   };
 };
 
-
-
 export const updateThemeSettings = async (
   settings: Partial<ThemeSettings>,
 ): Promise<ThemeSettings> => {

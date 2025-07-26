@@ -1,11 +1,12 @@
 import nx from '@nx/eslint-plugin';
+import globals from 'globals';
 import jsLint from '@eslint/js';
 import tsLint from '@typescript-eslint/eslint-plugin';
 import prettierPlugin from 'eslint-plugin-prettier';
 import prettierConfig from 'eslint-config-prettier';
-// @ts-ignore
+// @ts-expect-error - this is a workaround for the import plugin not being typed correctly.
 import json from 'eslint-plugin-json';
-// @ts-ignore
+// @ts-expect-error - this is a workaround for the import plugin not being typed correctly.
 import * as importPlugin from 'eslint-plugin-import';
 import jsdoc from 'eslint-plugin-jsdoc';
 import * as mdx from 'eslint-plugin-mdx';
@@ -25,6 +26,11 @@ export default [
   },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
     rules: {
       '@nx/enforce-module-boundaries': [
         'error',

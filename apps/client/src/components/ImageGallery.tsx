@@ -47,7 +47,8 @@ export default function ImageGallery({ images }: { images: string[] }) {
               borderRadius: 1,
               objectFit: 'cover',
               cursor: 'pointer',
-              border: i === selectedIndex ? '2px solid #1976d2' : '1px solid #444',
+              border:
+                i === selectedIndex ? '2px solid #1976d2' : '1px solid #444',
               transition: 'border 0.2s',
             }}
           />

@@ -9,9 +9,13 @@ interface RedirectContextProps {
   consumeRedirect: () => string | null;
 }
 
-const RedirectContext = createContext<RedirectContextProps | undefined>(undefined);
+const RedirectContext = createContext<RedirectContextProps | undefined>(
+  undefined,
+);
 
-export const RedirectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const RedirectProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [redirectTo, setRedirectTo] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -23,7 +27,13 @@ export const RedirectProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <RedirectContext.Provider
-      value={{ redirectTo, setRedirectTo, message, setMessage, consumeRedirect }}
+      value={{
+        redirectTo,
+        setRedirectTo,
+        message,
+        setMessage,
+        consumeRedirect,
+      }}
     >
       {children}
     </RedirectContext.Provider>

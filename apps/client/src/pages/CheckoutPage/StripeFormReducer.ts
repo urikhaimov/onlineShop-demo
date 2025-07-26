@@ -1,4 +1,3 @@
-
 type FormData = {
   ownerName: string;
   passportId: string;
@@ -33,4 +32,3 @@ export function reducer(state: State, action: Action): State {
       return state;
   }
 }
-

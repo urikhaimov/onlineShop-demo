@@ -20,7 +20,7 @@ export const useUploadAvatarMutation = (uid: string) => {
     onSuccess: (data) => {
       // Option A: Update in place
       queryClient.setQueryData(['userProfile', uid], (old: any) =>
-        old ? { ...old, photoURL: data.photoURL } : old
+        old ? { ...old, photoURL: data.photoURL } : old,
       );
 
       // Option B (alternative): trigger refetch

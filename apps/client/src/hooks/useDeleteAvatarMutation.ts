@@ -10,7 +10,7 @@ export const useDeleteAvatarMutation = (uid: string) => {
     onSuccess: () => {
       // ✅ Optimistic UI: clear the cached photoURL immediately
       queryClient.setQueryData(['userProfile', uid], (prev: any) =>
-        prev ? { ...prev, photoURL: null } : prev
+        prev ? { ...prev, photoURL: null } : prev,
       );
 
       // ✅ React Query v5 syntax for invalidation

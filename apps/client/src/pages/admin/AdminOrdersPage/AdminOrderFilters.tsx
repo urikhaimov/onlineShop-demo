@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  Fab,
-  Stack,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
+import { Box, Fab, Stack, useMediaQuery, useTheme } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import dayjs, { Dayjs } from 'dayjs';
 
@@ -27,14 +21,14 @@ export default function AdminOrderFilters({ state, dispatch }: Props) {
 
   const hasFilters = Boolean(
     state.email ||
-    state.status !== 'all' ||
-    state.minTotal ||
-    state.maxTotal ||
-    state.minPrice ||
-    state.maxPrice ||
-    state.startDate ||
-    state.endDate ||
-    state.inStockOnly
+      state.status !== 'all' ||
+      state.minTotal ||
+      state.maxTotal ||
+      state.minPrice ||
+      state.maxPrice ||
+      state.startDate ||
+      state.endDate ||
+      state.inStockOnly,
   );
 
   const parseNumber = (val: string): number | undefined => {

@@ -1,4 +1,4 @@
-import { CombinedImage } from '@client/components/ImageUploader';
+import { CombinedImage } from '../../../components/ImageUploader';
 import { IProduct, TCategory } from '@common/types';
 
 export interface ProductFormState {

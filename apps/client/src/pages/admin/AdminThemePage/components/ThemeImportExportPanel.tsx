@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button, Stack } from '@mui/material';
-import { ThemeSettings } from '@client/api/theme';
+import { ThemeSettings } from '../../../../api/theme';
 
 interface Props {
   watch: () => ThemeSettings;
@@ -25,7 +25,7 @@ export default function ThemeImportExportPanel({ watch, reset }: Props) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json';
-    input.onchange = async (e: any) => {
+    input.onchange = async (e: unknown) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const text = await file.text();

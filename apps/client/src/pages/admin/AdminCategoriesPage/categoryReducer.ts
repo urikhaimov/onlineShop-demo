@@ -23,7 +23,7 @@ export const initialCategoryState: CategoryState = {
 
 export function categoryReducer(
   state: CategoryState,
-  action: CategoryAction
+  action: CategoryAction,
 ): CategoryState {
   switch (action.type) {
     case 'SET_NEW':

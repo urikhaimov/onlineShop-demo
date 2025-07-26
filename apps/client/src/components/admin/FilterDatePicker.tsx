@@ -1,6 +1,6 @@
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { Dayjs } from 'dayjs';
-import { TextFieldProps } from '@mui/material';
+import type { TextFieldProps } from '@mui/material';
 
 interface FilterDatePickerProps {
   label?: string;
@@ -11,7 +11,7 @@ interface FilterDatePickerProps {
   };
 }
 
-export default function FilterDatePicker(props: any) {
+export default function FilterDatePicker(props: FilterDatePickerProps) {
   return (
     <DatePicker
       {...props}
