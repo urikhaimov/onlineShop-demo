@@ -4,10 +4,15 @@ import {
   Box,
   Button,
   CircularProgress,
+  Container,
+  IconButton,
+  Paper,
   Snackbar,
+  Stack,
   Typography,
 } from '@mui/material';
 import { useForm, useFieldArray } from 'react-hook-form';
+import { Add, Delete } from '@mui/icons-material';
 
 import {
   useLandingPage,
@@ -78,127 +83,140 @@ export default function AdminLandingPage() {
   return (
     <Box
       sx={{
-        position: 'relative',
         mt: `${headerHeight}px`,
         height: `calc(100vh - ${headerHeight + footerHeight}px)`,
         overflowY: 'auto',
-        px: 2,
         py: 4,
       }}
     >
-      <Typography variant="h4" mb={3}>
-        Edit Landing Page
-      </Typography>
-
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <FormTextField
-          label="Title"
-          name="title"
-          control={control}
-          errorObject={errors.title}
-          required
-          disabled={saving}
-        />
-
-        <FormTextField
-          label="Subtitle"
-          name="subtitle"
-          control={control}
-          errorObject={errors.subtitle}
-          disabled={saving}
-        />
-
-        <FormTextField
-          label="Banner Image URL"
-          name="bannerImageUrl"
-          control={control}
-          errorObject={errors.bannerImageUrl}
-          disabled={saving}
-        />
-
-        <FormTextField
-          label="CTA Button Text"
-          name="ctaButtonText"
-          control={control}
-          errorObject={errors.ctaButtonText}
-          disabled={saving}
-        />
-
-        <FormTextField
-          label="CTA Button Link"
-          name="ctaButtonLink"
-          control={control}
-          errorObject={errors.ctaButtonLink}
-          disabled={saving}
-        />
-
-        <Typography variant="h6" mt={4} mb={1}>
-          Sections
+      <Container maxWidth="md">
+        <Typography variant="h4" mb={3}>
+          Edit Landing Page
         </Typography>
 
-        {fields.map((field, index) => (
-          <Box
-            key={field.id}
-            sx={{ mb: 2, border: '1px solid #ddd', borderRadius: 2, p: 2 }}
-          >
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+          <Stack spacing={2}>
             <FormTextField
-              label="Section Title"
-              name={`sections.${index}.title`}
+              label="Title"
+              name="title"
               control={control}
-              errorObject={errors.sections?.[index]?.title}
+              errorObject={errors.title}
+              required
+              disabled={saving}
+            />
+            <FormTextField
+              label="Subtitle"
+              name="subtitle"
+              control={control}
+              errorObject={errors.subtitle}
+              disabled={saving}
+            />
+            <FormTextField
+              label="Banner Image URL"
+              name="bannerImageUrl"
+              control={control}
+              errorObject={errors.bannerImageUrl}
+              disabled={saving}
+            />
+            <FormTextField
+              label="CTA Button Text"
+              name="ctaButtonText"
+              control={control}
+              errorObject={errors.ctaButtonText}
+              disabled={saving}
+            />
+            <FormTextField
+              label="CTA Button Link"
+              name="ctaButtonLink"
+              control={control}
+              errorObject={errors.ctaButtonLink}
               disabled={saving}
             />
 
-            <FormTextField
-              label="Section Content"
-              name={`sections.${index}.content`}
-              control={control}
-              errorObject={errors.sections?.[index]?.content}
-              multiline
-              rows={3}
-              disabled={saving}
-            />
+            <Typography variant="h6" mt={4}>
+              Sections
+            </Typography>
 
-            <Button onClick={() => remove(index)} color="error" size="small">
-              Remove Section
+            {fields.map((field, index) => (
+              <Paper
+                key={field.id}
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  mb: 2,
+                  borderRadius: 2,
+                  backgroundColor: 'background.default',
+                }}
+              >
+                <Stack spacing={2}>
+                  <FormTextField
+                    label="Section Title"
+                    name={`sections.${index}.title`}
+                    control={control}
+                    errorObject={errors.sections?.[index]?.title}
+                    disabled={saving}
+                  />
+                  <FormTextField
+                    label="Section Content"
+                    name={`sections.${index}.content`}
+                    control={control}
+                    errorObject={errors.sections?.[index]?.content}
+                    multiline
+                    rows={3}
+                    disabled={saving}
+                  />
+
+                  <Box display="flex" justifyContent="flex-end">
+                    <IconButton
+                      onClick={() => remove(index)}
+                      color="error"
+                      size="small"
+                      disabled={saving}
+                    >
+                      <Delete />
+                    </IconButton>
+                  </Box>
+                </Stack>
+              </Paper>
+            ))}
+
+            <Button
+              startIcon={<Add />}
+              onClick={() => append({ title: '', content: '' })}
+              variant="outlined"
+              disabled={saving}
+            >
+              Add Section
             </Button>
-          </Box>
-        ))}
 
-        <Button
-          onClick={() => append({ title: '', content: '' })}
-          variant="outlined"
-          sx={{ mb: 2 }}
-        >
-          Add Section
-        </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={!isDirty || isSubmitting || saving}
+              fullWidth
+              sx={{ mt: 3 }}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </Stack>
+        </form>
 
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={!isDirty || isSubmitting || saving}
-          sx={{ mt: 3 }}
-          fullWidth
-        >
-          {saving ? 'Saving...' : 'Save'}
-        </Button>
-      </form>
-
-      <Snackbar
-        open={toastOpen}
-        autoHideDuration={2500}
-        onClose={() => setToastOpen(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert
+        <Snackbar
+          open={toastOpen}
+          autoHideDuration={2500}
           onClose={() => setToastOpen(false)}
-          severity="success"
-          variant="filled"
-          sx={{ width: '100%' }}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         >
-          Landing page updated successfully!
-        </Alert>
-      </Snackbar>
+          <Alert
+            onClose={() => setToastOpen(false)}
+            severity="success"
+            variant="filled"
+            sx={{ width: '100%' }}
+          >
+            Landing page updated successfully!
+          </Alert>
+        </Snackbar>
+      </Container>
     </Box>
   );
 }
