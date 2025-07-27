@@ -1,3 +1,5 @@
+import { HomepageLayout } from '@common/types';
+
 export type SectionType = 'text' | 'image' | 'productGrid' | 'testimonial';
 
 export interface Section {
@@ -10,16 +12,15 @@ export interface Section {
   imageUrl?: string; // for image
   productIds?: string[]; // for productGrid
 }
-
 export interface LandingPageData {
   title: string;
   subtitle?: string;
   bannerImageUrl?: string;
   ctaButtonText?: string;
   ctaButtonLink?: string;
-  sections?: Array<{
-    title?: string;
-    subtitle?: string;
-    content?: string;
-  }>;
+  homepageLayout: HomepageLayout; // ✅ required for select
+  sections: {
+    title: string;
+    content: string;
+  }[];
 }

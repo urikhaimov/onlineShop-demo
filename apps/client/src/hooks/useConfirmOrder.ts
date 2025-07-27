@@ -24,24 +24,41 @@ export function useConfirmOrder() {
         const user = auth.currentUser;
         if (!user) throw new Error('Not authenticated');
 
+        const token = await user.getIdToken();
+
         const paymentRes = await api.get(
           `/stripe/payment-intent/${paymentIntentId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
         );
+
         const paymentIntent = paymentRes.data;
         if (!paymentIntent?.id) throw new Error('Payment intent not found');
 
-        await api.post('/orders', {
-          userId: user.uid,
-          paymentIntentId: paymentIntent.id,
-          totalAmount: paymentIntent.amount,
-          items: items.map((item) => ({
-            productId: item.id,
-            name: item.name,
-            price: Number(item.price),
-            image: item.imageUrl,
-            quantity: item.quantity,
-          })),
-        });
+        // ✅ Send order creation request with stock deduction handled in backend
+        await api.post(
+          '/orders',
+          {
+            userId: user.uid,
+            paymentIntentId: paymentIntent.id,
+            totalAmount: paymentIntent.amount,
+            items: items.map((item) => ({
+              productId: item.id,
+              name: item.name,
+              price: Number(item.price),
+              image: item.imageUrl,
+              quantity: item.quantity,
+            })),
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
 
         clearCart();
         setToastOpen(true);

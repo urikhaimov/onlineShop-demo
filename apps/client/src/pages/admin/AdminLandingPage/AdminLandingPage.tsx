@@ -10,6 +10,7 @@ import {
   Snackbar,
   Stack,
   Typography,
+  MenuItem,
 } from '@mui/material';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { Add, Delete } from '@mui/icons-material';
@@ -20,6 +21,7 @@ import {
 } from '../../../hooks/useLandingPage';
 import { LandingPageData } from '../../../types/landing';
 import { footerHeight, headerHeight } from '../../../config/themeConfig';
+import { HOMEPAGE_LAYOUTS, HomepageLayout } from '@common/types';
 import FormTextField from '../../../components/FormTextField';
 
 export default function AdminLandingPage() {
@@ -38,6 +40,7 @@ export default function AdminLandingPage() {
       bannerImageUrl: '',
       ctaButtonText: '',
       ctaButtonLink: '',
+      homepageLayout: HOMEPAGE_LAYOUTS.Hero, // ✅ Added
       sections: [],
     },
   });
@@ -133,6 +136,22 @@ export default function AdminLandingPage() {
               disabled={saving}
             />
 
+            {/* ✅ Layout Selector */}
+            <FormTextField
+              label="Homepage Layout"
+              name="homepageLayout"
+              control={control}
+              select
+              errorObject={errors.homepageLayout}
+              disabled={saving}
+            >
+              {Object.values(HOMEPAGE_LAYOUTS).map((layout) => (
+                <MenuItem key={layout} value={layout}>
+                  {layout.charAt(0).toUpperCase() + layout.slice(1)}
+                </MenuItem>
+              ))}
+            </FormTextField>
+
             <Typography variant="h6" mt={4}>
               Sections
             </Typography>
@@ -165,7 +184,6 @@ export default function AdminLandingPage() {
                     rows={3}
                     disabled={saving}
                   />
-
                   <Box display="flex" justifyContent="flex-end">
                     <IconButton
                       onClick={() => remove(index)}
