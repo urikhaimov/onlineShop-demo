@@ -187,115 +187,126 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   return (
     <Box
       sx={{
-        mt: `${headerHeight + 20}px`,
+        mt: `${headerHeight}px`,
         mb: `${footerHeight}px`,
-        height: `calc(100vh - ${headerHeight + footerHeight + 20}px)`,
+        height: `calc(100vh - ${headerHeight + footerHeight + 120}px)`,
         display: 'flex',
         justifyContent: 'center',
       }}
     >
       <Paper
-        elevation={1}
+        elevation={2}
         sx={{
           width: '100%',
           maxWidth: 700,
-          overflowY: 'auto',
           height: '100%',
-          px: 3,
-          py: 2,
+          overflowY: 'auto',
+          px: { xs: 2, sm: 3 },
+          py: 3,
+          borderRadius: 2,
         }}
       >
-        <Typography variant="h6" mb={2}>
+        <Typography variant="h5" mb={3}>
           {mode === 'add' ? 'Add New Product' : 'Edit Product'}
         </Typography>
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <Stack spacing={2}>
-            <FormTextField
-              label="Name"
-              register={register('name', { required: 'Name is required' })}
-              errorObject={errors.name}
-            />
+          <Stack spacing={3}>
+            {/* Product Info */}
+            <Stack spacing={2}>
+              <FormTextField
+                label="Name"
+                register={register('name', { required: 'Name is required' })}
+                errorObject={errors.name}
+              />
 
-            <Controller
-              control={control}
-              name="description"
-              defaultValue=""
-              render={({ field }) => (
-                <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Description
-                  </Typography>
-                  <Box
-                    sx={{
-                      border: 1,
-                      borderColor: 'divider',
-                      borderRadius: 1,
-                      overflow: 'hidden',
-                      '& .ql-toolbar': {
-                        bgcolor: 'background.paper',
-                        borderBottom: 1,
+              <Controller
+                control={control}
+                name="description"
+                defaultValue=""
+                render={({ field }) => (
+                  <Box>
+                    <Typography variant="subtitle1" mb={1}>
+                      Description
+                    </Typography>
+                    <Box
+                      sx={{
+                        border: 1,
                         borderColor: 'divider',
-                      },
-                      '& .ql-container': {
-                        bgcolor: 'background.default',
-                        color: 'text.primary',
-                        minHeight: 200,
-                      },
-                      '& .ql-editor': {
-                        fontFamily: 'inherit',
-                        fontSize: '1rem',
-                        px: 2,
-                        py: 1,
-                      },
-                    }}
-                  >
-                    <ReactQuill
-                      theme="snow"
-                      value={field.value}
-                      onChange={field.onChange}
-                    />
+                        borderRadius: 1,
+                        overflow: 'hidden',
+                        '& .ql-toolbar': {
+                          bgcolor: 'background.paper',
+                          borderBottom: 1,
+                          borderColor: 'divider',
+                        },
+                        '& .ql-container': {
+                          bgcolor: 'background.default',
+                          color: 'text.primary',
+                          minHeight: 200,
+                        },
+                        '& .ql-editor': {
+                          fontFamily: 'inherit',
+                          fontSize: '1rem',
+                          px: 2,
+                          py: 1,
+                        },
+                      }}
+                    >
+                      <ReactQuill
+                        theme="snow"
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </Box>
                   </Box>
-                </Box>
-              )}
-            />
+                )}
+              />
 
-            <FormTextField
-              label="Price"
-              type="number"
-              register={register('price', { required: 'Price is required' })}
-              errorObject={errors.price}
-            />
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <FormTextField
+                  label="Price"
+                  type="number"
+                  fullWidth
+                  register={register('price', {
+                    required: 'Price is required',
+                  })}
+                  errorObject={errors.price}
+                />
 
-            <FormTextField
-              label="Stock"
-              type="number"
-              register={register('stock')}
-              errorObject={errors.stock}
-            />
+                <FormTextField
+                  label="Stock"
+                  type="number"
+                  fullWidth
+                  register={register('stock')}
+                  errorObject={errors.stock}
+                />
+              </Stack>
 
-            <FormTextField
-              label="Category"
-              name="categoryId"
-              control={control}
-              errorObject={errors.categoryId}
-              isSelect
-              required
-              selectOptions={state.categories.map((cat) => ({
-                label: cat.name,
-                value: cat.id,
-              }))}
-            />
+              <FormTextField
+                label="Category"
+                name="categoryId"
+                control={control}
+                errorObject={errors.categoryId}
+                isSelect
+                required
+                selectOptions={state.categories.map((cat) => ({
+                  label: cat.name,
+                  value: cat.id,
+                }))}
+              />
 
-            {!state.categories.some((c) => c.id === watchedCategoryId) &&
-              watchedCategoryId && (
-                <Typography color="error">
-                  ⚠️ Invalid category ID: {watchedCategoryId}
-                </Typography>
-              )}
+              {!state.categories.some((c) => c.id === watchedCategoryId) &&
+                watchedCategoryId && (
+                  <Typography color="error">
+                    ⚠️ Invalid category ID: {watchedCategoryId}
+                  </Typography>
+                )}
+            </Stack>
 
+            {/* Image Section */}
             <Box>
-              <Typography variant="subtitle2" mb={1}>
+              <Typography variant="subtitle1" mb={1}>
                 Product Images
               </Typography>
               <ImageUploader
@@ -305,7 +316,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   const imageToDelete = state.combinedImages.find(
                     (img) => img.id === id,
                   );
-
                   if (imageToDelete?.type === 'existing') {
                     dispatch({
                       type: 'ADD_DELETED_IMAGE_ID',
@@ -324,13 +334,11 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   dispatch({ type: 'SET_COMBINED_IMAGES', payload: newOrder })
                 }
                 showSnackbar={false}
-                onCloseSnackbar={() => {
-                  // TODO (urikhaimov): do something.
-                  return false;
-                }}
+                onCloseSnackbar={() => false}
               />
             </Box>
 
+            {/* Submit */}
             <Box textAlign="right">
               <Button
                 type="submit"
