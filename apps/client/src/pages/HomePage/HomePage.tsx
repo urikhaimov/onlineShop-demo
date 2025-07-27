@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Button, Container, Typography, useTheme } from '@mui/material';
+import { Box, Button, Container, Typography } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -19,7 +19,6 @@ export default function HomePage() {
 
   const productCardVariant = themeSettings?.productCardVariant ?? 'standard';
   const { data, isLoading, isError } = useLandingPage();
-  const theme = useTheme();
 
   if (isLoading) return <LoadingProgress />;
   if (isError)
@@ -45,6 +44,7 @@ export default function HomePage() {
     bannerImageUrl: '',
     ctaButtonText: '',
     ctaButtonLink: '',
+    homepageLayout: layout,
     sections: [],
   };
 
