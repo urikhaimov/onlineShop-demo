@@ -1,4 +1,3 @@
-// src/pages/CheckoutPage/StripeCheckoutForm.tsx
 import React, { useReducer } from 'react';
 import {
   Box,
@@ -14,6 +13,7 @@ import {
   PaymentElement,
 } from '@stripe/react-stripe-js';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import FormTextField from '../../components/FormTextField';
 import { reducer, initialState } from './StripeFormReducer';
 
@@ -25,6 +25,7 @@ type FormData = {
 export default function StripeCheckoutForm() {
   const stripe = useStripe();
   const elements = useElements();
+  const navigate = useNavigate();
 
   const {
     register,
@@ -43,25 +44,48 @@ export default function StripeCheckoutForm() {
 
     dispatch({ type: 'SET_LOADING', payload: true });
 
-    const { error: stripeError } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/checkout/success`,
-        payment_method_data: {
-          billing_details: {
-            name: data.ownerName,
+    try {
+      const { error: stripeError, paymentIntent } = await stripe.confirmPayment(
+        {
+          elements,
+          confirmParams: {
+            payment_method_data: {
+              billing_details: {
+                name: data.ownerName,
+              },
+            },
           },
+          // No redirect, handle in-app instead
+          redirect: 'if_required',
         },
-      },
-    });
+      );
 
-    dispatch({ type: 'SET_LOADING', payload: false });
+      dispatch({ type: 'SET_LOADING', payload: false });
 
-    if (stripeError) {
-      console.error('❌ Payment failed:', stripeError);
+      if (stripeError) {
+        console.error('❌ Payment failed:', stripeError);
+        dispatch({
+          type: 'SET_ERROR',
+          payload: stripeError.message || 'Payment failed',
+        });
+        return;
+      }
+
+      if (paymentIntent?.status === 'succeeded') {
+        navigate('/thank-you'); // ✅ local confirmation page
+      } else {
+        console.warn('PaymentIntent status:', paymentIntent?.status);
+        dispatch({
+          type: 'SET_ERROR',
+          payload: `Payment status: ${paymentIntent?.status}`,
+        });
+      }
+    } catch (err: any) {
+      dispatch({ type: 'SET_LOADING', payload: false });
+      console.error('Unexpected error confirming payment:', err);
       dispatch({
         type: 'SET_ERROR',
-        payload: stripeError.message || 'Payment failed',
+        payload: err.message || 'Unexpected error',
       });
     }
   };
