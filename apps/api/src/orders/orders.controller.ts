@@ -1,4 +1,3 @@
-// src/orders/orders.controller.ts
 import {
   Controller,
   Get,
@@ -43,6 +42,7 @@ export class OrdersController {
   getOrderById(@Req() req, @Param('id') id: string) {
     return this.ordersService.getOrderById(req.user.uid, id, req.user.role);
   }
+
   @Post()
   async createOrder(@Req() req, @Body() dto: CreateOrderDto) {
     const completeDto = {
@@ -52,6 +52,7 @@ export class OrdersController {
 
     console.log('Received createOrder DTO:', completeDto);
 
+    // ✅ Handles stock deduction and order creation
     return this.ordersService.createOrder(completeDto);
   }
 

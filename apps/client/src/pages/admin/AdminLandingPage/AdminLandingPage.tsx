@@ -21,7 +21,7 @@ import {
 } from '../../../hooks/useLandingPage';
 import { LandingPageData } from '../../../types/landing';
 import { footerHeight, headerHeight } from '../../../config/themeConfig';
-import { HOMEPAGE_LAYOUTS, HomepageLayout } from '@common/types';
+import { HOMEPAGE_LAYOUTS } from '@common/types';
 import FormTextField from '../../../components/FormTextField';
 
 export default function AdminLandingPage() {

@@ -1,4 +1,3 @@
-// src/hooks/useConfirmOrder.ts
 import { useEffect, useState } from 'react';
 import { useCartStore } from '../stores/useCartStore';
 import { useLocation } from 'react-router-dom';
@@ -10,6 +9,7 @@ export function useConfirmOrder() {
   const [loading, setLoading] = useState(true);
   const [toastOpen, setToastOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const clearCart = useCartStore((s) => s.clearCart);
   const items = useCartStore((s) => s.items);
   const location = useLocation();
@@ -26,19 +26,18 @@ export function useConfirmOrder() {
 
         const token = await user.getIdToken();
 
+        // Step 1: Verify payment intent with backend
         const paymentRes = await api.get(
           `/stripe/payment-intent/${paymentIntentId}`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
           },
         );
 
         const paymentIntent = paymentRes.data;
         if (!paymentIntent?.id) throw new Error('Payment intent not found');
 
-        // ✅ Send order creation request with stock deduction handled in backend
+        // Step 2: Send order to backend (handles stock deduction)
         await api.post(
           '/orders',
           {
@@ -54,13 +53,15 @@ export function useConfirmOrder() {
             })),
           },
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
           },
         );
 
+        // Step 3: Clear cart (Zustand + optional localStorage)
         clearCart();
+        localStorage.removeItem('cart');
+
+        // Step 4: Show success toast
         setToastOpen(true);
       } catch (err: any) {
         cLogger.error('❌ Order save error:', err);

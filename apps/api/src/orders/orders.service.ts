@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -31,19 +35,55 @@ export class OrdersService {
 
     const order = {
       ...dto,
-      items: plainItems, // <-- pass plain objects, not class instances
-      status: 'pending',
+      items: plainItems,
+      payment: {
+        method: 'manual',
+        status: 'paid',
+        transactionId: dto.paymentIntentId || `manual-${Date.now()}`,
+      },
+      status: 'confirmed',
+      statusHistory: [
+        {
+          status: 'confirmed',
+          timestamp: new Date().toISOString(),
+          changedBy: 'user',
+        },
+      ],
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
-    const ref = await adminDb.collection('orders').add(order);
-    return { id: ref.id, ...order };
+    // 🔻 Update stock in batch
+    const batch = adminDb.batch();
+
+    for (const item of plainItems) {
+      const productRef = adminDb.collection('products').doc(item.productId);
+      const productSnap = await productRef.get();
+
+      if (!productSnap.exists) {
+        console.warn(`⚠️ Product not found: ${item.productId}`);
+        continue;
+      }
+
+      const product = productSnap.data();
+      const currentStock = product?.stock ?? 0;
+      const newStock = Math.max(0, currentStock - item.quantity);
+
+      batch.update(productRef, { stock: newStock });
+    }
+
+    const orderRef = adminDb.collection('orders').doc();
+    batch.set(orderRef, order);
+
+    await batch.commit();
+    return { id: orderRef.id, ...order };
   }
 
   async getOrdersByUserId(uid: string) {
     const snapshot = await adminDb
       .collection('orders')
       .where('userId', '==', uid)
+      .orderBy('createdAt', 'desc')
       .get();
 
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -53,17 +93,20 @@ export class OrdersService {
     const doc = await adminDb.collection('orders').doc(id).get();
     const data = doc.data();
 
-    if (!doc.exists || !data) throw new Error('Order not found');
+    if (!doc.exists || !data) throw new NotFoundException('Order not found');
 
     if (role === 'admin' || role === 'superadmin' || data.userId === uid) {
       return { id: doc.id, ...data };
     }
 
-    throw new Error('Unauthorized');
+    throw new NotFoundException('Unauthorized');
   }
 
   async getAllOrders() {
-    const snapshot = await adminDb.collection('orders').get();
+    const snapshot = await adminDb
+      .collection('orders')
+      .orderBy('createdAt', 'desc')
+      .get();
     return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -71,7 +114,6 @@ export class OrdersService {
   }
 
   // ✅ Create a PaymentIntent from frontend
-
   async createPaymentIntent(
     amount: number,
     ownerName: string,
@@ -84,7 +126,7 @@ export class OrdersService {
   ) {
     try {
       const paymentIntent = await this.stripe.paymentIntents.create({
-        amount, // already in cents
+        amount,
         currency: 'usd',
         automatic_payment_methods: { enabled: true },
         metadata: {
@@ -131,28 +173,35 @@ export class OrdersService {
     }
   }
 
-  // ✅ Called by webhook
+  // ✅ Create order from Stripe PaymentIntent (after webhook)
   async createOrderFromIntent(intent: Stripe.PaymentIntent) {
     const uid = intent.metadata?.uid;
     const ownerName = intent.metadata?.ownerName;
     const passportId = intent.metadata?.passportId;
     const itemsRaw = intent.metadata?.items;
 
-    if (!uid) throw new Error('Missing user ID in intent metadata');
+    if (!uid || !itemsRaw) throw new Error('Invalid Stripe metadata');
 
     let items: any[] = [];
     try {
-      if (itemsRaw) {
-        items = JSON.parse(itemsRaw);
-        if (!Array.isArray(items)) throw new Error();
-      }
+      items = JSON.parse(itemsRaw);
+      if (!Array.isArray(items)) throw new Error();
     } catch {
-      console.warn('⚠️ Invalid or missing items in metadata');
+      console.warn('⚠️ Invalid items metadata in PaymentIntent');
+      return;
     }
+
+    const plainItems = items.map((item) => ({
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      image: item.image,
+      quantity: item.quantity,
+    }));
 
     const order = {
       userId: uid,
-      items,
+      items: plainItems,
       totalAmount: intent.amount,
       paymentIntentId: intent.id,
       payment: {
@@ -174,8 +223,29 @@ export class OrdersService {
       updatedAt: new Date().toISOString(),
     };
 
-    const ref = await adminDb.collection('orders').add(order);
-    console.log('✅ Order created in Firestore from Stripe intent:', ref.id);
-    return { id: ref.id, ...order };
+    const batch = adminDb.batch();
+
+    for (const item of plainItems) {
+      const productRef = adminDb.collection('products').doc(item.productId);
+      const productSnap = await productRef.get();
+
+      if (!productSnap.exists) {
+        console.warn(`⚠️ Product not found: ${item.productId}`);
+        continue;
+      }
+
+      const product = productSnap.data();
+      const currentStock = product?.stock ?? 0;
+      const newStock = Math.max(0, currentStock - item.quantity);
+
+      batch.update(productRef, { stock: newStock });
+    }
+
+    const orderRef = adminDb.collection('orders').doc();
+    batch.set(orderRef, order);
+
+    await batch.commit();
+    console.log('✅ Order created from Stripe intent:', orderRef.id);
+    return { id: orderRef.id, ...order };
   }
 }
