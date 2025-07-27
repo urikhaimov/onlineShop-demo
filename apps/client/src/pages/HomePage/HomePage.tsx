@@ -1,13 +1,6 @@
 // src/pages/HomePage.tsx
 import React from 'react';
-import {
-  Box,
-  Button,
-  Container,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
+import { Box, Button, Container, Typography, useTheme } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -19,17 +12,15 @@ import { useThemeStore } from '../../stores/useThemeStore';
 import { HOMEPAGE_LAYOUTS, HomepageLayout } from '@common/types';
 
 export default function HomePage() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-
   const { themeSettings } = useThemeStore();
   const layout: HomepageLayout =
     themeSettings?.homepageLayout in HOMEPAGE_LAYOUTS
       ? (themeSettings?.homepageLayout as HomepageLayout)
       : HOMEPAGE_LAYOUTS.Hero;
-  const productCardVariant = themeSettings?.productCardVariant ?? 'standard';
 
+  const productCardVariant = themeSettings?.productCardVariant ?? 'standard';
   const { data, isLoading, isError } = useLandingPage();
+  const theme = useTheme();
 
   if (isLoading) return <LoadingProgress />;
   if (isError)
@@ -161,22 +152,41 @@ export default function HomePage() {
         </Box>
       )}
 
-      {layout === HOMEPAGE_LAYOUTS.Grid && sections.length > 0 && (
+      {/* ✅ Sections shown for all layouts */}
+      {sections.length > 0 && (
         <Box
-          display="grid"
+          mt={6}
+          display={layout === HOMEPAGE_LAYOUTS.Grid ? 'grid' : 'flex'}
           gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }}
+          flexDirection="column"
           gap={3}
-          mt={4}
         >
           {sections.map((section, index) => (
-            <Box key={index} p={2} borderRadius={2} boxShadow={1}>
-              {section.title && (
-                <Typography variant="h6">{section.title}</Typography>
-              )}
-              {section.content && (
-                <Typography variant="body2">{section.content}</Typography>
-              )}
-            </Box>
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+            >
+              <Box
+                p={2}
+                borderRadius={2}
+                boxShadow={1}
+                bgcolor="background.paper"
+              >
+                {section.title && (
+                  <Typography variant="h6" gutterBottom>
+                    {section.title}
+                  </Typography>
+                )}
+                {section.content && (
+                  <Typography variant="body2" color="text.secondary">
+                    {section.content}
+                  </Typography>
+                )}
+              </Box>
+            </motion.div>
           ))}
         </Box>
       )}

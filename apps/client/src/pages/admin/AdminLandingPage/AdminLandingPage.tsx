@@ -7,7 +7,7 @@ import {
   Snackbar,
   Typography,
 } from '@mui/material';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 
 import {
   useLandingPage,
@@ -35,6 +35,11 @@ export default function AdminLandingPage() {
       ctaButtonLink: '',
       sections: [],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'sections',
   });
 
   const [toastOpen, setToastOpen] = useState(false);
@@ -126,6 +131,47 @@ export default function AdminLandingPage() {
           errorObject={errors.ctaButtonLink}
           disabled={saving}
         />
+
+        <Typography variant="h6" mt={4} mb={1}>
+          Sections
+        </Typography>
+
+        {fields.map((field, index) => (
+          <Box
+            key={field.id}
+            sx={{ mb: 2, border: '1px solid #ddd', borderRadius: 2, p: 2 }}
+          >
+            <FormTextField
+              label="Section Title"
+              name={`sections.${index}.title`}
+              control={control}
+              errorObject={errors.sections?.[index]?.title}
+              disabled={saving}
+            />
+
+            <FormTextField
+              label="Section Content"
+              name={`sections.${index}.content`}
+              control={control}
+              errorObject={errors.sections?.[index]?.content}
+              multiline
+              rows={3}
+              disabled={saving}
+            />
+
+            <Button onClick={() => remove(index)} color="error" size="small">
+              Remove Section
+            </Button>
+          </Box>
+        ))}
+
+        <Button
+          onClick={() => append({ title: '', content: '' })}
+          variant="outlined"
+          sx={{ mb: 2 }}
+        >
+          Add Section
+        </Button>
 
         <Button
           type="submit"
