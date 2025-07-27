@@ -7,7 +7,7 @@ import AdminDashboardLayout from '../layouts/AdminDashboardLayout';
 import AdminCategoriesPage from '../pages/admin/AdminCategoriesPage';
 import EditOrderPage from '../pages/admin/AdminEditOrderPage';
 import AdminHomePage from '../pages/admin/AdminHomePage';
-import AdminLandingPage from '../pages/admin/AdminLandingPage/AdminLandingPage';
+import AdminLandingPage from '../pages/admin/AdminLandingPage';
 import AdminLogsPage from '../pages/admin/AdminLogsPage';
 import AdminOrdersPage from '../pages/admin/AdminOrdersPage';
 import {
