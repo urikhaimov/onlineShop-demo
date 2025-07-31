@@ -38,7 +38,7 @@ export default function DashboardLayout() {
             flexGrow: 1,
             display: 'flex',
             flexDirection: 'column',
-            ml: isMobile ? 0 : `${drawerWidth}px`,
+            ml: !isMobile ? `${drawerWidth}px` : 0,
             backgroundColor: (theme) =>
               theme.palette.mode === 'light'
                 ? theme.palette.grey[100]

@@ -8,6 +8,7 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
+  Box,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 
@@ -21,20 +22,24 @@ export default function AppBarContent({ onMenuClick }: Props) {
 
   return (
     <AppBar position="fixed" elevation={1}>
-      <Toolbar>
+      <Toolbar sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {isMobile && (
           <IconButton
             edge="start"
             color="inherit"
-            sx={{ mr: 2 }}
             onClick={onMenuClick}
+            sx={{ mr: 1 }}
           >
             <MenuIcon />
           </IconButton>
         )}
-        <Typography variant="h6" noWrap>
-          E-Commerce
-        </Typography>
+
+        {/* Wrapper Box ensures left spacing even when menu button is absent */}
+        <Box sx={{ ml: isMobile ? 0 : 2 }}>
+          <Typography variant="h6" noWrap component="div">
+            E-Commerce
+          </Typography>
+        </Box>
       </Toolbar>
     </AppBar>
   );
