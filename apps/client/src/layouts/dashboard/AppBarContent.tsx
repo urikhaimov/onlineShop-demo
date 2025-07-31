@@ -6,17 +6,12 @@ import MenuIcon from '@mui/icons-material/Menu';
 
 export default function AppBarContent() {
   return (
-    <AppBar position="absolute">
+    <AppBar position="fixed" elevation={1}>
       <Toolbar>
-        <IconButton
-          edge="start"
-          color="inherit"
-          aria-label="menu"
-          sx={{ mr: 2 }}
-        >
+        <IconButton edge="start" color="inherit" sx={{ mr: 2 }}>
           <MenuIcon />
         </IconButton>
-        <Typography variant="h6" noWrap component="div">
+        <Typography variant="h6" noWrap>
           E-Commerce
         </Typography>
       </Toolbar>
