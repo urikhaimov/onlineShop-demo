@@ -1,3 +1,4 @@
+// src/stores/useCartStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Product } from '../types/firebase';
@@ -6,8 +7,8 @@ export type CartItem = Product & { quantity: number };
 
 interface CartTotalOptions {
   shipping?: number;
-  taxRate?: number; // e.g., 0.17 for 17%
-  discount?: number; // in cents
+  taxRate?: number;
+  discount?: number;
 }
 
 type CartState = {
@@ -26,7 +27,6 @@ const EXPIRATION_MS = 1000 * 60 * 60; // 1 hour
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => {
-      // Auto-clear expired cart
       if (typeof window !== 'undefined') {
         setInterval(() => {
           const savedAt = get()._persistedAt ?? 0;
@@ -35,7 +35,7 @@ export const useCartStore = create<CartState>()(
             set({ items: [], _persistedAt: now });
             console.log('🕒 Cart auto-cleared after 1 hour of inactivity');
           }
-        }, 60_000); // every minute
+        }, 60_000);
       }
 
       return {
@@ -44,7 +44,6 @@ export const useCartStore = create<CartState>()(
         addToCart: (item) => {
           const now = Date.now();
           const existing = get().items.find((i) => i.id === item.id);
-
           if (existing) {
             set({
               items: get().items.map((i) =>
@@ -90,12 +89,12 @@ export const useCartStore = create<CartState>()(
         },
 
         clearCart: () => {
+          alert('🧹 Zustand clearCart triggered');
+          console.log('🛒 Cart cleared (Zustand + persist)');
           set({ items: [], _persistedAt: Date.now() });
+          sessionStorage.removeItem('cart-storage');
         },
-
-        hasItem: (id) => {
-          return get().items.some((item) => item.id === id);
-        },
+        hasItem: (id) => get().items.some((item) => item.id === id),
 
         getCartTotal: ({
           shipping = 0,
@@ -111,9 +110,9 @@ export const useCartStore = create<CartState>()(
           }, 0);
 
           const tax = subtotal * taxRate;
-          const total = subtotal + shipping + tax - (discount ?? 0);
+          const total = subtotal + shipping + tax - discount;
 
-          return Math.max(Math.round(total * 100), 0); // Convert to cents, never below $0
+          return Math.max(Math.round(total * 100), 0);
         },
       };
     },
@@ -128,10 +127,7 @@ export const useCartStore = create<CartState>()(
 
         if (expired) {
           console.log('🕒 Cart expired during sessionStorage migration');
-          return {
-            items: [],
-            _persistedAt: now,
-          };
+          return { items: [], _persistedAt: now };
         }
 
         return persistedState as CartState;
@@ -139,3 +135,7 @@ export const useCartStore = create<CartState>()(
     },
   ),
 );
+
+// Optional helper
+export const useCartCount = () =>
+  useCartStore((state) => state.items.reduce((sum, i) => sum + i.quantity, 0));

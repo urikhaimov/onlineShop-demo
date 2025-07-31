@@ -16,7 +16,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import FormTextField from '../../components/FormTextField';
 import { reducer, initialState } from './StripeFormReducer';
-
+import { useCartStore } from '../../stores/useCartStore';
 type FormData = {
   ownerName: string;
   passportId: string;
@@ -35,7 +35,7 @@ export default function StripeCheckoutForm() {
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const { loading, error } = state;
-
+  const clearCart = useCartStore((s) => s.clearCart);
   const onSubmit = async (data: FormData) => {
     if (!stripe || !elements) {
       dispatch({ type: 'SET_ERROR', payload: 'Stripe is not ready yet' });
@@ -72,6 +72,13 @@ export default function StripeCheckoutForm() {
       }
 
       if (paymentIntent?.status === 'succeeded') {
+        alert('🧹 About to clear cart after order success');
+        console.log('✅ About to call clearCart()...');
+        clearCart();
+        console.log('✅ Called clearCart()');
+        localStorage.removeItem('cart');
+        console.log('✅ Removed localStorage.cart');
+
         navigate('/thank-you'); // ✅ local confirmation page
       } else {
         console.warn('PaymentIntent status:', paymentIntent?.status);

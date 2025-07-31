@@ -35,7 +35,7 @@ import {
   ShoppingCart as ShoppingCartIcon,
 } from '@mui/icons-material';
 
-import { useCartStore } from '../../stores/useCartStore';
+import { useCartCount } from '../../stores/useCartStore';
 import { useSidebarStore } from '../../stores/useSidebarStore';
 import ScrollContainer from '../ScrollContainer';
 import CartDrawer from '../CartDrawer';
@@ -46,8 +46,10 @@ export default function LeftMenu() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut, user, role } = useAuth();
-  const cartItems = useCartStore((s) => s.items);
-  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  const cartCount = useCartCount();
+
+  console.log('🧮 cartCount:', cartCount);
   // const isAdmin =
   //   !!user && (user.role === 'admin' || user.role === 'superadmin');
 
