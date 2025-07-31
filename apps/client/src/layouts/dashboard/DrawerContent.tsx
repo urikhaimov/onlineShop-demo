@@ -18,21 +18,21 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 
 const drawerWidth = 240;
 
-export default function DrawerContent() {
+interface Props {
+  mobileOpen: boolean;
+  onClose: () => void;
+  isMobile: boolean;
+}
+
+export default function DrawerContent({
+  mobileOpen,
+  onClose,
+  isMobile,
+}: Props) {
   const navigate = useNavigate();
 
-  return (
-    <Drawer
-      variant="permanent"
-      sx={{
-        width: drawerWidth,
-        flexShrink: 0,
-        '& .MuiDrawer-paper': {
-          width: drawerWidth,
-          boxSizing: 'border-box',
-        },
-      }}
-    >
+  const drawerContent = (
+    <>
       <Toolbar />
       <Divider />
       <MenuList>
@@ -61,6 +61,35 @@ export default function DrawerContent() {
           <ListItemText>Orders</ListItemText>
         </MenuItem>
       </MenuList>
+    </>
+  );
+
+  return isMobile ? (
+    <Drawer
+      variant="temporary"
+      open={mobileOpen}
+      onClose={onClose}
+      ModalProps={{ keepMounted: true }}
+      sx={{
+        '& .MuiDrawer-paper': { width: drawerWidth },
+      }}
+    >
+      {drawerContent}
+    </Drawer>
+  ) : (
+    <Drawer
+      variant="permanent"
+      open
+      sx={{
+        width: drawerWidth,
+        flexShrink: 0,
+        '& .MuiDrawer-paper': {
+          width: drawerWidth,
+          boxSizing: 'border-box',
+        },
+      }}
+    >
+      {drawerContent}
     </Drawer>
   );
 }
