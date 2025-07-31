@@ -4,10 +4,13 @@ import { drawerWidth } from '../constants/globalConstants';
 const TestPage = () => {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
+
   return (
     <Box
       sx={{
-        width: isMobile ? '100vw' : `calc(100vw - ${drawerWidth}px)`,
+        width: isMobile
+          ? 'calc(100vw - 32px )'
+          : `calc(100vw - (${drawerWidth}px + 62px) )`,
         height: '2000px', // simulate long scroll
         backgroundColor: '#f0f0f0',
         p: 3,

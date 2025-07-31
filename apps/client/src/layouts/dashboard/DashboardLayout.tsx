@@ -1,5 +1,3 @@
-// apps/client-ui/layouts/dashboard/DashboardLayout.tsx
-
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import {
@@ -23,7 +21,14 @@ export default function DashboardLayout() {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          height: '100vh',
+          width: '100%',
+          overflow: 'hidden',
+        }}
+      >
         <CssBaseline />
 
         {/* AppBar + Drawer */}
@@ -39,7 +44,6 @@ export default function DashboardLayout() {
           component="main"
           sx={{
             flexGrow: 1,
-            ml: 0,
             display: 'flex',
             flexDirection: 'column',
             height: '100vh',
@@ -52,12 +56,23 @@ export default function DashboardLayout() {
           {/* Spacer below AppBar */}
           <Toolbar />
 
-          {/* Scrollable Outlet wrapper */}
+          {/* Scrollable Content */}
           <Box
             sx={{
               flexGrow: 1,
               overflowY: 'auto',
+              overflowX: 'hidden',
+              height: '100%',
+              width: '100%',
               p: { xs: 2, sm: 3 },
+              scrollbarWidth: 'thin',
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                borderRadius: '4px',
+              },
             }}
           >
             <Outlet />
