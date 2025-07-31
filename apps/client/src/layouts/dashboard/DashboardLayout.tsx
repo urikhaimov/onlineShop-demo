@@ -1,52 +1,65 @@
+// apps/client-ui/layouts/dashboard/DashboardLayout.tsx
+
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import {
   Box,
   CssBaseline,
   Toolbar,
-  createTheme,
-  ThemeProvider,
   useMediaQuery,
   useTheme,
+  ThemeProvider,
 } from '@mui/material';
 import AppBarContent from './AppBarContent';
 import DrawerContent from './DrawerContent';
 import theme from './theme';
-
-const drawerWidth = 240;
 
 export default function DashboardLayout() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
+  const handleDrawerToggle = () => setMobileOpen((prev) => !prev);
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
         <CssBaseline />
+
+        {/* AppBar + Drawer */}
         <AppBarContent onMenuClick={handleDrawerToggle} />
         <DrawerContent
           mobileOpen={mobileOpen}
           onClose={handleDrawerToggle}
           isMobile={isMobile}
         />
+
+        {/* Main Content */}
         <Box
           component="main"
           sx={{
             flexGrow: 1,
+            ml: 0,
             display: 'flex',
             flexDirection: 'column',
-            ml: !isMobile ? `${drawerWidth}px` : 0,
+            height: '100vh',
             backgroundColor: (theme) =>
               theme.palette.mode === 'light'
                 ? theme.palette.grey[100]
                 : theme.palette.grey[900],
           }}
         >
+          {/* Spacer below AppBar */}
           <Toolbar />
-          <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 3 }}>
+
+          {/* Scrollable Outlet wrapper */}
+          <Box
+            sx={{
+              flexGrow: 1,
+              overflowY: 'auto',
+              p: { xs: 2, sm: 3 },
+            }}
+          >
             <Outlet />
           </Box>
         </Box>
