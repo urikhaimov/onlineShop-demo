@@ -20,6 +20,8 @@ import {
   TableRow,
   TablePagination,
   Box,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { renderColumnFilter } from './renderColumnFilter';
 
@@ -51,6 +53,8 @@ export default function StickyTable<T>({
   enableColumnFilters = true,
 }: StickyTableProps<T>) {
   const [tableData, setTableData] = useState<T[]>(data);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     setTableData(data);
@@ -75,14 +79,24 @@ export default function StickyTable<T>({
   const { rows } = table.getRowModel();
 
   return (
-    <Box>
-      <TableContainer component={Paper}>
+    <Box sx={{ width: '100%', overflowX: 'auto' }}>
+      <TableContainer
+        component={Paper}
+        sx={{
+          minWidth: 650,
+          borderRadius: 2,
+          boxShadow: 1,
+        }}
+      >
         <Table stickyHeader size="small">
           <TableHead>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableCell key={header.id}>
+                  <TableCell
+                    key={header.id}
+                    sx={{ whiteSpace: 'nowrap', fontWeight: 'bold' }}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -108,6 +122,14 @@ export default function StickyTable<T>({
                 ))}
               </TableRow>
             ))}
+
+            {rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={columns.length} align="center">
+                  No results found.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -119,9 +141,17 @@ export default function StickyTable<T>({
           page={table.getState().pagination.pageIndex}
           onPageChange={(_, newPage) => table.setPageIndex(newPage)}
           rowsPerPage={rowsPerPage}
-          rowsPerPageOptions={[]}
+          rowsPerPageOptions={[]} // no dropdown
           onRowsPerPageChange={() => {
             // No-op: rows per page is fixed
+          }}
+          sx={{
+            mt: 1,
+            px: isMobile ? 1 : 2,
+            '& .MuiTablePagination-toolbar': {
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: isMobile ? 'flex-start' : 'center',
+            },
           }}
         />
       )}
