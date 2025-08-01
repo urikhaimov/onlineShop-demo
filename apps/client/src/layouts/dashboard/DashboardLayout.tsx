@@ -1,70 +1,69 @@
-import React, { useState } from 'react';
+import * as React from 'react';
+import { alpha } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import AppNavbar from './components/AppNavbar';
+import Header from './components/Header';
+import SideMenu from './components/SideMenu';
+import AppTheme from '../shared-theme/AppTheme';
 import { Outlet } from 'react-router-dom';
-import {
-  Box,
-  CssBaseline,
-  Toolbar,
-  useMediaQuery,
-  useTheme,
-  ThemeProvider,
-} from '@mui/material';
-import AppBarContent from './AppBarContent';
-import DrawerContent from './DrawerContent';
-import theme from './theme';
 
-export default function DashboardLayout() {
-  const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
-  const [mobileOpen, setMobileOpen] = useState(false);
+const xThemeComponents = {};
 
-  const handleDrawerToggle = () => setMobileOpen((prev) => !prev);
-
+export default function Dashboard(props) {
   return (
-    <ThemeProvider theme={theme}>
+    <AppTheme {...props} themeComponents={xThemeComponents}>
+      <CssBaseline enableColorScheme />
+
       <Box
         sx={{
           display: 'flex',
           height: '100vh',
-          width: '100%',
+          width: '100vw',
           overflow: 'hidden',
         }}
       >
-        <CssBaseline />
-
-        {/* AppBar + Drawer */}
-        <AppBarContent onMenuClick={handleDrawerToggle} />
-        <DrawerContent
-          mobileOpen={mobileOpen}
-          onClose={handleDrawerToggle}
-          isMobile={isMobile}
-        />
+        {/* Side Drawer and Top Bar */}
+        <SideMenu />
+        <AppNavbar />
 
         {/* Main Content */}
         <Box
           component="main"
-          sx={{
+          sx={(theme) => ({
             flexGrow: 1,
+            height: '100vh',
+            overflow: 'hidden',
+            backgroundColor: theme.vars
+              ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
+              : alpha(theme.palette.background.default, 1),
             display: 'flex',
             flexDirection: 'column',
-            height: '100vh',
-            backgroundColor: (theme) =>
-              theme.palette.mode === 'light'
-                ? theme.palette.grey[100]
-                : theme.palette.grey[900],
-          }}
+          })}
         >
-          {/* Spacer below AppBar */}
-          <Toolbar />
+          {/* Scrollable content with sticky Header */}
+          <Box
+            sx={{
+              flexShrink: 0,
+              zIndex: 1,
+              position: 'sticky',
+              top: 0,
+              bgcolor: 'background.paper',
+              borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Header />
+          </Box>
 
-          {/* Scrollable Content */}
+          {/* Scrollable Outlet */}
           <Box
             sx={{
               flexGrow: 1,
               overflowY: 'auto',
-              overflowX: 'hidden',
-              height: '100%',
+              px: 3,
+              py: 2,
               width: '100%',
-              p: { xs: 2, sm: 3 },
               scrollbarWidth: 'thin',
               '&::-webkit-scrollbar': {
                 width: '8px',
@@ -79,6 +78,6 @@ export default function DashboardLayout() {
           </Box>
         </Box>
       </Box>
-    </ThemeProvider>
+    </AppTheme>
   );
 }

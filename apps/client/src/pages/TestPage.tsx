@@ -8,9 +8,7 @@ const TestPage = () => {
   return (
     <Box
       sx={{
-        width: isMobile
-          ? 'calc(100vw - 32px )'
-          : `calc(100vw - (${drawerWidth}px + 62px) )`,
+        width: '100%',
         height: '2000px', // simulate long scroll
         backgroundColor: '#f0f0f0',
         p: 3,

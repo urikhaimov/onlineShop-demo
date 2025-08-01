@@ -32,8 +32,7 @@ import NotFoundPage from '../pages/NotFoundPage';
 import AdminSecurityLogsPage from '../pages/admin/AdminSecurityLogsPage';
 import CheckoutPage from '../pages/CheckoutPage';
 import CheckoutSuccessPage from '../pages/CheckoutPage/CheckoutSuccessPage';
-import DashboardLayout from '../layouts/dashboard/DashboardLayout';
-import TestPage from '../pages/TestPage';
+
 export enum ERoutePaths {
   HOME = '/',
   LOGIN = '/login',
@@ -66,8 +65,85 @@ export enum ERoutePaths {
 
 export const appRoutes = (location: Location<any>) => (
   <Routes location={location} key={location.pathname}>
-    <Route element={<DashboardLayout />}>
-      <Route path={ERoutePaths.HOME} element={<TestPage />} />
+    <Route path={ERoutePaths.HOME} element={<HomePage />} />
+    <Route path={ERoutePaths.PRODUCTS} element={<ProductsPage />} />
+    <Route path={ERoutePaths.PRODUCT} element={<ProductPage />} />
+    <Route path="/cart" element={<CartPage />} />
+    <Route path={ERoutePaths.LOGIN} element={<LoginPage />} />
+    <Route path="/signup" element={<SignupPage />} />
+    <Route path="/reset-password" element={<ResetPasswordPage />} />
+    <Route
+      path="/checkout"
+      element={
+        <ProtectedRoute>
+          <CheckoutPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/checkout/success"
+      element={
+        <ProtectedRoute>
+          <CheckoutSuccessPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/order/:id"
+      element={
+        <ProtectedRoute>
+          <OrderDetailPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/profile"
+      element={
+        <ProtectedRoute>
+          <UserProfilePage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/my-orders"
+      element={
+        <ProtectedRoute>
+          <MyOrdersPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/thank-you"
+      element={
+        <ProtectedRoute>
+          <ThankYouPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path={ERoutePaths.ADMIN_DASHBOARD}
+      element={
+        <AdminProtectedRoute>
+          <AdminDashboardLayout />
+        </AdminProtectedRoute>
+      }
+    >
+      <Route index element={<AdminHomePage />} />
+      <Route path="landingPage" element={<AdminLandingPage />} />
+      <Route path="categories" element={<AdminCategoriesPage />} />
+      <Route path="orders" element={<AdminOrdersPage />} />
+      <Route path="orders/:id" element={<EditOrderPage />} />
+      <Route path="users" element={<AdminUsersPage />} />
+      <Route path="logs" element={<AdminLogsPage />} />
+      <Route path="products" element={<AdminProductsPage />} />
+      <Route path="products/add" element={<ProductFormPage mode="add" />} />
+      <Route
+        path="products/edit/:productId"
+        element={<ProductFormPage mode="edit" />}
+      />
+      <Route path="theme" element={<AdminThemePage />} />
+      <Route path="security-logs" element={<AdminSecurityLogsPage />} />
     </Route>
+    <Route path="*" element={<NotFoundPage />} />
   </Routes>
 );
