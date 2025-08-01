@@ -1,12 +1,5 @@
 import React, { useMemo, useReducer, useState } from 'react';
-import {
-  Box,
-  Button,
-  IconButton,
-  TextField,
-  Typography,
-  useTheme,
-} from '@mui/material';
+import { Box, IconButton, TextField, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Check';
@@ -14,7 +7,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 
 import {
-  useAddCategory,
   useCategories,
   useDeleteCategory,
   useUpdateCategory,
@@ -35,35 +27,13 @@ export type Category = {
 export default function AdminCategoriesPage() {
   const [state, dispatch] = useReducer(categoryReducer, initialCategoryState);
   const [uiState, uiDispatch] = useReducer(uiReducer, initialUIState);
-  const { newCategory, editingId, editName, errorMessage } = state;
-  const theme = useTheme();
+  const { editingId, editName } = state;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const { data: categories = [] } = useCategories();
-  console.log('Categories:', categories);
-  const addCategory = useAddCategory();
   const deleteCategory = useDeleteCategory();
   const updateCategory = useUpdateCategory();
-
-  const handleAdd = () => {
-    if (!newCategory.trim()) {
-      dispatch({ type: 'SET_ERROR', payload: 'Name cannot be empty' });
-      return;
-    }
-
-    const exists = categories.some(
-      (c) => c.name.toLowerCase() === newCategory.trim().toLowerCase(),
-    );
-    if (exists) {
-      dispatch({ type: 'SET_ERROR', payload: 'Category already exists' });
-      return;
-    }
-
-    addCategory.mutate(newCategory.trim(), {
-      onSuccess: () => dispatch({ type: 'RESET_NEW' }),
-    });
-  };
 
   const handleEdit = (id: string, name: string) => {
     dispatch({ type: 'SET_EDIT', payload: { id, name } });
@@ -125,6 +95,9 @@ export default function AdminCategoriesPage() {
             ),
           enableSorting: true,
           enableColumnFilter: true,
+          meta: {
+            filterType: 'text', // 👈 REQUIRED!
+          },
         },
         {
           header: 'Description',
@@ -179,31 +152,12 @@ export default function AdminCategoriesPage() {
       ]),
     [editingId, editName, deleteCategory],
   );
-  console.log('Columns:', columns);
 
   return (
     <Box px={2} py={3}>
       <Typography variant="h5" fontWeight="bold" gutterBottom>
         Manage Categories
       </Typography>
-
-      <Box display="flex" gap={2} mb={3}>
-        <TextField
-          label="New Category"
-          value={newCategory}
-          onChange={(e) => {
-            dispatch({ type: 'SET_NEW', payload: e.target.value });
-            if (errorMessage) dispatch({ type: 'SET_ERROR', payload: '' });
-          }}
-          error={!!errorMessage}
-          helperText={errorMessage}
-          size="small"
-          fullWidth
-        />
-        <Button variant="contained" onClick={handleAdd}>
-          Add
-        </Button>
-      </Box>
 
       <StickyTable
         columns={columns}

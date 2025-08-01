@@ -1,118 +1,63 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   useReactTable,
-  ColumnDef,
   getCoreRowModel,
-  getSortedRowModel,
+  getPaginationRowModel,
   getFilteredRowModel,
+  flexRender,
+  ColumnDef,
   SortingState,
   ColumnFiltersState,
-  flexRender,
+  Updater,
 } from '@tanstack/react-table';
 import {
-  TableContainer,
   Paper,
-  Table as MuiTable,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
   TableHead,
   TableRow,
-  TableCell,
-  TableBody,
+  TablePagination,
   Box,
-  Pagination,
 } from '@mui/material';
-import {
-  DndContext,
-  closestCenter,
-  DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-  arrayMove,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { renderColumnFilter } from './renderColumnFilter';
-import './StickyTable.css';
 
-interface StickyTableProps<T extends { id: string }> {
+interface StickyTableProps<T> {
   columns: ColumnDef<T, any>[];
   data: T[];
   stickyColumnIndex?: number;
-  height?: number | string;
-  enableReorder?: boolean;
-  onReorder?: (newData: T[]) => void;
   enablePagination?: boolean;
   rowsPerPage?: number;
-  sorting?: SortingState;
-  onSortingChange?: (
-    updater: SortingState | ((old: SortingState) => SortingState),
-  ) => void;
-  columnFilters?: ColumnFiltersState;
-  onColumnFiltersChange?: (
-    updater:
-      | ColumnFiltersState
-      | ((old: ColumnFiltersState) => ColumnFiltersState),
-  ) => void;
+  sorting: SortingState;
+  onSortingChange: (updater: Updater<SortingState>) => void;
+  columnFilters: ColumnFiltersState;
+  onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) => void;
   enableSorting?: boolean;
   enableColumnFilters?: boolean;
 }
 
-function SortableRow({
-  id,
-  children,
-}: {
-  id: string;
-  children: React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    cursor: 'move',
-  };
-
-  return (
-    <TableRow ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {children}
-    </TableRow>
-  );
-}
-
-export default function StickyTable<T extends { id: string }>({
+export default function StickyTable<T>({
   columns,
   data,
   stickyColumnIndex = 0,
-  height = 500,
-  enableReorder = false,
-  onReorder,
-  enablePagination = false,
+  enablePagination = true,
   rowsPerPage = 10,
-  sorting = [],
+  sorting,
   onSortingChange,
-  columnFilters = [],
+  columnFilters,
   onColumnFiltersChange,
-  enableSorting = false,
-  enableColumnFilters = false,
+  enableSorting = true,
+  enableColumnFilters = true,
 }: StickyTableProps<T>) {
-  const [page, setPage] = React.useState(1);
-  const [tableData, setTableData] = React.useState<T[]>([]);
+  const [tableData, setTableData] = useState<T[]>(data);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setTableData(data);
   }, [data]);
 
-  const paginatedData = enablePagination
-    ? tableData.slice((page - 1) * rowsPerPage, page * rowsPerPage)
-    : tableData;
-
   const table = useReactTable({
-    data: paginatedData,
+    data: tableData,
     columns,
     state: {
       sorting,
@@ -121,153 +66,65 @@ export default function StickyTable<T extends { id: string }>({
     onSortingChange,
     onColumnFiltersChange,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
-    getFilteredRowModel: enableColumnFilters
-      ? getFilteredRowModel()
-      : undefined,
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    enableSorting,
+    enableColumnFilters,
   });
 
-  const sensors = useSensors(useSensor(PointerSensor));
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (active.id !== over?.id) {
-      const oldIndex = tableData.findIndex((row) => row.id === active.id);
-      const newIndex = tableData.findIndex((row) => row.id === over?.id);
-      const newData = arrayMove(tableData, oldIndex, newIndex);
-      setTableData(newData);
-      onReorder?.(newData);
-    }
-  };
+  const { rows } = table.getRowModel();
 
   return (
-    <>
-      <TableContainer
-        component={Paper}
-        style={{
-          maxHeight: height,
-          overflow: 'auto',
-          border: '1px solid #e0e0e0',
-        }}
-      >
-        <MuiTable stickyHeader sx={{ minWidth: 800 }}>
+    <Box>
+      <TableContainer component={Paper}>
+        <Table stickyHeader size="small">
           <TableHead>
             {table.getHeaderGroups().map((headerGroup) => (
-              <React.Fragment key={headerGroup.id}>
-                <TableRow>
-                  {headerGroup.headers.map((header, colIndex) => (
-                    <TableCell
-                      key={header.id}
-                      className={
-                        colIndex === stickyColumnIndex
-                          ? 'sticky-cell sticky-header'
-                          : 'sticky-header'
-                      }
-                    >
-                      {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                        <Box
-                          onClick={header.column.getToggleSortingHandler()}
-                          sx={{ cursor: 'pointer', userSelect: 'none' }}
-                        >
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                          {header.column.getIsSorted() === 'asc' && ' 🔼'}
-                          {header.column.getIsSorted() === 'desc' && ' 🔽'}
-                        </Box>
-                      ) : (
-                        flexRender(
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableCell key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
                           header.column.columnDef.header,
                           header.getContext(),
-                        )
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-
-                {enableColumnFilters && (
-                  <TableRow>
-                    {headerGroup.headers.map((header, colIndex) => (
-                      <TableCell
-                        key={header.id + '_filter'}
-                        className={
-                          colIndex === stickyColumnIndex ? 'sticky-cell' : ''
-                        }
-                      >
-                        {header.column.getCanFilter()
-                          ? renderColumnFilter(header.column, table)
-                          : null}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )}
-              </React.Fragment>
+                        )}
+                    {enableColumnFilters && header.column.getCanFilter()
+                      ? renderColumnFilter(header.column, table)
+                      : null}
+                  </TableCell>
+                ))}
+              </TableRow>
             ))}
           </TableHead>
 
           <TableBody>
-            {enableReorder ? (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={paginatedData.map((row) => row.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {table.getRowModel().rows.map((row) => (
-                    <SortableRow key={row.id} id={row.original.id}>
-                      {row.getVisibleCells().map((cell, colIndex) => (
-                        <TableCell
-                          key={cell.id}
-                          className={
-                            colIndex === stickyColumnIndex ? 'sticky-cell' : ''
-                          }
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </SortableRow>
-                  ))}
-                </SortableContext>
-              </DndContext>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell, colIndex) => (
-                    <TableCell
-                      key={cell.id}
-                      className={
-                        colIndex === stickyColumnIndex ? 'sticky-cell' : ''
-                      }
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            )}
+            {rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
           </TableBody>
-        </MuiTable>
+        </Table>
       </TableContainer>
 
       {enablePagination && (
-        <Box mt={2} display="flex" justifyContent="center">
-          <Pagination
-            count={Math.ceil(tableData.length / rowsPerPage)}
-            page={page}
-            onChange={(_, newPage) => setPage(newPage)}
-          />
-        </Box>
+        <TablePagination
+          component="div"
+          count={table.getFilteredRowModel().rows.length}
+          page={table.getState().pagination.pageIndex}
+          onPageChange={(_, newPage) => table.setPageIndex(newPage)}
+          rowsPerPage={rowsPerPage}
+          rowsPerPageOptions={[]}
+          onRowsPerPageChange={() => {
+            // No-op: rows per page is fixed
+          }}
+        />
       )}
-    </>
+    </Box>
   );
 }
