@@ -1,0 +1,13 @@
+.sticky-header {
+  background: #fafafa;
+  z-index: 2;
+  top: 0;
+  position: sticky;
+}
+
+.sticky-cell {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+}

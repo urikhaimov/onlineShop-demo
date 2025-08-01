@@ -2,6 +2,10 @@
 export type Category = {
   id: string;
   name: string;
+  createdAt?: string | Date; // make optional
+  updatedAt?: string | Date;
+  description: string;
+  imageUrl?: string; // ✅ Add this line
 };
 
 export type Product = {
