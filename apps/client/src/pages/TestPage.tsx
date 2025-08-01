@@ -1,10 +1,6 @@
-import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
-import { drawerWidth } from '../constants/globalConstants';
+import { Box, Typography } from '@mui/material';
 
 const TestPage = () => {
-  const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
-
   return (
     <Box
       sx={{

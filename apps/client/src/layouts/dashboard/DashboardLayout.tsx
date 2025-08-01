@@ -64,6 +64,7 @@ export default function Dashboard(props) {
               px: 3,
               py: 2,
               width: '100%',
+              pt: { xs: 10, sm: 4 }, // 👈 Add padding-top to offset sticky Header
               scrollbarWidth: 'thin',
               '&::-webkit-scrollbar': {
                 width: '8px',

@@ -38,12 +38,10 @@ export default function PageWithStickyFilters({
   return (
     <Box
       sx={{
-        height: `calc(100vh - ${headerHeight + footerHeight}px)`,
-        overflow: 'hidden',
-        px: { xs: 2, md: 6 },
-        py: { xs: 2, md: 4 },
-        mt: `${headerHeight}px`,
-        mb: `${footerHeight}px`,
+        width: '100%',
+        height: '2000px', // simulate long scroll
+        backgroundColor: '#f0f0f0',
+        p: 3,
       }}
     >
       {/* Top Row */}
@@ -96,55 +94,7 @@ export default function PageWithStickyFilters({
         minHeight={0}
         overflow="hidden"
       >
-        {/* Sidebar */}
-        {isMobile ? (
-          <Drawer
-            open={!!mobileOpen}
-            onClose={onMobileClose}
-            anchor="left"
-            ModalProps={{ keepMounted: true }}
-            PaperProps={{ sx: { width: 280 } }}
-          >
-            <Box
-              sx={{
-                height: `calc(100vh - ${headerHeight + footerHeight}px)`,
-                overflowY: 'auto',
-                px: { xs: 2, md: 6 },
-                py: { xs: 2, md: 4 },
-                mt: `${headerHeight}px`,
-                mb: `${footerHeight}px`,
-              }}
-            >
-              {sidebar}
-            </Box>
-          </Drawer>
-        ) : (
-          <Box
-            width={280}
-            flexShrink={0}
-            pr={2}
-            sx={{
-              borderRight: '1px solid #ddd',
-              height: '100%',
-              overflowY: 'auto',
-            }}
-          >
-            {sidebar}
-          </Box>
-        )}
-
-        {/* Main content */}
-        <Box
-          flex={1}
-          minWidth={0}
-          overflow="auto"
-          sx={{
-            height: isMobile ? 'auto' : 'calc(100vh - 180px)',
-            pb: isMobile ? 8 : 0,
-          }}
-        >
-          {children}
-        </Box>
+        {children}
       </Box>
     </Box>
   );

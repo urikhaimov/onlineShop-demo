@@ -10,7 +10,7 @@ import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import MenuButton from './MenuButton';
 import MenuContent from './MenuContent';
 import CardAlert from './CardAlert';
-
+import { useAuth } from '../../../hooks/useAuth';
 interface SideMenuMobileProps {
   open: boolean | undefined;
   toggleDrawer: (newOpen: boolean) => () => void;
@@ -20,6 +20,7 @@ export default function SideMenuMobile({
   open,
   toggleDrawer,
 }: SideMenuMobileProps) {
+  const { user } = useAuth();
   return (
     <Drawer
       anchor="right"
@@ -44,15 +45,18 @@ export default function SideMenuMobile({
             direction="row"
             sx={{ gap: 1, alignItems: 'center', flexGrow: 1, p: 1 }}
           >
-            <Avatar
-              sizes="small"
-              alt="Riley Carter"
-              src="/static/images/avatar/7.jpg"
-              sx={{ width: 24, height: 24 }}
-            />
-            <Typography component="p" variant="h6">
-              Riley Carter
-            </Typography>
+            {user && (
+              <>
+                <Avatar
+                  sizes="small"
+                  src={user.photoURL || '/default-avatar.png'}
+                  sx={{ width: 24, height: 24 }}
+                />
+                <Typography component="p" variant="h6">
+                  alt={user.displayName || user.email}
+                </Typography>
+              </>
+            )}
           </Stack>
           <MenuButton showBadge>
             <NotificationsRoundedIcon />
