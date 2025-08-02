@@ -1,72 +1,106 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Snackbar, Alert, CardMedia, Button } from '@mui/material';
-import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
+import React, { useEffect, useReducer, useMemo } from 'react';
 import {
-  ColumnDef,
-  SortingState,
-  ColumnFiltersState,
-} from '@tanstack/react-table';
+  Box,
+  Snackbar,
+  Alert,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+} from '@mui/material';
 
+import StickyTable from '../../components/StickyTable';
+import LoadingProgress from '../../components/LoadingProgress';
 import { fetchAllProducts } from '../../hooks/useProducts';
 import { useCategories } from '../../hooks/useCategories';
 import { IProduct } from '@common/types';
-import StickyTable from '../../components/StickyTable';
-import LoadingProgress from '../../components/LoadingProgress';
-import { defineProductColumns } from './Columns';
-export default function ProductsPage() {
-  const [products, setProducts] = useState<IProduct[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+import { defineProductColumns as productColumns } from './Columns';
+import { reducer, initialState } from './LocalReducer';
 
+export default function ProductsPage() {
+  const [state, dispatch] = useReducer(reducer, initialState);
   const { data: categories = [] } = useCategories();
 
   useEffect(() => {
     const loadProducts = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
       try {
         const res = await fetchAllProducts();
-        if (!Array.isArray(res.data)) {
-          console.error('❌ Invalid product response:', res.data);
-          setProducts([]);
+        if (Array.isArray(res.data)) {
+          dispatch({ type: 'SET_PRODUCTS', payload: res.data });
         } else {
-          setProducts(res.data);
+          dispatch({ type: 'SET_PRODUCTS', payload: [] });
+          console.error('❌ Invalid product response:', res.data);
         }
       } catch (err) {
         console.error('❌ Failed to load products:', err);
       } finally {
-        setLoading(false);
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
 
     void loadProducts();
   }, []);
 
+  const filteredProducts =
+    state.selectedCategory === 'all'
+      ? state.products
+      : state.products.filter(
+          (p) => String(p.categoryId) === state.selectedCategory,
+        );
+
+  const handleCategoryChange = (e: SelectChangeEvent) => {
+    dispatch({ type: 'SET_CATEGORY', payload: e.target.value });
+  };
+
   const columns = useMemo(
-    () => defineProductColumns(categories, setSnackbarOpen),
-    [],
+    () =>
+      productColumns(categories, () =>
+        dispatch({ type: 'SET_SNACKBAR', payload: true }),
+      ),
+    [categories],
   );
 
-  if (loading) return <LoadingProgress />;
+  if (state.loading) return <LoadingProgress />;
 
   return (
     <Box p={2}>
+      {/* Category Filter */}
+      <FormControl size="small" sx={{ mb: 2, width: 240 }}>
+        <InputLabel>Category</InputLabel>
+        <Select
+          label="Category"
+          value={state.selectedCategory}
+          onChange={handleCategoryChange}
+        >
+          <MenuItem value="all">All</MenuItem>
+          {categories.map((cat) => (
+            <MenuItem key={cat.id} value={String(cat.id)}>
+              {cat.name}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
       <StickyTable<IProduct>
         columns={columns}
-        data={products}
-        sorting={sorting}
-        onSortingChange={setSorting}
-        columnFilters={columnFilters}
-        onColumnFiltersChange={setColumnFilters}
+        data={filteredProducts}
+        sorting={state.sorting}
+        onSortingChange={(s) => dispatch({ type: 'SET_SORTING', payload: s })}
+        columnFilters={state.columnFilters}
+        onColumnFiltersChange={(f) =>
+          dispatch({ type: 'SET_FILTERS', payload: f })
+        }
         enablePagination
         enableSorting
         enableColumnFilters
       />
 
       <Snackbar
-        open={snackbarOpen}
+        open={state.snackbarOpen}
         autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
+        onClose={() => dispatch({ type: 'SET_SNACKBAR', payload: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert severity="success" variant="filled">
