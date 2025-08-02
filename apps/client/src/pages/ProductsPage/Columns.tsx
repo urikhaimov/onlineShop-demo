@@ -1,3 +1,4 @@
+// src/pages/ProductsPage/Columns.ts
 import { ColumnDef } from '@tanstack/react-table';
 import { IProduct } from '@common/types';
 import { CardMedia, Button, Typography, Link as MuiLink } from '@mui/material';
@@ -12,6 +13,7 @@ export function defineProductColumns(
     {
       accessorKey: 'images',
       header: 'Image',
+      enableColumnFilter: false,
       cell: ({ row, getValue }) => {
         const images = getValue<string[]>() ?? [];
         const firstImage =
@@ -31,20 +33,19 @@ export function defineProductColumns(
                 cursor: 'pointer',
               }}
               image={firstImage}
-              alt="Product Image"
+              alt="Product"
             />
           </Link>
         );
       },
-      enableColumnFilter: false,
     },
     {
-      header: 'Name',
       accessorKey: 'name',
+      header: 'Name',
+      enableColumnFilter: true,
       cell: ({ row, getValue }) => {
         const id = row.original.id;
         const name = getValue<string>();
-
         return (
           <MuiLink
             component={Link}
@@ -57,33 +58,56 @@ export function defineProductColumns(
           </MuiLink>
         );
       },
-      enableColumnFilter: true,
     },
     {
-      header: 'Category',
       accessorKey: 'categoryId',
+      header: 'Category',
+      enableColumnFilter: false,
       cell: ({ getValue }) => {
         const catId = getValue<string>();
         const cat = categories.find((c) => c.id === catId);
         return cat?.name || 'Unknown';
       },
-      enableColumnFilter: false,
     },
     {
-      header: 'Stock',
       accessorKey: 'stock',
+      header: 'Stock',
       enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: { filterVariant: 'number' },
     },
     {
-      header: 'Price',
       accessorKey: 'price',
-      cell: ({ getValue }) => `$${getValue<number>().toFixed(2)}`,
+      header: 'Price',
       enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: { filterVariant: 'number' },
+      cell: ({ getValue }) => `$${getValue<number>().toFixed(2)}`,
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Created At',
+      enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: { filterVariant: 'date' },
+      cell: ({ getValue }) => {
+        const raw = getValue<string | Date>();
+        const date = new Date(raw);
+        return isNaN(date.getTime())
+          ? 'N/A'
+          : date.toLocaleDateString(undefined, {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            });
+      },
     },
     {
       header: 'Actions',
       id: 'actions',
-      cell: ({ row }) => (
+      enableColumnFilter: false,
+      enableSorting: false,
+      cell: () => (
         <Button
           startIcon={<AddShoppingCartIcon />}
           size="small"
@@ -93,8 +117,6 @@ export function defineProductColumns(
           Add to Cart
         </Button>
       ),
-      enableColumnFilter: false,
-      enableSorting: false,
     },
   ];
 }

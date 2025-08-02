@@ -8,6 +8,7 @@ import {
   MenuItem,
   Select,
   SelectChangeEvent,
+  Divider,
 } from '@mui/material';
 
 import StickyTable from '../../components/StickyTable';
@@ -15,13 +16,15 @@ import LoadingProgress from '../../components/LoadingProgress';
 import { fetchAllProducts } from '../../hooks/useProducts';
 import { useCategories } from '../../hooks/useCategories';
 import { IProduct } from '@common/types';
-import { defineProductColumns as productColumns } from './Columns';
+import { defineProductColumns } from './Columns';
 import { reducer, initialState } from './LocalReducer';
+import { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 
 export default function ProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { data: categories = [] } = useCategories();
 
+  // Load products
   useEffect(() => {
     const loadProducts = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -43,30 +46,33 @@ export default function ProductsPage() {
     void loadProducts();
   }, []);
 
-  const filteredProducts =
-    state.selectedCategory === 'all'
+  const filteredProducts = useMemo(() => {
+    return state.selectedCategory === 'all'
       ? state.products
       : state.products.filter(
           (p) => String(p.categoryId) === state.selectedCategory,
         );
+  }, [state.products, state.selectedCategory]);
 
-  const handleCategoryChange = (e: SelectChangeEvent) => {
+  const handleCategoryChange = (e: SelectChangeEvent<string>) => {
     dispatch({ type: 'SET_CATEGORY', payload: e.target.value });
   };
 
   const columns = useMemo(
     () =>
-      productColumns(categories, () =>
+      defineProductColumns(categories, () =>
         dispatch({ type: 'SET_SNACKBAR', payload: true }),
       ),
     [categories],
   );
 
+  const sorting: SortingState = state.sorting || [];
+  const columnFilters: ColumnFiltersState = state.columnFilters || [];
+
   if (state.loading) return <LoadingProgress />;
 
   return (
-    <Box p={2}>
-      {/* Category Filter */}
+    <Box px={2} py={1}>
       <FormControl size="small" sx={{ mb: 2, width: 240 }}>
         <InputLabel>Category</InputLabel>
         <Select
@@ -83,12 +89,14 @@ export default function ProductsPage() {
         </Select>
       </FormControl>
 
+      <Divider sx={{ mb: 2 }} />
+
       <StickyTable<IProduct>
         columns={columns}
         data={filteredProducts}
-        sorting={state.sorting}
+        sorting={sorting}
         onSortingChange={(s) => dispatch({ type: 'SET_SORTING', payload: s })}
-        columnFilters={state.columnFilters}
+        columnFilters={columnFilters}
         onColumnFiltersChange={(f) =>
           dispatch({ type: 'SET_FILTERS', payload: f })
         }
