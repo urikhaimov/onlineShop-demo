@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Snackbar, Alert, IconButton, Button } from '@mui/material';
+import { Box, Snackbar, Alert, CardMedia, Button } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import {
   ColumnDef,
@@ -12,7 +12,7 @@ import { useCategories } from '../../hooks/useCategories';
 import { IProduct } from '@common/types';
 import StickyTable from '../../components/StickyTable';
 import LoadingProgress from '../../components/LoadingProgress';
-
+import { defineProductColumns } from './Columns';
 export default function ProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,52 +42,9 @@ export default function ProductsPage() {
     void loadProducts();
   }, []);
 
-  const columns = useMemo<ColumnDef<IProduct, any>[]>(
-    () => [
-      {
-        header: 'Name',
-        accessorKey: 'name',
-        enableColumnFilter: true,
-      },
-      {
-        header: 'Category',
-        accessorKey: 'categoryId',
-        cell: ({ getValue }) => {
-          const catId = getValue<number>();
-          const cat = categories.find((c) => c.id === String(catId));
-          return cat?.name || 'Unknown';
-        },
-        enableColumnFilter: true,
-      },
-      {
-        header: 'Stock',
-        accessorKey: 'stock',
-        enableColumnFilter: true,
-      },
-      {
-        header: 'Price',
-        accessorKey: 'price',
-        cell: ({ getValue }) => `$${getValue<number>().toFixed(2)}`,
-        enableColumnFilter: true,
-      },
-      {
-        header: 'Actions',
-        id: 'actions',
-        cell: ({ row }) => (
-          <Button
-            startIcon={<AddShoppingCartIcon />}
-            size="small"
-            variant="outlined"
-            onClick={() => setSnackbarOpen(true)}
-          >
-            Add to Cart
-          </Button>
-        ),
-        enableColumnFilter: false,
-        enableSorting: false,
-      },
-    ],
-    [categories],
+  const columns = useMemo(
+    () => defineProductColumns(categories, setSnackbarOpen),
+    [],
   );
 
   if (loading) return <LoadingProgress />;
