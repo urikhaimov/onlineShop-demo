@@ -33,6 +33,8 @@ import AdminSecurityLogsPage from '../pages/admin/AdminSecurityLogsPage';
 import CheckoutPage from '../pages/CheckoutPage';
 import CheckoutSuccessPage from '../pages/CheckoutPage/CheckoutSuccessPage';
 import DashboardLayout from '../layouts/dashboard/DashboardLayout';
+import AddCategoryPage from '../pages/admin/AdminCategoriesPage/AddCategoryPage';
+import EditCategoryPage from '../pages/admin/AdminCategoriesPage/EditCategoryPage';
 export enum ERoutePaths {
   HOME = '/',
   LOGIN = '/login',
@@ -138,6 +140,8 @@ export const appRoutes = (location: Location<any>) => (
         <Route path="logs" element={<AdminLogsPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="products/add" element={<ProductFormPage mode="add" />} />
+        <Route path="categories/add" element={<AddCategoryPage />} />
+        <Route path="categories/edit/:id" element={<EditCategoryPage />} />
         <Route
           path="products/edit/:productId"
           element={<ProductFormPage mode="edit" />}

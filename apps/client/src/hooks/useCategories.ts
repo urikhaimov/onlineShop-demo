@@ -14,6 +14,17 @@ export const useCategories = () => {
   });
 };
 
+export const useCategoryById = (id?: string) => {
+  return useQuery<Category>({
+    queryKey: ['category', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const res = await api.get(`/categories/${id}`);
+      return res.data;
+    },
+  });
+};
+
 export const useAddCategory = () => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();

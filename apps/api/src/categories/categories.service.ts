@@ -40,4 +40,10 @@ export class CategoriesService {
     await ref.update({ name: name.trim() });
     return { id, name };
   }
+
+  async getById(id: string) {
+    const doc = await this.categoriesRef.doc(id).get();
+    if (!doc.exists) return null;
+    return { id: doc.id, ...doc.data() };
+  }
 }

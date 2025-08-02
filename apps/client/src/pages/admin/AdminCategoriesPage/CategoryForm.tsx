@@ -1,72 +1,150 @@
-import React from 'react';
-import { Box, Button, Stack } from '@mui/material';
-import { useForm } from 'react-hook-form';
+import React, { useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import {
+  Box,
+  Stack,
+  Button,
+  Typography,
+  CircularProgress,
+} from '@mui/material';
 import FormTextField from '../../../components/FormTextField';
-
+import PictureUploaderWithCrop from '../../../components/PictureUploaderWithCrop';
+import { useCategoryById } from '../../../hooks/useCategories';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 export interface CategoryFormValues {
   name: string;
   description: string;
-  order?: number;
-  imageUrl?: string;
+  imageUrl: string;
 }
 
 interface Props {
-  defaultValues?: CategoryFormValues;
-  onSubmit: (values: CategoryFormValues) => void;
-  isSubmitting?: boolean;
-  submitLabel?: string;
-  categoryId?: string; // <- optional; required only in edit mode
-  mode?: 'add' | 'edit'; // ✅ Add this line
+  mode: 'add' | 'edit';
+  categoryId?: string;
+  onSubmit: (data: CategoryFormValues) => void;
 }
 
-export default function CategoryForm({
-  defaultValues,
-  onSubmit,
-  isSubmitting,
-  submitLabel = 'Save',
-}: Props) {
+export default function CategoryForm({ mode, categoryId, onSubmit }: Props) {
+  const isEdit = mode === 'edit';
+
   const {
-    register,
+    control,
     handleSubmit,
-    formState: { errors },
+    setValue,
+    formState: { errors, isSubmitting },
   } = useForm<CategoryFormValues>({
-    defaultValues,
+    defaultValues: {
+      name: '',
+      description: '',
+      imageUrl: '',
+    },
   });
 
+  const { data: category, isLoading } = useCategoryById(categoryId, {
+    enabled: isEdit && !!categoryId,
+  });
+
+  useEffect(() => {
+    if (category) {
+      setValue('name', category.name);
+      setValue('description', category.description);
+      setValue('imageUrl', category.imageUrl);
+    }
+  }, [category, setValue]);
+
+  const handleCropUpload = async (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setValue('imageUrl', base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteAvatar = () => {
+    setValue('imageUrl', '');
+  };
+
+  if (isEdit && isLoading) {
+    return (
+      <Box p={2} textAlign="center">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
-    <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+    <Box component="form" onSubmit={handleSubmit(onSubmit)}>
       <Stack spacing={2}>
-        <FormTextField
-          label="Category Name"
-          register={register('name', {
-            required: 'Name is required',
-          })}
-          errorObject={errors.name}
+        <Controller
+          control={control}
+          name="name"
+          defaultValue=""
+          render={({ field }) => (
+            <FormTextField
+              {...field}
+              label="Name"
+              errorObject={errors.name}
+              required
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="description"
+          defaultValue=""
+          render={({ field }) => (
+            <Box>
+              <Typography variant="subtitle1" mb={1}>
+                Description
+              </Typography>
+              <Box
+                sx={{
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  '& .ql-toolbar': {
+                    bgcolor: 'background.paper',
+                    borderBottom: 1,
+                    borderColor: 'divider',
+                  },
+                  '& .ql-container': {
+                    bgcolor: 'background.default',
+                    color: 'text.primary',
+                    minHeight: 200,
+                  },
+                  '& .ql-editor': {
+                    fontFamily: 'inherit',
+                    fontSize: '1rem',
+                    px: 2,
+                    py: 1,
+                  },
+                }}
+              >
+                <ReactQuill
+                  theme="snow"
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              </Box>
+              {errors.description && (
+                <Typography variant="caption" color="error" mt={0.5}>
+                  {errors.description.message}
+                </Typography>
+              )}
+            </Box>
+          )}
         />
 
-        <FormTextField
-          label="Description"
-          register={register('description')}
-          errorObject={errors.description}
-        />
-
-        <FormTextField
-          label="Order"
-          type="number"
-          register={register('order', {
-            valueAsNumber: true,
-          })}
-          errorObject={errors.order}
-        />
-
-        <FormTextField
-          label="Image URL"
-          register={register('imageUrl')}
-          errorObject={errors.imageUrl}
+        <PictureUploaderWithCrop
+          avatarUrl={control._formValues.imageUrl}
+          onCropUpload={handleCropUpload}
+          onDeleteAvatar={handleDeleteAvatar}
         />
 
         <Button type="submit" variant="contained" disabled={isSubmitting}>
-          {submitLabel}
+          {isEdit ? 'Update Category' : 'Create Category'}
         </Button>
       </Stack>
     </Box>
