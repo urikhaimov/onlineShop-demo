@@ -47,7 +47,7 @@ export function defineProductColumns(
         const cat = categories.find((c) => c.id === catId);
         return cat?.name || 'Unknown';
       },
-      enableColumnFilter: true,
+      enableColumnFilter: false,
     },
     {
       header: 'Stock',
