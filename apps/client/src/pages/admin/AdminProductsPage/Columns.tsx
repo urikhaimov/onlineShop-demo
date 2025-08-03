@@ -1,56 +1,78 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { IProduct } from '@common/types';
-import { Checkbox, IconButton, Tooltip, CardMedia, Stack } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { NavigateFunction } from 'react-router-dom';
-import { Timestamp } from 'firebase/firestore';
+import { CardMedia, Button, Link as MuiLink } from '@mui/material';
+import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
+import { Link } from 'react-router-dom';
 
 export function defineProductColumns(
-  navigate: NavigateFunction,
-  onDelete?: (id: string) => void,
-): ColumnDef<IProduct>[] {
+  categories: { id: string; name: string }[],
+  setSnackbarOpen: (open: boolean) => void,
+): ColumnDef<IProduct, any>[] {
   return [
     {
       accessorKey: 'images',
       header: 'Image',
-      cell: (info) => {
-        console.log('Image cell info:', info);
-        const images = info.getValue() as string[] | undefined;
+      enableColumnFilter: false,
+      cell: ({ row, getValue }) => {
+        const images = getValue<string[]>() ?? [];
         const firstImage =
-          images?.[0] || 'https://picsum.photos/seed/fallback/100/100';
+          images[0] || 'https://picsum.photos/seed/fallback/100/100';
+        const id = row.original.id;
 
         return (
-          <CardMedia
-            component="img"
-            sx={{
-              width: 80,
-              height: 80,
-              borderRadius: 1,
-              objectFit: 'cover',
-              mx: { xs: 'auto', sm: 0 },
-            }}
-            image={firstImage}
-            alt="Product Image"
-          />
+          <Link to={`/product/${id}`}>
+            <CardMedia
+              component="img"
+              sx={{
+                width: 80,
+                height: 80,
+                borderRadius: 1,
+                objectFit: 'cover',
+                mx: { xs: 'auto', sm: 0 },
+                cursor: 'pointer',
+              }}
+              image={firstImage}
+              alt="Product"
+            />
+          </Link>
         );
       },
-      enableColumnFilter: false,
     },
-
     {
       accessorKey: 'name',
       header: 'Name',
       enableColumnFilter: true,
       meta: { filterVariant: 'text' },
-      cell: (info) => info.getValue(),
+      cell: ({ row, getValue }) => {
+        const id = row.original.id;
+        const name = getValue<string>();
+        return (
+          <MuiLink
+            component={Link}
+            to={`/product/${id}`}
+            underline="hover"
+            color="primary"
+            sx={{ cursor: 'pointer', fontWeight: 500 }}
+          >
+            {name}
+          </MuiLink>
+        );
+      },
     },
     {
-      accessorKey: 'price',
-      header: 'Price',
+      accessorKey: 'categoryId',
+      header: 'Category',
+      enableColumnFilter: true,
       filterFn: 'equals',
-      meta: { filterVariant: 'number' },
-      cell: (info) => `$${Number(info.getValue()).toFixed(2)}`,
+      meta: {
+        filterVariant: 'select',
+        selectOptions: categories.map((c) => c.id),
+      },
+      cell: ({ getValue }) => {
+        const catId = getValue<string>();
+        const cat = categories.find((c) => c.id === catId);
+        return cat?.name || 'Unknown';
+      },
     },
     {
       accessorKey: 'stock',
@@ -60,9 +82,12 @@ export function defineProductColumns(
       meta: { filterVariant: 'number' },
     },
     {
-      accessorKey: 'categoryName',
-      header: 'Category',
-      cell: (info) => info.getValue() ?? '—',
+      accessorKey: 'price',
+      header: 'Price',
+      enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: { filterVariant: 'number' },
+      cell: ({ getValue }) => `$${getValue<number>().toFixed(2)}`,
     },
     {
       accessorKey: 'createdAt',
@@ -83,30 +108,19 @@ export function defineProductColumns(
       },
     },
     {
-      id: 'actions',
       header: 'Actions',
-      cell: ({ row }) => (
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Edit Product">
-            <IconButton
-              onClick={() =>
-                navigate(`/admin/products/edit/${row.original.id}`)
-              }
-              size="small"
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete Product">
-            <IconButton
-              onClick={() => onDelete?.(row.original.id)}
-              size="small"
-              color="error"
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Stack>
+      id: 'actions',
+      enableColumnFilter: false,
+      enableSorting: false,
+      cell: () => (
+        <Button
+          startIcon={<AddShoppingCartIcon />}
+          size="small"
+          variant="outlined"
+          onClick={() => setSnackbarOpen(true)}
+        >
+          Add to Cart
+        </Button>
       ),
     },
   ];

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useReducer, useMemo } from 'react';
 import { Box, Snackbar, Alert, Divider } from '@mui/material';
 import {
   DndContext,
@@ -12,146 +12,135 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { useInView } from 'react-intersection-observer';
-import { debounce } from 'lodash';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { auth, db } from '../../../firebase';
-import { useProductMutations } from '../../../hooks/useProductMutations';
-import { IProduct } from '@common/types';
-import { ColumnFiltersState, SortingState } from '@tanstack/react-table';
+
+import StickyTable from '../../../components/StickyTable';
 import LoadingProgress from '../../../components/LoadingProgress';
 import NotFound from '../../../components/NotFound';
-import StickyTable from '../../../components/StickyTable';
+import { IProduct } from '@common/types';
 import { defineProductColumns } from './Columns';
-import { useNavigate } from 'react-router-dom';
-import { useAllCategories } from '../../../hooks/useAllCategories';
+import { reducer, initialState } from './LocalReducer';
+import { useCategories } from '../../../hooks/useCategories';
+import { useProductMutations } from '../../../hooks/useProductMutations';
+import { fetchAllProducts } from '../../../hooks/useProducts';
+import { auth } from '../../../firebase';
+import {
+  SortingState,
+  ColumnFiltersState,
+  Updater,
+} from '@tanstack/react-table';
+
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<IProduct[]>([]);
-  const [visibleCount, setVisibleCount] = useState(20);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const { data: categories = [] } = useCategories();
   const { reorder } = useProductMutations();
-  const { data: categories = [] } = useAllCategories();
+
   const sensors = useSensors(useSensor(PointerSensor));
-  const { ref: sentinelRef, inView } = useInView();
 
   useEffect(() => {
-    const q = query(collection(db, 'products'), orderBy('order'));
-    const debouncedSet = debounce((items: IProduct[]) => {
-      setProducts(items);
-    }, 300);
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs: IProduct[] = snapshot.docs.map((doc) => ({
-        ...(doc.data() as IProduct),
-        id: doc.id,
-      }));
-      debouncedSet(docs);
-    });
-
-    return () => {
-      unsub();
-      debouncedSet.cancel();
+    const loadProducts = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      try {
+        const res = await fetchAllProducts();
+        if (Array.isArray(res.data)) {
+          dispatch({ type: 'SET_PRODUCTS', payload: res.data });
+        } else {
+          dispatch({ type: 'SET_PRODUCTS', payload: [] });
+          console.error('❌ Invalid product response:', res.data);
+        }
+      } catch (err) {
+        console.error('❌ Failed to load products:', err);
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
     };
+
+    void loadProducts();
   }, []);
-
-  // Flatten category name if needed
-  const visibleProducts = products.slice(0, visibleCount).map((p) => ({
-    ...p,
-    category:
-      p.categoryId && typeof p.categoryId === 'object' && p.categoryId !== null
-        ? (p.categoryId.name ?? 'Uncategorized')
-        : (p.categoryId ?? 'Uncategorized'),
-  }));
-
-  useEffect(() => {
-    if (inView && visibleCount < products.length) {
-      const timeout = setTimeout(() => {
-        setVisibleCount((prev) => prev + 10);
-      }, 300);
-      return () => clearTimeout(timeout);
-    }
-  }, [inView, visibleCount, products.length]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = visibleProducts.findIndex((p) => p.id === active.id);
-    const newIndex = visibleProducts.findIndex((p) => p.id === over.id);
+    const oldIndex = state.products.findIndex((p) => p.id === active.id);
+    const newIndex = state.products.findIndex((p) => p.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reorderedVisible = arrayMove(visibleProducts, oldIndex, newIndex);
-    const updated = [...products];
+    const reordered = arrayMove(state.products, oldIndex, newIndex);
+    dispatch({ type: 'SET_PRODUCTS', payload: reordered });
 
-    reorderedVisible.forEach((product, idx) => {
-      const globalIndex = updated.findIndex((p) => p.id === product.id);
-      if (globalIndex !== -1) {
-        updated.splice(globalIndex, 1);
-        updated.splice(idx + products.indexOf(visibleProducts[0]), 0, product);
-      }
-    });
-
-    const uniqueUpdated = Array.from(
-      new Map(updated.map((p) => [p.id, p])).values(),
-    );
-
-    setProducts(uniqueUpdated);
-
-    const orderList = uniqueUpdated.map((p, i) => ({ id: p.id, order: i }));
+    const orderList = reordered.map((p, i) => ({ id: p.id, order: i }));
     const token = await auth.currentUser?.getIdToken();
 
     if (token) {
       try {
         await reorder.mutateAsync({ orderList, token });
-        setSnackbarOpen(true);
+        dispatch({ type: 'SET_SNACKBAR', payload: true });
       } catch (error) {
         console.error('❌ Reorder failed', error);
       }
     }
   };
 
-  const navigate = useNavigate();
   const columns = useMemo(
-    () => defineProductColumns(categories, setSnackbarOpen),
-    [categories, setSnackbarOpen],
+    () =>
+      defineProductColumns(categories, () =>
+        dispatch({ type: 'SET_SNACKBAR', payload: true }),
+      ),
+    [categories],
   );
+
+  const sorting: SortingState = Array.isArray(state.sorting)
+    ? state.sorting
+    : [];
+
+  const columnFilters: ColumnFiltersState = Array.isArray(state.columnFilters)
+    ? state.columnFilters
+    : [];
+
+  const handleSortingChange = (updater: Updater<SortingState>) => {
+    const newSorting =
+      typeof updater === 'function' ? updater(sorting) : updater;
+    dispatch({ type: 'SET_SORTING', payload: newSorting });
+  };
+
+  const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
+    const newFilters =
+      typeof updater === 'function' ? updater(columnFilters) : updater;
+    dispatch({ type: 'SET_FILTERS', payload: newFilters });
+  };
+
+  if (state.loading) return <LoadingProgress />;
+  if (state.products.length === 0)
+    return <NotFound message="No products found." />;
 
   return (
     <Box px={2} py={1}>
       <Divider sx={{ mb: 2 }} />
 
-      {products.length === 0 ? (
-        <NotFound message="No products found." />
-      ) : (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <SortableContext
-            items={visibleProducts.map((p) => p.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <StickyTable
-              data={visibleProducts}
-              columns={columns}
-              sorting={sorting}
-              onSortingChange={setSorting}
-              columnFilters={columnFilters}
-              onColumnFiltersChange={setColumnFilters}
-              groupById="categoryId"
-              enablePagination={false}
-            />
-          </SortableContext>
-        </DndContext>
-      )}
-
-      <Box ref={sentinelRef} display="flex" justifyContent="center" py={3}>
-        {visibleCount < products.length && <LoadingProgress />}
-      </Box>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <SortableContext
+          items={state.products.map((p) => p.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <StickyTable<IProduct>
+            columns={columns}
+            data={state.products}
+            sorting={sorting}
+            onSortingChange={handleSortingChange}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={handleColumnFiltersChange}
+            enablePagination
+            enableSorting
+            enableColumnFilters
+            groupById="categoryId"
+          />
+        </SortableContext>
+      </DndContext>
 
       <Snackbar
-        open={snackbarOpen}
+        open={state.snackbarOpen}
         autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
+        onClose={() => dispatch({ type: 'SET_SNACKBAR', payload: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert severity="success" variant="filled">
