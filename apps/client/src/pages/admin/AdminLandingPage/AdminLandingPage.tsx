@@ -23,6 +23,11 @@ import { LandingPageData } from '../../../types/landing';
 import { footerHeight, headerHeight } from '../../../config/themeConfig';
 import { HOMEPAGE_LAYOUTS } from '@common/types';
 import FormTextField from '../../../components/FormTextField';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../../services/ability.service';
+import { PageLayout } from '../../../layouts/page.layout';
 
 export default function AdminLandingPage() {
   const { data, isLoading, isError } = useLandingPage();
@@ -84,157 +89,159 @@ export default function AdminLandingPage() {
   const saving = updateMutation.status === 'pending';
 
   return (
-    <Box
-      sx={{
-        mt: `${headerHeight}px`,
-        height: `calc(100vh - ${headerHeight + footerHeight}px)`,
-        overflowY: 'auto',
-        py: 4,
-      }}
-    >
-      <Container maxWidth="md">
-        <Typography variant="h4" mb={3}>
-          Edit Landing Page
-        </Typography>
+    <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
+      <Box
+        sx={{
+          mt: `${headerHeight}px`,
+          height: `calc(100vh - ${headerHeight + footerHeight}px)`,
+          overflowY: 'auto',
+          py: 4,
+        }}
+      >
+        <Container maxWidth="md">
+          <Typography variant="h4" mb={3}>
+            Edit Landing Page
+          </Typography>
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <Stack spacing={2}>
-            <FormTextField
-              label="Title"
-              name="title"
-              control={control}
-              errorObject={errors.title}
-              required
-              disabled={saving}
-            />
-            <FormTextField
-              label="Subtitle"
-              name="subtitle"
-              control={control}
-              errorObject={errors.subtitle}
-              disabled={saving}
-            />
-            <FormTextField
-              label="Banner Image URL"
-              name="bannerImageUrl"
-              control={control}
-              errorObject={errors.bannerImageUrl}
-              disabled={saving}
-            />
-            <FormTextField
-              label="CTA Button Text"
-              name="ctaButtonText"
-              control={control}
-              errorObject={errors.ctaButtonText}
-              disabled={saving}
-            />
-            <FormTextField
-              label="CTA Button Link"
-              name="ctaButtonLink"
-              control={control}
-              errorObject={errors.ctaButtonLink}
-              disabled={saving}
-            />
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <Stack spacing={2}>
+              <FormTextField
+                label="Title"
+                name="title"
+                control={control}
+                errorObject={errors.title}
+                required
+                disabled={saving}
+              />
+              <FormTextField
+                label="Subtitle"
+                name="subtitle"
+                control={control}
+                errorObject={errors.subtitle}
+                disabled={saving}
+              />
+              <FormTextField
+                label="Banner Image URL"
+                name="bannerImageUrl"
+                control={control}
+                errorObject={errors.bannerImageUrl}
+                disabled={saving}
+              />
+              <FormTextField
+                label="CTA Button Text"
+                name="ctaButtonText"
+                control={control}
+                errorObject={errors.ctaButtonText}
+                disabled={saving}
+              />
+              <FormTextField
+                label="CTA Button Link"
+                name="ctaButtonLink"
+                control={control}
+                errorObject={errors.ctaButtonLink}
+                disabled={saving}
+              />
 
-            {/* ✅ Layout Selector */}
-            <FormTextField
-              label="Homepage Layout"
-              name="homepageLayout"
-              control={control}
-              select
-              errorObject={errors.homepageLayout}
-              disabled={saving}
-            >
-              {Object.values(HOMEPAGE_LAYOUTS).map((layout) => (
-                <MenuItem key={layout} value={layout}>
-                  {layout.charAt(0).toUpperCase() + layout.slice(1)}
-                </MenuItem>
-              ))}
-            </FormTextField>
-
-            <Typography variant="h6" mt={4}>
-              Sections
-            </Typography>
-
-            {fields.map((field, index) => (
-              <Paper
-                key={field.id}
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  mb: 2,
-                  borderRadius: 2,
-                  backgroundColor: 'background.default',
-                }}
+              {/* ✅ Layout Selector */}
+              <FormTextField
+                label="Homepage Layout"
+                name="homepageLayout"
+                control={control}
+                select
+                errorObject={errors.homepageLayout}
+                disabled={saving}
               >
-                <Stack spacing={2}>
-                  <FormTextField
-                    label="Section Title"
-                    name={`sections.${index}.title`}
-                    control={control}
-                    errorObject={errors.sections?.[index]?.title}
-                    disabled={saving}
-                  />
-                  <FormTextField
-                    label="Section Content"
-                    name={`sections.${index}.content`}
-                    control={control}
-                    errorObject={errors.sections?.[index]?.content}
-                    multiline
-                    rows={3}
-                    disabled={saving}
-                  />
-                  <Box display="flex" justifyContent="flex-end">
-                    <IconButton
-                      onClick={() => remove(index)}
-                      color="error"
-                      size="small"
+                {Object.values(HOMEPAGE_LAYOUTS).map((layout) => (
+                  <MenuItem key={layout} value={layout}>
+                    {layout.charAt(0).toUpperCase() + layout.slice(1)}
+                  </MenuItem>
+                ))}
+              </FormTextField>
+
+              <Typography variant="h6" mt={4}>
+                Sections
+              </Typography>
+
+              {fields.map((field, index) => (
+                <Paper
+                  key={field.id}
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 2,
+                    backgroundColor: 'background.default',
+                  }}
+                >
+                  <Stack spacing={2}>
+                    <FormTextField
+                      label="Section Title"
+                      name={`sections.${index}.title`}
+                      control={control}
+                      errorObject={errors.sections?.[index]?.title}
                       disabled={saving}
-                    >
-                      <Delete />
-                    </IconButton>
-                  </Box>
-                </Stack>
-              </Paper>
-            ))}
+                    />
+                    <FormTextField
+                      label="Section Content"
+                      name={`sections.${index}.content`}
+                      control={control}
+                      errorObject={errors.sections?.[index]?.content}
+                      multiline
+                      rows={3}
+                      disabled={saving}
+                    />
+                    <Box display="flex" justifyContent="flex-end">
+                      <IconButton
+                        onClick={() => remove(index)}
+                        color="error"
+                        size="small"
+                        disabled={saving}
+                      >
+                        <Delete />
+                      </IconButton>
+                    </Box>
+                  </Stack>
+                </Paper>
+              ))}
 
-            <Button
-              startIcon={<Add />}
-              onClick={() => append({ title: '', content: '' })}
-              variant="outlined"
-              disabled={saving}
-            >
-              Add Section
-            </Button>
+              <Button
+                startIcon={<Add />}
+                onClick={() => append({ title: '', content: '' })}
+                variant="outlined"
+                disabled={saving}
+              >
+                Add Section
+              </Button>
 
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={!isDirty || isSubmitting || saving}
-              fullWidth
-              sx={{ mt: 3 }}
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-          </Stack>
-        </form>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={!isDirty || isSubmitting || saving}
+                fullWidth
+                sx={{ mt: 3 }}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+            </Stack>
+          </form>
 
-        <Snackbar
-          open={toastOpen}
-          autoHideDuration={2500}
-          onClose={() => setToastOpen(false)}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert
+          <Snackbar
+            open={toastOpen}
+            autoHideDuration={2500}
             onClose={() => setToastOpen(false)}
-            severity="success"
-            variant="filled"
-            sx={{ width: '100%' }}
+            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
           >
-            Landing page updated successfully!
-          </Alert>
-        </Snackbar>
-      </Container>
-    </Box>
+            <Alert
+              onClose={() => setToastOpen(false)}
+              severity="success"
+              variant="filled"
+              sx={{ width: '100%' }}
+            >
+              Landing page updated successfully!
+            </Alert>
+          </Snackbar>
+        </Container>
+      </Box>
+    </PageLayout>
   );
 }

@@ -23,6 +23,11 @@ import StickyTable from '../../../components/StickyTable/StickyTable';
 import { useAdminUsersQuery } from '../../../hooks/useAdminUsersQuery';
 import { Role } from '../../../types/Role';
 import { uiReducer, initialUIState } from './LocalUiReducer';
+import { PageLayout } from '../../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../../services/ability.service';
 
 export default function AdminUsersPage() {
   const { users, isLoading, error, updateUserRole, deleteUser } =
@@ -90,42 +95,44 @@ export default function AdminUsersPage() {
   if (error) return <Typography p={4}>❌ Error loading users</Typography>;
 
   return (
-    <Box p={2}>
-      <Typography variant="h6" gutterBottom>
-        Manage Users
-      </Typography>
+    <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
+      <Box p={2}>
+        <Typography variant="h6" gutterBottom>
+          Manage Users
+        </Typography>
 
-      <StickyTable
-        data={users}
-        columns={columns}
-        sorting={sorting}
-        onSortingChange={setSorting}
-        columnFilters={columnFilters}
-        onColumnFiltersChange={setColumnFilters}
-        enableColumnFilters
-        enableSorting
-      />
+        <StickyTable
+          data={users}
+          columns={columns}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          columnFilters={columnFilters}
+          onColumnFiltersChange={setColumnFilters}
+          enableColumnFilters
+          enableSorting
+        />
 
-      <Dialog
-        open={state.confirmOpen}
-        onClose={() => dispatch({ type: 'CLOSE_CONFIRM' })}
-      >
-        <DialogTitle>Confirm Deletion</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete{' '}
-            <strong>{state.selectedUser?.email}</strong>?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => dispatch({ type: 'CLOSE_CONFIRM' })}>
-            Cancel
-          </Button>
-          <Button color="error" variant="contained" onClick={handleDelete}>
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        <Dialog
+          open={state.confirmOpen}
+          onClose={() => dispatch({ type: 'CLOSE_CONFIRM' })}
+        >
+          <DialogTitle>Confirm Deletion</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Are you sure you want to delete{' '}
+              <strong>{state.selectedUser?.email}</strong>?
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => dispatch({ type: 'CLOSE_CONFIRM' })}>
+              Cancel
+            </Button>
+            <Button color="error" variant="contained" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </PageLayout>
   );
 }

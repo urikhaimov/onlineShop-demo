@@ -10,6 +10,11 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
+import { PageLayout } from '../../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../../services/ability.service';
 
 export default function AdminHomePage() {
   const theme = useTheme();
@@ -22,64 +27,66 @@ export default function AdminHomePage() {
   ];
 
   return (
-    <PageWithStickyFilters
-      sidebar={
-        <Box>
-          <Typography variant="subtitle1" fontWeight="bold" mb={1}>
-            Quick Info
-          </Typography>
-          {metrics.map(({ label, value }) => (
-            <Box key={label} mb={2}>
-              <Typography variant="body2" color="text.secondary">
-                {label}
-              </Typography>
-              <Typography variant="h6">{value}</Typography>
-              <Divider sx={{ mt: 1 }} />
-            </Box>
-          ))}
+    <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
+      <PageWithStickyFilters
+        sidebar={
+          <Box>
+            <Typography variant="subtitle1" fontWeight="bold" mb={1}>
+              Quick Info
+            </Typography>
+            {metrics.map(({ label, value }) => (
+              <Box key={label} mb={2}>
+                <Typography variant="body2" color="text.secondary">
+                  {label}
+                </Typography>
+                <Typography variant="h6">{value}</Typography>
+                <Divider sx={{ mt: 1 }} />
+              </Box>
+            ))}
 
-          <Typography variant="subtitle2" color="text.secondary" mt={3}>
-            Use this panel for shortcuts, summaries, or quick filters.
+            <Typography variant="subtitle2" color="text.secondary" mt={3}>
+              Use this panel for shortcuts, summaries, or quick filters.
+            </Typography>
+          </Box>
+        }
+      >
+        <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
+          <Typography variant="h5" fontWeight="bold" gutterBottom>
+            Admin Dashboard
           </Typography>
+
+          {/* Metrics (already shown in sidebar, but for design consistency show cards) */}
+          <Stack
+            direction={isMobile ? 'column' : 'row'}
+            spacing={2}
+            justifyContent="space-between"
+            mb={3}
+          >
+            {metrics.map(({ label, value }) => (
+              <Paper
+                key={label}
+                elevation={3}
+                sx={{ p: 2, flex: 1, textAlign: 'center' }}
+              >
+                <Typography variant="h6">{label}</Typography>
+                <Typography variant="h4" sx={{ mt: 1 }}>
+                  {value}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+
+          {/* Latest activity */}
+          <Paper elevation={3} sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Latest Activity
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Placeholder for recent orders, new users, or system logs.
+            </Typography>
+          </Paper>
         </Box>
-      }
-    >
-      <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
-        <Typography variant="h5" fontWeight="bold" gutterBottom>
-          Admin Dashboard
-        </Typography>
-
-        {/* Metrics (already shown in sidebar, but for design consistency show cards) */}
-        <Stack
-          direction={isMobile ? 'column' : 'row'}
-          spacing={2}
-          justifyContent="space-between"
-          mb={3}
-        >
-          {metrics.map(({ label, value }) => (
-            <Paper
-              key={label}
-              elevation={3}
-              sx={{ p: 2, flex: 1, textAlign: 'center' }}
-            >
-              <Typography variant="h6">{label}</Typography>
-              <Typography variant="h4" sx={{ mt: 1 }}>
-                {value}
-              </Typography>
-            </Paper>
-          ))}
-        </Stack>
-
-        {/* Latest activity */}
-        <Paper elevation={3} sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Latest Activity
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Placeholder for recent orders, new users, or system logs.
-          </Typography>
-        </Paper>
-      </Box>
-    </PageWithStickyFilters>
+      </PageWithStickyFilters>
+    </PageLayout>
   );
 }

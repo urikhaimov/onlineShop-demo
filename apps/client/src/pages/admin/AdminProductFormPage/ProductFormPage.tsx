@@ -16,6 +16,12 @@ import {
 import FormTextField from '../../../components/FormTextField';
 import { useCategories } from '../../../hooks/useCategories';
 import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import { PageLayout } from '../../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../../services/ability.service';
+
 export type FormState = {
   name: string;
   description: string;
@@ -185,172 +191,174 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   }
 
   return (
-    <Box
-      sx={{
-        mt: `${headerHeight}px`,
-        mb: `${footerHeight}px`,
-        height: `calc(100vh - ${headerHeight + footerHeight + 120}px)`,
-        display: 'flex',
-        justifyContent: 'center',
-      }}
-    >
-      <Paper
-        elevation={2}
+    <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
+      <Box
         sx={{
-          width: '100%',
-          maxWidth: 700,
-          height: '100%',
-          overflowY: 'auto',
-          px: { xs: 2, sm: 3 },
-          py: 3,
-          borderRadius: 2,
+          mt: `${headerHeight}px`,
+          mb: `${footerHeight}px`,
+          height: `calc(100vh - ${headerHeight + footerHeight + 120}px)`,
+          display: 'flex',
+          justifyContent: 'center',
         }}
       >
-        <Typography variant="h5" mb={3}>
-          {mode === 'add' ? 'Add New Product' : 'Edit Product'}
-        </Typography>
+        <Paper
+          elevation={2}
+          sx={{
+            width: '100%',
+            maxWidth: 700,
+            height: '100%',
+            overflowY: 'auto',
+            px: { xs: 2, sm: 3 },
+            py: 3,
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h5" mb={3}>
+            {mode === 'add' ? 'Add New Product' : 'Edit Product'}
+          </Typography>
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <Stack spacing={3}>
-            {/* Product Info */}
-            <Stack spacing={2}>
-              <FormTextField
-                label="Name"
-                register={register('name', { required: 'Name is required' })}
-                errorObject={errors.name}
-              />
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <Stack spacing={3}>
+              {/* Product Info */}
+              <Stack spacing={2}>
+                <FormTextField
+                  label="Name"
+                  register={register('name', { required: 'Name is required' })}
+                  errorObject={errors.name}
+                />
 
-              <Controller
-                control={control}
-                name="description"
-                defaultValue=""
-                render={({ field }) => (
-                  <Box>
-                    <Typography variant="subtitle1" mb={1}>
-                      Description
-                    </Typography>
-                    <Box
-                      sx={{
-                        border: 1,
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                        overflow: 'hidden',
-                        '& .ql-toolbar': {
-                          bgcolor: 'background.paper',
-                          borderBottom: 1,
+                <Controller
+                  control={control}
+                  name="description"
+                  defaultValue=""
+                  render={({ field }) => (
+                    <Box>
+                      <Typography variant="subtitle1" mb={1}>
+                        Description
+                      </Typography>
+                      <Box
+                        sx={{
+                          border: 1,
                           borderColor: 'divider',
-                        },
-                        '& .ql-container': {
-                          bgcolor: 'background.default',
-                          color: 'text.primary',
-                          minHeight: 200,
-                        },
-                        '& .ql-editor': {
-                          fontFamily: 'inherit',
-                          fontSize: '1rem',
-                          px: 2,
-                          py: 1,
-                        },
-                      }}
-                    >
-                      <ReactQuill
-                        theme="snow"
-                        value={field.value}
-                        onChange={field.onChange}
-                      />
+                          borderRadius: 1,
+                          overflow: 'hidden',
+                          '& .ql-toolbar': {
+                            bgcolor: 'background.paper',
+                            borderBottom: 1,
+                            borderColor: 'divider',
+                          },
+                          '& .ql-container': {
+                            bgcolor: 'background.default',
+                            color: 'text.primary',
+                            minHeight: 200,
+                          },
+                          '& .ql-editor': {
+                            fontFamily: 'inherit',
+                            fontSize: '1rem',
+                            px: 2,
+                            py: 1,
+                          },
+                        }}
+                      >
+                        <ReactQuill
+                          theme="snow"
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
+                      </Box>
                     </Box>
-                  </Box>
-                )}
-              />
-
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <FormTextField
-                  label="Price"
-                  type="number"
-                  fullWidth
-                  register={register('price', {
-                    required: 'Price is required',
-                  })}
-                  errorObject={errors.price}
+                  )}
                 />
 
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <FormTextField
+                    label="Price"
+                    type="number"
+                    fullWidth
+                    register={register('price', {
+                      required: 'Price is required',
+                    })}
+                    errorObject={errors.price}
+                  />
+
+                  <FormTextField
+                    label="Stock"
+                    type="number"
+                    fullWidth
+                    register={register('stock')}
+                    errorObject={errors.stock}
+                  />
+                </Stack>
+
                 <FormTextField
-                  label="Stock"
-                  type="number"
-                  fullWidth
-                  register={register('stock')}
-                  errorObject={errors.stock}
+                  label="Category"
+                  name="categoryId"
+                  control={control}
+                  errorObject={errors.categoryId}
+                  isSelect
+                  required
+                  selectOptions={state.categories.map((cat) => ({
+                    label: cat.name,
+                    value: cat.id,
+                  }))}
                 />
+
+                {!state.categories.some((c) => c.id === watchedCategoryId) &&
+                  watchedCategoryId && (
+                    <Typography color="error">
+                      ⚠️ Invalid category ID: {watchedCategoryId}
+                    </Typography>
+                  )}
               </Stack>
 
-              <FormTextField
-                label="Category"
-                name="categoryId"
-                control={control}
-                errorObject={errors.categoryId}
-                isSelect
-                required
-                selectOptions={state.categories.map((cat) => ({
-                  label: cat.name,
-                  value: cat.id,
-                }))}
-              />
+              {/* Image Section */}
+              <Box>
+                <Typography variant="subtitle1" mb={1}>
+                  Product Images
+                </Typography>
+                <ImageUploader
+                  images={state.combinedImages}
+                  onDrop={handleImageDrop}
+                  onRemove={(id) => {
+                    const imageToDelete = state.combinedImages.find(
+                      (img) => img.id === id,
+                    );
+                    if (imageToDelete?.type === 'existing') {
+                      dispatch({
+                        type: 'ADD_DELETED_IMAGE_ID',
+                        payload: imageToDelete.id.replace('existing-', ''),
+                      });
+                    }
 
-              {!state.categories.some((c) => c.id === watchedCategoryId) &&
-                watchedCategoryId && (
-                  <Typography color="error">
-                    ⚠️ Invalid category ID: {watchedCategoryId}
-                  </Typography>
-                )}
-            </Stack>
-
-            {/* Image Section */}
-            <Box>
-              <Typography variant="subtitle1" mb={1}>
-                Product Images
-              </Typography>
-              <ImageUploader
-                images={state.combinedImages}
-                onDrop={handleImageDrop}
-                onRemove={(id) => {
-                  const imageToDelete = state.combinedImages.find(
-                    (img) => img.id === id,
-                  );
-                  if (imageToDelete?.type === 'existing') {
                     dispatch({
-                      type: 'ADD_DELETED_IMAGE_ID',
-                      payload: imageToDelete.id.replace('existing-', ''),
+                      type: 'SET_COMBINED_IMAGES',
+                      payload: state.combinedImages.filter(
+                        (img) => img.id !== id,
+                      ),
                     });
+                  }}
+                  onReorderAll={(newOrder) =>
+                    dispatch({ type: 'SET_COMBINED_IMAGES', payload: newOrder })
                   }
+                  showSnackbar={false}
+                  onCloseSnackbar={() => false}
+                />
+              </Box>
 
-                  dispatch({
-                    type: 'SET_COMBINED_IMAGES',
-                    payload: state.combinedImages.filter(
-                      (img) => img.id !== id,
-                    ),
-                  });
-                }}
-                onReorderAll={(newOrder) =>
-                  dispatch({ type: 'SET_COMBINED_IMAGES', payload: newOrder })
-                }
-                showSnackbar={false}
-                onCloseSnackbar={() => false}
-              />
-            </Box>
-
-            {/* Submit */}
-            <Box textAlign="right">
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={isSubmitting || state.isUploadingImages}
-              >
-                Save
-              </Button>
-            </Box>
-          </Stack>
-        </form>
-      </Paper>
-    </Box>
+              {/* Submit */}
+              <Box textAlign="right">
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={isSubmitting || state.isUploadingImages}
+                >
+                  Save
+                </Button>
+              </Box>
+            </Stack>
+          </form>
+        </Paper>
+      </Box>
+    </PageLayout>
   );
 }

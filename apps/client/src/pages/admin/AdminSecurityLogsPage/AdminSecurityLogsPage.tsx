@@ -13,6 +13,11 @@ import {
   Typography,
 } from '@mui/material';
 import { useSecurityLogs } from '../../../hooks/useSecurityLogs';
+import { PageLayout } from '../../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../../services/ability.service';
 
 export default function AdminSecurityLogsPage() {
   const { data: logs, isLoading, error } = useSecurityLogs();
@@ -36,38 +41,40 @@ export default function AdminSecurityLogsPage() {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" gutterBottom>
-        Security Logs
-      </Typography>
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Time</TableCell>
-              <TableCell>User</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Details</TableCell>
-              <TableCell>Collection</TableCell>
-              <TableCell>Doc ID</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {logs?.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell>
-                  {new Date(log.timestamp).toLocaleString()}
-                </TableCell>
-                <TableCell>{log.email || log.uid}</TableCell>
-                <TableCell>{log.type}</TableCell>
-                <TableCell>{log.details}</TableCell>
-                <TableCell>{log.collection}</TableCell>
-                <TableCell>{log.affectedDocId}</TableCell>
+    <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h5" gutterBottom>
+          Security Logs
+        </Typography>
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Time</TableCell>
+                <TableCell>User</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell>Details</TableCell>
+                <TableCell>Collection</TableCell>
+                <TableCell>Doc ID</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+            </TableHead>
+            <TableBody>
+              {logs?.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell>
+                    {new Date(log.timestamp).toLocaleString()}
+                  </TableCell>
+                  <TableCell>{log.email || log.uid}</TableCell>
+                  <TableCell>{log.type}</TableCell>
+                  <TableCell>{log.details}</TableCell>
+                  <TableCell>{log.collection}</TableCell>
+                  <TableCell>{log.affectedDocId}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    </PageLayout>
   );
 }
