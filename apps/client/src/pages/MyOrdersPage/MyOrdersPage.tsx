@@ -7,9 +7,14 @@ import LoadingProgress from '../../components/LoadingProgress';
 import NotFound from '../../components/NotFound';
 import { retryWithBackoff } from '../../utils/retryWithBackoff';
 import { fetchMyOrders } from '../../api/orderApi';
-import { filterReducer, initialFilterState, Order } from './LocalReducer';
+import { filterReducer, initialFilterState } from './LocalReducer';
 import { defineOrderColumns } from './Columns';
-
+import { PageLayout } from '../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../services/ability.service';
+import { Order } from '../../types/order';
 export default function MyOrdersPage() {
   const { user } = useAuth();
   const [filterState, dispatch] = useReducer(filterReducer, initialFilterState);
@@ -41,23 +46,28 @@ export default function MyOrdersPage() {
   if (!user || loading) return <LoadingProgress />;
 
   return (
-    <Box px={{ xs: 1, sm: 2 }} py={3}>
-      {orders.length === 0 ? (
-        <NotFound message="No orders found." />
-      ) : (
-        <StickyTable
-          columns={defineOrderColumns()}
-          data={orders}
-          sorting={sorting}
-          onSortingChange={setSorting}
-          columnFilters={columnFilters}
-          onColumnFiltersChange={setColumnFilters}
-          stickyColumnIndex={0}
-          enablePagination
-          enableSorting
-          enableColumnFilters
-        />
-      )}
-    </Box>
+    <PageLayout
+      action={EAbilityActions.MANAGE}
+      subject={EAbilitySubjects.ORDERS}
+    >
+      <Box px={{ xs: 1, sm: 2 }} py={3}>
+        {orders.length === 0 ? (
+          <NotFound message="No orders found." />
+        ) : (
+          <StickyTable
+            columns={defineOrderColumns()}
+            data={orders}
+            sorting={sorting}
+            onSortingChange={setSorting}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={setColumnFilters}
+            stickyColumnIndex={0}
+            enablePagination
+            enableSorting
+            enableColumnFilters
+          />
+        )}
+      </Box>
+    </PageLayout>
   );
 }

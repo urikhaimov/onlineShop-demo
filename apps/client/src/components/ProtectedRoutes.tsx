@@ -19,9 +19,9 @@ export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
     }
   }, [user, location.pathname, setRedirectTo, setMessage]);
 
-  if (!user && shouldRedirect) {
-    return <Navigate to={`/login?redirect=${location.pathname}`} replace />;
-  }
+  // if (!user && shouldRedirect) {
+  //   return <Navigate to={`/login?redirect=${location.pathname}`} replace />;
+  // }
 
   if (!user) {
     return null;

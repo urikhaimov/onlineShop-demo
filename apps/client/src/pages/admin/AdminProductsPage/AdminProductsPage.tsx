@@ -2,7 +2,7 @@ import React, { useEffect, useReducer, useMemo } from 'react';
 import { Box, Snackbar, Alert, Divider } from '@mui/material';
 import {
   DndContext,
-  DragEndEvent,
+  type DragEndEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -24,11 +24,15 @@ import { useProductMutations } from '../../../hooks/useProductMutations';
 import { fetchAllProducts } from '../../../hooks/useProducts';
 import { auth } from '../../../firebase';
 import {
-  SortingState,
-  ColumnFiltersState,
-  Updater,
+  type SortingState,
+  type ColumnFiltersState,
+  type Updater,
 } from '@tanstack/react-table';
-
+import { PageLayout } from '../../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../../services/ability.service';
 export default function AdminProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { data: categories = [] } = useCategories();
@@ -114,39 +118,41 @@ export default function AdminProductsPage() {
     return <NotFound message="No products found." />;
 
   return (
-    <Box px={2} py={1}>
-      <Divider sx={{ mb: 2 }} />
+    <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
+      <Box px={2} py={1}>
+        <Divider sx={{ mb: 2 }} />
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <SortableContext
-          items={state.products.map((p) => p.id)}
-          strategy={verticalListSortingStrategy}
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={state.products.map((p) => p.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <StickyTable<IProduct>
+              columns={columns}
+              data={state.products}
+              sorting={sorting}
+              onSortingChange={handleSortingChange}
+              columnFilters={columnFilters}
+              onColumnFiltersChange={handleColumnFiltersChange}
+              enablePagination
+              enableSorting
+              enableColumnFilters
+              groupById="categoryId"
+            />
+          </SortableContext>
+        </DndContext>
+
+        <Snackbar
+          open={state.snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => dispatch({ type: 'SET_SNACKBAR', payload: false })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
-          <StickyTable<IProduct>
-            columns={columns}
-            data={state.products}
-            sorting={sorting}
-            onSortingChange={handleSortingChange}
-            columnFilters={columnFilters}
-            onColumnFiltersChange={handleColumnFiltersChange}
-            enablePagination
-            enableSorting
-            enableColumnFilters
-            groupById="categoryId"
-          />
-        </SortableContext>
-      </DndContext>
-
-      <Snackbar
-        open={state.snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => dispatch({ type: 'SET_SNACKBAR', payload: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" variant="filled">
-          Product order updated
-        </Alert>
-      </Snackbar>
-    </Box>
+          <Alert severity="success" variant="filled">
+            Product order updated
+          </Alert>
+        </Snackbar>
+      </Box>
+    </PageLayout>
   );
 }

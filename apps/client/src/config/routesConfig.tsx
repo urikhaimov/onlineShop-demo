@@ -108,7 +108,7 @@ export const appRoutes = (location: Location<any>) => (
         }
       />
       <Route
-        path="/my-orders"
+        path={ERoutePaths.MY_ORDERS}
         element={
           <ProtectedRoute>
             <MyOrdersPage />

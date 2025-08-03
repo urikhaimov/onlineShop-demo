@@ -1,60 +1,24 @@
-import { Timestamp } from 'firebase/firestore';
+// ✅ Use shared Order type
 
-export type Order = {
-  id: string;
-  createdAt: Timestamp;
+export interface FilterState {
+  searchTerm: string;
+  dateFrom: string | null;
+  dateTo: string | null;
   status: string;
-  email: string;
-  amount: number;
-  items: {
-    name: string;
-    quantity: number;
-    price: number;
-  }[];
-};
-
-export type FilterState = {
-  email: string;
-  status: string;
-  minTotal: number | null;
-  maxTotal: number | null;
-  startDate: Date | null;
-  endDate: Date | null;
-  sortDirection: 'asc' | 'desc';
-  page: number;
-  pageSize: number;
-  minPrice: number | null;
-  maxPrice: number | null;
-  inStockOnly: boolean;
-};
+}
 
 export type FilterAction =
-  | { type: 'setEmail'; payload: string }
-  | { type: 'setStatus'; payload: string }
-  | { type: 'setMinTotal'; payload: number }
-  | { type: 'setMaxTotal'; payload: number }
-  | { type: 'setStartDate'; payload: Date | null }
-  | { type: 'setEndDate'; payload: Date | null }
-  | { type: 'setSortDirection'; payload: 'asc' | 'desc' }
-  | { type: 'setPage'; payload: number }
-  | { type: 'setMinPrice'; payload: number | null }
-  | { type: 'setMaxPrice'; payload: number | null }
-  | { type: 'setInStockOnly'; payload: boolean }
+  | { type: 'SET_SEARCH_TERM'; payload: string }
+  | { type: 'SET_DATE_FROM'; payload: string | null }
+  | { type: 'SET_DATE_TO'; payload: string | null }
+  | { type: 'SET_STATUS'; payload: string }
   | { type: 'RESET_FILTERS' };
 
 export const initialFilterState: FilterState = {
-  email: '',
-  status: 'all',
-  minTotal: null,
-  maxTotal: null,
-  startDate: null,
-  endDate: null,
-  sortDirection: 'desc',
-  page: 1,
-  pageSize: 5,
-  minPrice: null,
-  maxPrice: null,
-  inStockOnly: false,
+  searchTerm: '',
+  dateFrom: null,
+  dateTo: null,
+  status: '',
 };
 
 export function filterReducer(
@@ -62,28 +26,14 @@ export function filterReducer(
   action: FilterAction,
 ): FilterState {
   switch (action.type) {
-    case 'setEmail':
-      return { ...state, email: action.payload, page: 1 };
-    case 'setStatus':
-      return { ...state, status: action.payload, page: 1 };
-    case 'setMinTotal':
-      return { ...state, minTotal: action.payload, page: 1 };
-    case 'setMaxTotal':
-      return { ...state, maxTotal: action.payload, page: 1 };
-    case 'setStartDate':
-      return { ...state, startDate: action.payload, page: 1 };
-    case 'setEndDate':
-      return { ...state, endDate: action.payload, page: 1 };
-    case 'setSortDirection':
-      return { ...state, sortDirection: action.payload, page: 1 };
-    case 'setMinPrice':
-      return { ...state, minPrice: action.payload, page: 1 };
-    case 'setMaxPrice':
-      return { ...state, maxPrice: action.payload, page: 1 };
-    case 'setInStockOnly':
-      return { ...state, inStockOnly: action.payload, page: 1 };
-    case 'setPage':
-      return { ...state, page: action.payload };
+    case 'SET_SEARCH_TERM':
+      return { ...state, searchTerm: action.payload };
+    case 'SET_DATE_FROM':
+      return { ...state, dateFrom: action.payload };
+    case 'SET_DATE_TO':
+      return { ...state, dateTo: action.payload };
+    case 'SET_STATUS':
+      return { ...state, status: action.payload };
     case 'RESET_FILTERS':
       return initialFilterState;
     default:

@@ -1,5 +1,6 @@
 import { IProduct } from '@common/types';
 import { Dayjs } from 'dayjs';
+import { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 
 export interface State {
   products: IProduct[];
@@ -13,7 +14,10 @@ export interface State {
   pageSize: number;
   successMessage: string;
   pendingDelete: IProduct | null;
-  reorderPending: boolean; // 🆕
+  reorderPending: boolean;
+  sorting: SortingState;
+  columnFilters: ColumnFiltersState;
+  snackbarOpen: boolean;
 }
 
 export type Action =
@@ -34,8 +38,11 @@ export type Action =
   | { type: 'SET_SUCCESS_MESSAGE'; payload: string }
   | { type: 'CLEAR_SUCCESS_MESSAGE' }
   | { type: 'SET_PENDING_DELETE'; payload: IProduct | null }
-  | { type: 'SET_REORDER_PENDING'; payload: boolean } // 🆕
-  | { type: 'RESET_PAGINATION'; payload: State };
+  | { type: 'SET_REORDER_PENDING'; payload: boolean }
+  | { type: 'RESET_PAGINATION'; payload: State }
+  | { type: 'SET_SORTING'; payload: SortingState }
+  | { type: 'SET_FILTERS'; payload: ColumnFiltersState }
+  | { type: 'SET_SNACKBAR'; payload: boolean };
 
 export const initialState: State = {
   products: [],
@@ -49,7 +56,10 @@ export const initialState: State = {
   pageSize: 10,
   successMessage: '',
   pendingDelete: null,
-  reorderPending: false, // 🆕
+  reorderPending: false,
+  sorting: [],
+  columnFilters: [],
+  snackbarOpen: false,
 };
 
 export function resetPagination(state: State): State {
@@ -68,7 +78,7 @@ export function reducer(state: State, action: Action): State {
     case 'SET_PRODUCTS':
       return {
         ...state,
-        products: [...action.payload], // unsorted — used after reorder
+        products: [...action.payload],
       };
     case 'SET_PRODUCTS_SORTED':
       return {
@@ -122,6 +132,12 @@ export function reducer(state: State, action: Action): State {
       return { ...action.payload };
     case 'SET_REORDER_PENDING':
       return { ...state, reorderPending: action.payload };
+    case 'SET_SORTING':
+      return { ...state, sorting: action.payload };
+    case 'SET_FILTERS':
+      return { ...state, columnFilters: action.payload };
+    case 'SET_SNACKBAR':
+      return { ...state, snackbarOpen: action.payload };
     default:
       return state;
   }
