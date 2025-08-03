@@ -24,7 +24,7 @@ import NotFound from '../../../components/NotFound';
 import StickyTable from '../../../components/StickyTable';
 import { defineProductColumns } from './Columns';
 import { useNavigate } from 'react-router-dom';
-
+import { useAllCategories } from '../../../hooks/useAllCategories';
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
   const [visibleCount, setVisibleCount] = useState(20);
@@ -32,7 +32,7 @@ export default function AdminProductsPage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const { reorder } = useProductMutations();
-
+  const { data: categories = [] } = useAllCategories();
   const sensors = useSensors(useSensor(PointerSensor));
   const { ref: sentinelRef, inView } = useInView();
 
@@ -56,7 +56,14 @@ export default function AdminProductsPage() {
     };
   }, []);
 
-  const visibleProducts = products.slice(0, visibleCount);
+  // Flatten category name if needed
+  const visibleProducts = products.slice(0, visibleCount).map((p) => ({
+    ...p,
+    category:
+      p.categoryId && typeof p.categoryId === 'object' && p.categoryId !== null
+        ? (p.categoryId.name ?? 'Uncategorized')
+        : (p.categoryId ?? 'Uncategorized'),
+  }));
 
   useEffect(() => {
     if (inView && visibleCount < products.length) {
@@ -104,12 +111,17 @@ export default function AdminProductsPage() {
       }
     }
   };
+
   const navigate = useNavigate();
-  const columns = useMemo(() => defineProductColumns(navigate), [navigate]);
+  const columns = useMemo(
+    () => defineProductColumns(categories, setSnackbarOpen),
+    [categories, setSnackbarOpen],
+  );
 
   return (
     <Box px={2} py={1}>
       <Divider sx={{ mb: 2 }} />
+
       {products.length === 0 ? (
         <NotFound message="No products found." />
       ) : (
@@ -125,6 +137,8 @@ export default function AdminProductsPage() {
               onSortingChange={setSorting}
               columnFilters={columnFilters}
               onColumnFiltersChange={setColumnFilters}
+              groupById="categoryId"
+              enablePagination={false}
             />
           </SortableContext>
         </DndContext>
