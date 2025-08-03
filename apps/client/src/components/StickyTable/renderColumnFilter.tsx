@@ -1,3 +1,4 @@
+// src/components/tables/renderColumnFilter.tsx
 import React from 'react';
 import { TextField, MenuItem, Stack } from '@mui/material';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
@@ -17,29 +18,27 @@ export function renderColumnFilter<T>(
   table: Table<T>,
 ) {
   const meta = column.columnDef.meta as ColumnMeta | undefined;
-  const variant: FilterVariant = meta?.filterVariant ?? 'text';
+  const filterType: FilterVariant = meta?.filterVariant || 'text';
   const value = column.getFilterValue();
 
-  switch (variant) {
-    case 'select': {
-      const options = meta?.selectOptions ?? [];
+  switch (filterType) {
+    case 'select':
       return (
         <TextField
           select
           fullWidth
           variant="standard"
-          value={(value ?? '') as string}
-          onChange={(e) => column.setFilterValue(e.target.value || undefined)}
+          value={value ?? ''}
+          onChange={(e) => column.setFilterValue(e.target.value)}
         >
           <MenuItem value="">All</MenuItem>
-          {options.map((opt) => (
+          {meta?.selectOptions?.map((opt) => (
             <MenuItem key={opt} value={opt}>
               {opt}
             </MenuItem>
           ))}
         </TextField>
       );
-    }
 
     case 'number':
       return (
@@ -48,30 +47,47 @@ export function renderColumnFilter<T>(
           variant="standard"
           fullWidth
           value={value ?? ''}
-          onChange={(e) => {
-            const val = e.target.value;
-            column.setFilterValue(val === '' ? undefined : Number(val));
-          }}
+          onChange={(e) =>
+            column.setFilterValue(
+              e.target.value === '' ? undefined : Number(e.target.value),
+            )
+          }
         />
       );
 
-    case 'date':
+    case 'date': {
+      const [start, end] = Array.isArray(value) ? value : [null, null];
+
       return (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <DatePicker
-            value={value ? dayjs(value as string) : null}
-            onChange={(newVal: Dayjs | null) => {
-              column.setFilterValue(newVal ? newVal.toISOString() : undefined);
-            }}
-            slotProps={{
-              textField: {
-                variant: 'standard',
-                fullWidth: true,
-              },
-            }}
-          />
+          <Stack direction="row" spacing={1}>
+            <DatePicker
+              label="From"
+              value={start ? dayjs(start) : null}
+              onChange={(val: Dayjs | null) =>
+                column.setFilterValue([val?.toISOString() ?? null, end ?? null])
+              }
+              slotProps={{
+                textField: { variant: 'standard', fullWidth: true },
+              }}
+            />
+            <DatePicker
+              label="To"
+              value={end ? dayjs(end) : null}
+              onChange={(val: Dayjs | null) =>
+                column.setFilterValue([
+                  start ?? null,
+                  val?.toISOString() ?? null,
+                ])
+              }
+              slotProps={{
+                textField: { variant: 'standard', fullWidth: true },
+              }}
+            />
+          </Stack>
         </LocalizationProvider>
       );
+    }
 
     case 'text':
     default:
@@ -79,8 +95,8 @@ export function renderColumnFilter<T>(
         <TextField
           variant="standard"
           fullWidth
-          value={(value ?? '') as string}
-          onChange={(e) => column.setFilterValue(e.target.value || undefined)}
+          value={value ?? ''}
+          onChange={(e) => column.setFilterValue(e.target.value)}
           placeholder="Filter…"
         />
       );

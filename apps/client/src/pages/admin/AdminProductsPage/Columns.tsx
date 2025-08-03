@@ -42,23 +42,22 @@ export function defineProductColumns(
       accessorKey: 'name',
       header: 'Name',
       enableColumnFilter: true,
+      meta: { filterVariant: 'text' },
       cell: (info) => info.getValue(),
     },
     {
       accessorKey: 'price',
       header: 'Price',
+      filterFn: 'equals',
+      meta: { filterVariant: 'number' },
       cell: (info) => `$${Number(info.getValue()).toFixed(2)}`,
     },
     {
-      accessorKey: 'inStock',
-      header: 'In Stock',
-      cell: (info) => (
-        <Checkbox
-          checked={!!info.getValue()}
-          disabled
-          inputProps={{ 'aria-label': 'In stock checkbox' }}
-        />
-      ),
+      accessorKey: 'stock',
+      header: 'Stock',
+      enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: { filterVariant: 'number' },
     },
     {
       accessorKey: 'categoryName',
@@ -68,21 +67,19 @@ export function defineProductColumns(
     {
       accessorKey: 'createdAt',
       header: 'Created At',
-      cell: (info) => {
-        const raw = info.getValue();
-        let date: Date;
-
-        if (typeof raw === 'string') {
-          date = new Date(raw);
-        } else if (raw instanceof Date) {
-          date = raw;
-        } else if ((raw as Timestamp)?.toDate instanceof Function) {
-          date = (raw as Timestamp).toDate();
-        } else {
-          date = new Date(); // fallback
-        }
-
-        return date.toLocaleDateString();
+      enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: { filterVariant: 'date' },
+      cell: ({ getValue }) => {
+        const raw = getValue<string | Date>();
+        const date = new Date(raw);
+        return isNaN(date.getTime())
+          ? 'N/A'
+          : date.toLocaleDateString(undefined, {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            });
       },
     },
     {

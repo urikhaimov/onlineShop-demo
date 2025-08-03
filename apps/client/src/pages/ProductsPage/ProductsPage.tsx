@@ -1,15 +1,5 @@
 import React, { useEffect, useReducer, useMemo } from 'react';
-import {
-  Box,
-  Snackbar,
-  Alert,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  SelectChangeEvent,
-  Divider,
-} from '@mui/material';
+import { Box, Snackbar, Alert, Divider } from '@mui/material';
 
 import StickyTable from '../../components/StickyTable';
 import LoadingProgress from '../../components/LoadingProgress';
@@ -18,13 +8,16 @@ import { useCategories } from '../../hooks/useCategories';
 import { IProduct } from '@common/types';
 import { defineProductColumns } from './Columns';
 import { reducer, initialState } from './LocalReducer';
-import { SortingState, ColumnFiltersState } from '@tanstack/react-table';
+import {
+  SortingState,
+  ColumnFiltersState,
+  Updater,
+} from '@tanstack/react-table';
 
 export default function ProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { data: categories = [] } = useCategories();
 
-  // Load products
   useEffect(() => {
     const loadProducts = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -46,18 +39,6 @@ export default function ProductsPage() {
     void loadProducts();
   }, []);
 
-  const filteredProducts = useMemo(() => {
-    return state.selectedCategory === 'all'
-      ? state.products
-      : state.products.filter(
-          (p) => String(p.categoryId) === state.selectedCategory,
-        );
-  }, [state.products, state.selectedCategory]);
-
-  const handleCategoryChange = (e: SelectChangeEvent<string>) => {
-    dispatch({ type: 'SET_CATEGORY', payload: e.target.value });
-  };
-
   const columns = useMemo(
     () =>
       defineProductColumns(categories, () =>
@@ -66,43 +47,43 @@ export default function ProductsPage() {
     [categories],
   );
 
-  const sorting: SortingState = state.sorting || [];
-  const columnFilters: ColumnFiltersState = state.columnFilters || [];
+  const sorting: SortingState = Array.isArray(state.sorting)
+    ? state.sorting
+    : [];
+
+  const columnFilters: ColumnFiltersState = Array.isArray(state.columnFilters)
+    ? state.columnFilters
+    : [];
+
+  const handleSortingChange = (updater: Updater<SortingState>) => {
+    const newSorting =
+      typeof updater === 'function' ? updater(sorting) : updater;
+    dispatch({ type: 'SET_SORTING', payload: newSorting });
+  };
+
+  const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
+    const newFilters =
+      typeof updater === 'function' ? updater(columnFilters) : updater;
+    dispatch({ type: 'SET_FILTERS', payload: newFilters });
+  };
 
   if (state.loading) return <LoadingProgress />;
 
   return (
     <Box px={2} py={1}>
-      <FormControl size="small" sx={{ mb: 2, width: 240 }}>
-        <InputLabel>Category</InputLabel>
-        <Select
-          label="Category"
-          value={state.selectedCategory}
-          onChange={handleCategoryChange}
-        >
-          <MenuItem value="all">All</MenuItem>
-          {categories.map((cat) => (
-            <MenuItem key={cat.id} value={String(cat.id)}>
-              {cat.name}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
       <Divider sx={{ mb: 2 }} />
 
       <StickyTable<IProduct>
         columns={columns}
-        data={filteredProducts}
+        data={state.products}
         sorting={sorting}
-        onSortingChange={(s) => dispatch({ type: 'SET_SORTING', payload: s })}
+        onSortingChange={handleSortingChange}
         columnFilters={columnFilters}
-        onColumnFiltersChange={(f) =>
-          dispatch({ type: 'SET_FILTERS', payload: f })
-        }
+        onColumnFiltersChange={handleColumnFiltersChange}
         enablePagination
         enableSorting
         enableColumnFilters
+        groupById="categoryId"
       />
 
       <Snackbar

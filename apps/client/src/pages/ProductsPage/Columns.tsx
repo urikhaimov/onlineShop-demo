@@ -1,7 +1,6 @@
-// src/pages/ProductsPage/Columns.ts
 import { ColumnDef } from '@tanstack/react-table';
 import { IProduct } from '@common/types';
-import { CardMedia, Button, Typography, Link as MuiLink } from '@mui/material';
+import { CardMedia, Button, Link as MuiLink } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import { Link } from 'react-router-dom';
 
@@ -43,6 +42,7 @@ export function defineProductColumns(
       accessorKey: 'name',
       header: 'Name',
       enableColumnFilter: true,
+      meta: { filterVariant: 'text' },
       cell: ({ row, getValue }) => {
         const id = row.original.id;
         const name = getValue<string>();
@@ -62,7 +62,12 @@ export function defineProductColumns(
     {
       accessorKey: 'categoryId',
       header: 'Category',
-      enableColumnFilter: false,
+      enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: {
+        filterVariant: 'select',
+        selectOptions: categories.map((c) => c.id),
+      },
       cell: ({ getValue }) => {
         const catId = getValue<string>();
         const cat = categories.find((c) => c.id === catId);

@@ -7,24 +7,21 @@ export interface State {
   snackbarOpen: boolean;
   sorting: SortingState;
   columnFilters: ColumnFiltersState;
-  selectedCategory: string;
 }
 
-type Action =
+export type Action =
   | { type: 'SET_PRODUCTS'; payload: IProduct[] }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_SNACKBAR'; payload: boolean }
   | { type: 'SET_SORTING'; payload: SortingState }
-  | { type: 'SET_FILTERS'; payload: ColumnFiltersState }
-  | { type: 'SET_CATEGORY'; payload: string };
+  | { type: 'SET_FILTERS'; payload: ColumnFiltersState };
 
 export const initialState: State = {
   products: [],
-  loading: true,
+  loading: false,
   snackbarOpen: false,
   sorting: [],
   columnFilters: [],
-  selectedCategory: 'all',
 };
 
 export function reducer(state: State, action: Action): State {
@@ -39,8 +36,6 @@ export function reducer(state: State, action: Action): State {
       return { ...state, sorting: action.payload };
     case 'SET_FILTERS':
       return { ...state, columnFilters: action.payload };
-    case 'SET_CATEGORY':
-      return { ...state, selectedCategory: action.payload };
     default:
       return state;
   }
