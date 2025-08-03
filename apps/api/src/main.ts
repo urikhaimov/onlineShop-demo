@@ -5,6 +5,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { getEnv, isProd, logger } from '@common/utils';
 import { setupSwagger } from './swagger';
+import helmet from 'helmet';
 
 dotenv.config();
 
@@ -27,6 +28,22 @@ async function appBootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+    }),
+  );
+
+  app.use(
+    helmet.contentSecurityPolicy({
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https://firebasestorage.googleapis.com',
+          'https://storage.googleapis.com',
+          'https://picsum.photos',
+        ],
+      },
     }),
   );
 
