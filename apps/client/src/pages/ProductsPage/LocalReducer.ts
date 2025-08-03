@@ -1,5 +1,5 @@
 import { IProduct } from '@common/types';
-import { SortingState, ColumnFiltersState } from '@tanstack/react-table';
+import { ColumnFiltersState, SortingState } from '@tanstack/react-table';
 
 export interface State {
   products: IProduct[];
@@ -7,6 +7,7 @@ export interface State {
   snackbarOpen: boolean;
   sorting: SortingState;
   columnFilters: ColumnFiltersState;
+  pageSize: number;
 }
 
 export type Action =
@@ -22,6 +23,7 @@ export const initialState: State = {
   snackbarOpen: false,
   sorting: [],
   columnFilters: [],
+  pageSize: 1,
 };
 
 export function reducer(state: State, action: Action): State {

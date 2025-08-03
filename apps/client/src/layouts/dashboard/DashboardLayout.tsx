@@ -2,7 +2,6 @@ import * as React from 'react';
 import { alpha } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Box from '@mui/material/Box';
-import Stack from '@mui/material/Stack';
 import AppNavbar from './components/AppNavbar';
 import Header from './components/Header';
 import SideMenu from './components/SideMenu';
@@ -49,7 +48,7 @@ export default function Dashboard(props) {
               zIndex: 1,
               position: 'sticky',
               top: 0,
-              bgcolor: 'background.paper',
+              backgroundColor: 'background.paper',
               borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
             }}
           >
@@ -61,10 +60,10 @@ export default function Dashboard(props) {
             sx={{
               flexGrow: 1,
               overflowY: 'auto',
-              px: 3,
-              py: 2,
+              px: 0,
+              py: 0,
               width: '100%',
-              pt: { xs: 10, sm: 4 }, // 👈 Add padding-top to offset sticky Header
+              pt: 0, // 👈 Add padding-top to offset sticky Header
               scrollbarWidth: 'thin',
               '&::-webkit-scrollbar': {
                 width: '8px',
