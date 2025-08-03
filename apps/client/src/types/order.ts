@@ -1,4 +1,5 @@
 // src/types/order.ts
+import { Timestamp } from 'firebase/firestore';
 export type Order = {
   id: string;
   userId: string;
@@ -12,6 +13,7 @@ export type Order = {
     price: number;
     image: string;
   }>;
+  amount: number; // ✅ Add this
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
   payment: {
     method: string;
@@ -37,6 +39,6 @@ export type Order = {
     timestamp: string;
     changedBy: string;
   }>;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 };

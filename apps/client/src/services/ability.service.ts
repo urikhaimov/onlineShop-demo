@@ -15,11 +15,15 @@ export enum EAbilitySubjects {
   HOME = 'home',
   LOGIN = 'login',
   PRODUCTS = 'products',
+  PRODUCT = 'product',
   CATEGORIES = 'categories',
+  CHECKOUT = 'checkout',
+  CART = 'cart',
   ORDERS = 'orders',
   USERS = 'users',
   SETTINGS = 'settings',
   PROFILE = 'profile',
+  RESET_PASSWORD = 'resetPassword',
   ALL = 'all',
 }
 
@@ -37,10 +41,14 @@ export function defineAbilityFor({
       can([EAbilityActions.MANAGE], EAbilitySubjects.ALL);
     } else {
       can([EAbilityActions.MANAGE], user?.uid);
-      can([EAbilityActions.READ], EAbilitySubjects.PROFILE);
+      can([EAbilityActions.MANAGE], EAbilitySubjects.PROFILE);
       can([EAbilityActions.READ], EAbilitySubjects.HOME);
       can([EAbilityActions.MANAGE], EAbilitySubjects.PRODUCTS);
       can([EAbilityActions.MANAGE], EAbilitySubjects.ORDERS);
+      can([EAbilityActions.READ], EAbilitySubjects.CART);
+      can([EAbilityActions.READ], EAbilitySubjects.PRODUCT);
+      can([EAbilityActions.MANAGE], EAbilitySubjects.CHECKOUT);
+      can([EAbilityActions.MANAGE], EAbilitySubjects.RESET_PASSWORD);
     }
     cannot([EAbilityActions.READ], EAbilitySubjects.LOGIN);
   } else {

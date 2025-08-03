@@ -13,6 +13,11 @@ import {
   ColumnFiltersState,
   Updater,
 } from '@tanstack/react-table';
+import { PageLayout } from '../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../services/ability.service';
 
 export default function ProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -70,32 +75,37 @@ export default function ProductsPage() {
   if (state.loading) return <LoadingProgress />;
 
   return (
-    <Box px={2} py={1}>
-      <Divider sx={{ mb: 2 }} />
+    <PageLayout
+      action={EAbilityActions.MANAGE}
+      subject={EAbilitySubjects.PRODUCTS}
+    >
+      <Box px={2} py={1}>
+        <Divider sx={{ mb: 2 }} />
 
-      <StickyTable<IProduct>
-        columns={columns}
-        data={state.products}
-        sorting={sorting}
-        onSortingChange={handleSortingChange}
-        columnFilters={columnFilters}
-        onColumnFiltersChange={handleColumnFiltersChange}
-        enablePagination
-        enableSorting
-        enableColumnFilters
-        groupById="categoryId"
-      />
+        <StickyTable<IProduct>
+          columns={columns}
+          data={state.products}
+          sorting={sorting}
+          onSortingChange={handleSortingChange}
+          columnFilters={columnFilters}
+          onColumnFiltersChange={handleColumnFiltersChange}
+          enablePagination
+          enableSorting
+          enableColumnFilters
+          groupById="categoryId"
+        />
 
-      <Snackbar
-        open={state.snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => dispatch({ type: 'SET_SNACKBAR', payload: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" variant="filled">
-          Product added to cart
-        </Alert>
-      </Snackbar>
-    </Box>
+        <Snackbar
+          open={state.snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => dispatch({ type: 'SET_SNACKBAR', payload: false })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity="success" variant="filled">
+            Product added to cart
+          </Alert>
+        </Snackbar>
+      </Box>
+    </PageLayout>
   );
 }

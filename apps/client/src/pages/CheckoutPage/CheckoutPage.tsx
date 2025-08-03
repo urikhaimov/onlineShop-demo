@@ -15,6 +15,11 @@ import { useCartStore } from '../../stores/useCartStore';
 import StripeCheckoutForm from './StripeCheckoutForm';
 import { useStripeClientSecret } from '../../hooks/useStripeClientSecret';
 import { stripePromise } from '../../stripe/StripeProvider';
+import { PageLayout } from '../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../services/ability.service';
 
 const StripeProvider = React.lazy(() => import('../../stripe/StripeProvider'));
 
@@ -37,64 +42,69 @@ export default function CheckoutPage() {
   });
 
   return (
-    <Suspense fallback={<CircularProgress />}>
-      <StripeProvider>
-        <Box
-          sx={{
-            minHeight: 'calc(100vh - 64px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            px: 2,
-            py: 4,
-          }}
-        >
-          <Paper elevation={1} sx={{ p: 3, width: '100%', maxWidth: 480 }}>
-            <Typography variant="h6" mb={2}>
-              Checkout
-            </Typography>
-
-            <Stack spacing={1} mb={2}>
-              <Typography>Subtotal: ${subtotal.toFixed(2)}</Typography>
-              <Typography>Shipping: ${shipping.toFixed(2)}</Typography>
-              <Typography>Tax (17%): ${tax.toFixed(2)}</Typography>
-              <Typography>Discount: -${discount.toFixed(2)}</Typography>
-              <Divider />
-              <Typography fontWeight="bold">
-                Total: ${(total / 100).toFixed(2)} USD
-              </Typography>
-            </Stack>
-
-            {loading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-                <CircularProgress />
-              </Box>
-            ) : clientSecret ? (
-              <Elements stripe={stripePromise} options={{ clientSecret }}>
-                <StripeCheckoutForm />
-              </Elements>
-            ) : (
-              <Typography color="error">
-                Failed to load payment form. Please try again later.
-              </Typography>
-            )}
-          </Paper>
-
-          <Snackbar
-            open={!!error}
-            autoHideDuration={5000}
-            onClose={() => {
-              // TODO: Handle error close
-              console.log('Error closed');
+    <PageLayout
+      action={EAbilityActions.MANAGE}
+      subject={EAbilitySubjects.CHECKOUT}
+    >
+      <Suspense fallback={<CircularProgress />}>
+        <StripeProvider>
+          <Box
+            sx={{
+              minHeight: 'calc(100vh - 64px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              px: 2,
+              py: 4,
             }}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
           >
-            <Alert severity="error" sx={{ width: '100%' }}>
-              {error}
-            </Alert>
-          </Snackbar>
-        </Box>
-      </StripeProvider>
-    </Suspense>
+            <Paper elevation={1} sx={{ p: 3, width: '100%', maxWidth: 480 }}>
+              <Typography variant="h6" mb={2}>
+                Checkout
+              </Typography>
+
+              <Stack spacing={1} mb={2}>
+                <Typography>Subtotal: ${subtotal.toFixed(2)}</Typography>
+                <Typography>Shipping: ${shipping.toFixed(2)}</Typography>
+                <Typography>Tax (17%): ${tax.toFixed(2)}</Typography>
+                <Typography>Discount: -${discount.toFixed(2)}</Typography>
+                <Divider />
+                <Typography fontWeight="bold">
+                  Total: ${(total / 100).toFixed(2)} USD
+                </Typography>
+              </Stack>
+
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                  <CircularProgress />
+                </Box>
+              ) : clientSecret ? (
+                <Elements stripe={stripePromise} options={{ clientSecret }}>
+                  <StripeCheckoutForm />
+                </Elements>
+              ) : (
+                <Typography color="error">
+                  Failed to load payment form. Please try again later.
+                </Typography>
+              )}
+            </Paper>
+
+            <Snackbar
+              open={!!error}
+              autoHideDuration={5000}
+              onClose={() => {
+                // TODO: Handle error close
+                console.log('Error closed');
+              }}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+              <Alert severity="error" sx={{ width: '100%' }}>
+                {error}
+              </Alert>
+            </Snackbar>
+          </Box>
+        </StripeProvider>
+      </Suspense>
+    </PageLayout>
   );
 }

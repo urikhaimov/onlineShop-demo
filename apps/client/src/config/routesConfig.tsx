@@ -24,7 +24,6 @@ import ProductPage from '../pages/ProductPage';
 import ProductsPage from '../pages/ProductsPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import SignupPage from '../pages/SignupPage';
-import ThankYouPage from '../pages/ThankYouPage';
 import UserProfilePage from '../pages/UserProfilePage';
 import { type Location, Route, Routes } from 'react-router-dom';
 import AdminThemePage from '../pages/admin/AdminThemePage';
@@ -115,14 +114,7 @@ export const appRoutes = (location: Location<any>) => (
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/thank-you"
-        element={
-          <ProtectedRoute>
-            <ThankYouPage />
-          </ProtectedRoute>
-        }
-      />
+
       <Route
         path={ERoutePaths.ADMIN_DASHBOARD}
         element={
