@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -18,7 +19,14 @@ export class CategoriesController {
   getAllCategories() {
     return this.categoriesService.findAll();
   }
-
+  @Get(':id')
+  async getById(@Param('id') id: string) {
+    const doc = await this.categoriesService.getById(id);
+    if (!doc) {
+      throw new NotFoundException('Category not found');
+    }
+    return doc;
+  }
   @Post()
   async create(@Body('name') name: string) {
     if (!name || !name.trim()) {

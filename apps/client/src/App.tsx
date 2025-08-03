@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { CssBaseline, ThemeProvider as MuiThemeProvider } from '@mui/material';
 import { createTheme } from '@mui/material/styles';
 import { AnimatePresence } from 'framer-motion';
-import Layout from './layouts/MainLayout';
 
 import { useThemeStore } from './stores/useThemeStore';
 import { getThemeFromSettings } from './utils/themeBuilder';
@@ -17,19 +16,17 @@ export default function App() {
   const { themeSettings } = useThemeStore();
   const theme = createTheme(getThemeFromSettings(themeSettings));
 
-  const isAuthPage =
-    location.pathname.startsWith('/login') ||
-    location.pathname.startsWith('/signup') ||
-    location.pathname.startsWith('/reset-password');
+  // const isAuthPage =
+  //   location.pathname.startsWith('/login') ||
+  //   location.pathname.startsWith('/signup') ||
+  //   location.pathname.startsWith('/reset-password');
 
   const routes = appRoutes(location);
 
   return (
     <MuiThemeProvider theme={theme}>
       <CssBaseline />
-      <AnimatePresence mode="wait">
-        {isAuthPage ? routes : <Layout>{routes}</Layout>}
-      </AnimatePresence>
+      <AnimatePresence mode="wait">{routes}</AnimatePresence>
     </MuiThemeProvider>
   );
 }

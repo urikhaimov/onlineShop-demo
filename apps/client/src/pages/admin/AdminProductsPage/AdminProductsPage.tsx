@@ -1,13 +1,5 @@
-import React, { useEffect, useMemo, useReducer, useState } from 'react';
-import {
-  Box,
-  Divider,
-  Snackbar,
-  Alert,
-  useTheme,
-  useMediaQuery,
-} from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useReducer, useMemo } from 'react';
+import { Box, Snackbar, Alert, Divider } from '@mui/material';
 import {
   DndContext,
   DragEndEvent,
@@ -20,245 +12,141 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { useInView } from 'react-intersection-observer';
-import { VariableSizeList } from 'react-window';
-import { debounce } from 'lodash';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
-import { auth, db } from '../../../firebase';
-import { useAllCategories } from '../../../hooks/useAllCategories';
-import { useProductMutations } from '../../../hooks/useProductMutations';
-import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
+import StickyTable from '../../../components/StickyTable';
 import LoadingProgress from '../../../components/LoadingProgress';
-import SortableProductCard from './SortableProductCard';
-import AdminProductFilters from './AdminProductFilters';
-import { initialState, reducer } from './LocalReducer';
-import { uiReducer, initialUIState } from './LocalUiReducer';
-import { IProduct } from '@common/types';
-import { headerHeight, footerHeight } from '../../../config/themeConfig';
 import NotFound from '../../../components/NotFound';
+import { IProduct } from '@common/types';
+import { defineProductColumns } from './Columns';
+import { reducer, initialState } from './LocalReducer';
+import { useCategories } from '../../../hooks/useCategories';
+import { useProductMutations } from '../../../hooks/useProductMutations';
+import { fetchAllProducts } from '../../../hooks/useProducts';
+import { auth } from '../../../firebase';
+import {
+  SortingState,
+  ColumnFiltersState,
+  Updater,
+} from '@tanstack/react-table';
 
 export default function AdminProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const [uiState, uiDispatch] = useReducer(uiReducer, initialUIState);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(10);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { data: categories = [] } = useAllCategories();
+  const { data: categories = [] } = useCategories();
   const { reorder } = useProductMutations();
-  const navigate = useNavigate();
 
   const sensors = useSensors(useSensor(PointerSensor));
-  const { ref: sentinelRef, inView } = useInView();
 
   useEffect(() => {
-    const q = query(collection(db, 'products'), orderBy('order'));
-
-    const debouncedSetProducts = debounce((products: IProduct[]) => {
-      dispatch({ type: 'SET_PRODUCTS_SORTED', payload: products });
-    }, 300);
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const products: IProduct[] = snapshot.docs.map((doc) => ({
-        ...(doc.data() as IProduct),
-        id: doc.id,
-      }));
-
-      debouncedSetProducts(products);
-    });
-
-    return () => {
-      unsubscribe();
-      debouncedSetProducts.cancel();
-    };
-  }, []);
-
-  const filteredProducts = useMemo(() => {
-    const term = (state.searchTerm || '').toLowerCase();
-    return state.products.filter((p) => {
-      if (!p || typeof p !== 'object' || !p.name) return false;
-
-      const matchesText =
-        p.name.toLowerCase().includes(term) ||
-        p.description?.toLowerCase().includes(term);
-
-      const matchesCategory =
-        !state.selectedCategoryId || p.categoryId === state.selectedCategoryId;
-
-      let createdAtDate: Date | null = null;
-      if (p.createdAt) {
-        createdAtDate =
-          typeof p.createdAt === 'string' ? new Date(p.createdAt) : p.createdAt;
+    const loadProducts = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      try {
+        const res = await fetchAllProducts();
+        if (Array.isArray(res.data)) {
+          dispatch({ type: 'SET_PRODUCTS', payload: res.data });
+        } else {
+          dispatch({ type: 'SET_PRODUCTS', payload: [] });
+          console.error('❌ Invalid product response:', res.data);
+        }
+      } catch (err) {
+        console.error('❌ Failed to load products:', err);
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
+    };
 
-      const matchesDate =
-        !state.createdAfter ||
-        (createdAtDate &&
-          state.createdAfter &&
-          createdAtDate.getTime() >= state.createdAfter.toDate().getTime());
-
-      return matchesText && matchesCategory && matchesDate;
-    });
-  }, [
-    state.products,
-    state.searchTerm,
-    state.selectedCategoryId,
-    state.createdAfter,
-  ]);
-
-  const visibleProducts = filteredProducts.slice(0, visibleCount);
-
-  useEffect(() => {
-    if (inView && visibleCount < filteredProducts.length) {
-      const timeout = setTimeout(() => {
-        setVisibleCount((prev) => prev + 10);
-      }, 300);
-      return () => clearTimeout(timeout);
-    }
-  }, [inView, visibleCount, filteredProducts.length]);
+    void loadProducts();
+  }, []);
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = visibleProducts.findIndex((p) => p.id === active.id);
-    const newIndex = visibleProducts.findIndex((p) => p.id === over.id);
+    const oldIndex = state.products.findIndex((p) => p.id === active.id);
+    const newIndex = state.products.findIndex((p) => p.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reorderedVisible = arrayMove(visibleProducts, oldIndex, newIndex);
-    const updatedProducts = [...state.products];
+    const reordered = arrayMove(state.products, oldIndex, newIndex);
+    dispatch({ type: 'SET_PRODUCTS', payload: reordered });
 
-    reorderedVisible.forEach((product, idx) => {
-      const globalIndex = updatedProducts.findIndex((p) => p.id === product.id);
-      if (globalIndex !== -1) {
-        updatedProducts.splice(globalIndex, 1);
-        updatedProducts.splice(
-          idx + state.products.indexOf(visibleProducts[0]),
-          0,
-          product,
-        );
-      }
-    });
-
-    const uniqueUpdated = Array.from(
-      new Map(updatedProducts.map((p) => [p.id, p])).values(),
-    );
-
-    dispatch({ type: 'SET_PRODUCTS', payload: uniqueUpdated });
-
-    const orderList = uniqueUpdated.map((p, i) => ({ id: p.id, order: i }));
+    const orderList = reordered.map((p, i) => ({ id: p.id, order: i }));
     const token = await auth.currentUser?.getIdToken();
 
     if (token) {
-      dispatch({ type: 'SET_REORDER_PENDING', payload: true });
       try {
         await reorder.mutateAsync({ orderList, token });
-        setSnackbarOpen(true);
+        dispatch({ type: 'SET_SNACKBAR', payload: true });
       } catch (error) {
         console.error('❌ Reorder failed', error);
-      } finally {
-        dispatch({ type: 'SET_REORDER_PENDING', payload: false });
       }
     }
   };
 
-  const hasFilters =
-    !!state.searchTerm || !!state.createdAfter || !!state.selectedCategoryId;
+  const columns = useMemo(
+    () =>
+      defineProductColumns(categories, () =>
+        dispatch({ type: 'SET_SNACKBAR', payload: true }),
+      ),
+    [categories],
+  );
+
+  const sorting: SortingState = Array.isArray(state.sorting)
+    ? state.sorting
+    : [];
+
+  const columnFilters: ColumnFiltersState = Array.isArray(state.columnFilters)
+    ? state.columnFilters
+    : [];
+
+  const handleSortingChange = (updater: Updater<SortingState>) => {
+    const newSorting =
+      typeof updater === 'function' ? updater(sorting) : updater;
+    dispatch({ type: 'SET_SORTING', payload: newSorting });
+  };
+
+  const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
+    const newFilters =
+      typeof updater === 'function' ? updater(columnFilters) : updater;
+    dispatch({ type: 'SET_FILTERS', payload: newFilters });
+  };
+
+  if (state.loading) return <LoadingProgress />;
+  if (state.products.length === 0)
+    return <NotFound message="No products found." />;
 
   return (
-    <PageWithStickyFilters
-      title="Admin Products"
-      sidebar={
-        <AdminProductFilters
-          state={state}
-          dispatch={dispatch}
-          categories={categories}
-        />
-      }
-      onMobileOpen={() =>
-        uiDispatch({ type: 'setMobileDrawerOpen', payload: true })
-      }
-      onMobileClose={() =>
-        uiDispatch({ type: 'setMobileDrawerOpen', payload: false })
-      }
-      mobileOpen={uiState.mobileDrawerOpen}
-      hasFilters={hasFilters}
-      onReset={() => dispatch({ type: 'RESET_FILTERS' })}
-    >
+    <Box px={2} py={1}>
       <Divider sx={{ mb: 2 }} />
 
-      {state.loading ? (
-        <LoadingProgress />
-      ) : visibleProducts.length === 0 ? (
-        <NotFound message="No products found." />
-      ) : (
-        <Box
-          sx={{
-            px: 1,
-            pb: 3,
-            flex: 1,
-            minHeight: 0,
-            overflow: 'hidden',
-          }}
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <SortableContext
+          items={state.products.map((p) => p.id)}
+          strategy={verticalListSortingStrategy}
         >
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <SortableContext
-              items={visibleProducts.map((p) => p.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <VariableSizeList
-                height={window.innerHeight - headerHeight - footerHeight - 164}
-                width="100%"
-                itemCount={visibleProducts.length}
-                itemSize={() => (isMobile ? 300 : 120)}
-                overscanCount={4}
-                style={{ overflowX: 'hidden' }}
-              >
-                {({ index, style }) => {
-                  const product = visibleProducts[index];
-                  return (
-                    <div key={product.id} style={style}>
-                      <Box
-                        mb={2}
-                        sx={{ opacity: state.reorderPending ? 0.4 : 1 }}
-                      >
-                        <SortableProductCard
-                          product={product}
-                          disabled={state.reorderPending}
-                          onConfirmDelete={(id) =>
-                            dispatch({ type: 'REMOVE_PRODUCT', payload: id })
-                          }
-                        />
-                      </Box>
-                    </div>
-                  );
-                }}
-              </VariableSizeList>
-
-              <Box
-                ref={sentinelRef}
-                display="flex"
-                justifyContent="center"
-                py={3}
-              >
-                {visibleCount < filteredProducts.length && <LoadingProgress />}
-              </Box>
-            </SortableContext>
-          </DndContext>
-        </Box>
-      )}
+          <StickyTable<IProduct>
+            columns={columns}
+            data={state.products}
+            sorting={sorting}
+            onSortingChange={handleSortingChange}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={handleColumnFiltersChange}
+            enablePagination
+            enableSorting
+            enableColumnFilters
+            groupById="categoryId"
+          />
+        </SortableContext>
+      </DndContext>
 
       <Snackbar
-        open={snackbarOpen}
+        open={state.snackbarOpen}
         autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
+        onClose={() => dispatch({ type: 'SET_SNACKBAR', payload: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert severity="success" variant="filled">
           Product order updated
         </Alert>
       </Snackbar>
-    </PageWithStickyFilters>
+    </Box>
   );
 }

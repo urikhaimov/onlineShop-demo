@@ -1,53 +1,84 @@
-import React, { useMemo, useReducer, useRef, useState } from 'react';
+// src/pages/admin/AdminUsersPage.tsx
+import React, { useMemo, useReducer, useState } from 'react';
+import {
+  ColumnDef,
+  SortingState,
+  ColumnFiltersState,
+} from '@tanstack/react-table';
 import {
   Box,
   Button,
-  Card,
-  CardActions,
-  CardContent,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
-  IconButton,
   MenuItem,
   Select,
-  Tooltip,
   Typography,
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import {
-  VariableSizeList as List,
-  type ListChildComponentProps,
-} from 'react-window';
-import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
-import useDebounce from '../../../hooks/useDebouncedValue';
+import { Delete } from '@mui/icons-material';
+
+import StickyTable from '../../../components/StickyTable/StickyTable';
 import { useAdminUsersQuery } from '../../../hooks/useAdminUsersQuery';
-import { initialUIState, uiReducer } from './LocalUiReducer';
 import { Role } from '../../../types/Role';
-import LoadingProgress from '../../../components/LoadingProgress';
-import AdminUsersFilters from './AdminUsersFilters';
-import { headerHeight, footerHeight } from '../../../config/themeConfig';
-const CARD_HEIGHT = 112; // Adjust for cleaner spacing
+import { uiReducer, initialUIState } from './LocalUiReducer';
 
 export default function AdminUsersPage() {
   const { users, isLoading, error, updateUserRole, deleteUser } =
     useAdminUsersQuery();
-
-  const [searchText, setSearchText] = useState('');
-  const debouncedSearch = useDebounce(searchText, 300);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [state, dispatch] = useReducer(uiReducer, initialUIState);
 
-  const filteredUsers = useMemo(
-    () =>
-      users.filter((user) =>
-        user.email.toLowerCase().includes(debouncedSearch.toLowerCase()),
-      ),
-    [users, debouncedSearch],
+  const columns = useMemo<ColumnDef<(typeof users)[0]>[]>(
+    () => [
+      {
+        accessorKey: 'email',
+        header: 'Email',
+        cell: (info) => info.getValue(),
+        enableColumnFilter: true,
+      },
+      {
+        accessorKey: 'role',
+        header: 'Role',
+        cell: ({ row }) => (
+          <Select
+            size="small"
+            value={row.original.role}
+            onChange={(e) =>
+              updateUserRole(row.original.id, e.target.value as Role)
+            }
+            sx={{ minWidth: 120 }}
+          >
+            <MenuItem value="user">User</MenuItem>
+            <MenuItem value="admin">Admin</MenuItem>
+            <MenuItem value="superadmin">Superadmin</MenuItem>
+          </Select>
+        ),
+        enableColumnFilter: false,
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => (
+          <Button
+            color="error"
+            variant="text"
+            size="small"
+            onClick={() =>
+              dispatch({ type: 'OPEN_CONFIRM', payload: row.original })
+            }
+          >
+            <Delete fontSize="small" />
+          </Button>
+        ),
+        enableSorting: false,
+        enableColumnFilter: false,
+      },
+    ],
+    [updateUserRole],
   );
-
-  const listRef = useRef<List>(null);
 
   const handleDelete = async () => {
     if (!state.selectedUser) return;
@@ -55,88 +86,25 @@ export default function AdminUsersPage() {
     dispatch({ type: 'CLOSE_CONFIRM' });
   };
 
-  const renderRow = ({ index, style }: ListChildComponentProps) => {
-    const user = filteredUsers[index];
-
-    return (
-      <div style={{ ...style, padding: 8 }}>
-        <Card sx={{ p: 2 }}>
-          <CardContent sx={{ pb: 0 }}>
-            <Tooltip title={user.email}>
-              <Typography
-                variant="subtitle2"
-                noWrap
-                sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
-              >
-                {user.email}
-              </Typography>
-            </Tooltip>
-            <Typography variant="body2" color="text.secondary">
-              Role: {user.role}
-            </Typography>
-          </CardContent>
-          <CardActions sx={{ justifyContent: 'space-between', pt: 1 }}>
-            <Select
-              size="small"
-              value={user.role}
-              onChange={(e) => updateUserRole(user.id, e.target.value as Role)}
-              sx={{ minWidth: 120 }}
-            >
-              <MenuItem value="user">User</MenuItem>
-              <MenuItem value="admin">Admin</MenuItem>
-              <MenuItem value="superadmin">Superadmin</MenuItem>
-            </Select>
-            <IconButton
-              edge="end"
-              color="error"
-              onClick={() => dispatch({ type: 'OPEN_CONFIRM', payload: user })}
-            >
-              <DeleteIcon />
-            </IconButton>
-          </CardActions>
-        </Card>
-      </div>
-    );
-  };
-
-  if (isLoading) return <LoadingProgress />;
+  if (isLoading) return <Typography p={4}>Loading...</Typography>;
   if (error) return <Typography p={4}>❌ Error loading users</Typography>;
 
-  const hasFilters = !!searchText;
-
   return (
-    <PageWithStickyFilters
-      title="Manage Users"
-      sidebar={
-        <AdminUsersFilters
-          searchText={searchText}
-          setSearchText={(text) => {
-            setSearchText(text);
-            listRef.current?.scrollToItem(0);
-          }}
-          total={filteredUsers.length}
-        />
-      }
-      mobileOpen={state.mobileDrawerOpen}
-      onMobileOpen={() => dispatch({ type: 'OPEN_MOBILE_DRAWER' })}
-      onMobileClose={() => dispatch({ type: 'CLOSE_MOBILE_DRAWER' })}
-      hasFilters={hasFilters}
-      onReset={() => {
-        setSearchText('');
-        listRef.current?.scrollToItem(0);
-      }}
-    >
-      <Box sx={{ flexGrow: 1, overflow: 'hidden', px: 1, py: 2 }}>
-        <List
-          ref={listRef}
-          height={window.innerHeight - headerHeight - footerHeight - 164}
-          width="100%"
-          itemCount={filteredUsers.length}
-          itemSize={() => CARD_HEIGHT}
-        >
-          {renderRow}
-        </List>
-      </Box>
+    <Box p={2}>
+      <Typography variant="h6" gutterBottom>
+        Manage Users
+      </Typography>
+
+      <StickyTable
+        data={users}
+        columns={columns}
+        sorting={sorting}
+        onSortingChange={setSorting}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={setColumnFilters}
+        enableColumnFilters
+        enableSorting
+      />
 
       <Dialog
         open={state.confirmOpen}
@@ -158,6 +126,6 @@ export default function AdminUsersPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </PageWithStickyFilters>
+    </Box>
   );
 }

@@ -15,7 +15,7 @@ import { useProductById } from '../../hooks/useProductById';
 import { headerHeight, footerHeight } from '../../config/themeConfig';
 import LoadingProgress from '../../components/LoadingProgress';
 
-export default function ProductDetailsPage() {
+export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
   const addToCart = useCartStore((state) => state.addToCart);
   const theme = useTheme();
