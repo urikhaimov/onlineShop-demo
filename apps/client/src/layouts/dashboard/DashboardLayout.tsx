@@ -7,10 +7,14 @@ import Header from './components/Header';
 import SideMenu from './components/SideMenu';
 import AppTheme from '../shared-theme/AppTheme';
 import { Outlet } from 'react-router-dom';
+import theme from '@client/layouts/dashboard/theme';
+import { useMediaQuery } from '@mui/material';
 
 const xThemeComponents = {};
 
 export default function Dashboard(props) {
+  const medium = useMediaQuery(theme.breakpoints.down('md'));
+
   return (
     <AppTheme {...props} themeComponents={xThemeComponents}>
       <CssBaseline enableColorScheme />
@@ -63,7 +67,7 @@ export default function Dashboard(props) {
               px: 0,
               py: 0,
               width: '100%',
-              pt: 0, // 👈 Add padding-top to offset sticky Header
+              pt: medium ? 8 : 0, // 👈 Add padding-top to offset sticky Header
               scrollbarWidth: 'thin',
               '&::-webkit-scrollbar': {
                 width: '8px',
