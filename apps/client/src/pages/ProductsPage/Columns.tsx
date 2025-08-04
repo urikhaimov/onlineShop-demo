@@ -5,10 +5,12 @@ import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
 import { betweenNumberRange } from '../../components/StickyTable/tableFilters';
+
 const COLUMN_WIDTHS = {
-  image: 100,
-  actions: 120,
-  number: 60,
+  image: 80,
+  actions: 50,
+  number: 70,
+  category: 100,
 };
 
 export function defineProductColumns(
@@ -16,14 +18,29 @@ export function defineProductColumns(
   setSnackbarOpen: (open: boolean) => void,
 ): ColumnDef<IProduct, any>[] {
   return [
-    // ✅ 0: image
+    // ✅ Category (used as groupBy)
+    {
+      accessorKey: 'categoryId',
+      header: 'Category',
+      enablePinning: true,
+      size: COLUMN_WIDTHS.category,
+      enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: {
+        sticky: 'left',
+        filterVariant: 'select',
+        selectOptions: categories.map((c) => c.id),
+      },
+      cell: () => '',
+    },
+
+    // ✅ Product image
     {
       accessorKey: 'images',
       header: 'Image',
-
-      meta: { sticky: 'left' }, // ✅ Sticky left
       enableColumnFilter: false,
       size: COLUMN_WIDTHS.image,
+      meta: { sticky: 'left' },
       cell: ({ row, getValue }) => {
         const images = getValue<string[]>() ?? [];
         const firstImage =
@@ -37,8 +54,9 @@ export function defineProductColumns(
                 width: 60,
                 height: 60,
                 borderRadius: 1,
+                ml: 0,
+                mr: 'auto',
                 objectFit: 'cover',
-                mx: 'auto',
                 cursor: 'pointer',
               }}
               image={firstImage}
@@ -49,23 +67,7 @@ export function defineProductColumns(
       },
     },
 
-    // ✅ 1: category (sticky)
-    {
-      accessorKey: 'categoryId',
-      header: 'Category',
-      enablePinning: true,
-      enableColumnFilter: true,
-      filterFn: 'equals',
-      meta: {
-        filterVariant: 'select',
-        selectOptions: categories.map((c) => c.id),
-      },
-      cell: () => '',
-    },
-
-    // ✅ 2: actions (sticky)
-
-    // 👇 These will scroll
+    // ✅ Product name
     {
       accessorKey: 'name',
       header: 'Name',
@@ -88,32 +90,36 @@ export function defineProductColumns(
       },
     },
 
+    // ✅ Stock (number range filter, right-aligned)
     {
       accessorKey: 'stock',
       header: 'Stock',
       enableColumnFilter: true,
       size: COLUMN_WIDTHS.number,
       filterFn: betweenNumberRange as FilterFnOption<any>,
-      meta: { filterVariant: 'number' },
+      meta: { filterVariant: 'number', align: 'left' },
     },
 
+    // ✅ Price (number range filter, right-aligned)
     {
       accessorKey: 'price',
       header: 'Price',
       enableColumnFilter: true,
       size: COLUMN_WIDTHS.number,
       filterFn: betweenNumberRange as FilterFnOption<any>,
-      meta: { filterVariant: 'number' },
+      meta: { filterVariant: 'number', align: 'left' },
       cell: ({ getValue }) => `$${getValue<number>().toFixed(2)}`,
     },
+
+    // ✅ Actions (sticky right, compact)
     {
       header: 'Actions',
       id: 'actions',
       enableColumnFilter: false,
       enableSorting: false,
-      meta: { sticky: 'right' }, // ✅ Sticky right
       enablePinning: true,
       size: COLUMN_WIDTHS.actions,
+      meta: { sticky: 'right' },
       cell: ({ row }) => {
         const product = row.original;
         const addToCart = useCartStore.getState().addToCart;
@@ -127,9 +133,7 @@ export function defineProductColumns(
               setSnackbarOpen(true);
             }}
             disabled={product.stock <= 0}
-          >
-            Add to Cart
-          </Button>
+          ></Button>
         );
       },
     },

@@ -1,3 +1,4 @@
+// StickyTable.tsx — Mobile Optimized Final Version
 import React, { useState, useEffect } from 'react';
 import {
   useReactTable,
@@ -104,25 +105,50 @@ export default function StickyTable<T extends Record<string, any>>({
   }, [data, groupById, isGrouped]);
 
   const toggleGroup = (id: string) => {
-    setExpandedGroups((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setExpandedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const isColumnFiltered = (id: string) =>
     columnFilters.some((f) => f.id === id && !!f.value);
 
   const getStickyStyles = (meta?: any) => {
-    const sticky = meta?.sticky;
-    if (sticky === 'left') {
+    if (meta?.sticky === 'left')
       return { position: 'sticky', left: 0, zIndex: 1 };
-    }
-    if (sticky === 'right') {
+    if (meta?.sticky === 'right')
       return { position: 'sticky', right: 0, zIndex: 1 };
-    }
     return {};
   };
+
+  const shouldHideColumnOnMobile = (meta?: any) =>
+    meta?.hiddenOnMobile ? { display: { xs: 'none', sm: 'table-cell' } } : {};
+
+  const renderRow = (rowCells: any[]) => (
+    <TableRow>
+      {rowCells.map((cell) => {
+        const meta = cell.column.columnDef.meta;
+        const stickyStyles = getStickyStyles(meta);
+        return (
+          <TableCell
+            key={cell.id}
+            sx={{
+              ...stickyStyles,
+              ...shouldHideColumnOnMobile(meta),
+              textAlign:
+                meta?.align ??
+                (meta?.filterVariant === 'number' ? 'right' : 'left'),
+              verticalAlign: 'top',
+              px: { xs: 0.25, sm: 1 },
+              py: { xs: 0.25, sm: 0.5 },
+              whiteSpace: { xs: 'normal', sm: 'nowrap' },
+              wordBreak: 'break-word',
+            }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        );
+      })}
+    </TableRow>
+  );
 
   return (
     <Box sx={{ width: '100%', overflowX: 'auto' }}>
@@ -161,43 +187,46 @@ export default function StickyTable<T extends Record<string, any>>({
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id}>
                 {group.headers.map((header) => {
-                  const stickyStyles = getStickyStyles(
-                    header.column.columnDef.meta,
-                  );
+                  const meta = header.column.columnDef.meta;
+                  const stickyStyles = getStickyStyles(meta);
                   return (
                     <TableCell
                       key={header.id}
                       sx={{
                         ...stickyStyles,
+                        ...shouldHideColumnOnMobile(meta),
                         top: 0,
                         zIndex: 10,
-                        minWidth: header.column.columnDef.size ?? 100,
-                        maxWidth: header.column.columnDef.size ?? 200,
+                        minWidth: {
+                          xs: 60,
+                          sm: header.column.columnDef.size ?? 100,
+                        },
+                        maxWidth: {
+                          xs: 80,
+                          sm: header.column.columnDef.size ?? 200,
+                        },
                         backgroundColor: isColumnFiltered(header.column.id)
                           ? theme.palette.action.selected
                           : theme.palette.grey[50],
-                        px: { xs: 0.75, sm: 1.5 },
-                        py: { xs: 0.5, sm: 0.75 },
-                        textAlign: 'center',
-                        verticalAlign: 'top', // ✅ aligns text to top
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        textAlign:
+                          meta?.align ??
+                          (meta?.filterVariant === 'number' ? 'right' : 'left'),
+                        verticalAlign: 'top',
+                        px: { xs: 0.25, sm: 1 },
+                        py: { xs: 0.25, sm: 0.5 },
+                        whiteSpace: { xs: 'normal', sm: 'nowrap' },
+                        wordBreak: 'break-word',
                       }}
                     >
                       <Stack
                         spacing={0.25}
-                        alignItems="center" // ✅ horizontal center
-                        justifyContent="flex-start" // ✅ vertical top
+                        alignItems="flex-start"
+                        justifyContent="flex-start"
                       >
                         <Typography
                           variant="caption"
                           fontWeight={600}
-                          noWrap
-                          sx={{
-                            fontSize: { xs: '0.7rem', sm: '0.8rem' },
-                            textAlign: 'center',
-                          }}
+                          sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}
                         >
                           {flexRender(
                             header.column.columnDef.header,
@@ -220,133 +249,52 @@ export default function StickyTable<T extends Record<string, any>>({
           </TableHead>
 
           <TableBody>
-            {[...rowModel.rows]
-              .sort((a, b) => {
-                if (a.depth === 0 && b.depth === 0) {
-                  if (groupSortMode === 'count') {
-                    return b.subRows.length - a.subRows.length;
-                  } else {
-                    return String(
-                      a.getValue(groupById as string),
-                    ).localeCompare(String(b.getValue(groupById as string)));
-                  }
-                }
-                return 0;
-              })
-              .map((row) => {
-                if (row.depth === 0 && row.subRows.length > 0) {
-                  const isOpen = expandedGroups[row.id];
-                  const label = String(row.getValue(groupById as string));
-                  return (
-                    <React.Fragment key={row.id}>
-                      <TableRow
-                        sx={{
-                          backgroundColor: theme.palette.action.hover,
-                          position: 'sticky',
-                          top: 40, // Adjust based on header height
-                          zIndex: 5,
-                        }}
-                      >
-                        <TableCell colSpan={columns.length}>
-                          <Stack
-                            direction="row"
-                            alignItems="center"
-                            spacing={1}
+            {rowModel.rows.map((row) => {
+              if (row.depth === 0 && row.subRows.length > 0 && isGrouped) {
+                const isOpen = expandedGroups[row.id];
+                const label = String(row.getValue(groupById as string));
+                return (
+                  <React.Fragment key={row.id}>
+                    <TableRow
+                      sx={{
+                        backgroundColor: theme.palette.action.hover,
+                        position: 'sticky',
+                        top: 40,
+                        zIndex: 5,
+                      }}
+                    >
+                      <TableCell colSpan={columns.length}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <IconButton
+                            size="small"
+                            onClick={() => toggleGroup(row.id)}
                           >
-                            <IconButton
-                              size="small"
-                              onClick={() => toggleGroup(row.id)}
+                            {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                          </IconButton>
+                          <Typography fontWeight={600}>
+                            {label}{' '}
+                            <Typography
+                              component="span"
+                              variant="caption"
+                              color="text.secondary"
                             >
-                              {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                            </IconButton>
-                            <Typography fontWeight={600}>
-                              {label}{' '}
-                              <Typography
-                                component="span"
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                ({row.subRows.length})
-                              </Typography>
+                              ({row.subRows.length})
                             </Typography>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-
-                      {isOpen &&
-                        row.subRows.map((child) => (
-                          <TableRow key={child.id}>
-                            {child.getVisibleCells().map((cell) => {
-                              const stickyStyles = getStickyStyles(
-                                cell.column.columnDef.meta,
-                              );
-                              return (
-                                <TableCell
-                                  key={cell.id}
-                                  sx={{
-                                    ...stickyStyles,
-                                    textAlign:
-                                      cell.column.columnDef.meta
-                                        ?.filterVariant === 'number'
-                                        ? 'right'
-                                        : 'left',
-                                    px: { xs: 0.75, sm: 1.5 },
-                                    py: { xs: 0.5, sm: 0.75 },
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                  }}
-                                >
-                                  {flexRender(
-                                    cell.column.columnDef.cell,
-                                    cell.getContext(),
-                                  )}
-                                </TableCell>
-                              );
-                            })}
-                          </TableRow>
-                        ))}
-                    </React.Fragment>
-                  );
-                }
-
-                if (row.depth === 0) {
-                  return (
-                    <TableRow key={row.id}>
-                      {row.getVisibleCells().map((cell) => {
-                        const stickyStyles = getStickyStyles(
-                          cell.column.columnDef.meta,
-                        );
-                        return (
-                          <TableCell
-                            key={cell.id}
-                            sx={{
-                              ...stickyStyles,
-                              textAlign:
-                                cell.column.columnDef.meta?.filterVariant ===
-                                'number'
-                                  ? 'right'
-                                  : 'left',
-                              px: { xs: 0.75, sm: 1.5 },
-                              py: { xs: 0.5, sm: 0.75 },
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </TableCell>
-                        );
-                      })}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
                     </TableRow>
-                  );
-                }
+                    {isOpen &&
+                      row.subRows.map((child) =>
+                        renderRow(child.getVisibleCells()),
+                      )}
+                  </React.Fragment>
+                );
+              }
 
-                return null;
-              })}
+              if (row.depth === 0) return renderRow(row.getVisibleCells());
+              return null;
+            })}
 
             {rowModel.rows.length === 0 && (
               <TableRow>
