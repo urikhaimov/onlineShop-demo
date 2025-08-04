@@ -9,11 +9,14 @@ import AppTheme from '../shared-theme/AppTheme';
 import { Outlet } from 'react-router-dom';
 import theme from '@client/layouts/dashboard/theme';
 import { useMediaQuery } from '@mui/material';
-
+import CartDrawer from '../../components/CartDrawer';
+import { useSidebarStore } from '../../stores/useSidebarStore';
 const xThemeComponents = {};
 
 export default function Dashboard(props) {
   const medium = useMediaQuery(theme.breakpoints.down('md'));
+  const cartOpen = useSidebarStore((s) => s.cartOpen);
+  const closeCartDrawer = useSidebarStore((s) => s.closeCartDrawer);
 
   return (
     <AppTheme {...props} themeComponents={xThemeComponents}>
@@ -81,6 +84,7 @@ export default function Dashboard(props) {
             <Outlet />
           </Box>
         </Box>
+        <CartDrawer open={cartOpen} onClose={closeCartDrawer} />
       </Box>
     </AppTheme>
   );

@@ -1,8 +1,10 @@
+// src/components/table/defineProductColumns.ts
 import { ColumnDef } from '@tanstack/react-table';
 import { IProduct } from '@common/types';
 import { CardMedia, Button, Link as MuiLink } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import { Link } from 'react-router-dom';
+import { useCartStore } from '../../stores/useCartStore'; // Adjust if your path is different
 
 export function defineProductColumns(
   categories: { id: string; name: string }[],
@@ -112,16 +114,25 @@ export function defineProductColumns(
       id: 'actions',
       enableColumnFilter: false,
       enableSorting: false,
-      cell: () => (
-        <Button
-          startIcon={<AddShoppingCartIcon />}
-          size="small"
-          variant="outlined"
-          onClick={() => setSnackbarOpen(true)}
-        >
-          Add to Cart
-        </Button>
-      ),
+      cell: ({ row }) => {
+        const product = row.original;
+        const addToCart = useCartStore.getState().addToCart;
+
+        return (
+          <Button
+            startIcon={<AddShoppingCartIcon />}
+            size="small"
+            variant="outlined"
+            onClick={() => {
+              addToCart({ ...product, quantity: 1 });
+              setSnackbarOpen(true);
+            }}
+            disabled={product.stock <= 0}
+          >
+            Add to Cart
+          </Button>
+        );
+      },
     },
   ];
 }
