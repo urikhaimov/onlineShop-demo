@@ -1,5 +1,3 @@
-// StickyTable.tsx
-
 import React, { useState, useEffect } from 'react';
 import {
   useReactTable,
@@ -29,7 +27,6 @@ import {
   Typography,
   IconButton,
   Tooltip,
-  Collapse,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -50,7 +47,6 @@ interface StickyTableProps<T> {
   enableColumnFilters?: boolean;
   groupById?: keyof T;
 }
-// ...existing imports remain unchanged
 
 export default function StickyTable<T extends Record<string, any>>({
   columns,
@@ -175,20 +171,40 @@ export default function StickyTable<T extends Record<string, any>>({
                         ...stickyStyles,
                         top: 0,
                         zIndex: 10,
+                        minWidth: header.column.columnDef.size ?? 100,
+                        maxWidth: header.column.columnDef.size ?? 200,
                         backgroundColor: isColumnFiltered(header.column.id)
                           ? theme.palette.action.selected
                           : theme.palette.grey[50],
-                        px: 1.5,
-                        py: 0.75,
+                        px: { xs: 0.75, sm: 1.5 },
+                        py: { xs: 0.5, sm: 0.75 },
+                        textAlign: 'center',
+                        verticalAlign: 'top', // ✅ aligns text to top
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                       }}
                     >
-                      <Stack spacing={0.5}>
-                        <Typography variant="body2" fontWeight={600} noWrap>
+                      <Stack
+                        spacing={0.25}
+                        alignItems="center" // ✅ horizontal center
+                        justifyContent="flex-start" // ✅ vertical top
+                      >
+                        <Typography
+                          variant="caption"
+                          fontWeight={600}
+                          noWrap
+                          sx={{
+                            fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                            textAlign: 'center',
+                          }}
+                        >
                           {flexRender(
                             header.column.columnDef.header,
                             header.getContext(),
                           )}
                         </Typography>
+
                         {enableColumnFilters &&
                           header.column.getCanFilter() && (
                             <Box sx={{ mt: 0.25 }}>
@@ -224,7 +240,12 @@ export default function StickyTable<T extends Record<string, any>>({
                   return (
                     <React.Fragment key={row.id}>
                       <TableRow
-                        sx={{ backgroundColor: theme.palette.action.hover }}
+                        sx={{
+                          backgroundColor: theme.palette.action.hover,
+                          position: 'sticky',
+                          top: 40, // Adjust based on header height
+                          zIndex: 5,
+                        }}
                       >
                         <TableCell colSpan={columns.length}>
                           <Stack
@@ -260,7 +281,22 @@ export default function StickyTable<T extends Record<string, any>>({
                                 cell.column.columnDef.meta,
                               );
                               return (
-                                <TableCell key={cell.id} sx={stickyStyles}>
+                                <TableCell
+                                  key={cell.id}
+                                  sx={{
+                                    ...stickyStyles,
+                                    textAlign:
+                                      cell.column.columnDef.meta
+                                        ?.filterVariant === 'number'
+                                        ? 'right'
+                                        : 'left',
+                                    px: { xs: 0.75, sm: 1.5 },
+                                    py: { xs: 0.5, sm: 0.75 },
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                >
                                   {flexRender(
                                     cell.column.columnDef.cell,
                                     cell.getContext(),
@@ -282,7 +318,22 @@ export default function StickyTable<T extends Record<string, any>>({
                           cell.column.columnDef.meta,
                         );
                         return (
-                          <TableCell key={cell.id} sx={stickyStyles}>
+                          <TableCell
+                            key={cell.id}
+                            sx={{
+                              ...stickyStyles,
+                              textAlign:
+                                cell.column.columnDef.meta?.filterVariant ===
+                                'number'
+                                  ? 'right'
+                                  : 'left',
+                              px: { xs: 0.75, sm: 1.5 },
+                              py: { xs: 0.5, sm: 0.75 },
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
                             {flexRender(
                               cell.column.columnDef.cell,
                               cell.getContext(),

@@ -7,7 +7,7 @@ import { useCartStore } from '../../stores/useCartStore';
 import { betweenNumberRange } from '../../components/StickyTable/tableFilters';
 const COLUMN_WIDTHS = {
   image: 100,
-  actions: 200,
+  actions: 120,
   number: 60,
 };
 
@@ -20,7 +20,7 @@ export function defineProductColumns(
     {
       accessorKey: 'images',
       header: 'Image',
-      enablePinning: true,
+
       meta: { sticky: 'left' }, // ✅ Sticky left
       enableColumnFilter: false,
       size: COLUMN_WIDTHS.image,
