@@ -79,7 +79,7 @@ export default function StripeCheckoutForm() {
         localStorage.removeItem('cart');
         console.log('✅ Removed localStorage.cart');
 
-        navigate('/thank-you'); // ✅ local confirmation page
+        navigate('/checkout/success'); // ✅ local confirmation page
       } else {
         console.warn('PaymentIntent status:', paymentIntent?.status);
         dispatch({
