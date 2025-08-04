@@ -1,19 +1,15 @@
-// StickyTable.tsx
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
-  useReactTable,
+  ColumnDef,
+  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
-  getGroupedRowModel,
-  flexRender,
-  ColumnDef,
-  SortingState,
-  ColumnFiltersState,
-  Updater,
+  useReactTable,
+  TableOptions,
 } from '@tanstack/react-table';
 import {
+  Box,
   Paper,
   Table,
   TableBody,
@@ -22,277 +18,76 @@ import {
   TableHead,
   TableRow,
   TablePagination,
-  Box,
-  useTheme,
-  useMediaQuery,
-  Stack,
-  Typography,
-  IconButton,
-  Tooltip,
-  Collapse,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import SwapVertIcon from '@mui/icons-material/SwapVert';
 import { renderColumnFilter } from './renderColumnFilter';
+import { tableFilters } from './tableFilters';
 
 interface StickyTableProps<T> {
-  columns: ColumnDef<T>[];
   data: T[];
-  sorting: SortingState;
-  onSortingChange: (updater: Updater<SortingState>) => void;
-  columnFilters: ColumnFiltersState;
-  onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) => void;
-  stickyColumnIndex?: number;
-  enablePagination?: boolean;
-  rowsPerPage?: number;
-  enableSorting?: boolean;
-  enableColumnFilters?: boolean;
-  groupById?: keyof T;
+  columns: ColumnDef<T, any>[];
+  initialState?: Partial<TableOptions<T>['state']>;
 }
 
-export default function StickyTable<T extends Record<string, any>>({
-  columns,
+export default function StickyTable<T extends object>({
   data,
-  sorting,
-  onSortingChange,
-  columnFilters,
-  onColumnFiltersChange,
-  stickyColumnIndex = 0,
-  enablePagination = true,
-  rowsPerPage = 10,
-  enableSorting = true,
-  enableColumnFilters = true,
-  groupById,
+  columns,
+  initialState,
 }: StickyTableProps<T>) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [groupSortMode, setGroupSortMode] = useState<'count' | 'alpha'>(
-    'count',
-  );
-
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, columnFilters },
-    onSortingChange,
-    onColumnFiltersChange,
+    state: initialState,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    getGroupedRowModel: getGroupedRowModel(),
-    manualGrouping: false,
-    initialState: {
-      grouping: groupById ? [String(groupById)] : [],
-    },
-    enableSorting,
-    enableColumnFilters,
+    filterFns: tableFilters,
   });
 
-  const rowModel = table.getRowModel();
-  const isGrouped = !!groupById && table.getState().grouping.length > 0;
-
-  useEffect(() => {
-    if (isGrouped) {
-      const next: Record<string, boolean> = {};
-      rowModel.rows.forEach((row) => {
-        if (row.subRows.length > 0 && row.depth === 0) {
-          next[row.id] = true;
-        }
-      });
-      setExpandedGroups(next);
-    }
-  }, [data, groupById, isGrouped]);
-
-  const toggleGroup = (id: string) => {
-    setExpandedGroups((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const isColumnFiltered = (id: string) =>
-    columnFilters.some((f) => f.id === id && !!f.value);
-
   return (
-    <Box sx={{ width: '100%', overflowX: 'auto' }}>
-      {isGrouped && (
-        <Box display="flex" justifyContent="flex-end" sx={{ mb: 1 }}>
-          <Tooltip title={`Sort groups by ${groupSortMode}`}>
-            <IconButton
-              onClick={() =>
-                setGroupSortMode((prev) =>
-                  prev === 'count' ? 'alpha' : 'count',
-                )
-              }
-              size="small"
-              sx={{ border: `1px solid ${theme.palette.divider}` }}
-            >
-              <SwapVertIcon fontSize="small" />
-              <Typography variant="caption" ml={0.5}>
-                {groupSortMode === 'count' ? 'Count' : 'Name'}
-              </Typography>
-            </IconButton>
-          </Tooltip>
-        </Box>
-      )}
-
-      <TableContainer
-        component={Paper}
-        sx={{
-          borderRadius: 2,
-          boxShadow: 1,
-          border: `1px solid ${theme.palette.divider}`,
-          maxHeight: 'calc(100vh - 200px)',
-        }}
-      >
-        <Table stickyHeader size="small">
+    <Paper>
+      <TableContainer>
+        <Table stickyHeader>
           <TableHead>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableCell
-                    key={header.id}
-                    sx={{
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 10,
-                      backgroundColor: isColumnFiltered(header.column.id)
-                        ? theme.palette.action.selected
-                        : theme.palette.grey[50],
-                      px: 1.5,
-                      py: 0.75,
-                    }}
-                  >
-                    <Stack spacing={0.5}>
-                      <Typography variant="body2" fontWeight={600} noWrap>
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                      </Typography>
-                      {enableColumnFilters && header.column.getCanFilter() && (
-                        <Box sx={{ mt: 0.25 }}>
-                          {renderColumnFilter(header.column, table)}
-                        </Box>
-                      )}
-                    </Stack>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableCell key={header.id} colSpan={header.colSpan}>
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
+                    {header.column.getCanFilter() && (
+                      <Box>{renderColumnFilter(header.column, table)}</Box>
+                    )}
                   </TableCell>
                 ))}
               </TableRow>
             ))}
           </TableHead>
-
           <TableBody>
-            {[...rowModel.rows]
-              .sort((a, b) => {
-                if (a.depth === 0 && b.depth === 0) {
-                  if (groupSortMode === 'count') {
-                    return b.subRows.length - a.subRows.length;
-                  } else {
-                    return String(
-                      a.getValue(groupById as string),
-                    ).localeCompare(String(b.getValue(groupById as string)));
-                  }
-                }
-                return 0;
-              })
-              .map((row, rowIndex) => {
-                if (row.depth === 0 && row.subRows.length > 0) {
-                  const isOpen = expandedGroups[row.id];
-                  const label = String(row.getValue(groupById as string));
-                  return (
-                    <React.Fragment key={row.id}>
-                      <TableRow
-                        sx={{ backgroundColor: theme.palette.action.hover }}
-                      >
-                        <TableCell colSpan={columns.length}>
-                          <Stack
-                            direction="row"
-                            alignItems="center"
-                            spacing={1}
-                          >
-                            <IconButton
-                              size="small"
-                              onClick={() => toggleGroup(row.id)}
-                            >
-                              {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                            </IconButton>
-                            <Typography fontWeight={600}>
-                              {label}{' '}
-                              <Typography
-                                component="span"
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                ({row.subRows.length})
-                              </Typography>
-                            </Typography>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-
-                      {isOpen &&
-                        row.subRows.map((child) => (
-                          <TableRow key={child.id}>
-                            {child.getVisibleCells().map((cell) => (
-                              <TableCell key={cell.id}>
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext(),
-                                )}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                    </React.Fragment>
-                  );
-                }
-
-                // In flat mode (no groupBy)
-                if (row.depth === 0) {
-                  return (
-                    <TableRow key={row.id}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  );
-                }
-
-                return null;
-              })}
-
-            {rowModel.rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={columns.length} align="center">
-                  No results found.
-                </TableCell>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
       </TableContainer>
-
-      {enablePagination && !isGrouped && (
-        <TablePagination
-          component="div"
-          count={table.getFilteredRowModel().rows.length}
-          page={table.getState().pagination.pageIndex}
-          onPageChange={(_, page) => table.setPageIndex(page)}
-          rowsPerPage={rowsPerPage}
-          rowsPerPageOptions={[]}
-          sx={{ mt: 1 }}
-        />
-      )}
-    </Box>
+      <TablePagination
+        component="div"
+        count={table.getFilteredRowModel().rows.length}
+        rowsPerPage={table.getState().pagination.pageSize}
+        page={table.getState().pagination.pageIndex}
+        onPageChange={(_, newPage) => table.setPageIndex(newPage)}
+        onRowsPerPageChange={(e) => {
+          table.setPageSize(Number(e.target.value));
+        }}
+        rowsPerPageOptions={[5, 10, 20, 50]}
+      />
+    </Paper>
   );
 }

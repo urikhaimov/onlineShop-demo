@@ -1,38 +1,47 @@
+// src/pages/NotFoundPage.tsx
+
 import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';
 import { useNavigate } from 'react-router-dom';
-import PageWithStickyFilters from '../../layouts/PageWithStickyFilters';
 
 const NotFoundPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <PageWithStickyFilters
-      title="Not Found"
-      sidebar={<Box />} // placeholder
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        px: 2,
+        py: 6,
+      }}
     >
-      {/* Icon or Image */}
+      {/* Icon */}
       <SentimentVeryDissatisfiedIcon
         sx={{ fontSize: '6rem', mb: 2 }}
         color="primary"
       />
 
-      {/* Main 404 Message */}
+      {/* Main Message */}
       <Typography variant="h4" component="h1" gutterBottom>
         404: Page Not Found
       </Typography>
 
-      {/* Friendly description */}
-      <Typography variant="body1" color="textSecondary" paragraph>
-        Oops! The page you&#39;re looking for doesn’t exist.
+      {/* Description */}
+      <Typography variant="body1" color="text.secondary" paragraph>
+        Oops! The page you&apos;re looking for doesn’t exist.
       </Typography>
 
-      {/* Home button to navigate back */}
+      {/* Back to Home Button */}
       <Button variant="contained" color="primary" onClick={() => navigate('/')}>
         Back to Home
       </Button>
-    </PageWithStickyFilters>
+    </Box>
   );
 };
 

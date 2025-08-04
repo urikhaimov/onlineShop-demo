@@ -1,10 +1,15 @@
-// src/components/table/defineProductColumns.ts
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, FilterFnOption } from '@tanstack/react-table';
 import { IProduct } from '@common/types';
 import { CardMedia, Button, Link as MuiLink } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import { Link } from 'react-router-dom';
-import { useCartStore } from '../../stores/useCartStore'; // Adjust if your path is different
+import { useCartStore } from '../../stores/useCartStore';
+import { betweenNumberRange } from '../../components/StickyTable/tableFilters';
+const COLUMN_WIDTHS = {
+  image: 100,
+  actions: 160,
+  number: 60,
+};
 
 export function defineProductColumns(
   categories: { id: string; name: string }[],
@@ -15,6 +20,7 @@ export function defineProductColumns(
       accessorKey: 'images',
       header: 'Image',
       enableColumnFilter: false,
+      size: COLUMN_WIDTHS.image,
       cell: ({ row, getValue }) => {
         const images = getValue<string[]>() ?? [];
         const firstImage =
@@ -26,11 +32,11 @@ export function defineProductColumns(
             <CardMedia
               component="img"
               sx={{
-                width: 80,
-                height: 80,
+                width: 60,
+                height: 60,
                 borderRadius: 1,
                 objectFit: 'cover',
-                mx: { xs: 'auto', sm: 0 },
+                mx: 'auto',
                 cursor: 'pointer',
               }}
               image={firstImage}
@@ -40,6 +46,7 @@ export function defineProductColumns(
         );
       },
     },
+
     {
       accessorKey: 'name',
       header: 'Name',
@@ -54,13 +61,14 @@ export function defineProductColumns(
             to={`/product/${id}`}
             underline="hover"
             color="primary"
-            sx={{ cursor: 'pointer', fontWeight: 500 }}
+            sx={{ fontWeight: 500 }}
           >
             {name}
           </MuiLink>
         );
       },
     },
+
     {
       accessorKey: 'categoryId',
       header: 'Category',
@@ -70,50 +78,34 @@ export function defineProductColumns(
         filterVariant: 'select',
         selectOptions: categories.map((c) => c.id),
       },
-      cell: ({ getValue }) => {
-        const catId = getValue<string>();
-        const cat = categories.find((c) => c.id === catId);
-        return cat?.name || 'Unknown';
-      },
+      cell: () => '',
     },
+
     {
       accessorKey: 'stock',
       header: 'Stock',
       enableColumnFilter: true,
-      filterFn: 'equals',
+      size: COLUMN_WIDTHS.number,
+      filterFn: betweenNumberRange as FilterFnOption<any>,
       meta: { filterVariant: 'number' },
     },
+
     {
       accessorKey: 'price',
       header: 'Price',
       enableColumnFilter: true,
-      filterFn: 'equals',
+      size: COLUMN_WIDTHS.number,
+      filterFn: betweenNumberRange as FilterFnOption<any>,
       meta: { filterVariant: 'number' },
       cell: ({ getValue }) => `$${getValue<number>().toFixed(2)}`,
     },
-    {
-      accessorKey: 'createdAt',
-      header: 'Created At',
-      enableColumnFilter: true,
-      filterFn: 'equals',
-      meta: { filterVariant: 'date' },
-      cell: ({ getValue }) => {
-        const raw = getValue<string | Date>();
-        const date = new Date(raw);
-        return isNaN(date.getTime())
-          ? 'N/A'
-          : date.toLocaleDateString(undefined, {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            });
-      },
-    },
+
     {
       header: 'Actions',
       id: 'actions',
       enableColumnFilter: false,
       enableSorting: false,
+      size: COLUMN_WIDTHS.actions,
       cell: ({ row }) => {
         const product = row.original;
         const addToCart = useCartStore.getState().addToCart;

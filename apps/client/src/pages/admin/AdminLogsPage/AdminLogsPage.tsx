@@ -1,3 +1,5 @@
+// src/pages/admin/AdminLogsPage.tsx
+
 import React, { useState } from 'react';
 import {
   Box,
@@ -13,7 +15,6 @@ import {
   InputLabel,
 } from '@mui/material';
 import { SelectChangeEvent } from '@mui/material';
-import PageWithStickyFilters from '../../../layouts/PageWithStickyFilters';
 import { useLogs } from '../../../hooks/useLogs';
 import type { SecurityLog } from '../../../api/logs';
 import LoadingProgress from '../../../components/LoadingProgress';
@@ -36,8 +37,19 @@ const AdminLogsPage: React.FC = () => {
   const logsArray: SecurityLog[] = logs ?? [];
 
   return (
-    <PageWithStickyFilters title="Admin Logs" sidebar={<Box />}>
-      <FormControl sx={{ mb: 2, minWidth: 200 }}>
+    <Box
+      sx={{
+        maxWidth: 1000,
+        mx: 'auto',
+        px: 2,
+        py: 4,
+      }}
+    >
+      <Typography variant="h4" gutterBottom>
+        Admin Logs
+      </Typography>
+
+      <FormControl sx={{ mb: 3, minWidth: 240 }}>
         <InputLabel>Filter by Category</InputLabel>
         <Select
           value={categoryFilter}
@@ -66,7 +78,9 @@ const AdminLogsPage: React.FC = () => {
               <React.Fragment key={log.id}>
                 <ListItem>
                   <ListItemText
-                    primary={`${log.type || log.action || 'Unknown action'} (Admin: ${log.email || log.uid || 'Unknown'})`}
+                    primary={`${log.type || log.action || 'Unknown action'} (Admin: ${
+                      log.email || log.uid || 'Unknown'
+                    })`}
                     secondary={new Date(log.timestamp).toLocaleString()}
                   />
                 </ListItem>
@@ -80,7 +94,7 @@ const AdminLogsPage: React.FC = () => {
           No logs found.
         </Typography>
       )}
-    </PageWithStickyFilters>
+    </Box>
   );
 };
 

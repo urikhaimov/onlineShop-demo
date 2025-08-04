@@ -1,3 +1,4 @@
+// src/pages/CartPage.tsx
 import React from 'react';
 import {
   Box,
@@ -10,7 +11,6 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useCartStore } from '../stores/useCartStore';
 import { useNavigate } from 'react-router-dom';
-import PageWithStickyFilters from '../layouts/PageWithStickyFilters';
 import { PageLayout } from '../layouts/page.layout';
 import { EAbilityActions, EAbilitySubjects } from '../services/ability.service';
 
@@ -25,10 +25,18 @@ export default function CartPage() {
 
   return (
     <PageLayout action={EAbilityActions.READ} subject={EAbilitySubjects.CART}>
-      <PageWithStickyFilters
-        title="My Cart"
-        sidebar={<Box />} // empty for nowp
+      <Box
+        sx={{
+          maxWidth: 800,
+          mx: 'auto',
+          px: 2,
+          py: 4,
+        }}
       >
+        <Typography variant="h4" gutterBottom>
+          My Cart
+        </Typography>
+
         {items.length === 0 ? (
           <Typography>Your cart is empty.</Typography>
         ) : (
@@ -44,7 +52,7 @@ export default function CartPage() {
                 <Box flex={1}>
                   <Typography variant="h6">{item.name}</Typography>
                   <Typography variant="body2">
-                    ${item.price} x {item.quantity}
+                    ${item.price} × {item.quantity}
                   </Typography>
                 </Box>
                 <TextField
@@ -78,7 +86,7 @@ export default function CartPage() {
             </Box>
           </>
         )}
-      </PageWithStickyFilters>
+      </Box>
     </PageLayout>
   );
 }

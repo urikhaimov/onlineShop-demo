@@ -1,11 +1,14 @@
-// src/components/tables/renderColumnFilter.tsx
 import React from 'react';
-import { TextField, MenuItem, Stack } from '@mui/material';
+import { MenuItem, Stack } from '@mui/material';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { Column, Table } from '@tanstack/react-table';
 import dayjs, { Dayjs } from 'dayjs';
+import FormTextField from '../../components/FormTextField'; // adjust path as needed
 
+/**
+ * Filter variant types
+ */
 type FilterVariant = 'text' | 'select' | 'number' | 'date';
 
 interface ColumnMeta {
@@ -24,43 +27,60 @@ export function renderColumnFilter<T>(
   switch (filterType) {
     case 'select':
       return (
-        <TextField
+        <FormTextField
+          label={column.columnDef.header as string}
           select
-          fullWidth
           variant="standard"
           value={value ?? ''}
           onChange={(e) => column.setFilterValue(e.target.value)}
-        >
-          <MenuItem value="">All</MenuItem>
-          {meta?.selectOptions?.map((opt) => (
-            <MenuItem key={opt} value={opt}>
-              {opt}
-            </MenuItem>
-          ))}
-        </TextField>
-      );
-
-    case 'number':
-      return (
-        <TextField
-          type="number"
-          variant="standard"
-          fullWidth
-          value={value ?? ''}
-          onChange={(e) =>
-            column.setFilterValue(
-              e.target.value === '' ? undefined : Number(e.target.value),
-            )
+          selectOptions={
+            meta?.selectOptions?.map((val) => ({
+              label: val,
+              value: val,
+            })) ?? []
           }
         />
       );
 
+    case 'number': {
+      const [min, max] = Array.isArray(value) ? value : [null, null];
+      return (
+        <Stack direction="column" spacing={1}>
+          <FormTextField
+            type="number"
+            label="From"
+            variant="standard"
+            value={min ?? ''}
+            onChange={(e) =>
+              column.setFilterValue([
+                e.target.value === '' ? null : Number(e.target.value),
+                max ?? null,
+              ])
+            }
+            sx={{ flex: 1 }}
+          />
+          <FormTextField
+            type="number"
+            label="To"
+            variant="standard"
+            value={max ?? ''}
+            onChange={(e) =>
+              column.setFilterValue([
+                min ?? null,
+                e.target.value === '' ? null : Number(e.target.value),
+              ])
+            }
+            sx={{ flex: 1 }}
+          />
+        </Stack>
+      );
+    }
+
     case 'date': {
       const [start, end] = Array.isArray(value) ? value : [null, null];
-
       return (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="column" spacing={1}>
             <DatePicker
               label="From"
               value={start ? dayjs(start) : null}
@@ -92,9 +112,9 @@ export function renderColumnFilter<T>(
     case 'text':
     default:
       return (
-        <TextField
+        <FormTextField
+          label={column.columnDef.header as string}
           variant="standard"
-          fullWidth
           value={value ?? ''}
           onChange={(e) => column.setFilterValue(e.target.value)}
           placeholder="Filter…"
