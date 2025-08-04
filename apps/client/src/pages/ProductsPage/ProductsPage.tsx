@@ -93,6 +93,7 @@ export default function ProductsPage() {
           enableSorting
           enableColumnFilters
           groupById="categoryId"
+          stickyColumnIndex={3}
         />
 
         <Snackbar

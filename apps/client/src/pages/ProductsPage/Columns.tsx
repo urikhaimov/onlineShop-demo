@@ -7,7 +7,7 @@ import { useCartStore } from '../../stores/useCartStore';
 import { betweenNumberRange } from '../../components/StickyTable/tableFilters';
 const COLUMN_WIDTHS = {
   image: 100,
-  actions: 160,
+  actions: 200,
   number: 60,
 };
 
@@ -16,9 +16,12 @@ export function defineProductColumns(
   setSnackbarOpen: (open: boolean) => void,
 ): ColumnDef<IProduct, any>[] {
   return [
+    // ✅ 0: image
     {
       accessorKey: 'images',
       header: 'Image',
+      enablePinning: true,
+      meta: { sticky: 'left' }, // ✅ Sticky left
       enableColumnFilter: false,
       size: COLUMN_WIDTHS.image,
       cell: ({ row, getValue }) => {
@@ -26,7 +29,6 @@ export function defineProductColumns(
         const firstImage =
           images[0] || 'https://picsum.photos/seed/fallback/100/100';
         const id = row.original.id;
-
         return (
           <Link to={`/product/${id}`}>
             <CardMedia
@@ -47,6 +49,23 @@ export function defineProductColumns(
       },
     },
 
+    // ✅ 1: category (sticky)
+    {
+      accessorKey: 'categoryId',
+      header: 'Category',
+      enablePinning: true,
+      enableColumnFilter: true,
+      filterFn: 'equals',
+      meta: {
+        filterVariant: 'select',
+        selectOptions: categories.map((c) => c.id),
+      },
+      cell: () => '',
+    },
+
+    // ✅ 2: actions (sticky)
+
+    // 👇 These will scroll
     {
       accessorKey: 'name',
       header: 'Name',
@@ -70,18 +89,6 @@ export function defineProductColumns(
     },
 
     {
-      accessorKey: 'categoryId',
-      header: 'Category',
-      enableColumnFilter: true,
-      filterFn: 'equals',
-      meta: {
-        filterVariant: 'select',
-        selectOptions: categories.map((c) => c.id),
-      },
-      cell: () => '',
-    },
-
-    {
       accessorKey: 'stock',
       header: 'Stock',
       enableColumnFilter: true,
@@ -99,17 +106,17 @@ export function defineProductColumns(
       meta: { filterVariant: 'number' },
       cell: ({ getValue }) => `$${getValue<number>().toFixed(2)}`,
     },
-
     {
       header: 'Actions',
       id: 'actions',
       enableColumnFilter: false,
       enableSorting: false,
+      meta: { sticky: 'right' }, // ✅ Sticky right
+      enablePinning: true,
       size: COLUMN_WIDTHS.actions,
       cell: ({ row }) => {
         const product = row.original;
         const addToCart = useCartStore.getState().addToCart;
-
         return (
           <Button
             startIcon={<AddShoppingCartIcon />}

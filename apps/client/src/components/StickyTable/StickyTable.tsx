@@ -50,6 +50,7 @@ interface StickyTableProps<T> {
   enableColumnFilters?: boolean;
   groupById?: keyof T;
 }
+// ...existing imports remain unchanged
 
 export default function StickyTable<T extends Record<string, any>>({
   columns,
@@ -58,7 +59,6 @@ export default function StickyTable<T extends Record<string, any>>({
   onSortingChange,
   columnFilters,
   onColumnFiltersChange,
-  stickyColumnIndex = 0,
   enablePagination = true,
   rowsPerPage = 10,
   enableSorting = true,
@@ -117,6 +117,17 @@ export default function StickyTable<T extends Record<string, any>>({
   const isColumnFiltered = (id: string) =>
     columnFilters.some((f) => f.id === id && !!f.value);
 
+  const getStickyStyles = (meta?: any) => {
+    const sticky = meta?.sticky;
+    if (sticky === 'left') {
+      return { position: 'sticky', left: 0, zIndex: 1 };
+    }
+    if (sticky === 'right') {
+      return { position: 'sticky', right: 0, zIndex: 1 };
+    }
+    return {};
+  };
+
   return (
     <Box sx={{ width: '100%', overflowX: 'auto' }}>
       {isGrouped && (
@@ -153,35 +164,41 @@ export default function StickyTable<T extends Record<string, any>>({
           <TableHead>
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableCell
-                    key={header.id}
-                    sx={{
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 10,
-                      backgroundColor: isColumnFiltered(header.column.id)
-                        ? theme.palette.action.selected
-                        : theme.palette.grey[50],
-                      px: 1.5,
-                      py: 0.75,
-                    }}
-                  >
-                    <Stack spacing={0.5}>
-                      <Typography variant="body2" fontWeight={600} noWrap>
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                      </Typography>
-                      {enableColumnFilters && header.column.getCanFilter() && (
-                        <Box sx={{ mt: 0.25 }}>
-                          {renderColumnFilter(header.column, table)}
-                        </Box>
-                      )}
-                    </Stack>
-                  </TableCell>
-                ))}
+                {group.headers.map((header) => {
+                  const stickyStyles = getStickyStyles(
+                    header.column.columnDef.meta,
+                  );
+                  return (
+                    <TableCell
+                      key={header.id}
+                      sx={{
+                        ...stickyStyles,
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: isColumnFiltered(header.column.id)
+                          ? theme.palette.action.selected
+                          : theme.palette.grey[50],
+                        px: 1.5,
+                        py: 0.75,
+                      }}
+                    >
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2" fontWeight={600} noWrap>
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                        </Typography>
+                        {enableColumnFilters &&
+                          header.column.getCanFilter() && (
+                            <Box sx={{ mt: 0.25 }}>
+                              {renderColumnFilter(header.column, table)}
+                            </Box>
+                          )}
+                      </Stack>
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             ))}
           </TableHead>
@@ -200,7 +217,7 @@ export default function StickyTable<T extends Record<string, any>>({
                 }
                 return 0;
               })
-              .map((row, rowIndex) => {
+              .map((row) => {
                 if (row.depth === 0 && row.subRows.length > 0) {
                   const isOpen = expandedGroups[row.id];
                   const label = String(row.getValue(groupById as string));
@@ -238,32 +255,41 @@ export default function StickyTable<T extends Record<string, any>>({
                       {isOpen &&
                         row.subRows.map((child) => (
                           <TableRow key={child.id}>
-                            {child.getVisibleCells().map((cell) => (
-                              <TableCell key={cell.id}>
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext(),
-                                )}
-                              </TableCell>
-                            ))}
+                            {child.getVisibleCells().map((cell) => {
+                              const stickyStyles = getStickyStyles(
+                                cell.column.columnDef.meta,
+                              );
+                              return (
+                                <TableCell key={cell.id} sx={stickyStyles}>
+                                  {flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext(),
+                                  )}
+                                </TableCell>
+                              );
+                            })}
                           </TableRow>
                         ))}
                     </React.Fragment>
                   );
                 }
 
-                // In flat mode (no groupBy)
                 if (row.depth === 0) {
                   return (
                     <TableRow key={row.id}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
+                      {row.getVisibleCells().map((cell) => {
+                        const stickyStyles = getStickyStyles(
+                          cell.column.columnDef.meta,
+                        );
+                        return (
+                          <TableCell key={cell.id} sx={stickyStyles}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        );
+                      })}
                     </TableRow>
                   );
                 }
