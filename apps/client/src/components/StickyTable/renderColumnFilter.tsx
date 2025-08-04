@@ -28,7 +28,7 @@ export function renderColumnFilter<T>(
     case 'select':
       return (
         <FormTextField
-          label={column.columnDef.header as string}
+          label={''}
           select
           variant="standard"
           value={value ?? ''}
@@ -113,7 +113,7 @@ export function renderColumnFilter<T>(
     default:
       return (
         <FormTextField
-          label={column.columnDef.header as string}
+          label={''}
           variant="standard"
           value={value ?? ''}
           onChange={(e) => column.setFilterValue(e.target.value)}
