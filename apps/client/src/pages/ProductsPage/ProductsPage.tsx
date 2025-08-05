@@ -7,7 +7,13 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Typography,
+  Drawer,
+  IconButton,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
 
 import StickyTable from '../../components/StickyTable';
 import LoadingProgress from '../../components/LoadingProgress';
@@ -26,13 +32,17 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
-import ProductCard from '../../components/ProductCard';
+import ProductCard from './ProductCard';
+import UserProductFilters from './UserProductFilters';
 
 export default function ProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { data: categories = [] } = useCategories();
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  console.log('categories', categories);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   useEffect(() => {
     const loadProducts = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -82,6 +92,33 @@ export default function ProductsPage() {
     dispatch({ type: 'SET_FILTERS', payload: newFilters });
   };
 
+  const filteredProducts = useMemo(() => {
+    return state.products.filter((product) => {
+      const matchesSearch = product.name
+        .toLowerCase()
+        .includes(state.searchTerm.toLowerCase());
+      const matchesCategory =
+        !state.selectedCategoryId ||
+        product.categoryId === state.selectedCategoryId;
+      const matchesCreatedAfter =
+        !state.createdAfter ||
+        new Date(product.createdAt) >= state.createdAfter.toDate();
+      const price = product.price ?? 0;
+      const matchesPrice = price >= state.minPrice && price <= state.maxPrice;
+
+      return (
+        matchesSearch && matchesCategory && matchesCreatedAfter && matchesPrice
+      );
+    });
+  }, [
+    state.products,
+    state.searchTerm,
+    state.selectedCategoryId,
+    state.createdAfter,
+    state.minPrice,
+    state.maxPrice,
+  ]);
+
   if (state.loading) return <LoadingProgress />;
 
   return (
@@ -128,20 +165,63 @@ export default function ProductsPage() {
             enableRowExpansion={true}
           />
         ) : (
-          <Box
-            display="grid"
-            gridTemplateColumns={{
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)',
-              lg: 'repeat(4, 1fr)',
-            }}
-            gap={3}
-          >
-            {state.products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </Box>
+          <>
+            {isMobile ? (
+              <Box display="flex" justifyContent="flex-end" mb={2}>
+                <IconButton onClick={() => setMobileFiltersOpen(true)}>
+                  <MenuIcon />
+                </IconButton>
+              </Box>
+            ) : (
+              <Box mb={2}>
+                <UserProductFilters
+                  filters={state}
+                  dispatch={dispatch}
+                  categories={categories}
+                />
+              </Box>
+            )}
+
+            <Box
+              display="grid"
+              gridTemplateColumns={{
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(3, 1fr)',
+                lg: 'repeat(4, 1fr)',
+              }}
+              gap={3}
+            >
+              {filteredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </Box>
+
+            <Drawer
+              anchor="left"
+              open={mobileFiltersOpen}
+              onClose={() => setMobileFiltersOpen(false)}
+            >
+              <Box width={280} p={2}>
+                <Box
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  mb={2}
+                >
+                  <Typography variant="h6">Filters</Typography>
+                  <IconButton onClick={() => setMobileFiltersOpen(false)}>
+                    <CloseIcon />
+                  </IconButton>
+                </Box>
+                <UserProductFilters
+                  filters={state}
+                  dispatch={dispatch}
+                  categories={categories}
+                />
+              </Box>
+            </Drawer>
+          </>
         )}
 
         <Snackbar
