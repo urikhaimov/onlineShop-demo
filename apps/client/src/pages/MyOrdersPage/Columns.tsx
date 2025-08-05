@@ -67,24 +67,29 @@ export const defineOrderColumns = (): ColumnDef<Order>[] => [
     accessorKey: 'status',
     header: 'Status',
     enableColumnFilter: true,
+    filterFn: 'equals',
     meta: {
+      filterVariant: 'select',
       selectOptions: [
         { label: 'Pending', value: 'pending' },
         { label: 'Confirmed', value: 'confirmed' },
         { label: 'Shipped', value: 'shipped' },
         { label: 'Delivered', value: 'delivered' },
         { label: 'Cancelled', value: 'cancelled' },
-      ],
+      ] as { label: string; value: string }[],
     },
-    cell: (info) => (
-      <Typography
-        variant="body2"
-        color="text.primary"
-        sx={{ textTransform: 'capitalize' }}
-      >
-        {info.getValue<string>() || '—'}
-      </Typography>
-    ),
+    cell: ({ row }) => {
+      const value = row.getValue<string>('status');
+      return (
+        <Typography
+          variant="body2"
+          color="text.primary"
+          sx={{ textTransform: 'capitalize' }}
+        >
+          {value || '—'}
+        </Typography>
+      );
+    },
   },
   {
     accessorKey: 'amount',
