@@ -30,9 +30,17 @@ export function defineProductColumns(
       meta: {
         sticky: 'left',
         filterVariant: 'select',
-        selectOptions: categories.map((c) => c.id),
+        selectOptions: categories.map((c) => ({
+          label: c.name,
+          value: c.id,
+        })),
       },
-      cell: () => '',
+      cell: ({ row }) => {
+        const category = categories.find(
+          (c) => c.id === row.original.categoryId,
+        );
+        return category?.name ?? 'Unknown';
+      },
     },
 
     // ✅ Product image

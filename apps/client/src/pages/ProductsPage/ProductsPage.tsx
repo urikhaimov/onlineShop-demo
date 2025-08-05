@@ -32,7 +32,7 @@ export default function ProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { data: categories = [] } = useCategories();
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-
+  console.log('categories', categories);
   useEffect(() => {
     const loadProducts = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
