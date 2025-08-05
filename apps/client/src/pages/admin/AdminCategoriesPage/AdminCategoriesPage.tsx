@@ -1,8 +1,7 @@
 // src/pages/admin/AdminCategoriesPage.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 import { useCategories } from '../../../hooks/useCategories';
 import StickyTable from '../../../components/StickyTable';
 import { defineCategoryColumns } from './Columns';
@@ -11,9 +10,12 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../../services/ability.service';
+import { useCategoryTableStore } from '../../../stores/useCategoryTableStore';
+
 export default function AdminCategoriesPage() {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const { sorting, setSorting, columnFilters, setColumnFilters } =
+    useCategoryTableStore();
+
   const { data: categories = [] } = useCategories();
   const navigate = useNavigate();
 

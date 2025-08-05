@@ -1,4 +1,5 @@
-import React, { useEffect, useReducer, useState, useMemo } from 'react';
+// src/pages/MyOrdersPage.tsx
+import React, { useEffect, useMemo } from 'react';
 import {
   Box,
   ToggleButtonGroup,
@@ -12,35 +13,46 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import MenuIcon from '@mui/icons-material/Menu';
 
-import { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
 import LoadingProgress from '../../components/LoadingProgress';
 import NotFound from '../../components/NotFound';
 import { retryWithBackoff } from '../../utils/retryWithBackoff';
 import { fetchMyOrders } from '../../api/orderApi';
-import { filterReducer, initialFilterState } from './LocalReducer';
 import { defineOrderColumns } from './Columns';
 import { PageLayout } from '../../layouts/page.layout';
 import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
-import { TOrder as Order } from '@common/types';
+import { TOrder } from '@common/types';
 import OrderCard from './OrderCard';
 import UserOrderFilters from './UserOrderFilters';
+import { normalizeToDate } from '../../utils/normalizeToDate';
+import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
+import { useOrdersPageStore } from '../../stores/useOrdersPageStore';
 
 export default function MyOrdersPage() {
   const { user } = useAuth();
-  const [filterState, dispatch] = useReducer(filterReducer, initialFilterState);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const {
+    orders,
+    loading,
+    sorting,
+    columnFilters,
+    viewMode,
+    mobileFiltersOpen,
+    setOrders,
+    setLoading,
+    setSorting,
+    setColumnFilters,
+    setViewMode,
+    setMobileFiltersOpen,
+  } = useOrdersPageStore();
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const { searchTerm, status, dateFrom, dateTo } = useOrderFilterStore();
 
   useEffect(() => {
     if (!user) return;
@@ -58,18 +70,24 @@ export default function MyOrdersPage() {
     };
 
     void loadOrders();
-  }, [user]);
+  }, [user, setOrders, setLoading]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const matchesSearch = order.id
         .toLowerCase()
-        .includes(filterState.searchTerm.toLowerCase());
-      const matchesStatus =
-        !filterState.status || order.status === filterState.status;
-      return matchesSearch && matchesStatus;
+        .includes(searchTerm.toLowerCase());
+      const matchesStatus = !status || order.status === status;
+
+      const createdDate = normalizeToDate(order.createdAt);
+      const createdStr = createdDate?.toISOString().split('T')[0] ?? '';
+
+      const matchesDateFrom = !dateFrom || createdStr >= dateFrom;
+      const matchesDateTo = !dateTo || createdStr <= dateTo;
+
+      return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
     });
-  }, [orders, filterState]);
+  }, [orders, searchTerm, status, dateFrom, dateTo]);
 
   if (!user || loading) return <LoadingProgress />;
 
@@ -106,7 +124,7 @@ export default function MyOrdersPage() {
 
         {viewMode === 'cards' && !isMobile && (
           <Box mb={2}>
-            <UserOrderFilters state={filterState} dispatch={dispatch} />
+            <UserOrderFilters />
           </Box>
         )}
 
@@ -137,7 +155,6 @@ export default function MyOrdersPage() {
           />
         )}
 
-        {/* Mobile Filters Drawer */}
         <Drawer
           anchor="left"
           open={mobileFiltersOpen}
@@ -155,7 +172,7 @@ export default function MyOrdersPage() {
                 <CloseIcon />
               </IconButton>
             </Box>
-            <UserOrderFilters state={filterState} dispatch={dispatch} />
+            <UserOrderFilters />
           </Box>
         </Drawer>
       </Box>

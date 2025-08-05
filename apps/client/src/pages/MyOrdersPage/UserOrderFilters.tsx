@@ -1,104 +1,67 @@
+// src/pages/UserOrderFilters.tsx
 import React from 'react';
-import {
-  Box,
-  Stack,
-  TextField,
-  MenuItem,
-  Button,
-  Typography,
-} from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs from 'dayjs';
+import { Box, TextField, MenuItem, Button, Stack } from '@mui/material';
+import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
 
-interface Props {
-  state: {
-    searchTerm: string;
-    status: string;
-    dateFrom: string | null;
-    dateTo: string | null;
-  };
-  dispatch: React.Dispatch<
-    | { type: 'SET_SEARCH_TERM'; payload: string }
-    | { type: 'SET_DATE_FROM'; payload: string | null }
-    | { type: 'SET_DATE_TO'; payload: string | null }
-    | { type: 'SET_STATUS'; payload: string }
-    | { type: 'RESET_FILTERS' }
-  >;
-}
-
-const statusOptions = [
-  '',
-  'pending',
-  'paid',
-  'shipped',
-  'delivered',
-  'cancelled',
-];
-
-export default function UserOrderFilters({ state, dispatch }: Props) {
-  const handleReset = () => dispatch({ type: 'RESET_FILTERS' });
+export default function UserOrderFilters() {
+  const {
+    searchTerm,
+    dateFrom,
+    dateTo,
+    status,
+    setSearchTerm,
+    setDateFrom,
+    setDateTo,
+    setStatus,
+    resetFilters,
+  } = useOrderFilterStore();
 
   return (
-    <Box>
-      <Typography variant="subtitle2" mb={1}>
-        Filter Orders
-      </Typography>
-      <Stack spacing={2}>
-        <TextField
-          label="Search by Order ID"
-          value={state.searchTerm}
-          onChange={(e) =>
-            dispatch({ type: 'SET_SEARCH_TERM', payload: e.target.value })
-          }
-          fullWidth
-        />
+    <Stack spacing={2}>
+      <TextField
+        label="Search"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        fullWidth
+      />
 
-        <TextField
-          select
-          label="Status"
-          value={state.status}
-          onChange={(e) =>
-            dispatch({ type: 'SET_STATUS', payload: e.target.value })
-          }
-          fullWidth
-        >
-          {statusOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option
-                ? option.charAt(0).toUpperCase() + option.slice(1)
-                : 'All'}
-            </MenuItem>
-          ))}
-        </TextField>
+      <TextField
+        label="Date From"
+        type="date"
+        value={dateFrom ?? ''}
+        onChange={(e) => setDateFrom(e.target.value || null)}
+        InputLabelProps={{ shrink: true }}
+        fullWidth
+      />
 
-        <DatePicker
-          label="Date From"
-          value={state.dateFrom ? dayjs(state.dateFrom) : null}
-          onChange={(newValue) =>
-            dispatch({
-              type: 'SET_DATE_FROM',
-              payload: newValue ? newValue.toISOString() : null,
-            })
-          }
-          slotProps={{ textField: { fullWidth: true } }}
-        />
+      <TextField
+        label="Date To"
+        type="date"
+        value={dateTo ?? ''}
+        onChange={(e) => setDateTo(e.target.value || null)}
+        InputLabelProps={{ shrink: true }}
+        fullWidth
+      />
 
-        <DatePicker
-          label="Date To"
-          value={state.dateTo ? dayjs(state.dateTo) : null}
-          onChange={(newValue) =>
-            dispatch({
-              type: 'SET_DATE_TO',
-              payload: newValue ? newValue.toISOString() : null,
-            })
-          }
-          slotProps={{ textField: { fullWidth: true } }}
-        />
+      <TextField
+        label="Status"
+        select
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+        fullWidth
+      >
+        <MenuItem value="">All</MenuItem>
+        <MenuItem value="pending">Pending</MenuItem>
+        <MenuItem value="confirmed">Confirmed</MenuItem>
+        <MenuItem value="shipped">Shipped</MenuItem>
+        <MenuItem value="delivered">Delivered</MenuItem>
+      </TextField>
 
-        <Button variant="outlined" color="secondary" onClick={handleReset}>
+      <Box display="flex" justifyContent="flex-end">
+        <Button onClick={resetFilters} variant="outlined" color="secondary">
           Reset Filters
         </Button>
-      </Stack>
-    </Box>
+      </Box>
+    </Stack>
   );
 }

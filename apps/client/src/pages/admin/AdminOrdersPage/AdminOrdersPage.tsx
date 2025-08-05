@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// src/pages/admin/AdminOrdersPage.tsx
+import React, { useMemo } from 'react';
 import {
   Box,
   Button,
@@ -12,9 +13,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import {
   ColumnDef,
-  SortingState,
   ColumnFiltersState,
+  SortingState,
 } from '@tanstack/react-table';
+
+import { Timestamp } from 'firebase/firestore';
 import { Order } from '../../../hooks/useOrders';
 import { useOrders } from '../../../hooks/useOrders';
 import LoadingProgress from '../../../components/LoadingProgress';
@@ -25,74 +28,83 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../../services/ability.service';
+import { useAdminOrdersStore } from '../../../stores/useAdminOrdersStore';
 
 export default function AdminOrdersPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
 
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const {
+    sorting,
+    setSorting,
+    columnFilters,
+    setColumnFilters,
+    snackbarOpen,
+    setSnackbarOpen,
+  } = useAdminOrdersStore();
 
   const { data = [], isLoading, error } = useOrders();
 
-  const columns: ColumnDef<Order>[] = [
-    {
-      accessorKey: 'id',
-      header: 'Order ID',
-      cell: (info) => info.getValue(),
-    },
-    {
-      accessorKey: 'userId',
-      header: 'User ID',
-      cell: (info) => info.getValue(),
-    },
-    {
-      accessorKey: 'email',
-      header: 'Email',
-      cell: (info) => info.getValue() ?? 'N/A',
-      enableColumnFilter: true,
-    },
-    {
-      accessorKey: 'total',
-      header: 'Total',
-      cell: (info) =>
-        typeof info.getValue() === 'number'
-          ? `$${(info.getValue() as number).toFixed(2)}`
-          : 'N/A',
-    },
-    {
-      accessorKey: 'createdAt',
-      header: 'Date',
-      cell: ({ row }) => {
-        const raw = row.original.createdAt;
-        const date =
-          typeof raw === 'string'
-            ? new Date(raw)
-            : (raw?.toDate?.() ?? new Date());
-        return date.toLocaleString();
+  const columns: ColumnDef<Order>[] = useMemo(
+    () => [
+      {
+        accessorKey: 'id',
+        header: 'Order ID',
+        cell: (info) => info.getValue(),
       },
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: (info) => info.getValue(),
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      cell: ({ row }) => (
-        <Button
-          size="small"
-          variant="outlined"
-          onClick={() => navigate(`/admin/orders/${row.original.id}`)}
-        >
-          Edit
-        </Button>
-      ),
-    },
-  ];
+      {
+        accessorKey: 'userId',
+        header: 'User ID',
+        cell: (info) => info.getValue(),
+      },
+      {
+        accessorKey: 'email',
+        header: 'Email',
+        cell: (info) => info.getValue() ?? 'N/A',
+        enableColumnFilter: true,
+      },
+      {
+        accessorKey: 'total',
+        header: 'Total',
+        cell: (info) =>
+          typeof info.getValue() === 'number'
+            ? `$${(info.getValue() as number).toFixed(2)}`
+            : 'N/A',
+      },
+      {
+        accessorKey: 'createdAt',
+        header: 'Date',
+        cell: ({ row }) => {
+          const raw = row.original.createdAt;
+          const date =
+            typeof raw === 'string'
+              ? new Date(raw)
+              : ((raw as Timestamp)?.toDate?.() ?? new Date());
+          return date.toLocaleString();
+        },
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: (info) => info.getValue(),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => (
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => navigate(`/admin/orders/${row.original.id}`)}
+          >
+            Edit
+          </Button>
+        ),
+      },
+    ],
+    [navigate],
+  );
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>

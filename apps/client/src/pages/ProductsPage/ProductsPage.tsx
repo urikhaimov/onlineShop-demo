@@ -1,9 +1,9 @@
-import React, { useEffect, useReducer, useMemo, useState } from 'react';
+// src/pages/ProductsPage.tsx
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Snackbar,
   Alert,
-  Divider,
   ToggleButtonGroup,
   ToggleButton,
   Typography,
@@ -21,12 +21,6 @@ import { fetchAllProducts } from '../../hooks/useProducts';
 import { useCategories } from '../../hooks/useCategories';
 import { IProduct } from '@common/types';
 import { defineProductColumns } from './Columns';
-import { reducer, initialState } from './LocalReducer';
-import {
-  SortingState,
-  ColumnFiltersState,
-  Updater,
-} from '@tanstack/react-table';
 import { PageLayout } from '../../layouts/page.layout';
 import {
   EAbilityActions,
@@ -34,9 +28,32 @@ import {
 } from '../../services/ability.service';
 import ProductCard from './ProductCard';
 import UserProductFilters from './UserProductFilters';
+import { useProductStore } from '../../stores/useProductStore';
+import {
+  SortingState,
+  ColumnFiltersState,
+  Updater,
+} from '@tanstack/react-table';
 
 export default function ProductsPage() {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const {
+    products,
+    loading,
+    searchTerm,
+    selectedCategoryId,
+    createdAfter,
+    minPrice,
+    maxPrice,
+    sorting,
+    columnFilters,
+    snackbarOpen,
+    setProducts,
+    setLoading,
+    setSorting,
+    setColumnFilters,
+    setSnackbarOpen,
+  } = useProductStore();
+
   const { data: categories = [] } = useCategories();
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -45,81 +62,68 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const loadProducts = async () => {
-      dispatch({ type: 'SET_LOADING', payload: true });
+      setLoading(true);
       try {
         const res = await fetchAllProducts();
         if (Array.isArray(res.data)) {
-          dispatch({ type: 'SET_PRODUCTS', payload: res.data });
+          setProducts(res.data);
         } else {
-          dispatch({ type: 'SET_PRODUCTS', payload: [] });
+          setProducts([]);
           console.error('❌ Invalid product response:', res.data);
         }
       } catch (err) {
         console.error('❌ Failed to load products:', err);
       } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
+        setLoading(false);
       }
     };
 
     void loadProducts();
-  }, []);
+  }, [setProducts, setLoading]);
 
   const columns = useMemo(
-    () =>
-      defineProductColumns(categories, () =>
-        dispatch({ type: 'SET_SNACKBAR', payload: true }),
-      ),
-    [categories],
+    () => defineProductColumns(categories, () => setSnackbarOpen(true)),
+    [categories, setSnackbarOpen],
   );
-
-  const sorting: SortingState = Array.isArray(state.sorting)
-    ? state.sorting
-    : [];
-
-  const columnFilters: ColumnFiltersState = Array.isArray(state.columnFilters)
-    ? state.columnFilters
-    : [];
 
   const handleSortingChange = (updater: Updater<SortingState>) => {
     const newSorting =
       typeof updater === 'function' ? updater(sorting) : updater;
-    dispatch({ type: 'SET_SORTING', payload: newSorting });
+    setSorting(newSorting);
   };
 
   const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
     const newFilters =
       typeof updater === 'function' ? updater(columnFilters) : updater;
-    dispatch({ type: 'SET_FILTERS', payload: newFilters });
+    setColumnFilters(newFilters);
   };
 
   const filteredProducts = useMemo(() => {
-    return state.products.filter((product) => {
+    return products.filter((product) => {
       const matchesSearch = product.name
         .toLowerCase()
-        .includes(state.searchTerm.toLowerCase());
+        .includes(searchTerm.toLowerCase());
       const matchesCategory =
-        !state.selectedCategoryId ||
-        product.categoryId === state.selectedCategoryId;
+        !selectedCategoryId || product.categoryId === selectedCategoryId;
       const matchesCreatedAfter =
-        !state.createdAfter ||
-        new Date(product.createdAt) >= state.createdAfter.toDate();
+        !createdAfter || new Date(product.createdAt) >= createdAfter.toDate();
       const price = product.price ?? 0;
-      const matchesPrice = price >= state.minPrice && price <= state.maxPrice;
+      const matchesPrice = price >= minPrice && price <= maxPrice;
 
       return (
         matchesSearch && matchesCategory && matchesCreatedAfter && matchesPrice
       );
     });
   }, [
-    state.products,
-    state.searchTerm,
-    state.selectedCategoryId,
-    state.createdAfter,
-    state.minPrice,
-    state.maxPrice,
+    products,
+    searchTerm,
+    selectedCategoryId,
+    createdAfter,
+    minPrice,
+    maxPrice,
   ]);
 
-  if (state.loading) return <LoadingProgress />;
+  if (loading) return <LoadingProgress />;
 
   return (
     <PageLayout
@@ -154,11 +158,7 @@ export default function ProductsPage() {
 
         {viewMode === 'cards' && !isMobile && (
           <Box mb={2}>
-            <UserProductFilters
-              filters={state}
-              dispatch={dispatch}
-              categories={categories}
-            />
+            <UserProductFilters categories={categories} />
           </Box>
         )}
 
@@ -212,18 +212,14 @@ export default function ProductsPage() {
                 <CloseIcon />
               </IconButton>
             </Box>
-            <UserProductFilters
-              filters={state}
-              dispatch={dispatch}
-              categories={categories}
-            />
+            <UserProductFilters categories={categories} />
           </Box>
         </Drawer>
 
         <Snackbar
-          open={state.snackbarOpen}
+          open={snackbarOpen}
           autoHideDuration={3000}
-          onClose={() => dispatch({ type: 'SET_SNACKBAR', payload: false })}
+          onClose={() => setSnackbarOpen(false)}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="success" variant="filled">
