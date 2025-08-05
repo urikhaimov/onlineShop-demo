@@ -52,7 +52,10 @@ const OrderCard: React.FC<Props> = ({ order }) => {
         />
 
         <Typography variant="body2">
-          Date: {order.createdAt.toDate().toLocaleString()}
+          Date:{' '}
+          {typeof order.createdAt === 'string'
+            ? new Date(order.createdAt).toLocaleString()
+            : (order.createdAt.toDate?.().toLocaleString?.() ?? 'Invalid date')}
         </Typography>
 
         <Typography variant="body2">Paid with: Visa ending in 4242</Typography>
