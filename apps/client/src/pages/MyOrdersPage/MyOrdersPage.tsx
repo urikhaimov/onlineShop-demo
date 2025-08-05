@@ -26,7 +26,7 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
-import { Order } from '../../types/order';
+import { TOrder as Order } from '@common/types';
 import OrderCard from './OrderCard';
 import UserOrderFilters from './UserOrderFilters';
 

@@ -9,7 +9,7 @@ import {
   Slider,
 } from '@mui/material';
 import { Dayjs } from 'dayjs';
-import { Category } from '../../types/firebase';
+import { TCategory as Category } from '@common/types';
 import { Action } from './LocalReducer';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 

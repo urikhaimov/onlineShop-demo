@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { StoreConfig } from '../types/StoreConfig';
+import { IStoreConfig as StoreConfig } from '@common/types';
 
 // A safe fallback config that satisfies all required fields
 export const defaultConfig: StoreConfig = {

@@ -1,5 +1,4 @@
-import { StoreConfig } from '../types/StoreConfig';
-
+import { IStoreConfig as StoreConfig } from '@common/types';
 export const storesConfig: Record<string, StoreConfig> = {
   'tech-store': {
     storeId: 'tech-store',

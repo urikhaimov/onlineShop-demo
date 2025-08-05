@@ -3,8 +3,7 @@ import { IconButton, TextField } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate } from 'react-router-dom';
-import { Category } from '../../../types/firebase';
-
+import { TCategory as Category } from '@common/types';
 export function defineCategoryColumns(
   navigate: ReturnType<typeof useNavigate>,
 ): ColumnDef<Category>[] {

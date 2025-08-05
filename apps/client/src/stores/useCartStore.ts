@@ -1,9 +1,9 @@
 // src/stores/useCartStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { Product } from '../types/firebase';
+import { IProduct } from '@common/types';
 
-export type CartItem = Product & { quantity: number };
+export type CartItem = IProduct & { quantity: number };
 
 interface CartTotalOptions {
   shipping?: number;

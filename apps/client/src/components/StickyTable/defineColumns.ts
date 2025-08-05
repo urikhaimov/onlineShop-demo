@@ -1,4 +1,4 @@
-import { ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef } from '@tanstack/react-table';
 
 /**
  * defineColumns is a typed helper that returns a strongly typed ColumnDef[].

@@ -1,11 +1,11 @@
-import { HomepageLayout } from '@common/types';
+import { type HomepageLayout } from '@common/types';
 
-export type SectionType = 'text' | 'image' | 'productGrid' | 'testimonial';
+export type TSectionType = 'text' | 'image' | 'productGrid' | 'testimonial';
 
-export interface Section {
+export interface TSection {
   id: string; // generated UUID
   title: string;
-  type: SectionType;
+  type: TSectionType;
   subtitle?: string;
   description?: string;
   content?: string; // for text/testimonial

@@ -3,6 +3,10 @@ import { ITimestamp } from './common.type';
 export type TCategory = {
   id: string;
   name: string;
+  createdAt?: string | Date; // make optional
+  updatedAt?: string | Date;
+  description: string;
+  imageUrl?: string; // ✅ Add this line
 };
 
 export interface IProduct extends ITimestamp {

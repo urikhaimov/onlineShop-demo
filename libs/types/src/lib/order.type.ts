@@ -1,12 +1,12 @@
 // src/types/order.ts
 import { Timestamp } from 'firebase/firestore';
-export type OrderStatus =
+export type TOrderStatus =
   | 'pending'
   | 'confirmed'
   | 'shipped'
   | 'delivered'
   | 'cancelled';
-export type Order = {
+export type TOrder = {
   id: string;
   userId: string;
   ownerName?: string;
@@ -20,7 +20,7 @@ export type Order = {
     image: string;
   }>;
   amount: number; // ✅ Add this
-  status: OrderStatus;
+  status: TOrderStatus;
   payment: {
     method: string;
     status: 'paid' | 'unpaid';

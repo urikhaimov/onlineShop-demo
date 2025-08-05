@@ -1,6 +1,5 @@
 import { storesConfig } from '../config/storeConfig';
-import type { StoreConfig } from '../types/StoreConfig';
-
+import { IStoreConfig as StoreConfig } from '@common/types';
 export function loadStoreConfig(storeId: string): StoreConfig {
   return storesConfig[storeId] ?? storesConfig['tech-store'];
 }

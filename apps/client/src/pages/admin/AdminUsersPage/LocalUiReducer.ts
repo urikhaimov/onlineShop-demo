@@ -1,7 +1,6 @@
 // AdminUsersPage/LocalUiReducer.ts
 
-import { User } from '../../../types/User';
-
+import { IUser as User } from '@common/types';
 export interface UIState {
   mobileDrawerOpen: boolean;
   confirmOpen: boolean;

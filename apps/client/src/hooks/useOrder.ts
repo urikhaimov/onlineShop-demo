@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { fetchOrderById, updateOrderById } from '../api/orderApi';
-import type { Order } from '../types/order';
+import type { TOrder as Order } from '@common/types';
 import { useAuth } from './useAuth';
 
 // Fetch a single order
@@ -42,7 +42,7 @@ function useUpdateOrder(
 
       const patch: Partial<Order> = {
         ...update,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       };
 
       if (update.status && update.status !== update.previousStatus) {

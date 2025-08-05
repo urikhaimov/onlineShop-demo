@@ -2,7 +2,7 @@
 import React from 'react';
 import { Paper, Typography, Divider, Chip, Link } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { Order } from '../../types/order';
+import { TOrder as Order } from '@common/types';
 import { formatCurrency } from '../../utils/format';
 import {
   EAbilityActions,

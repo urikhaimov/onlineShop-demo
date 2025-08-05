@@ -6,10 +6,10 @@ import {
   getPaginationRowModel,
   getGroupedRowModel,
   flexRender,
-  ColumnDef,
-  SortingState,
-  ColumnFiltersState,
-  Updater,
+  type ColumnDef,
+  type SortingState,
+  type ColumnFiltersState,
+  type Updater,
 } from '@tanstack/react-table';
 import {
   Paper,
@@ -33,7 +33,9 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
-import { renderColumnFilter } from './renderColumnFilter';
+
+import { tableFilters } from './tableFilters';
+import { type FilterVariant, renderColumnFilter } from './renderColumnFilter';
 
 interface StickyTableProps<T> {
   columns: ColumnDef<T>[];
@@ -111,6 +113,9 @@ export default function StickyTable<T extends Record<string, any>>({
     },
     enableSorting,
     enableColumnFilters,
+    filterFns: {
+      ...tableFilters,
+    },
   });
 
   const rowModel = table.getRowModel();
@@ -221,7 +226,7 @@ export default function StickyTable<T extends Record<string, any>>({
   };
 
   return (
-    <Box sx={{ width: '100%', overflowX: 'hidden' }}>
+    <Box sx={{ width: '100%', overflow: 'hidden' }}>
       <Stack direction="row" spacing={2} justifyContent="space-between" mb={1}>
         <FormControlLabel
           control={
@@ -236,6 +241,7 @@ export default function StickyTable<T extends Record<string, any>>({
         {isGrouped && (
           <Tooltip title={`Sort groups by ${groupSortMode}`}>
             <IconButton
+              sx={{ width: 'auto' }}
               onClick={() =>
                 setGroupSortMode((prev) =>
                   prev === 'count' ? 'alpha' : 'count',
@@ -251,10 +257,7 @@ export default function StickyTable<T extends Record<string, any>>({
         )}
       </Stack>
 
-      <TableContainer
-        component={Paper}
-        sx={{ borderRadius: 2, boxShadow: 1, maxHeight: 'calc(100vh - 200px)' }}
-      >
+      <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: 1 }}>
         <Table stickyHeader size={denseMode ? 'small' : 'medium'}>
           <TableHead>
             {table.getHeaderGroups().map((group) => (
@@ -277,7 +280,9 @@ export default function StickyTable<T extends Record<string, any>>({
                         backgroundColor: theme.palette.grey[50],
                         textAlign:
                           meta?.align ??
-                          (meta?.filterVariant === 'number' ? 'right' : 'left'),
+                          ((meta?.filterVariant === 'number'
+                            ? 'right'
+                            : 'left') as FilterVariant),
                         verticalAlign: 'top',
                         px: denseMode ? 0.5 : 1,
                         py: denseMode ? 0.25 : 0.5,

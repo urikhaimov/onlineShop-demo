@@ -21,7 +21,7 @@ import { Delete } from '@mui/icons-material';
 
 import StickyTable from '../../../components/StickyTable/StickyTable';
 import { useAdminUsersQuery } from '../../../hooks/useAdminUsersQuery';
-import { Role } from '../../../types/Role';
+import { TUserRole as Role } from '@common/types';
 import { uiReducer, initialUIState } from './LocalUiReducer';
 import { PageLayout } from '../../../layouts/page.layout';
 import {

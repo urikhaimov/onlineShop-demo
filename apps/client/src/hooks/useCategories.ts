@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useOptimisticMutation } from './useOptimisticMutation';
-import { Category } from '../types/firebase';
+import { TCategory as Category } from '@common/types';
 import api from '../api/axiosInstance';
 
 export const useCategories = () => {

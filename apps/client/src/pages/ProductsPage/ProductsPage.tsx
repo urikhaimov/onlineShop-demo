@@ -126,9 +126,7 @@ export default function ProductsPage() {
       action={EAbilityActions.MANAGE}
       subject={EAbilitySubjects.PRODUCTS}
     >
-      <Box px={2} py={1}>
-        <Divider sx={{ mb: 2 }} />
-
+      <Box px={5} py={4}>
         <Box
           display="flex"
           justifyContent="space-between"

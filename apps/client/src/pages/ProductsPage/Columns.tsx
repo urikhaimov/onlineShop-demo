@@ -28,6 +28,7 @@ export function defineProductColumns(
       enableColumnFilter: true,
       filterFn: 'equals',
       meta: {
+        align: 'left',
         sticky: 'left',
         filterVariant: 'select',
         selectOptions: categories.map((c) => ({

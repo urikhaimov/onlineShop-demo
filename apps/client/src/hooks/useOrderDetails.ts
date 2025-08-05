@@ -3,8 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import api from '../api/axiosInstance';
-import { Order } from '../types/order';
-
+import { TOrder as Order } from '@common/types';
 export const useOrderDetails = (id?: string, enabled = true) => {
   const [downloading, setDownloading] = useState(false);
 

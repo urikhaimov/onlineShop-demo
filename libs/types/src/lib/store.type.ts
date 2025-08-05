@@ -1,4 +1,4 @@
-export interface StoreConfig {
+export interface IStoreConfig {
   storeId: string;
   storeName: string;
   primaryColor: string;

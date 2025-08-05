@@ -1,5 +1,5 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { Order } from '../../types/order';
+import { TOrder as Order } from '@common/types';
 import { Typography } from '@mui/material';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';

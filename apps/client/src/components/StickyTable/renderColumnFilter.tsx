@@ -9,12 +9,14 @@ import FormTextField from '../../components/FormTextField'; // adjust path as ne
 /**
  * Filter variant types
  */
-type FilterVariant = 'text' | 'select' | 'number' | 'date';
+export type FilterVariant = 'text' | 'select' | 'number' | 'date';
 type SelectOptions = { label: string; value: string };
 
-interface ColumnMeta {
+export interface ColumnMeta {
+  align?: 'left' | 'center' | 'right';
   filterVariant?: FilterVariant;
   selectOptions?: SelectOptions[];
+  sticky?: 'left' | 'right';
 }
 
 export function renderColumnFilter<T>(
