@@ -1,9 +1,10 @@
-// src/types/table.d.ts
 import '@tanstack/react-table';
+import { type FilterFn } from '@tanstack/react-table';
 
 declare module '@tanstack/react-table' {
-  interface ColumnMeta<_TData, _TValue> {
-    filterVariant?: 'text' | 'number' | 'date';
-    sticky?: 'left' | 'right';
+  interface FilterFns {
+    betweenNumberRange: FilterFn<unknown>;
+    betweenDateRange: FilterFn<unknown>;
+    statusEquals: FilterFn<unknown>;
   }
 }

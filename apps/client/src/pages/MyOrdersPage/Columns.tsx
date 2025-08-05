@@ -1,7 +1,12 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { Order } from './LocalReducer';
+import { Order } from '../../types/order';
 import { Typography } from '@mui/material';
 import { format } from 'date-fns';
+import { Timestamp } from 'firebase/firestore';
+import {
+  betweenDateRange,
+  betweenNumberRange,
+} from '../../components/StickyTable/tableFilters';
 
 export const defineOrderColumns = (): ColumnDef<Order>[] => [
   {
@@ -32,12 +37,25 @@ export const defineOrderColumns = (): ColumnDef<Order>[] => [
   {
     accessorKey: 'createdAt',
     header: 'Date',
+    filterFn: betweenDateRange,
+    meta: { filterVariant: 'date' },
     cell: (info) => {
-      const value = info.getValue();
-      const date =
-        typeof value === 'object' && 'toDate' in value
-          ? value.toDate()
-          : new Date();
+      const rawValue = info.getValue();
+      let date: Date;
+
+      if (rawValue instanceof Date) {
+        date = rawValue;
+      } else if (
+        typeof rawValue === 'object' &&
+        rawValue !== null &&
+        'toDate' in rawValue &&
+        typeof (rawValue as Timestamp).toDate === 'function'
+      ) {
+        date = (rawValue as Timestamp).toDate();
+      } else {
+        date = new Date(); // fallback
+      }
+
       return (
         <Typography variant="body2" color="text.secondary">
           {format(date, 'PPpp')}
@@ -48,6 +66,16 @@ export const defineOrderColumns = (): ColumnDef<Order>[] => [
   {
     accessorKey: 'status',
     header: 'Status',
+    enableColumnFilter: true,
+    meta: {
+      selectOptions: [
+        { label: 'Pending', value: 'pending' },
+        { label: 'Confirmed', value: 'confirmed' },
+        { label: 'Shipped', value: 'shipped' },
+        { label: 'Delivered', value: 'delivered' },
+        { label: 'Cancelled', value: 'cancelled' },
+      ],
+    },
     cell: (info) => (
       <Typography
         variant="body2"
@@ -61,6 +89,8 @@ export const defineOrderColumns = (): ColumnDef<Order>[] => [
   {
     accessorKey: 'amount',
     header: 'Total ($)',
+    filterFn: betweenNumberRange,
+    meta: { filterVariant: 'number', align: 'left' },
     cell: ({ row }) => (
       <Typography variant="body2" color="text.secondary">
         ${row.getValue<number>('amount')?.toFixed?.(2) ?? '—'}
