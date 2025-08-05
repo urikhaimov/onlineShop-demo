@@ -1,5 +1,4 @@
-// src/pages/admin/AdminUsersPage.tsx
-import React, { useMemo, useReducer, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ColumnDef,
   SortingState,
@@ -21,8 +20,8 @@ import { Delete } from '@mui/icons-material';
 
 import StickyTable from '../../../components/StickyTable/StickyTable';
 import { useAdminUsersQuery } from '../../../hooks/useAdminUsersQuery';
-import { TUserRole as Role } from '@common/types';
-import { uiReducer, initialUIState } from './LocalUiReducer';
+import { TUserRole as Role, IUser as User } from '@common/types';
+import { useAdminUsersUIStore } from '../../../stores/useAdminUsersUIStore';
 import { PageLayout } from '../../../layouts/page.layout';
 import {
   EAbilityActions,
@@ -34,7 +33,8 @@ export default function AdminUsersPage() {
     useAdminUsersQuery();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [state, dispatch] = useReducer(uiReducer, initialUIState);
+  const { confirmOpen, selectedUser, openConfirm, closeConfirm } =
+    useAdminUsersUIStore();
 
   const columns = useMemo<ColumnDef<(typeof users)[0]>[]>(
     () => [
@@ -71,9 +71,7 @@ export default function AdminUsersPage() {
             color="error"
             variant="text"
             size="small"
-            onClick={() =>
-              dispatch({ type: 'OPEN_CONFIRM', payload: row.original })
-            }
+            onClick={() => openConfirm(row.original)}
           >
             <Delete fontSize="small" />
           </Button>
@@ -82,13 +80,13 @@ export default function AdminUsersPage() {
         enableColumnFilter: false,
       },
     ],
-    [updateUserRole],
+    [updateUserRole, openConfirm],
   );
 
   const handleDelete = async () => {
-    if (!state.selectedUser) return;
-    await deleteUser(state.selectedUser.id);
-    dispatch({ type: 'CLOSE_CONFIRM' });
+    if (!selectedUser) return;
+    await deleteUser(selectedUser.id);
+    closeConfirm();
   };
 
   if (isLoading) return <Typography p={4}>Loading...</Typography>;
@@ -112,21 +110,16 @@ export default function AdminUsersPage() {
           enableSorting
         />
 
-        <Dialog
-          open={state.confirmOpen}
-          onClose={() => dispatch({ type: 'CLOSE_CONFIRM' })}
-        >
+        <Dialog open={confirmOpen} onClose={closeConfirm}>
           <DialogTitle>Confirm Deletion</DialogTitle>
           <DialogContent>
             <DialogContentText>
               Are you sure you want to delete{' '}
-              <strong>{state.selectedUser?.email}</strong>?
+              <strong>{selectedUser?.email}</strong>?
             </DialogContentText>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => dispatch({ type: 'CLOSE_CONFIRM' })}>
-              Cancel
-            </Button>
+            <Button onClick={closeConfirm}>Cancel</Button>
             <Button color="error" variant="contained" onClick={handleDelete}>
               Delete
             </Button>

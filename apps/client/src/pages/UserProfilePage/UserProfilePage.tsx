@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer } from 'react';
+import React, { useEffect } from 'react';
 import {
   Alert,
   Box,
@@ -19,8 +19,6 @@ import { useUploadAvatarMutation } from '../../hooks/useUploadAvatarMutation';
 import { useDeleteAvatarMutation } from '../../hooks/useDeleteAvatarMutation';
 import PictureUploaderWithCrop from '../../components/PictureUploaderWithCrop';
 import LoadingProgress from '../../components/LoadingProgress';
-import { initialState, reducer } from './LocalReducer';
-import { initialLocalUIState, localUIReducer } from './LocalUIReducer';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
 import ChangePasswordForm from './components/ChangePasswordForm';
 import { useAuth } from '../../hooks/useAuth';
@@ -30,11 +28,30 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
+import {
+  useUserProfileToastStore,
+  useUserProfileUIStore,
+} from '../../stores/useUserProfileUIStore';
 
 export default function UserProfilePage() {
   const { user, loading } = useAuth();
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const [uiState, uiDispatch] = useReducer(localUIReducer, initialLocalUIState);
+  const {
+    toastOpen,
+    toastMessage,
+    errorMsg,
+    setToastOpen,
+    setToastMessage,
+    setErrorMsg,
+    resetToast,
+  } = useUserProfileToastStore();
+  const {
+    avatarVer,
+    avatarUploading,
+    deleteDialogOpen,
+    incrementAvatarVer,
+    setUploading,
+    setDeleteDialog,
+  } = useUserProfileUIStore();
 
   const {
     control,
@@ -62,42 +79,39 @@ export default function UserProfilePage() {
   const onSubmit = async (data: { name: string }) => {
     try {
       await updateMutation.mutateAsync({ name: data.name });
-      dispatch({ type: 'SET_TOAST_MESSAGE', payload: 'Profile updated' });
-      dispatch({ type: 'SET_TOAST_OPEN', payload: true });
+      setToastMessage('Profile updated');
+      setToastOpen(true);
     } catch {
-      dispatch({ type: 'SET_ERROR_MSG', payload: 'Failed to update profile.' });
+      setErrorMsg('Failed to update profile.');
     }
   };
 
   const handleAvatarUpload = async (file: File) => {
     try {
-      uiDispatch({ type: 'SET_UPLOADING', payload: true });
+      setUploading(true);
       await uploadAvatarMutation.mutateAsync(file);
-      uiDispatch({ type: 'INCREMENT_AVATAR_VER' });
-      dispatch({ type: 'SET_TOAST_MESSAGE', payload: 'Profile updated' });
-      dispatch({ type: 'SET_TOAST_OPEN', payload: true });
+      incrementAvatarVer();
+      setToastMessage('Profile updated');
+      setToastOpen(true);
     } catch (err: unknown) {
       const errorMessage =
         err instanceof Error ? err.message : 'Avatar upload failed.';
-      dispatch({
-        type: 'SET_ERROR_MSG',
-        payload: errorMessage,
-      });
+      setErrorMsg(errorMessage);
     } finally {
-      uiDispatch({ type: 'SET_UPLOADING', payload: false });
+      setUploading(false);
     }
   };
 
   const handleAvatarDelete = async () => {
     try {
       await deleteAvatarMutation.mutateAsync();
-      uiDispatch({ type: 'INCREMENT_AVATAR_VER' });
-      dispatch({ type: 'SET_TOAST_MESSAGE', payload: 'Avatar deleted' });
-      dispatch({ type: 'SET_TOAST_OPEN', payload: true });
+      incrementAvatarVer();
+      setToastMessage('Avatar deleted');
+      setToastOpen(true);
     } catch {
-      dispatch({ type: 'SET_ERROR_MSG', payload: 'Failed to delete avatar' });
+      setErrorMsg('Failed to delete avatar');
     } finally {
-      uiDispatch({ type: 'SET_DELETE_DIALOG', payload: false });
+      setDeleteDialog(false);
     }
   };
 
@@ -145,15 +159,11 @@ export default function UserProfilePage() {
           <Stack spacing={3} mt={2} alignItems="center">
             <PictureUploaderWithCrop
               avatarUrl={
-                userDoc?.photoURL
-                  ? `${userDoc.photoURL}?v=${uiState.avatarVer}`
-                  : null
+                userDoc?.photoURL ? `${userDoc.photoURL}?v=${avatarVer}` : null
               }
               onCropUpload={handleAvatarUpload}
-              onDeleteAvatar={() =>
-                uiDispatch({ type: 'SET_DELETE_DIALOG', payload: true })
-              }
-              disabled={uiState.avatarUploading || isSubmitting}
+              onDeleteAvatar={() => setDeleteDialog(true)}
+              disabled={avatarUploading || isSubmitting}
             />
 
             <Box
@@ -198,36 +208,28 @@ export default function UserProfilePage() {
         </Paper>
 
         <Snackbar
-          open={state.toastOpen}
+          open={toastOpen}
           autoHideDuration={3000}
-          onClose={() => {
-            dispatch({ type: 'SET_TOAST_OPEN', payload: false });
-            dispatch({ type: 'SET_TOAST_MESSAGE', payload: '' });
-          }}
+          onClose={resetToast}
           anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         >
           <Alert severity="success" sx={{ width: '100%' }}>
-            {state.toastMessage}
+            {toastMessage}
           </Alert>
         </Snackbar>
 
         <Snackbar
-          open={!!state.errorMsg}
+          open={!!errorMsg}
           autoHideDuration={4000}
-          onClose={() => dispatch({ type: 'SET_ERROR_MSG', payload: '' })}
+          onClose={() => setErrorMsg('')}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="error" sx={{ width: '100%' }}>
-            {state.errorMsg}
+            {errorMsg}
           </Alert>
         </Snackbar>
 
-        <Dialog
-          open={uiState.deleteDialogOpen}
-          onClose={() =>
-            uiDispatch({ type: 'SET_DELETE_DIALOG', payload: false })
-          }
-        >
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialog(false)}>
           <DialogTitle>Reset Avatar</DialogTitle>
           <DialogContent>
             <Typography>
@@ -235,13 +237,7 @@ export default function UserProfilePage() {
             </Typography>
           </DialogContent>
           <DialogActions>
-            <Button
-              onClick={() =>
-                uiDispatch({ type: 'SET_DELETE_DIALOG', payload: false })
-              }
-            >
-              Cancel
-            </Button>
+            <Button onClick={() => setDeleteDialog(false)}>Cancel</Button>
             <Button
               variant="contained"
               color="error"

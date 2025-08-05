@@ -5,7 +5,8 @@ import {
   SortingState,
   Updater,
 } from '@tanstack/react-table';
-type FilterState = {
+
+export type FilterState = {
   email: string;
   status: string;
   minTotal: number | null;
@@ -18,6 +19,35 @@ type FilterState = {
   minPrice: number | null;
   maxPrice: number | null;
   inStockOnly: boolean;
+};
+
+export type FilterAction =
+  | { type: 'setEmail'; payload: string }
+  | { type: 'setStatus'; payload: string }
+  | { type: 'setMinTotal'; payload: number }
+  | { type: 'setMaxTotal'; payload: number }
+  | { type: 'setStartDate'; payload: Date | null }
+  | { type: 'setEndDate'; payload: Date | null }
+  | { type: 'setSortDirection'; payload: 'asc' | 'desc' }
+  | { type: 'setPage'; payload: number }
+  | { type: 'setMinPrice'; payload: number | null }
+  | { type: 'setMaxPrice'; payload: number | null }
+  | { type: 'setInStockOnly'; payload: boolean }
+  | { type: 'RESET_FILTERS' };
+
+export const initialAdminOrderFilters: FilterState = {
+  email: '',
+  status: 'all',
+  minTotal: null,
+  maxTotal: null,
+  startDate: null,
+  endDate: null,
+  sortDirection: 'desc',
+  page: 1,
+  pageSize: 5,
+  minPrice: null,
+  maxPrice: null,
+  inStockOnly: false,
 };
 
 interface AdminOrdersStore {
@@ -37,21 +67,6 @@ interface AdminOrdersStore {
   ) => void;
   resetFilters: () => void;
 }
-
-export const initialAdminOrderFilters: FilterState = {
-  email: '',
-  status: 'all',
-  minTotal: null,
-  maxTotal: null,
-  startDate: null,
-  endDate: null,
-  sortDirection: 'desc',
-  page: 1,
-  pageSize: 5,
-  minPrice: null,
-  maxPrice: null,
-  inStockOnly: false,
-};
 
 export const useAdminOrdersStore = create<AdminOrdersStore>((set, get) => ({
   sorting: [],
@@ -79,7 +94,7 @@ export const useAdminOrdersStore = create<AdminOrdersStore>((set, get) => ({
       filters: {
         ...state.filters,
         [key]: value,
-        ...(key !== 'page' && { page: 1 }),
+        ...(key !== 'page' && { page: 1 }), // Reset to page 1 unless updating page directly
       },
     })),
 

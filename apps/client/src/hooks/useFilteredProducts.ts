@@ -1,6 +1,26 @@
 import { useMemo } from 'react';
 import { IProduct } from '@common/types';
-import { State as FilterState } from '../pages/ProductsPage/LocalReducer';
+import { Dayjs } from 'dayjs';
+
+interface FilterState {
+  products: IProduct[];
+  lastDoc: any;
+  loading: boolean;
+  hasMore: boolean;
+  searchTerm: string;
+  selectedCategoryId: string;
+  createdAfter: Dayjs | null;
+  minPrice: number;
+  maxPrice: number;
+  page: number;
+  pageSize: number;
+  successMessage: string;
+  pendingDelete: IProduct | null;
+  reorderPending: boolean;
+  sorting: any;
+  columnFilters: any;
+  snackbarOpen: boolean;
+}
 
 type TimestampLike = string | Date | { toDate: () => Date } | null | undefined;
 
