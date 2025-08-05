@@ -70,12 +70,16 @@ export const appRoutes = (location: Location<any>) => (
       <Route path={ERoutePaths.HOME} element={<HomePage />} />
       <Route path={ERoutePaths.PRODUCTS} element={<ProductsPage />} />
       <Route path={ERoutePaths.PRODUCT} element={<ProductPage />} />
-      <Route path="/cart" element={<CartPage />} />
+      <Route path={ERoutePaths.CART} element={<CartPage />} />
+      <Route path={ERoutePaths.CART} element={<CartPage />} />
       <Route path={ERoutePaths.LOGIN} element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path={ERoutePaths.SIGNUP} element={<SignupPage />} />
       <Route
-        path="/checkout"
+        path={ERoutePaths.RESET_PASSWORD}
+        element={<ResetPasswordPage />}
+      />
+      <Route
+        path={ERoutePaths.CHECKOUT}
         element={
           <ProtectedRoute>
             <CheckoutPage />
@@ -83,7 +87,7 @@ export const appRoutes = (location: Location<any>) => (
         }
       />
       <Route
-        path="/checkout/success"
+        path={ERoutePaths.CHECKOUT_SUCCESS}
         element={
           <ProtectedRoute>
             <CheckoutSuccessPage />
@@ -91,7 +95,7 @@ export const appRoutes = (location: Location<any>) => (
         }
       />
       <Route
-        path="/order/:id"
+        path={ERoutePaths.ORDER_DETAIL}
         element={
           <ProtectedRoute>
             <OrderDetailPage />
@@ -99,7 +103,7 @@ export const appRoutes = (location: Location<any>) => (
         }
       />
       <Route
-        path="/profile"
+        path={ERoutePaths.PROFILE}
         element={
           <ProtectedRoute>
             <UserProfilePage />
