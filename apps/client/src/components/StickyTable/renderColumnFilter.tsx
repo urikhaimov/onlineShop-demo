@@ -10,10 +10,11 @@ import FormTextField from '../../components/FormTextField'; // adjust path as ne
  * Filter variant types
  */
 type FilterVariant = 'text' | 'select' | 'number' | 'date';
+type SelectOptions = { label: string; value: string };
 
 interface ColumnMeta {
   filterVariant?: FilterVariant;
-  selectOptions?: string[];
+  selectOptions?: SelectOptions[];
 }
 
 export function renderColumnFilter<T>(
@@ -28,18 +29,18 @@ export function renderColumnFilter<T>(
     case 'select':
       return (
         <FormTextField
-          label={''}
+          label=""
           select
           variant="standard"
           value={value ?? ''}
           onChange={(e) => column.setFilterValue(e.target.value)}
-          selectOptions={
-            meta?.selectOptions?.map((val) => ({
-              label: val,
-              value: val,
-            })) ?? []
-          }
-        />
+        >
+          {(meta?.selectOptions ?? []).map(({ label, value }) => (
+            <MenuItem key={value} value={value}>
+              {label}
+            </MenuItem>
+          ))}
+        </FormTextField>
       );
 
     case 'number': {

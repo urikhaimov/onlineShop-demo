@@ -33,7 +33,7 @@ export function defineProductColumns(
         selectOptions: categories.map((c) => ({
           label: c.name,
           value: c.id,
-        })),
+        })) as { label: string; value: string }[], // <-- ✅ Fix
       },
       cell: ({ row }) => {
         const category = categories.find(
