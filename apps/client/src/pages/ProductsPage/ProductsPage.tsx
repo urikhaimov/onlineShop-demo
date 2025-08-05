@@ -1,5 +1,13 @@
-import React, { useEffect, useReducer, useMemo } from 'react';
-import { Box, Snackbar, Alert, Divider } from '@mui/material';
+import React, { useEffect, useReducer, useMemo, useState } from 'react';
+import {
+  Box,
+  Snackbar,
+  Alert,
+  Divider,
+  ToggleButtonGroup,
+  ToggleButton,
+  Typography,
+} from '@mui/material';
 
 import StickyTable from '../../components/StickyTable';
 import LoadingProgress from '../../components/LoadingProgress';
@@ -18,10 +26,12 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
+import ProductCard from '../../components/ProductCard';
 
 export default function ProductsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { data: categories = [] } = useCategories();
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -82,19 +92,57 @@ export default function ProductsPage() {
       <Box px={2} py={1}>
         <Divider sx={{ mb: 2 }} />
 
-        <StickyTable<IProduct>
-          columns={columns}
-          data={state.products}
-          sorting={sorting}
-          onSortingChange={handleSortingChange}
-          columnFilters={columnFilters}
-          onColumnFiltersChange={handleColumnFiltersChange}
-          enablePagination
-          enableSorting
-          enableColumnFilters
-          groupById="categoryId"
-          stickyColumnIndex={2}
-        />
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={2}
+        >
+          <Typography variant="h6">Products</Typography>
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(e, next) => {
+              if (next) setViewMode(next);
+            }}
+            size="small"
+          >
+            <ToggleButton value="table">Table View</ToggleButton>
+            <ToggleButton value="cards">Card View</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+
+        {viewMode === 'table' ? (
+          <StickyTable<IProduct>
+            columns={columns}
+            data={state.products}
+            sorting={sorting}
+            onSortingChange={handleSortingChange}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={handleColumnFiltersChange}
+            enablePagination
+            enableSorting
+            enableColumnFilters
+            groupById="categoryId"
+            stickyColumnIndex={2}
+            enableRowExpansion={true}
+          />
+        ) : (
+          <Box
+            display="grid"
+            gridTemplateColumns={{
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            }}
+            gap={3}
+          >
+            {state.products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </Box>
+        )}
 
         <Snackbar
           open={state.snackbarOpen}

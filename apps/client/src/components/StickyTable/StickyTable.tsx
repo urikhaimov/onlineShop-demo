@@ -48,6 +48,7 @@ interface StickyTableProps<T> {
   enableSorting?: boolean;
   enableColumnFilters?: boolean;
   groupById?: keyof T;
+  enableRowExpansion?: boolean;
 }
 
 export default function StickyTable<T extends Record<string, any>>({
@@ -62,6 +63,7 @@ export default function StickyTable<T extends Record<string, any>>({
   enableSorting = true,
   enableColumnFilters = true,
   groupById,
+  enableRowExpansion = false,
 }: StickyTableProps<T>) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -185,22 +187,24 @@ export default function StickyTable<T extends Record<string, any>>({
               </TableCell>
             );
           })}
-          <TableCell
-            sx={{
-              width: 40,
-              textAlign: 'center',
-              position: 'sticky',
-              right: 0,
-              zIndex: 3,
-              backgroundColor: theme.palette.background.paper,
-            }}
-          >
-            <IconButton size="small" onClick={() => toggleRowExpand(row.id)}>
-              {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
-          </TableCell>
+          {enableRowExpansion && (
+            <TableCell
+              sx={{
+                width: 40,
+                textAlign: 'center',
+                position: 'sticky',
+                right: 0,
+                zIndex: 3,
+                backgroundColor: theme.palette.background.paper,
+              }}
+            >
+              <IconButton size="small" onClick={() => toggleRowExpand(row.id)}>
+                {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            </TableCell>
+          )}
         </TableRow>
-        {isExpanded && (
+        {enableRowExpansion && isExpanded && (
           <TableRow>
             <TableCell
               colSpan={columns.length + 1}
@@ -218,7 +222,6 @@ export default function StickyTable<T extends Record<string, any>>({
 
   return (
     <Box sx={{ width: '100%', overflowX: 'hidden' }}>
-      {/* controls */}
       <Stack direction="row" spacing={2} justifyContent="space-between" mb={1}>
         <FormControlLabel
           control={
@@ -302,13 +305,15 @@ export default function StickyTable<T extends Record<string, any>>({
                     </TableCell>
                   );
                 })}
-                <TableCell
-                  sx={{
-                    top: 0,
-                    zIndex: 10,
-                    backgroundColor: theme.palette.grey[50],
-                  }}
-                />
+                {enableRowExpansion && (
+                  <TableCell
+                    sx={{
+                      top: 0,
+                      zIndex: 10,
+                      backgroundColor: theme.palette.grey[50],
+                    }}
+                  />
+                )}
               </TableRow>
             ))}
           </TableHead>
@@ -322,7 +327,9 @@ export default function StickyTable<T extends Record<string, any>>({
                     <TableRow
                       sx={{ backgroundColor: theme.palette.action.hover }}
                     >
-                      <TableCell colSpan={columns.length + 1}>
+                      <TableCell
+                        colSpan={columns.length + (enableRowExpansion ? 1 : 0)}
+                      >
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <IconButton
                             size="small"
