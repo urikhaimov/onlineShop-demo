@@ -1,5 +1,4 @@
-// StickyTable.tsx — Mobile Optimized Final Version
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -28,6 +27,8 @@ import {
   Typography,
   IconButton,
   Tooltip,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -67,12 +68,33 @@ export default function StickyTable<T extends Record<string, any>>({
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     {},
   );
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [groupSortMode, setGroupSortMode] = useState<'count' | 'alpha'>(
     'count',
   );
+  const [denseMode, setDenseMode] = useState(false);
+
+  const sortedData = useMemo(() => {
+    if (!groupById) return data;
+    const groupMap: Record<string, T[]> = {};
+    for (const item of data) {
+      const key = String(item[groupById] ?? 'Unknown');
+      if (!groupMap[key]) groupMap[key] = [];
+      groupMap[key].push(item);
+    }
+    const groupKeys = Object.keys(groupMap);
+    groupKeys.sort((a, b) => {
+      if (groupSortMode === 'count') {
+        return groupMap[b].length - groupMap[a].length;
+      } else {
+        return a.localeCompare(b);
+      }
+    });
+    return groupKeys.flatMap((k) => groupMap[k]);
+  }, [data, groupById, groupSortMode]);
 
   const table = useReactTable({
-    data,
+    data: sortedData,
     columns,
     state: { sorting, columnFilters },
     onSortingChange,
@@ -108,52 +130,107 @@ export default function StickyTable<T extends Record<string, any>>({
     setExpandedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const isColumnFiltered = (id: string) =>
-    columnFilters.some((f) => f.id === id && !!f.value);
+  const toggleRowExpand = (id: string) => {
+    setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const getStickyStyles = (meta?: any) => {
-    if (meta?.sticky === 'left')
-      return { position: 'sticky', left: 0, zIndex: 1 };
-    if (meta?.sticky === 'right')
-      return { position: 'sticky', right: 0, zIndex: 1 };
+    if (meta?.sticky === 'left') {
+      return {
+        position: 'sticky',
+        left: 0,
+        zIndex: 3,
+        backgroundColor: theme.palette.background.paper,
+      };
+    }
+    if (meta?.sticky === 'right') {
+      return {
+        position: 'sticky',
+        right: 0,
+        zIndex: 3,
+        backgroundColor: theme.palette.background.paper,
+      };
+    }
     return {};
   };
 
   const shouldHideColumnOnMobile = (meta?: any) =>
     meta?.hiddenOnMobile ? { display: { xs: 'none', sm: 'table-cell' } } : {};
 
-  const renderRow = (rowCells: any[]) => (
-    <TableRow>
-      {rowCells.map((cell) => {
-        const meta = cell.column.columnDef.meta;
-        const stickyStyles = getStickyStyles(meta);
-        return (
+  const renderRow = (row: any) => {
+    const isExpanded = expandedRows[row.id] ?? false;
+    return (
+      <React.Fragment key={row.id}>
+        <TableRow>
+          {row.getVisibleCells().map((cell: any) => {
+            const meta = cell.column.columnDef.meta;
+            const stickyStyles = getStickyStyles(meta);
+            return (
+              <TableCell
+                key={cell.id}
+                sx={{
+                  ...stickyStyles,
+                  ...shouldHideColumnOnMobile(meta),
+                  textAlign:
+                    meta?.align ??
+                    (meta?.filterVariant === 'number' ? 'right' : 'left'),
+                  verticalAlign: 'top',
+                  px: denseMode ? 0.5 : 1,
+                  py: denseMode ? 0.25 : 0.5,
+                  whiteSpace: { xs: 'normal', sm: 'nowrap' },
+                  wordBreak: 'break-word',
+                }}
+              >
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              </TableCell>
+            );
+          })}
           <TableCell
-            key={cell.id}
             sx={{
-              ...stickyStyles,
-              ...shouldHideColumnOnMobile(meta),
-              textAlign:
-                meta?.align ??
-                (meta?.filterVariant === 'number' ? 'right' : 'left'),
-              verticalAlign: 'top',
-              px: { xs: 0.25, sm: 1 },
-              py: { xs: 0.25, sm: 0.5 },
-              whiteSpace: { xs: 'normal', sm: 'nowrap' },
-              wordBreak: 'break-word',
+              width: 40,
+              textAlign: 'center',
+              position: 'sticky',
+              right: 0,
+              zIndex: 3,
+              backgroundColor: theme.palette.background.paper,
             }}
           >
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            <IconButton size="small" onClick={() => toggleRowExpand(row.id)}>
+              {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
           </TableCell>
-        );
-      })}
-    </TableRow>
-  );
+        </TableRow>
+        {isExpanded && (
+          <TableRow>
+            <TableCell
+              colSpan={columns.length + 1}
+              sx={{ backgroundColor: theme.palette.grey[50], px: 2, py: 1 }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                {row.original.description || 'No description provided.'}
+              </Typography>
+            </TableCell>
+          </TableRow>
+        )}
+      </React.Fragment>
+    );
+  };
 
   return (
-    <Box sx={{ width: '100%', overflowX: 'auto' }}>
-      {isGrouped && (
-        <Box display="flex" justifyContent="flex-end" sx={{ mb: 1 }}>
+    <Box sx={{ width: '100%', overflowX: 'hidden' }}>
+      {/* controls */}
+      <Stack direction="row" spacing={2} justifyContent="space-between" mb={1}>
+        <FormControlLabel
+          control={
+            <Switch
+              size="small"
+              checked={denseMode}
+              onChange={() => setDenseMode((d) => !d)}
+            />
+          }
+          label="Dense mode"
+        />
+        {isGrouped && (
           <Tooltip title={`Sort groups by ${groupSortMode}`}>
             <IconButton
               onClick={() =>
@@ -161,8 +238,6 @@ export default function StickyTable<T extends Record<string, any>>({
                   prev === 'count' ? 'alpha' : 'count',
                 )
               }
-              size="small"
-              sx={{ border: `1px solid ${theme.palette.divider}` }}
             >
               <SwapVertIcon fontSize="small" />
               <Typography variant="caption" ml={0.5}>
@@ -170,19 +245,14 @@ export default function StickyTable<T extends Record<string, any>>({
               </Typography>
             </IconButton>
           </Tooltip>
-        </Box>
-      )}
+        )}
+      </Stack>
 
       <TableContainer
         component={Paper}
-        sx={{
-          borderRadius: 2,
-          boxShadow: 1,
-          border: `1px solid ${theme.palette.divider}`,
-          maxHeight: 'calc(100vh - 200px)',
-        }}
+        sx={{ borderRadius: 2, boxShadow: 1, maxHeight: 'calc(100vh - 200px)' }}
       >
-        <Table stickyHeader size="small">
+        <Table stickyHeader size={denseMode ? 'small' : 'medium'}>
           <TableHead>
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id}>
@@ -201,39 +271,27 @@ export default function StickyTable<T extends Record<string, any>>({
                           xs: 60,
                           sm: header.column.columnDef.size ?? 100,
                         },
-                        maxWidth: {
-                          xs: 80,
-                          sm: header.column.columnDef.size ?? 200,
-                        },
-                        backgroundColor: isColumnFiltered(header.column.id)
-                          ? theme.palette.action.selected
-                          : theme.palette.grey[50],
+                        backgroundColor: theme.palette.grey[50],
                         textAlign:
                           meta?.align ??
                           (meta?.filterVariant === 'number' ? 'right' : 'left'),
                         verticalAlign: 'top',
-                        px: { xs: 0.25, sm: 1 },
-                        py: { xs: 0.25, sm: 0.5 },
-                        whiteSpace: { xs: 'normal', sm: 'nowrap' },
-                        wordBreak: 'break-word',
+                        px: denseMode ? 0.5 : 1,
+                        py: denseMode ? 0.25 : 0.5,
                       }}
                     >
                       <Stack
                         spacing={0.25}
-                        alignItems="flex-start"
-                        justifyContent="flex-start"
+                        alignItems={
+                          meta?.align === 'right' ? 'flex-end' : 'flex-start'
+                        }
                       >
-                        <Typography
-                          variant="caption"
-                          fontWeight={600}
-                          sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}
-                        >
+                        <Typography variant="caption" fontWeight={600}>
                           {flexRender(
                             header.column.columnDef.header,
                             header.getContext(),
                           )}
                         </Typography>
-
                         {enableColumnFilters &&
                           header.column.getCanFilter() && (
                             <Box sx={{ mt: 0.25 }}>
@@ -244,10 +302,16 @@ export default function StickyTable<T extends Record<string, any>>({
                     </TableCell>
                   );
                 })}
+                <TableCell
+                  sx={{
+                    top: 0,
+                    zIndex: 10,
+                    backgroundColor: theme.palette.grey[50],
+                  }}
+                />
               </TableRow>
             ))}
           </TableHead>
-
           <TableBody>
             {rowModel.rows.map((row) => {
               if (row.depth === 0 && row.subRows.length > 0 && isGrouped) {
@@ -256,14 +320,9 @@ export default function StickyTable<T extends Record<string, any>>({
                 return (
                   <React.Fragment key={row.id}>
                     <TableRow
-                      sx={{
-                        backgroundColor: theme.palette.action.hover,
-                        position: 'sticky',
-                        top: 40,
-                        zIndex: 5,
-                      }}
+                      sx={{ backgroundColor: theme.palette.action.hover }}
                     >
-                      <TableCell colSpan={columns.length}>
+                      <TableCell colSpan={columns.length + 1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <IconButton
                             size="small"
@@ -273,36 +332,20 @@ export default function StickyTable<T extends Record<string, any>>({
                           </IconButton>
                           <Typography fontWeight={600}>
                             {label}{' '}
-                            <Typography
-                              component="span"
-                              variant="caption"
-                              color="text.secondary"
-                            >
+                            <Typography component="span" variant="caption">
                               ({row.subRows.length})
                             </Typography>
                           </Typography>
                         </Stack>
                       </TableCell>
                     </TableRow>
-                    {isOpen &&
-                      row.subRows.map((child) =>
-                        renderRow(child.getVisibleCells()),
-                      )}
+                    {isOpen && row.subRows.map((child) => renderRow(child))}
                   </React.Fragment>
                 );
               }
-
-              if (row.depth === 0) return renderRow(row.getVisibleCells());
+              if (row.depth === 0) return renderRow(row);
               return null;
             })}
-
-            {rowModel.rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={columns.length} align="center">
-                  No results found.
-                </TableCell>
-              </TableRow>
-            )}
           </TableBody>
         </Table>
       </TableContainer>

@@ -11,6 +11,7 @@ const COLUMN_WIDTHS = {
   actions: 50,
   number: 70,
   category: 100,
+  name: 200,
 };
 
 export function defineProductColumns(
@@ -72,6 +73,7 @@ export function defineProductColumns(
       accessorKey: 'name',
       header: 'Name',
       enableColumnFilter: true,
+      size: COLUMN_WIDTHS.name,
       meta: { filterVariant: 'text' },
       cell: ({ row, getValue }) => {
         const id = row.original.id;
@@ -119,7 +121,8 @@ export function defineProductColumns(
       enableSorting: false,
       enablePinning: true,
       size: COLUMN_WIDTHS.actions,
-      meta: { sticky: 'right' },
+      meta: { sticky: 'right', align: 'right' },
+
       cell: ({ row }) => {
         const product = row.original;
         const addToCart = useCartStore.getState().addToCart;
@@ -133,7 +136,9 @@ export function defineProductColumns(
               setSnackbarOpen(true);
             }}
             disabled={product.stock <= 0}
-          ></Button>
+          >
+            Add to Cart
+          </Button>
         );
       },
     },
