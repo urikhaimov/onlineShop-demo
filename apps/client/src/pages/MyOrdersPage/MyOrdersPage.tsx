@@ -1,5 +1,17 @@
-import React, { useEffect, useReducer, useState } from 'react';
-import { Box, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import React, { useEffect, useReducer, useState, useMemo } from 'react';
+import {
+  Box,
+  ToggleButtonGroup,
+  ToggleButton,
+  useTheme,
+  useMediaQuery,
+  Drawer,
+  Typography,
+  IconButton,
+} from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import MenuIcon from '@mui/icons-material/Menu';
+
 import { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
@@ -16,6 +28,7 @@ import {
 } from '../../services/ability.service';
 import { Order } from '../../types/order';
 import OrderCard from './OrderCard';
+import UserOrderFilters from './UserOrderFilters';
 
 export default function MyOrdersPage() {
   const { user } = useAuth();
@@ -25,6 +38,9 @@ export default function MyOrdersPage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     if (!user) return;
@@ -44,6 +60,17 @@ export default function MyOrdersPage() {
     void loadOrders();
   }, [user]);
 
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const matchesSearch = order.id
+        .toLowerCase()
+        .includes(filterState.searchTerm.toLowerCase());
+      const matchesStatus =
+        !filterState.status || order.status === filterState.status;
+      return matchesSearch && matchesStatus;
+    });
+  }, [orders, filterState]);
+
   if (!user || loading) return <LoadingProgress />;
 
   return (
@@ -52,7 +79,18 @@ export default function MyOrdersPage() {
       subject={EAbilitySubjects.ORDERS}
     >
       <Box px={{ xs: 1, sm: 2 }} py={3}>
-        <Box display="flex" justifyContent="flex-end" mb={2}>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={2}
+        >
+          {viewMode === 'cards' && isMobile && (
+            <IconButton onClick={() => setMobileFiltersOpen(true)}>
+              <MenuIcon />
+            </IconButton>
+          )}
+
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -66,7 +104,13 @@ export default function MyOrdersPage() {
           </ToggleButtonGroup>
         </Box>
 
-        {orders.length === 0 ? (
+        {viewMode === 'cards' && !isMobile && (
+          <Box mb={2}>
+            <UserOrderFilters state={filterState} dispatch={dispatch} />
+          </Box>
+        )}
+
+        {filteredOrders.length === 0 ? (
           <NotFound message="No orders found." />
         ) : viewMode === 'cards' ? (
           <Box
@@ -74,14 +118,14 @@ export default function MyOrdersPage() {
             gap={2}
             gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }}
           >
-            {orders.map((order) => (
+            {filteredOrders.map((order) => (
               <OrderCard key={order.id} order={order} />
             ))}
           </Box>
         ) : (
           <StickyTable
             columns={defineOrderColumns()}
-            data={orders}
+            data={filteredOrders}
             sorting={sorting}
             onSortingChange={setSorting}
             columnFilters={columnFilters}
@@ -92,6 +136,28 @@ export default function MyOrdersPage() {
             enableColumnFilters
           />
         )}
+
+        {/* Mobile Filters Drawer */}
+        <Drawer
+          anchor="left"
+          open={mobileFiltersOpen}
+          onClose={() => setMobileFiltersOpen(false)}
+        >
+          <Box width={280} p={2}>
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={2}
+            >
+              <Typography variant="h6">Filters</Typography>
+              <IconButton onClick={() => setMobileFiltersOpen(false)}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            <UserOrderFilters state={filterState} dispatch={dispatch} />
+          </Box>
+        </Drawer>
       </Box>
     </PageLayout>
   );

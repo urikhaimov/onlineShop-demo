@@ -1,5 +1,11 @@
 // src/types/order.ts
 import { Timestamp } from 'firebase/firestore';
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
 export type Order = {
   id: string;
   userId: string;
@@ -14,7 +20,7 @@ export type Order = {
     image: string;
   }>;
   amount: number; // ✅ Add this
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  status: OrderStatus;
   payment: {
     method: string;
     status: 'paid' | 'unpaid';

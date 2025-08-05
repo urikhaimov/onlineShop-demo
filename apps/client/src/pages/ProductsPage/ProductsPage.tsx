@@ -135,7 +135,12 @@ export default function ProductsPage() {
           alignItems="center"
           mb={2}
         >
-          <Typography variant="h6">Products</Typography>
+          {viewMode === 'cards' && isMobile && (
+            <IconButton onClick={() => setMobileFiltersOpen(true)}>
+              <MenuIcon />
+            </IconButton>
+          )}
+
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -149,10 +154,35 @@ export default function ProductsPage() {
           </ToggleButtonGroup>
         </Box>
 
-        {viewMode === 'table' ? (
+        {viewMode === 'cards' && !isMobile && (
+          <Box mb={2}>
+            <UserProductFilters
+              filters={state}
+              dispatch={dispatch}
+              categories={categories}
+            />
+          </Box>
+        )}
+
+        {viewMode === 'cards' ? (
+          <Box
+            display="grid"
+            gridTemplateColumns={{
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            }}
+            gap={3}
+          >
+            {filteredProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </Box>
+        ) : (
           <StickyTable<IProduct>
             columns={columns}
-            data={state.products}
+            data={filteredProducts}
             sorting={sorting}
             onSortingChange={handleSortingChange}
             columnFilters={columnFilters}
@@ -162,67 +192,35 @@ export default function ProductsPage() {
             enableColumnFilters
             groupById="categoryId"
             stickyColumnIndex={2}
-            enableRowExpansion={true}
+            enableRowExpansion
           />
-        ) : (
-          <>
-            {isMobile ? (
-              <Box display="flex" justifyContent="flex-end" mb={2}>
-                <IconButton onClick={() => setMobileFiltersOpen(true)}>
-                  <MenuIcon />
-                </IconButton>
-              </Box>
-            ) : (
-              <Box mb={2}>
-                <UserProductFilters
-                  filters={state}
-                  dispatch={dispatch}
-                  categories={categories}
-                />
-              </Box>
-            )}
-
-            <Box
-              display="grid"
-              gridTemplateColumns={{
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(3, 1fr)',
-                lg: 'repeat(4, 1fr)',
-              }}
-              gap={3}
-            >
-              {filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </Box>
-
-            <Drawer
-              anchor="left"
-              open={mobileFiltersOpen}
-              onClose={() => setMobileFiltersOpen(false)}
-            >
-              <Box width={280} p={2}>
-                <Box
-                  display="flex"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  mb={2}
-                >
-                  <Typography variant="h6">Filters</Typography>
-                  <IconButton onClick={() => setMobileFiltersOpen(false)}>
-                    <CloseIcon />
-                  </IconButton>
-                </Box>
-                <UserProductFilters
-                  filters={state}
-                  dispatch={dispatch}
-                  categories={categories}
-                />
-              </Box>
-            </Drawer>
-          </>
         )}
+
+        {/* Drawer for mobile filters */}
+        <Drawer
+          anchor="left"
+          open={mobileFiltersOpen}
+          onClose={() => setMobileFiltersOpen(false)}
+        >
+          <Box width={280} p={2}>
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={2}
+            >
+              <Typography variant="h6">Filters</Typography>
+              <IconButton onClick={() => setMobileFiltersOpen(false)}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            <UserProductFilters
+              filters={state}
+              dispatch={dispatch}
+              categories={categories}
+            />
+          </Box>
+        </Drawer>
 
         <Snackbar
           open={state.snackbarOpen}

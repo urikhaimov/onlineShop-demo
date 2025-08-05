@@ -1,5 +1,3 @@
-// ✅ Use shared Order type
-
 export interface FilterState {
   searchTerm: string;
   dateFrom: string | null;
