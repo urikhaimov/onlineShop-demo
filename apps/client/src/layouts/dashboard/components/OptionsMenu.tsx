@@ -2,7 +2,6 @@ import * as React from 'react';
 import { styled } from '@mui/material/styles';
 import Divider, { dividerClasses } from '@mui/material/Divider';
 import Menu from '@mui/material/Menu';
-import MuiMenuItem from '@mui/material/MenuItem';
 import { paperClasses } from '@mui/material/Paper';
 import { listClasses } from '@mui/material/List';
 import ListItemText from '@mui/material/ListItemText';
@@ -10,22 +9,51 @@ import ListItemIcon, { listItemIconClasses } from '@mui/material/ListItemIcon';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import MenuButton from './MenuButton';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../hooks/useAuth';
+import { ListItemButton } from '@mui/material';
 
-const MenuItem = styled(MuiMenuItem)({
+export const ROUTES = {
+  PROFILE: '/profile',
+  ACCOUNT: '/account',
+  LOGIN: '/login',
+};
+
+const StyledListItemButton = styled(ListItemButton)(() => ({
   margin: '2px 0',
-});
+  padding: '6px 12px',
+  justifyContent: 'flex-start',
+}));
 
 export default function OptionsMenu() {
+  const { signOut } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
   const open = Boolean(anchorEl);
+
+  const isSelected = (path: string) => location.pathname === path;
+
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
-  const handleClose = () => {
+
+  const handleNavigate = (path: string) => () => {
+    navigate(path);
     setAnchorEl(null);
   };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate(ROUTES.LOGIN);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   return (
-    <React.Fragment>
+    <>
       <MenuButton
         aria-label="Open menu"
         onClick={handleClick}
@@ -33,12 +61,12 @@ export default function OptionsMenu() {
       >
         <MoreVertRoundedIcon />
       </MenuButton>
+
       <Menu
         anchorEl={anchorEl}
         id="menu"
         open={open}
-        onClose={handleClose}
-        onClick={handleClose}
+        onClose={() => setAnchorEl(null)}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         sx={{
@@ -53,14 +81,24 @@ export default function OptionsMenu() {
           },
         }}
       >
-        <MenuItem onClick={handleClose}>Profile</MenuItem>
-        <MenuItem onClick={handleClose}>My account</MenuItem>
+        <StyledListItemButton
+          selected={isSelected(ROUTES.PROFILE)}
+          onClick={handleNavigate(ROUTES.PROFILE)}
+        >
+          <ListItemText>Profile</ListItemText>
+        </StyledListItemButton>
+
+        <StyledListItemButton
+          selected={isSelected(ROUTES.ACCOUNT)}
+          onClick={handleNavigate(ROUTES.ACCOUNT)}
+        >
+          <ListItemText>My Account</ListItemText>
+        </StyledListItemButton>
+
         <Divider />
-        <MenuItem onClick={handleClose}>Add another account</MenuItem>
-        <MenuItem onClick={handleClose}>Settings</MenuItem>
-        <Divider />
-        <MenuItem
-          onClick={handleClose}
+
+        <StyledListItemButton
+          onClick={handleLogout}
           sx={{
             [`& .${listItemIconClasses.root}`]: {
               ml: 'auto',
@@ -72,8 +110,8 @@ export default function OptionsMenu() {
           <ListItemIcon>
             <LogoutRoundedIcon fontSize="small" />
           </ListItemIcon>
-        </MenuItem>
+        </StyledListItemButton>
       </Menu>
-    </React.Fragment>
+    </>
   );
 }

@@ -11,16 +11,33 @@ import MenuButton from './MenuButton';
 import MenuContent from './MenuContent';
 import CardAlert from './CardAlert';
 import { useAuth } from '../../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+
 interface SideMenuMobileProps {
   open: boolean | undefined;
   toggleDrawer: (newOpen: boolean) => () => void;
 }
 
+export const ROUTES = {
+  LOGIN: '/login',
+};
+
 export default function SideMenuMobile({
   open,
   toggleDrawer,
 }: SideMenuMobileProps) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate(ROUTES.LOGIN);
+    } catch (err) {
+      console.error('❌ Logout failed:', err);
+    }
+  };
+
   return (
     <Drawer
       anchor="right"
@@ -53,7 +70,7 @@ export default function SideMenuMobile({
                   sx={{ width: 24, height: 24 }}
                 />
                 <Typography component="p" variant="h6">
-                  alt={user.displayName || user.email}
+                  {user.displayName || user.email}
                 </Typography>
               </>
             )}
@@ -62,17 +79,22 @@ export default function SideMenuMobile({
             <NotificationsRoundedIcon />
           </MenuButton>
         </Stack>
+
         <Divider />
+
         <Stack sx={{ flexGrow: 1 }}>
           <MenuContent />
           <Divider />
         </Stack>
+
         <CardAlert />
+
         <Stack sx={{ p: 2 }}>
           <Button
             variant="outlined"
             fullWidth
             startIcon={<LogoutRoundedIcon />}
+            onClick={handleLogout}
           >
             Logout
           </Button>
