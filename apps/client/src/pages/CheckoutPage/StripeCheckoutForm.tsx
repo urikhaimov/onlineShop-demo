@@ -1,4 +1,5 @@
-import React, { useReducer } from 'react';
+// src/components/StripeCheckoutForm.tsx
+import React from 'react';
 import {
   Box,
   Button,
@@ -15,8 +16,9 @@ import {
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import FormTextField from '../../components/FormTextField';
-import { reducer, initialState } from './StripeFormReducer';
 import { useCartStore } from '../../stores/useCartStore';
+import { useStripeCheckoutStore } from '../../stores/useStripeCheckoutStore';
+
 type FormData = {
   ownerName: string;
   passportId: string;
@@ -33,16 +35,17 @@ export default function StripeCheckoutForm() {
     formState: { errors },
   } = useForm<FormData>();
 
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const { loading, error } = state;
   const clearCart = useCartStore((s) => s.clearCart);
+
+  const { loading, error, setError, setLoading } = useStripeCheckoutStore();
+
   const onSubmit = async (data: FormData) => {
     if (!stripe || !elements) {
-      dispatch({ type: 'SET_ERROR', payload: 'Stripe is not ready yet' });
+      setError('Stripe is not ready yet');
       return;
     }
 
-    dispatch({ type: 'SET_LOADING', payload: true });
+    setLoading(true);
 
     try {
       const { error: stripeError, paymentIntent } = await stripe.confirmPayment(
@@ -55,45 +58,30 @@ export default function StripeCheckoutForm() {
               },
             },
           },
-          // No redirect, handle in-app instead
           redirect: 'if_required',
         },
       );
 
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setLoading(false);
 
       if (stripeError) {
         console.error('❌ Payment failed:', stripeError);
-        dispatch({
-          type: 'SET_ERROR',
-          payload: stripeError.message || 'Payment failed',
-        });
+        setError(stripeError.message || 'Payment failed');
         return;
       }
 
       if (paymentIntent?.status === 'succeeded') {
-        alert('🧹 About to clear cart after order success');
-        console.log('✅ About to call clearCart()...');
         clearCart();
-        console.log('✅ Called clearCart()');
         localStorage.removeItem('cart');
-        console.log('✅ Removed localStorage.cart');
-
-        navigate('/checkout/success'); // ✅ local confirmation page
+        navigate('/checkout/success');
       } else {
         console.warn('PaymentIntent status:', paymentIntent?.status);
-        dispatch({
-          type: 'SET_ERROR',
-          payload: `Payment status: ${paymentIntent?.status}`,
-        });
+        setError(`Payment status: ${paymentIntent?.status}`);
       }
     } catch (err: any) {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setLoading(false);
       console.error('Unexpected error confirming payment:', err);
-      dispatch({
-        type: 'SET_ERROR',
-        payload: err.message || 'Unexpected error',
-      });
+      setError(err.message || 'Unexpected error');
     }
   };
 
@@ -148,11 +136,11 @@ export default function StripeCheckoutForm() {
       <Snackbar
         open={!!error}
         autoHideDuration={5000}
-        onClose={() => dispatch({ type: 'SET_ERROR', payload: null })}
+        onClose={() => setError(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert
-          onClose={() => dispatch({ type: 'SET_ERROR', payload: null })}
+          onClose={() => setError(null)}
           severity="error"
           sx={{ width: '100%' }}
         >

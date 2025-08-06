@@ -15,12 +15,12 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-
 import { useNavigate } from 'react-router-dom';
-import React, { useReducer } from 'react';
-import { initialState, reducer } from './CardReducer';
+import React from 'react';
+
 import { IProduct } from '@common/types';
 import { deleteProduct } from '../../../hooks/useProducts';
+import { useCardDialogStore } from '../../../stores/useCardDialogStore';
 
 export type Props = {
   product: IProduct;
@@ -36,26 +36,31 @@ export default function ProductAdminCard({
   dragHandleProps,
 }: Props) {
   const navigate = useNavigate();
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const { dialogOpen, loading } = state;
-  const formattedPrice = Number(product.price).toFixed(2);
+  const { dialogOpenId, loadingId, openDialog, closeDialog, setLoading } =
+    useCardDialogStore();
+
+  const isDialogOpen = dialogOpenId === product.id;
+  const isLoading = loadingId === product.id;
+
   const handleDeleteClick = () => {
-    dispatch({ type: 'OPEN_DIALOG' });
+    openDialog(product.id);
   };
 
   const handleConfirm = async () => {
-    dispatch({ type: 'SET_LOADING', payload: true });
+    setLoading(product.id);
     try {
       await deleteProduct(product.id);
       onConfirmDelete(product.id);
     } catch (err) {
-      console.error('Failed to delete product:', err);
+      console.error('❌ Failed to delete product:', err);
       alert('Failed to delete product.');
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-      dispatch({ type: 'CLOSE_DIALOG' });
+      setLoading(null);
+      closeDialog();
     }
   };
+
+  const formattedPrice = Number(product.price).toFixed(2);
 
   return (
     <>
@@ -94,7 +99,7 @@ export default function ProductAdminCard({
             {product.name}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            ${formattedPrice ?? 'N/A'} • Stock: {product?.stock ?? 'N/A'}
+            ${formattedPrice} • Stock: {product.stock ?? 'N/A'}
           </Typography>
         </CardContent>
 
@@ -132,11 +137,7 @@ export default function ProductAdminCard({
         </CardActions>
       </Card>
 
-      <Dialog
-        open={dialogOpen}
-        onClose={() => dispatch({ type: 'CLOSE_DIALOG' })}
-        fullWidth
-      >
+      <Dialog open={isDialogOpen} onClose={closeDialog} fullWidth>
         <DialogTitle>Confirm Deletion</DialogTitle>
         <DialogContent>
           <DialogContentText>
@@ -145,19 +146,16 @@ export default function ProductAdminCard({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => dispatch({ type: 'CLOSE_DIALOG' })}
-            disabled={loading}
-          >
+          <Button onClick={closeDialog} disabled={isLoading}>
             Cancel
           </Button>
           <Button
             onClick={handleConfirm}
             color="error"
             variant="contained"
-            disabled={loading}
+            disabled={isLoading}
           >
-            {loading ? 'Deleting...' : 'Delete'}
+            {isLoading ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
