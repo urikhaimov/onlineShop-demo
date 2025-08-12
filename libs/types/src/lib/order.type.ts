@@ -1,11 +1,13 @@
 // src/types/order.ts
-import { Timestamp } from 'firebase/firestore';
+import { IMetadata } from './common.type';
+
 export type TOrderStatus =
   | 'pending'
   | 'confirmed'
   | 'shipped'
   | 'delivered'
   | 'cancelled';
+
 export type TOrder = {
   id: string;
   userId: string;
@@ -45,6 +47,5 @@ export type TOrder = {
     timestamp: string;
     changedBy: string;
   }>;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  metadata?: IMetadata;
 };

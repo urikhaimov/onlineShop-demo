@@ -1,15 +1,14 @@
-import { ITimestamp } from './common.type';
+import { IMetadata } from './common.type';
 
 export type TCategory = {
   id: string;
   name: string;
-  createdAt?: string | Date; // make optional
-  updatedAt?: string | Date;
+  metadata?: IMetadata;
   description: string;
   imageUrl?: string; // ✅ Add this line
 };
 
-export interface IProduct extends ITimestamp {
+export interface IProduct {
   id: string;
   name: string;
   description: string;
@@ -18,7 +17,7 @@ export interface IProduct extends ITimestamp {
   categoryId: TCategory['id'];
   images: string[];
   order?: number;
-  createdBy?: string;
+  metadata?: IMetadata;
   imageUrl?: string;
 }
 
