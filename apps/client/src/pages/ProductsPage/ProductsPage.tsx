@@ -1,4 +1,3 @@
-// src/pages/ProductsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
@@ -19,7 +18,7 @@ import StickyTable from '../../components/StickyTable';
 import LoadingProgress from '../../components/LoadingProgress';
 import { fetchAllProducts } from '../../hooks/useProducts';
 import { useCategories } from '../../hooks/useCategories';
-import { IProduct } from '@common/types';
+import type { IProduct } from '@common/types';
 import { defineProductColumns } from './Columns';
 import { PageLayout } from '../../layouts/page.layout';
 import {
@@ -29,11 +28,13 @@ import {
 import ProductCard from './ProductCard';
 import UserProductFilters from './UserProductFilters';
 import { useProductStore } from '../../stores/useProductStore';
-import {
+import type {
   SortingState,
   ColumnFiltersState,
   Updater,
 } from '@tanstack/react-table';
+import ProductExpandedRow from './ProductExpandedRow';
+import { format } from 'date-fns';
 
 export default function ProductsPage() {
   const {
@@ -65,49 +66,72 @@ export default function ProductsPage() {
       setLoading(true);
       try {
         const res = await fetchAllProducts();
-        if (Array.isArray(res.data)) {
-          setProducts(res.data);
-        } else {
-          setProducts([]);
-          console.error('❌ Invalid product response:', res.data);
-        }
+        setProducts(Array.isArray(res.data) ? (res.data as IProduct[]) : []);
       } catch (err) {
         console.error('❌ Failed to load products:', err);
       } finally {
         setLoading(false);
       }
     };
-
     void loadProducts();
   }, [setProducts, setLoading]);
 
   const columns = useMemo(
-    () => defineProductColumns(categories, () => setSnackbarOpen(true)),
+    () => defineProductColumns(categories, (open) => setSnackbarOpen(open)),
     [categories, setSnackbarOpen],
   );
 
   const handleSortingChange = (updater: Updater<SortingState>) => {
-    const newSorting =
-      typeof updater === 'function' ? updater(sorting) : updater;
-    setSorting(newSorting);
+    setSorting(typeof updater === 'function' ? updater(sorting) : updater);
   };
 
   const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
-    const newFilters =
-      typeof updater === 'function' ? updater(columnFilters) : updater;
-    setColumnFilters(newFilters);
+    setColumnFilters(
+      typeof updater === 'function' ? updater(columnFilters) : updater,
+    );
   };
-
   const filteredProducts = useMemo(() => {
+    // Convert createdAfter (likely a Dayjs) to a JS Date once
+    const createdAfterDate: Date | undefined =
+      createdAfter && typeof (createdAfter as any).toDate === 'function'
+        ? (createdAfter as any).toDate()
+        : undefined;
+
+    const toJsDate = (val: unknown): Date | undefined => {
+      if (!val) return undefined;
+      if (val instanceof Date) return isNaN(val.getTime()) ? undefined : val;
+      if (typeof val === 'string' || typeof val === 'number') {
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? undefined : d;
+      }
+      // Firestore Timestamp-like
+      if (typeof val === 'object' && 'seconds' in (val as any)) {
+        const ts = val as { seconds: number; nanoseconds?: number };
+        const d = new Date(
+          ts.seconds * 1000 + Math.floor((ts.nanoseconds ?? 0) / 1_000_000),
+        );
+        return isNaN(d.getTime()) ? undefined : d;
+      }
+      return undefined;
+    };
+
     return products.filter((product) => {
       const matchesSearch = product.name
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
       const matchesCategory =
         !selectedCategoryId || product.categoryId === selectedCategoryId;
-      const matchesCreatedAfter =
-        !createdAfter || new Date(product.createdAt) >= createdAfter.toDate();
-      const price = product.price ?? 0;
+
+      const createdAtDate = toJsDate((product as any)?.createdAt);
+
+      // Correct precedence: decide based on createdAfter first
+      const matchesCreatedAfter = !createdAfterDate // if no filter -> pass
+        ? true
+        : !createdAtDate // if product has no createdAt -> pass
+          ? true
+          : createdAtDate >= createdAfterDate;
+
+      const price = typeof product.price === 'number' ? product.price : 0;
       const matchesPrice = price >= minPrice && price <= maxPrice;
 
       return (
@@ -191,6 +215,14 @@ export default function ProductsPage() {
             groupById="categoryId"
             stickyColumnIndex={2}
             enableRowExpansion
+            renderExpandedRow={(p) => (
+              <ProductExpandedRow
+                product={p}
+                categoryName={
+                  categories.find((c) => c.id === p.categoryId)?.name
+                }
+              />
+            )}
           />
         )}
 

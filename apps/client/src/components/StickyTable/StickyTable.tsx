@@ -40,14 +40,14 @@ import SwapVertIcon from '@mui/icons-material/SwapVert';
 import { tableFilters } from './tableFilters';
 import { renderColumnFilter } from './renderColumnFilter';
 
-export interface StickyTableProps<T> {
+export interface StickyTableProps<T extends object> {
   columns: ColumnDef<T>[];
   data: T[];
   sorting: SortingState;
   onSortingChange: (updater: Updater<SortingState>) => void;
   columnFilters: ColumnFiltersState;
   onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) => void;
-  stickyColumnIndex?: number; // reserved for future use
+  stickyColumnIndex?: number; // reserved
   enablePagination?: boolean;
   rowsPerPage?: number;
   enableSorting?: boolean;
@@ -58,7 +58,7 @@ export interface StickyTableProps<T> {
   renderExpandedRow?: (row: T) => React.ReactNode;
 }
 
-export default function StickyTable<T extends Record<string, unknown>>({
+export default function StickyTable<T extends object>({
   columns,
   data,
   sorting,
@@ -88,9 +88,13 @@ export default function StickyTable<T extends Record<string, unknown>>({
   // Sort whole groups (when grouping is active) by count or alphabetically
   const sortedData = useMemo(() => {
     if (!groupById) return data;
+
+    const keyName = groupById; // narrowed by guard above
     const groupMap = new Map<string, T[]>();
+
     for (const item of data) {
-      const key = String(item[groupById] ?? 'Unknown');
+      const raw = (item as Record<string, unknown>)[keyName as string];
+      const key = String((raw ?? 'Unknown') as unknown);
       const arr = groupMap.get(key);
       if (arr) {
         arr.push(item);
@@ -98,6 +102,7 @@ export default function StickyTable<T extends Record<string, unknown>>({
         groupMap.set(key, [item]);
       }
     }
+
     const groupKeys = Array.from(groupMap.keys());
     groupKeys.sort((a, b) => {
       if (groupSortMode === 'count') {
@@ -105,6 +110,7 @@ export default function StickyTable<T extends Record<string, unknown>>({
       }
       return a.localeCompare(b);
     });
+
     return groupKeys.flatMap((k) => groupMap.get(k)!);
   }, [data, groupById, groupSortMode]);
 
@@ -294,8 +300,7 @@ export default function StickyTable<T extends Record<string, unknown>>({
                     | undefined;
                   const stickyStyles = getStickyStyles(meta);
                   const align: 'left' | 'right' | 'center' =
-                    meta?.align ??
-                    (meta?.filterVariant === 'number' ? 'right' : 'left');
+                    meta?.align ?? 'left';
 
                   return (
                     <TableCell
@@ -359,7 +364,7 @@ export default function StickyTable<T extends Record<string, unknown>>({
               if (row.depth === 0 && row.subRows.length > 0 && isGrouped) {
                 const isOpen = expandedGroups[row.id];
                 const label = groupById
-                  ? String(row.getValue(groupById as string))
+                  ? String(row.getValue(String(groupById)))
                   : 'Group';
 
                 return (
