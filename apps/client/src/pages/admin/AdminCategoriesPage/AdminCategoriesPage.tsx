@@ -11,6 +11,10 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { useCategoryTableStore } from '../../../stores/useCategoryTableStore';
+import type { TCategory as Category } from '@common/types';
+
+// ✅ URL sync for table sorting + column filters
+import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
 
 export default function AdminCategoriesPage() {
   const { sorting, setSorting, columnFilters, setColumnFilters } =
@@ -20,6 +24,15 @@ export default function AdminCategoriesPage() {
   const navigate = useNavigate();
 
   const columns = useMemo(() => defineCategoryColumns(navigate), [navigate]);
+
+  // 🔗 Keep sorting + columnFilters in the query string (hydrate on load too)
+  useStickyTableQuerySync({
+    sorting,
+    setSorting,
+    columnFilters,
+    setColumnFilters,
+    // viewMode not used here, so omit
+  });
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
@@ -42,7 +55,7 @@ export default function AdminCategoriesPage() {
           </Button>
         </Box>
 
-        <StickyTable
+        <StickyTable<Category>
           columns={columns}
           data={categories}
           stickyColumnIndex={0}

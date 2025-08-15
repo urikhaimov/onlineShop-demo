@@ -4,7 +4,10 @@ import { Box, Divider, Snackbar, Alert, Button, Stack } from '@mui/material';
 import { useInView } from 'react-intersection-observer';
 import { debounce } from 'lodash';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../services/ability.service';
 import type { IProduct } from '@common/types';
 import { db } from '../../firebase';
 import StickyTable from '../../components/StickyTable';
@@ -23,6 +26,7 @@ import { useCategories } from '../../hooks/useCategories';
 
 // Expanded row component
 import ProductExpandedRow from './ProductExpandedRow';
+import { PageLayout } from '../../layouts/page.layout';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
@@ -175,67 +179,72 @@ export default function ProductsPage() {
     categories.find((c) => c.id === categoryId)?.name ?? '—';
 
   return (
-    <Box px={2} py={1}>
-      <Divider sx={{ mb: 2 }} />
+    <PageLayout
+      action={EAbilityActions.MANAGE}
+      subject={EAbilitySubjects.PRODUCTS}
+    >
+      <Box px={5} py={4}>
+        {/* Header row with Reset button */}
+        <Stack
+          direction="row"
+          justifyContent="flex-end"
+          alignItems="center"
+          mb={1}
+        >
+          <Button size="small" variant="outlined" onClick={resetAllFilters}>
+            Reset filters
+          </Button>
+        </Stack>
 
-      {/* Header row with Reset button */}
-      <Stack
-        direction="row"
-        justifyContent="flex-end"
-        alignItems="center"
-        mb={1}
-      >
-        <Button size="small" variant="outlined" onClick={resetAllFilters}>
-          Reset filters
-        </Button>
-      </Stack>
+        {filteredProducts.length === 0 ? (
+          <NotFound message="No products found." />
+        ) : (
+          <StickyTable<IProduct>
+            data={visibleProducts}
+            columns={columns}
+            sorting={sorting}
+            onSortingChange={(updater) =>
+              setSorting(
+                typeof updater === 'function' ? updater(sorting) : updater,
+              )
+            }
+            columnFilters={columnFilters}
+            onColumnFiltersChange={(updater) =>
+              setColumnFilters(
+                typeof updater === 'function'
+                  ? updater(columnFilters)
+                  : updater,
+              )
+            }
+            groupById="categoryId"
+            enablePagination
+            enableSorting
+            enableColumnFilters
+            enableRowExpansion
+            renderExpandedRow={(product) => (
+              <ProductExpandedRow
+                product={product}
+                categoryName={getCategoryName(product.categoryId)}
+              />
+            )}
+          />
+        )}
 
-      {filteredProducts.length === 0 ? (
-        <NotFound message="No products found." />
-      ) : (
-        <StickyTable<IProduct>
-          data={visibleProducts}
-          columns={columns}
-          sorting={sorting}
-          onSortingChange={(updater) =>
-            setSorting(
-              typeof updater === 'function' ? updater(sorting) : updater,
-            )
-          }
-          columnFilters={columnFilters}
-          onColumnFiltersChange={(updater) =>
-            setColumnFilters(
-              typeof updater === 'function' ? updater(columnFilters) : updater,
-            )
-          }
-          groupById="categoryId"
-          enablePagination
-          enableSorting
-          enableColumnFilters
-          enableRowExpansion
-          renderExpandedRow={(product) => (
-            <ProductExpandedRow
-              product={product}
-              categoryName={getCategoryName(product.categoryId)}
-            />
-          )}
-        />
-      )}
+        <Box ref={sentinelRef} display="flex" justifyContent="center" py={3}>
+          {visibleCount < filteredProducts.length && <LoadingProgress />}
+        </Box>
 
-      <Box ref={sentinelRef} display="flex" justifyContent="center" py={3}>
-        {visibleCount < filteredProducts.length && <LoadingProgress />}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackbarOpen(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity="success" variant="filled">
+            Product added to cart
+          </Alert>
+        </Snackbar>
       </Box>
-
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" variant="filled">
-          Product added to cart
-        </Alert>
-      </Snackbar>
-    </Box>
+    </PageLayout>
   );
 }
