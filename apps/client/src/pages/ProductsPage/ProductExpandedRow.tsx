@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography, CardMedia } from '@mui/material';
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
 
 function asDate(value: unknown): Date | undefined {
@@ -34,16 +35,24 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
       ? product.images[0]
       : undefined;
 
-  const created = asDate((product as any)?.createdAt); // if you store createdAt on the product
-  const updated = asDate((product as any)?.updatedAt);
+  const created =
+    asDate((product as any)?.createdAt) ??
+    asDate((product as any)?.metadata?.createdAt);
+  const updated =
+    asDate((product as any)?.updatedAt) ??
+    asDate((product as any)?.metadata?.updatedAt);
 
-  // Optional/guessy fields — rendered defensively
+  // Optional fields coming from your editor / schema
   const sku = (product as any)?.sku as string | undefined;
   const brand = (product as any)?.brand as string | undefined;
-  const description = (product as any)?.description as string | undefined;
+  const description = (product as any)?.description as string | undefined; // HTML string
   const attributes = (product as any)?.attributes as
     | Record<string, unknown>
     | undefined;
+
+  const sanitizedDescription = description
+    ? DOMPurify.sanitize(description, { USE_PROFILES: { html: true } })
+    : '';
 
   return (
     <Box
@@ -86,8 +95,32 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
       </Box>
 
       <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
-        <Typography variant="subtitle2">Description</Typography>
-        <Typography variant="body2">{description ?? '—'}</Typography>
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+          Description
+        </Typography>
+
+        {sanitizedDescription ? (
+          <Box
+            // Render sanitized HTML
+            dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
+            sx={{
+              // Basic typography for editor HTML
+              '& p': {
+                m: 0,
+                mb: 0.5,
+                fontSize: '0.875rem',
+                color: 'text.primary',
+              },
+              '& ul, & ol': { my: 0.5, pl: 3 },
+              '& li': { fontSize: '0.875rem' },
+              '& h1, & h2, & h3, & h4, & h5, & h6': { mt: 1, mb: 0.5 },
+              '& img': { maxWidth: '100%', height: 'auto', borderRadius: 1 },
+              '& a': { color: 'primary.main', textDecoration: 'underline' },
+            }}
+          />
+        ) : (
+          <Typography variant="body2">—</Typography>
+        )}
       </Box>
 
       {attributes && Object.keys(attributes).length > 0 && (
@@ -97,7 +130,10 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
             {Object.entries(attributes).map(([k, v]) => (
               <li key={k}>
                 <Typography variant="body2">
-                  <strong>{k}:</strong> {String(v)}
+                  <strong>{k}:</strong>{' '}
+                  {typeof v === 'object' && v !== null
+                    ? JSON.stringify(v)
+                    : String(v)}
                 </Typography>
               </li>
             ))}

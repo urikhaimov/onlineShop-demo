@@ -1,6 +1,6 @@
 // src/pages/ProductsPage/ProductsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Divider, Snackbar, Alert } from '@mui/material';
+import { Box, Divider, Snackbar, Alert, Button, Stack } from '@mui/material';
 import { useInView } from 'react-intersection-observer';
 import { debounce } from 'lodash';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
@@ -16,9 +16,13 @@ import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 // URL sync hooks
 import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
 import { useProductsQuerySync } from '../../hooks/useProductsQuerySync';
-import dayjs, { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
+
 // Categories for the Category column/filter
 import { useCategories } from '../../hooks/useCategories';
+
+// Expanded row component
+import ProductExpandedRow from './ProductExpandedRow';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
@@ -27,7 +31,7 @@ export default function ProductsPage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
-  // Page-level filters (optional; synced to URL)
+  // Page-level filters (synced to URL)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     null,
@@ -125,7 +129,7 @@ export default function ProductsPage() {
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  // ✅ Pass categories, not navigate
+  // Columns
   const columns = useMemo(
     () => defineProductColumns(categories, setSnackbarOpen),
     [categories],
@@ -153,9 +157,38 @@ export default function ProductsPage() {
     setMaxPrice,
   });
 
+  // Reset both table + page filters
+  const resetAllFilters = () => {
+    // page-level
+    setSearchTerm('');
+    setSelectedCategoryId(null);
+    setCreatedAfter(null);
+    setMinPrice(0);
+    setMaxPrice(100000);
+    // table-level
+    setColumnFilters([]);
+    setSorting([]);
+  };
+
+  // Helper to resolve category name for expanded row
+  const getCategoryName = (categoryId?: string | null) =>
+    categories.find((c) => c.id === categoryId)?.name ?? '—';
+
   return (
     <Box px={2} py={1}>
       <Divider sx={{ mb: 2 }} />
+
+      {/* Header row with Reset button */}
+      <Stack
+        direction="row"
+        justifyContent="flex-end"
+        alignItems="center"
+        mb={1}
+      >
+        <Button size="small" variant="outlined" onClick={resetAllFilters}>
+          Reset filters
+        </Button>
+      </Stack>
 
       {filteredProducts.length === 0 ? (
         <NotFound message="No products found." />
@@ -179,6 +212,13 @@ export default function ProductsPage() {
           enablePagination
           enableSorting
           enableColumnFilters
+          enableRowExpansion
+          renderExpandedRow={(product) => (
+            <ProductExpandedRow
+              product={product}
+              categoryName={getCategoryName(product.categoryId)}
+            />
+          )}
         />
       )}
 
