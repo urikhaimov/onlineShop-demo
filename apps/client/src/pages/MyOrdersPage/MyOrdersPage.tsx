@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuIcon from '@mui/icons-material/Menu';
-
+import { format } from 'date-fns';
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
 import LoadingProgress from '../../components/LoadingProgress';
@@ -25,13 +25,13 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
-import { TOrder } from '@common/types';
+import type { TOrder } from '@common/types';
 import OrderCard from './OrderCard';
 import UserOrderFilters from './UserOrderFilters';
-import { normalizeToDate } from '../../utils/normalizeToDate';
+import { getOrderCreatedDate } from '../../utils/getOrderCreatedDate';
 import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
 import { useOrdersPageStore } from '../../stores/useOrdersPageStore';
-
+import OrderExpandedRow from './OrderExpandedRow';
 export default function MyOrdersPage() {
   const { user } = useAuth();
   const {
@@ -59,7 +59,8 @@ export default function MyOrdersPage() {
 
     const loadOrders = async () => {
       try {
-        const fetchFn = () => fetchMyOrders().then((res) => res.data);
+        const fetchFn = () =>
+          fetchMyOrders().then((res) => res.data as TOrder[]);
         const list = await retryWithBackoff(fetchFn);
         setOrders(list);
       } catch (err) {
@@ -73,14 +74,16 @@ export default function MyOrdersPage() {
   }, [user, setOrders, setLoading]);
 
   const filteredOrders = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+
     return orders.filter((order) => {
-      const matchesSearch = order.id
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      const matchesSearch = order.id.toLowerCase().includes(q);
       const matchesStatus = !status || order.status === status;
 
-      const createdDate = normalizeToDate(order.createdAt);
-      const createdStr = createdDate?.toISOString().split('T')[0] ?? '';
+      const createdDate = getOrderCreatedDate(order);
+      const createdStr = createdDate
+        ? createdDate.toISOString().split('T')[0]
+        : '';
 
       const matchesDateFrom = !dateFrom || createdStr >= dateFrom;
       const matchesDateTo = !dateTo || createdStr <= dateTo;
@@ -96,7 +99,7 @@ export default function MyOrdersPage() {
       action={EAbilityActions.MANAGE}
       subject={EAbilitySubjects.ORDERS}
     >
-      <Box px={{ xs: 1, sm: 2 }} py={3}>
+      <Box px={5} py={4}>
         <Box
           display="flex"
           justifyContent="space-between"
@@ -141,7 +144,7 @@ export default function MyOrdersPage() {
             ))}
           </Box>
         ) : (
-          <StickyTable
+          <StickyTable<TOrder>
             columns={defineOrderColumns()}
             data={filteredOrders}
             sorting={sorting}
@@ -152,6 +155,8 @@ export default function MyOrdersPage() {
             enablePagination
             enableSorting
             enableColumnFilters
+            enableRowExpansion
+            renderExpandedRow={(order) => <OrderExpandedRow order={order} />}
           />
         )}
 

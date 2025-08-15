@@ -35,9 +35,12 @@ async function importProducts() {
       stock: product.stock,
       categoryId: product.categoryId,
       images: product.images,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as IProduct);
+      metadata: {
+        ...product.metadata,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    } as unknown as IProduct);
   });
 
   await batch.commit();

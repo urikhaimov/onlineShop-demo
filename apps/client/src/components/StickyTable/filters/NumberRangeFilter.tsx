@@ -5,11 +5,22 @@ import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import type { Column, Table } from '@tanstack/react-table';
 import dayjs, { Dayjs } from 'dayjs';
-import FormTextField from '../../components/FormTextField';
+import FormTextField from '../../../components/FormTextField';
 
 export type FilterVariant = 'text' | 'select' | 'number' | 'date';
+type SelectOptions = { label: string; value: string };
 
-/* ---------- Utils ---------- */
+export interface ColumnMeta {
+  align?: 'left' | 'center' | 'right';
+  filterVariant?: FilterVariant;
+  selectOptions?: readonly SelectOptions[];
+  sticky?: 'left' | 'right';
+  hiddenOnMobile?: boolean;
+  /** Configure numeric range filter bounds & step */
+  numberRange?: { min?: number; max?: number; step?: number };
+}
+
+/* ---------- Helpers ---------- */
 
 type NumRange = [number | undefined, number | undefined];
 
@@ -17,38 +28,29 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(Math.max(n, min), max);
 }
 
-/** Debounced effect without disabling exhaustive-deps */
 function useDebouncedEffect(
-  cb: () => void,
+  effect: () => void,
   deps: React.DependencyList,
   delay = 250,
 ) {
-  const cbRef = React.useRef(cb);
   React.useEffect(() => {
-    cbRef.current = cb;
-  }, [cb]);
-
-  React.useEffect(() => {
-    const id = setTimeout(() => cbRef.current(), delay);
+    const id = setTimeout(effect, delay);
     return () => clearTimeout(id);
-  }, [...deps, delay]);
+  }, deps);
 }
-
-// Infer the augmented meta type directly from the column
-type MetaOf<C extends Column<any>> = NonNullable<C['columnDef']['meta']>;
 
 /* ---------- Number Range Filter (inputs + slider) ---------- */
 
 function NumberRangeFilter<T>({
   column,
-  _table, // not needed here, keep to match signature
+  table,
   meta,
-  labelFrom = 'from',
-  labelTo = 'to',
+  labelFrom = 'From',
+  labelTo = 'To',
 }: {
   column: Column<T, unknown>;
-  _table: Table<T>;
-  meta?: MetaOf<Column<T>>;
+  table: Table<T>;
+  meta?: ColumnMeta;
   labelFrom?: string;
   labelTo?: string;
 }) {
@@ -64,7 +66,6 @@ function NumberRangeFilter<T>({
   const globalMax =
     explicitMax ?? (typeof faceted?.[1] === 'number' ? faceted[1] : 100000);
 
-  // Current filter value from table state
   const current = (column.getFilterValue() as NumRange | undefined) ?? [
     undefined,
     undefined,
@@ -74,14 +75,13 @@ function NumberRangeFilter<T>({
   const [from, setFrom] = React.useState<number | ''>(current[0] ?? '');
   const [to, setTo] = React.useState<number | ''>(current[1] ?? '');
 
-  // Keep local in sync if external filter changes (reset, etc.)
+  // Sync local state if external filter is cleared/changed
   React.useEffect(() => {
-    const [c0, c1] = current;
-    setFrom(c0 ?? '');
-    setTo(c1 ?? '');
-  }, [current]);
+    setFrom(current[0] ?? '');
+    setTo(current[1] ?? '');
+  }, [current?.[0], current?.[1]]);
 
-  // Debounced write-back to the column filter
+  // Debounced write-back to table filter
   useDebouncedEffect(() => {
     const next: NumRange = [
       from === '' ? undefined : Number(from),
@@ -90,7 +90,7 @@ function NumberRangeFilter<T>({
     column.setFilterValue(next);
   }, [from, to, column]);
 
-  // Slider needs concrete numbers → coerce to global bounds when missing
+  // Slider needs definite numbers → coerce to bounds when missing
   const sliderValue: [number, number] = [
     typeof from === 'number' ? clamp(from, globalMin, globalMax) : globalMin,
     typeof to === 'number' ? clamp(to, globalMin, globalMax) : globalMax,
@@ -161,9 +161,8 @@ export function renderColumnFilter<T>(
   column: Column<T, unknown>,
   table: Table<T>,
 ) {
-  const meta = column.columnDef.meta as MetaOf<Column<T>> | undefined;
-  const filterType: FilterVariant =
-    (meta?.filterVariant as FilterVariant) ?? 'text';
+  const meta = column.columnDef.meta as ColumnMeta | undefined;
+  const filterType: FilterVariant = meta?.filterVariant || 'text';
   const value = column.getFilterValue();
 
   switch (filterType) {
@@ -186,15 +185,21 @@ export function renderColumnFilter<T>(
 
     case 'number':
       return (
-        <NumberRangeFilter<T> column={column} _table={table} meta={meta} />
+        <NumberRangeFilter<T>
+          column={column}
+          table={table}
+          meta={meta}
+          // Hebrew labels like your screenshot:
+          labelFrom="החל מ-"
+          labelTo="עד"
+        />
       );
 
     case 'date': {
       // Expecting [from, to] ISO strings for your betweenDateRange
-      const tuple = (Array.isArray(value) ? value : [null, null]) as
+      const [start, end] = (Array.isArray(value) ? value : [null, null]) as
         | [string | null, string | null]
         | [null, null];
-      const [start, end] = tuple;
 
       return (
         <LocalizationProvider dateAdapter={AdapterDayjs}>

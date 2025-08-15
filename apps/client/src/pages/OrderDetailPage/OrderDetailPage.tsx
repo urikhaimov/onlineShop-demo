@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency } from '../../utils/formatCurrency';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
 import { useAuth } from '../../hooks/useAuth';
 import LoadingProgress from '../../components/LoadingProgress';

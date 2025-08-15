@@ -1,18 +1,48 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { TOrder as Order } from '@common/types';
-import { Typography } from '@mui/material';
+// src/pages/Columns.ts
+import { ColumnDef, CellContext } from '@tanstack/react-table';
+import type { TOrder } from '@common/types';
+import { Typography, Stack } from '@mui/material';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import {
   betweenDateRange,
   betweenNumberRange,
 } from '../../components/StickyTable/tableFilters';
+import { RankChip } from '../../components/RankChip';
 
-export const defineOrderColumns = (): ColumnDef<Order>[] => [
+function getRank<T>(ctx: CellContext<T, unknown>): number {
+  const { table, row } = ctx;
+  const rows = table.getRowModel().rows;
+  const idx = rows.findIndex((r) => r.id === row.id);
+  return idx >= 0 ? idx + 1 : rows.length; // 1-based, fallback to end
+}
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (value instanceof Timestamp) return value.toDate();
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // support {seconds, nanoseconds}
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'seconds' in (value as any) &&
+    'nanoseconds' in (value as any)
+  ) {
+    const v = value as { seconds: number; nanoseconds: number };
+    return new Date(v.seconds * 1000 + Math.floor(v.nanoseconds / 1_000_000));
+  }
+  return null;
+}
+
+export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
   {
     accessorKey: 'id',
     header: 'Order ID',
     enableColumnFilter: false,
+    meta: { sticky: 'left' }, // visible on mobile
     cell: (info) => (
       <Typography
         variant="body2"
@@ -22,45 +52,33 @@ export const defineOrderColumns = (): ColumnDef<Order>[] => [
       </Typography>
     ),
   },
+
   {
-    accessorKey: 'email',
-    header: 'Customer Email',
-    cell: (info) => (
-      <Typography
-        variant="body2"
-        sx={{ maxWidth: 200, wordBreak: 'break-word' }}
-      >
-        {info.getValue<string>() || '—'}
-      </Typography>
-    ),
-  },
-  {
-    accessorKey: 'createdAt',
+    // Fix: createdAt is under metadata
+    id: 'createdAt',
+    accessorFn: (row) => row.metadata?.createdAt ?? null,
     header: 'Date',
     filterFn: betweenDateRange,
-    meta: { filterVariant: 'date' },
+    meta: { filterVariant: 'date', hiddenOnMobile: true },
     cell: (info) => {
-      const rawValue = info.getValue();
-      let date: Date;
-
-      if (rawValue instanceof Date) {
-        date = rawValue;
-      } else if (
-        typeof rawValue === 'object' &&
-        rawValue !== null &&
-        'toDate' in rawValue &&
-        typeof (rawValue as Timestamp).toDate === 'function'
-      ) {
-        date = (rawValue as Timestamp).toDate();
-      } else {
-        date = new Date(); // fallback
-      }
-
+      const raw = info.getValue<unknown>();
+      const date = toDate(raw) ?? new Date(0);
       return (
         <Typography variant="body2" color="text.secondary">
-          {format(date, 'PPpp')}
+          {isNaN(date.getTime()) ? '—' : format(date, 'PPpp')}
         </Typography>
       );
+    },
+  },
+  {
+    accessorKey: 'amount',
+    header: 'Total ($)',
+    filterFn: betweenNumberRange,
+    meta: {
+      filterVariant: 'number',
+      align: 'left',
+      hiddenOnMobile: true,
+      numberRange: { min: 0, max: 100000, step: 1 }, // <-- here
     },
   },
   {
@@ -70,13 +88,14 @@ export const defineOrderColumns = (): ColumnDef<Order>[] => [
     filterFn: 'equals',
     meta: {
       filterVariant: 'select',
+      // keep visible on mobile
       selectOptions: [
         { label: 'Pending', value: 'pending' },
         { label: 'Confirmed', value: 'confirmed' },
         { label: 'Shipped', value: 'shipped' },
         { label: 'Delivered', value: 'delivered' },
         { label: 'Cancelled', value: 'cancelled' },
-      ] as { label: string; value: string }[],
+      ] as const,
     },
     cell: ({ row }) => {
       const value = row.getValue<string>('status');
@@ -90,16 +109,5 @@ export const defineOrderColumns = (): ColumnDef<Order>[] => [
         </Typography>
       );
     },
-  },
-  {
-    accessorKey: 'amount',
-    header: 'Total ($)',
-    filterFn: betweenNumberRange,
-    meta: { filterVariant: 'number', align: 'left' },
-    cell: ({ row }) => (
-      <Typography variant="body2" color="text.secondary">
-        ${row.getValue<number>('amount')?.toFixed?.(2) ?? '—'}
-      </Typography>
-    ),
   },
 ];

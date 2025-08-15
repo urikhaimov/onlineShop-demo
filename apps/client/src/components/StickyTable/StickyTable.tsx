@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// src/components/StickyTable/index.tsx
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,6 +11,8 @@ import {
   type SortingState,
   type ColumnFiltersState,
   type Updater,
+  type Row,
+  type Column,
 } from '@tanstack/react-table';
 import {
   Paper,
@@ -35,25 +38,27 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 
 import { tableFilters } from './tableFilters';
-import { type FilterVariant, renderColumnFilter } from './renderColumnFilter';
+import { renderColumnFilter } from './renderColumnFilter';
 
-interface StickyTableProps<T> {
+export interface StickyTableProps<T> {
   columns: ColumnDef<T>[];
   data: T[];
   sorting: SortingState;
   onSortingChange: (updater: Updater<SortingState>) => void;
   columnFilters: ColumnFiltersState;
   onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) => void;
-  stickyColumnIndex?: number;
+  stickyColumnIndex?: number; // reserved for future use
   enablePagination?: boolean;
   rowsPerPage?: number;
   enableSorting?: boolean;
   enableColumnFilters?: boolean;
   groupById?: keyof T;
   enableRowExpansion?: boolean;
+  /** Custom renderer for expanded row content */
+  renderExpandedRow?: (row: T) => React.ReactNode;
 }
 
-export default function StickyTable<T extends Record<string, any>>({
+export default function StickyTable<T extends Record<string, unknown>>({
   columns,
   data,
   sorting,
@@ -66,9 +71,11 @@ export default function StickyTable<T extends Record<string, any>>({
   enableColumnFilters = true,
   groupById,
   enableRowExpansion = false,
+  renderExpandedRow,
 }: StickyTableProps<T>) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     {},
   );
@@ -78,23 +85,27 @@ export default function StickyTable<T extends Record<string, any>>({
   );
   const [denseMode, setDenseMode] = useState(false);
 
+  // Sort whole groups (when grouping is active) by count or alphabetically
   const sortedData = useMemo(() => {
     if (!groupById) return data;
-    const groupMap: Record<string, T[]> = {};
+    const groupMap = new Map<string, T[]>();
     for (const item of data) {
       const key = String(item[groupById] ?? 'Unknown');
-      if (!groupMap[key]) groupMap[key] = [];
-      groupMap[key].push(item);
+      const arr = groupMap.get(key);
+      if (arr) {
+        arr.push(item);
+      } else {
+        groupMap.set(key, [item]);
+      }
     }
-    const groupKeys = Object.keys(groupMap);
+    const groupKeys = Array.from(groupMap.keys());
     groupKeys.sort((a, b) => {
       if (groupSortMode === 'count') {
-        return groupMap[b].length - groupMap[a].length;
-      } else {
-        return a.localeCompare(b);
+        return groupMap.get(b)!.length - groupMap.get(a)!.length;
       }
+      return a.localeCompare(b);
     });
-    return groupKeys.flatMap((k) => groupMap[k]);
+    return groupKeys.flatMap((k) => groupMap.get(k)!);
   }, [data, groupById, groupSortMode]);
 
   const table = useReactTable({
@@ -119,19 +130,19 @@ export default function StickyTable<T extends Record<string, any>>({
   });
 
   const rowModel = table.getRowModel();
-  const isGrouped = !!groupById && table.getState().grouping.length > 0;
+  const isGrouped = Boolean(groupById) && table.getState().grouping.length > 0;
 
+  // Auto-expand top-level groups initially
   useEffect(() => {
-    if (isGrouped) {
-      const next: Record<string, boolean> = {};
-      rowModel.rows.forEach((row) => {
-        if (row.subRows.length > 0 && row.depth === 0) {
-          next[row.id] = true;
-        }
-      });
-      setExpandedGroups(next);
+    if (!isGrouped) return;
+    const next: Record<string, boolean> = {};
+    for (const r of rowModel.rows) {
+      if (r.subRows.length > 0 && r.depth === 0) {
+        next[r.id] = true;
+      }
     }
-  }, [data, groupById, isGrouped]);
+    setExpandedGroups(next);
+  }, [isGrouped, rowModel.rows]);
 
   const toggleGroup = (id: string) => {
     setExpandedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -141,10 +152,13 @@ export default function StickyTable<T extends Record<string, any>>({
     setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const getStickyStyles = (meta?: any) => {
+  // Helper types & fns for column meta (relies on your module augmentation)
+  type MetaOf<C extends Column<any>> = NonNullable<C['columnDef']['meta']>;
+
+  const getStickyStyles = (meta?: MetaOf<Column<T>>) => {
     if (meta?.sticky === 'left') {
       return {
-        position: 'sticky',
+        position: 'sticky' as const,
         left: 0,
         zIndex: 3,
         backgroundColor: theme.palette.background.paper,
@@ -152,7 +166,7 @@ export default function StickyTable<T extends Record<string, any>>({
     }
     if (meta?.sticky === 'right') {
       return {
-        position: 'sticky',
+        position: 'sticky' as const,
         right: 0,
         zIndex: 3,
         backgroundColor: theme.palette.background.paper,
@@ -161,26 +175,31 @@ export default function StickyTable<T extends Record<string, any>>({
     return {};
   };
 
-  const shouldHideColumnOnMobile = (meta?: any) =>
+  const shouldHideColumnOnMobile = (meta?: MetaOf<Column<T>>) =>
     meta?.hiddenOnMobile ? { display: { xs: 'none', sm: 'table-cell' } } : {};
 
-  const renderRow = (row: any) => {
+  const renderRow = (row: Row<T>) => {
     const isExpanded = expandedRows[row.id] ?? false;
+
     return (
       <React.Fragment key={row.id}>
         <TableRow>
-          {row.getVisibleCells().map((cell: any) => {
-            const meta = cell.column.columnDef.meta;
+          {row.getVisibleCells().map((cell) => {
+            const meta = cell.column.columnDef.meta as
+              | MetaOf<typeof cell.column>
+              | undefined;
             const stickyStyles = getStickyStyles(meta);
+            const align: 'left' | 'right' | 'center' =
+              meta?.align ??
+              (meta?.filterVariant === 'number' ? 'right' : 'left');
+
             return (
               <TableCell
                 key={cell.id}
                 sx={{
                   ...stickyStyles,
                   ...shouldHideColumnOnMobile(meta),
-                  textAlign:
-                    meta?.align ??
-                    (meta?.filterVariant === 'number' ? 'right' : 'left'),
+                  textAlign: align,
                   verticalAlign: 'top',
                   px: denseMode ? 0.5 : 1,
                   py: denseMode ? 0.25 : 0.5,
@@ -192,6 +211,7 @@ export default function StickyTable<T extends Record<string, any>>({
               </TableCell>
             );
           })}
+
           {enableRowExpansion && (
             <TableCell
               sx={{
@@ -209,15 +229,20 @@ export default function StickyTable<T extends Record<string, any>>({
             </TableCell>
           )}
         </TableRow>
+
         {enableRowExpansion && isExpanded && (
           <TableRow>
             <TableCell
               colSpan={columns.length + 1}
               sx={{ backgroundColor: theme.palette.grey[50], px: 2, py: 1 }}
             >
-              <Typography variant="body2" color="text.secondary">
-                {row.original.description || 'No description provided.'}
-              </Typography>
+              {renderExpandedRow ? (
+                renderExpandedRow(row.original)
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No additional details.
+                </Typography>
+              )}
             </TableCell>
           </TableRow>
         )}
@@ -238,6 +263,7 @@ export default function StickyTable<T extends Record<string, any>>({
           }
           label="Dense mode"
         />
+
         {isGrouped && (
           <Tooltip title={`Sort groups by ${groupSortMode}`}>
             <IconButton
@@ -263,8 +289,14 @@ export default function StickyTable<T extends Record<string, any>>({
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id}>
                 {group.headers.map((header) => {
-                  const meta = header.column.columnDef.meta;
+                  const meta = header.column.columnDef.meta as
+                    | MetaOf<typeof header.column>
+                    | undefined;
                   const stickyStyles = getStickyStyles(meta);
+                  const align: 'left' | 'right' | 'center' =
+                    meta?.align ??
+                    (meta?.filterVariant === 'number' ? 'right' : 'left');
+
                   return (
                     <TableCell
                       key={header.id}
@@ -278,11 +310,7 @@ export default function StickyTable<T extends Record<string, any>>({
                           sm: header.column.columnDef.size ?? 100,
                         },
                         backgroundColor: theme.palette.grey[50],
-                        textAlign:
-                          meta?.align ??
-                          ((meta?.filterVariant === 'number'
-                            ? 'right'
-                            : 'left') as FilterVariant),
+                        textAlign: align,
                         verticalAlign: 'top',
                         px: denseMode ? 0.5 : 1,
                         py: denseMode ? 0.25 : 0.5,
@@ -291,7 +319,7 @@ export default function StickyTable<T extends Record<string, any>>({
                       <Stack
                         spacing={0.25}
                         alignItems={
-                          meta?.align === 'right' ? 'flex-end' : 'flex-start'
+                          align === 'right' ? 'flex-end' : 'flex-start'
                         }
                       >
                         <Typography variant="caption" fontWeight={600}>
@@ -300,6 +328,7 @@ export default function StickyTable<T extends Record<string, any>>({
                             header.getContext(),
                           )}
                         </Typography>
+
                         {enableColumnFilters &&
                           header.column.getCanFilter() && (
                             <Box sx={{ mt: 0.25 }}>
@@ -310,6 +339,7 @@ export default function StickyTable<T extends Record<string, any>>({
                     </TableCell>
                   );
                 })}
+
                 {enableRowExpansion && (
                   <TableCell
                     sx={{
@@ -322,11 +352,16 @@ export default function StickyTable<T extends Record<string, any>>({
               </TableRow>
             ))}
           </TableHead>
+
           <TableBody>
             {rowModel.rows.map((row) => {
+              // Group header rows
               if (row.depth === 0 && row.subRows.length > 0 && isGrouped) {
                 const isOpen = expandedGroups[row.id];
-                const label = String(row.getValue(groupById as string));
+                const label = groupById
+                  ? String(row.getValue(groupById as string))
+                  : 'Group';
+
                 return (
                   <React.Fragment key={row.id}>
                     <TableRow
@@ -351,10 +386,13 @@ export default function StickyTable<T extends Record<string, any>>({
                         </Stack>
                       </TableCell>
                     </TableRow>
+
                     {isOpen && row.subRows.map((child) => renderRow(child))}
                   </React.Fragment>
                 );
               }
+
+              // Normal top-level rows
               if (row.depth === 0) return renderRow(row);
               return null;
             })}
