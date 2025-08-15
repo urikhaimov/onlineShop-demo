@@ -1,4 +1,3 @@
-// src/pages/MyOrdersPage.tsx
 import React, { useEffect, useMemo } from 'react';
 import {
   Box,
@@ -9,10 +8,12 @@ import {
   Drawer,
   Typography,
   IconButton,
+  Button,
+  Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuIcon from '@mui/icons-material/Menu';
-import { format } from 'date-fns';
+
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
 import LoadingProgress from '../../components/LoadingProgress';
@@ -32,8 +33,14 @@ import { getOrderCreatedDate } from '../../utils/getOrderCreatedDate';
 import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
 import { useOrdersPageStore } from '../../stores/useOrdersPageStore';
 import OrderExpandedRow from './OrderExpandedRow';
+
+// single composed hook that syncs table + orders filters to the URL
+import { useOrdersTableQuerySync } from '../../hooks/useOrdersTableQuerySync';
+
 export default function MyOrdersPage() {
   const { user } = useAuth();
+
+  // Page UI + table state (Zustand)
   const {
     orders,
     loading,
@@ -49,11 +56,22 @@ export default function MyOrdersPage() {
     setMobileFiltersOpen,
   } = useOrdersPageStore();
 
+  // Page-level filters (Zustand)
+  const {
+    searchTerm,
+    status,
+    dateFrom,
+    dateTo,
+    setSearchTerm,
+    setStatus,
+    setDateFrom,
+    setDateTo,
+  } = useOrderFilterStore();
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const { searchTerm, status, dateFrom, dateTo } = useOrderFilterStore();
-
+  // Fetch my orders
   useEffect(() => {
     if (!user) return;
 
@@ -73,6 +91,7 @@ export default function MyOrdersPage() {
     void loadOrders();
   }, [user, setOrders, setLoading]);
 
+  // Apply page-level filters
   const filteredOrders = useMemo(() => {
     const q = searchTerm.toLowerCase();
 
@@ -92,6 +111,38 @@ export default function MyOrdersPage() {
     });
   }, [orders, searchTerm, status, dateFrom, dateTo]);
 
+  // ---- URL Sync (table + orders filters) ----
+  useOrdersTableQuerySync({
+    // table
+    sorting,
+    setSorting,
+    columnFilters,
+    setColumnFilters,
+    viewMode,
+    setViewMode,
+    // orders filters
+    searchTerm,
+    status,
+    dateFrom,
+    dateTo,
+    setSearchTerm,
+    setStatus,
+    setDateFrom,
+    setDateTo,
+  });
+
+  // ---- Reset all filters (table + page) ----
+  const resetAllFilters = () => {
+    // page-level
+    setSearchTerm('');
+    setStatus(null);
+    setDateFrom(null);
+    setDateTo(null);
+    // table-level
+    setColumnFilters([]);
+    setSorting([]);
+  };
+
   if (!user || loading) return <LoadingProgress />;
 
   return (
@@ -106,23 +157,32 @@ export default function MyOrdersPage() {
           alignItems="center"
           mb={2}
         >
-          {viewMode === 'cards' && isMobile && (
-            <IconButton onClick={() => setMobileFiltersOpen(true)}>
-              <MenuIcon />
-            </IconButton>
-          )}
+          {/* Left side: mobile filters launcher (only in cards view) */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            {viewMode === 'cards' && isMobile && (
+              <IconButton onClick={() => setMobileFiltersOpen(true)}>
+                <MenuIcon />
+              </IconButton>
+            )}
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, next) => {
+                if (next) setViewMode(next);
+              }}
+              size="small"
+            >
+              <ToggleButton value="table">Table View</ToggleButton>
+              <ToggleButton value="cards">Card View</ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
 
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={(e, next) => {
-              if (next) setViewMode(next);
-            }}
-            size="small"
-          >
-            <ToggleButton value="table">Table View</ToggleButton>
-            <ToggleButton value="cards">Card View</ToggleButton>
-          </ToggleButtonGroup>
+          {/* Right side: show Reset button in table view too */}
+          {viewMode === 'table' && (
+            <Button size="small" variant="outlined" onClick={resetAllFilters}>
+              Reset filters
+            </Button>
+          )}
         </Box>
 
         {viewMode === 'cards' && !isMobile && (
