@@ -89,7 +89,7 @@ export default function StickyTable<T extends object>({
   const sortedData = useMemo(() => {
     if (!groupById) return data;
 
-    const keyName = groupById; // narrowed by guard above
+    const keyName = groupById;
     const groupMap = new Map<string, T[]>();
 
     for (const item of data) {
@@ -206,7 +206,7 @@ export default function StickyTable<T extends object>({
                   ...stickyStyles,
                   ...shouldHideColumnOnMobile(meta),
                   textAlign: align,
-                  verticalAlign: 'top',
+                  // verticalAlign intentionally omitted; TableBody sets it globally to "middle"
                   px: denseMode ? 0.5 : 1,
                   py: denseMode ? 0.25 : 0.5,
                   whiteSpace: { xs: 'normal', sm: 'nowrap' },
@@ -227,6 +227,7 @@ export default function StickyTable<T extends object>({
                 right: 0,
                 zIndex: 3,
                 backgroundColor: theme.palette.background.paper,
+                // vertical-align comes from TableBody rule
               }}
             >
               <IconButton size="small" onClick={() => toggleRowExpand(row.id)}>
@@ -240,7 +241,12 @@ export default function StickyTable<T extends object>({
           <TableRow>
             <TableCell
               colSpan={columns.length + 1}
-              sx={{ backgroundColor: theme.palette.grey[50], px: 2, py: 1 }}
+              sx={{
+                backgroundColor: theme.palette.grey[50],
+                px: 2,
+                py: 1,
+                // vertical-align comes from TableBody rule
+              }}
             >
               {renderExpandedRow ? (
                 renderExpandedRow(row.original)
@@ -300,7 +306,8 @@ export default function StickyTable<T extends object>({
                     | undefined;
                   const stickyStyles = getStickyStyles(meta);
                   const align: 'left' | 'right' | 'center' =
-                    meta?.align ?? 'left';
+                    meta?.align ??
+                    (meta?.filterVariant === 'number' ? 'right' : 'left');
 
                   return (
                     <TableCell
@@ -316,7 +323,7 @@ export default function StickyTable<T extends object>({
                         },
                         backgroundColor: theme.palette.grey[50],
                         textAlign: align,
-                        verticalAlign: 'top',
+                        verticalAlign: 'top', // header stays top-aligned
                         px: denseMode ? 0.5 : 1,
                         py: denseMode ? 0.25 : 0.5,
                       }}
@@ -351,6 +358,7 @@ export default function StickyTable<T extends object>({
                       top: 0,
                       zIndex: 10,
                       backgroundColor: theme.palette.grey[50],
+                      verticalAlign: 'top',
                     }}
                   />
                 )}
@@ -358,7 +366,10 @@ export default function StickyTable<T extends object>({
             ))}
           </TableHead>
 
-          <TableBody>
+          {/* Body: all cells vertically centered */}
+          <TableBody
+            sx={{ '& .MuiTableCell-root': { verticalAlign: 'middle' } }}
+          >
             {rowModel.rows.map((row) => {
               // Group header rows
               if (row.depth === 0 && row.subRows.length > 0 && isGrouped) {
