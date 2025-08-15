@@ -18,7 +18,7 @@ import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 
 // URL sync hooks
 import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
-import { useProductsQuerySync } from '../../hooks/useProductsQuerySync';
+
 import type { Dayjs } from 'dayjs';
 
 // Categories for the Category column/filter
@@ -148,18 +148,6 @@ export default function ProductsPage() {
   });
 
   // Sync page filters to query string (and hydrate on load)
-  useProductsQuerySync({
-    searchTerm,
-    selectedCategoryId,
-    createdAfter,
-    minPrice,
-    maxPrice,
-    setSearchTerm,
-    setSelectedCategoryId,
-    setCreatedAfter,
-    setMinPrice,
-    setMaxPrice,
-  });
 
   // Reset both table + page filters
   const resetAllFilters = () => {

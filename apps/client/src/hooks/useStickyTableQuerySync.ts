@@ -1,3 +1,4 @@
+// src/hooks/useStickyTableQuerySync.ts
 import { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
@@ -18,27 +19,28 @@ function dec<T>(raw: string | null, fallback: T): T {
   }
 }
 
-type Args = {
+// 👇 add generic TView (defaults to string for backward-compat)
+type Args<TView extends string = string> = {
   sorting: SortingState;
   setSorting: (s: SortingState) => void;
   columnFilters: ColumnFiltersState;
   setColumnFilters: (f: ColumnFiltersState) => void;
-  viewMode?: string;
-  setViewMode?: (v: string) => void;
+  viewMode?: TView;
+  setViewMode?: (v: TView) => void;
 };
 
-export function useStickyTableQuerySync({
+export function useStickyTableQuerySync<TView extends string = string>({
   sorting,
   setSorting,
   columnFilters,
   setColumnFilters,
   viewMode,
   setViewMode,
-}: Args) {
+}: Args<TView>) {
   const [params, setParams] = useSearchParams();
   const didInit = useRef(false);
 
-  // 1) On first mount: read from URL and hydrate
+  // hydrate once
   useEffect(() => {
     if (didInit.current) return;
     didInit.current = true;
@@ -49,13 +51,12 @@ export function useStickyTableQuerySync({
 
     if (initSorting.length) setSorting(initSorting);
     if (initFilters.length) setColumnFilters(initFilters);
-    if (initView && setViewMode) setViewMode(initView);
+    if (initView && setViewMode) setViewMode(initView as TView);
   }, [params, setColumnFilters, setSorting, setViewMode]);
 
-  // A memo for the current string → prevents infinite set loops
   const currentStr = useMemo(() => params.toString(), [params]);
 
-  // 2) When state changes: write to URL (replace, not push)
+  // push updates
   useEffect(() => {
     const next = new URLSearchParams(params);
 

@@ -1,3 +1,4 @@
+// src/pages/MyOrdersPage.tsx
 import React, { useEffect, useMemo } from 'react';
 import {
   Box,
@@ -34,8 +35,8 @@ import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
 import { useOrdersPageStore } from '../../stores/useOrdersPageStore';
 import OrderExpandedRow from './OrderExpandedRow';
 
-// single composed hook that syncs table + orders filters to the URL
-import { useOrdersTableQuerySync } from '../../hooks/useOrdersTableQuerySync';
+// 🔗 Use the generic table <-> URL sync hook
+import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
 
 export default function MyOrdersPage() {
   const { user } = useAuth();
@@ -52,7 +53,7 @@ export default function MyOrdersPage() {
     setLoading,
     setSorting,
     setColumnFilters,
-    setViewMode,
+    setViewMode, // (mode: 'table' | 'cards') => void
     setMobileFiltersOpen,
   } = useOrdersPageStore();
 
@@ -111,27 +112,17 @@ export default function MyOrdersPage() {
     });
   }, [orders, searchTerm, status, dateFrom, dateTo]);
 
-  // ---- URL Sync (table + orders filters) ----
-  useOrdersTableQuerySync({
-    // table
+  // ---- URL Sync (table only + viewMode) ----
+  useStickyTableQuerySync({
     sorting,
     setSorting,
     columnFilters,
     setColumnFilters,
     viewMode,
-    setViewMode,
-    // orders filters
-    searchTerm,
-    status,
-    dateFrom,
-    dateTo,
-    setSearchTerm,
-    setStatus,
-    setDateFrom,
-    setDateTo,
+    setViewMode: (v) => setViewMode(v as 'table' | 'cards'),
   });
 
-  // ---- Reset all filters (table + page) ----
+  // ---- Reset all filters (page + table) ----
   const resetAllFilters = () => {
     // page-level
     setSearchTerm('');
@@ -157,7 +148,7 @@ export default function MyOrdersPage() {
           alignItems="center"
           mb={2}
         >
-          {/* Left side: mobile filters launcher (only in cards view) */}
+          {/* Left side */}
           <Stack direction="row" alignItems="center" spacing={1}>
             {viewMode === 'cards' && isMobile && (
               <IconButton onClick={() => setMobileFiltersOpen(true)}>
@@ -177,7 +168,7 @@ export default function MyOrdersPage() {
             </ToggleButtonGroup>
           </Stack>
 
-          {/* Right side: show Reset button in table view too */}
+          {/* Right side: Reset in table view */}
           {viewMode === 'table' && (
             <Button size="small" variant="outlined" onClick={resetAllFilters}>
               Reset filters

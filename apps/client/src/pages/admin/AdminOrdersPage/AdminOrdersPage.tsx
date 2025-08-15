@@ -1,25 +1,17 @@
-// src/pages/admin/AdminOrdersPage.tsx
 import React, { useMemo } from 'react';
 import {
   Box,
   Button,
   Divider,
   Typography,
-  useTheme,
-  useMediaQuery,
   Snackbar,
   Alert,
+  Stack,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
-} from '@tanstack/react-table';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { ColumnDef } from '@tanstack/react-table';
 
-import { Timestamp } from 'firebase/firestore';
-import { Order } from '../../../hooks/useOrders';
-import { useOrders } from '../../../hooks/useOrders';
+import { Order, useOrders } from '../../../hooks/useOrders';
 import LoadingProgress from '../../../components/LoadingProgress';
 import NotFound from '../../../components/NotFound';
 import StickyTable from '../../../components/StickyTable';
@@ -30,10 +22,15 @@ import {
 } from '../../../services/ability.service';
 import { useAdminOrdersStore } from '../../../stores/useAdminOrdersStore';
 
+// 🔗 URL sync for sorting + filters
+import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
+
+// columns
+import { defineAdminOrderColumns } from './Columns';
+
 export default function AdminOrdersPage() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
 
   const {
     sorting,
@@ -46,74 +43,43 @@ export default function AdminOrdersPage() {
 
   const { data = [], isLoading, error } = useOrders();
 
+  // sync to URL
+  useStickyTableQuerySync({
+    sorting,
+    setSorting,
+    columnFilters,
+    setColumnFilters,
+  });
+
   const columns: ColumnDef<Order>[] = useMemo(
-    () => [
-      {
-        accessorKey: 'id',
-        header: 'Order ID',
-        cell: (info) => info.getValue(),
-      },
-      {
-        accessorKey: 'userId',
-        header: 'User ID',
-        cell: (info) => info.getValue(),
-      },
-      {
-        accessorKey: 'email',
-        header: 'Email',
-        cell: (info) => info.getValue() ?? 'N/A',
-        enableColumnFilter: true,
-      },
-      {
-        accessorKey: 'total',
-        header: 'Total',
-        cell: (info) =>
-          typeof info.getValue() === 'number'
-            ? `$${(info.getValue() as number).toFixed(2)}`
-            : 'N/A',
-      },
-      {
-        accessorKey: 'createdAt',
-        header: 'Date',
-        cell: ({ row }) => {
-          const raw = row.original.createdAt;
-          const date =
-            typeof raw === 'string'
-              ? new Date(raw)
-              : ((raw as Timestamp)?.toDate?.() ?? new Date());
-          return date.toLocaleString();
-        },
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: (info) => info.getValue(),
-      },
-      {
-        id: 'actions',
-        header: 'Actions',
-        cell: ({ row }) => (
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={() => navigate(`/admin/orders/${row.original.id}`)}
-          >
-            Edit
-          </Button>
-        ),
-      },
-    ],
+    () => defineAdminOrderColumns(navigate),
     [navigate],
   );
+
+  const resetTableFilters = () => {
+    setSorting([]);
+    setColumnFilters([]);
+    const next = new URLSearchParams(params);
+    next.delete('sort');
+    next.delete('filters');
+    setParams(next, { replace: true });
+  };
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
       <Box sx={{ p: { xs: 1, sm: 2 } }}>
-        <Typography variant="h6" gutterBottom>
-          Admin Orders
-        </Typography>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <Typography variant="h6">Admin Orders</Typography>
+          <Button size="small" variant="outlined" onClick={resetTableFilters}>
+            Reset filters
+          </Button>
+        </Stack>
 
-        <Divider sx={{ mb: 2 }} />
+        <Divider sx={{ my: 2 }} />
 
         {isLoading ? (
           <LoadingProgress />

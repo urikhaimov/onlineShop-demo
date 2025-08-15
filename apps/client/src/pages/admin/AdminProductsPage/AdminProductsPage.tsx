@@ -1,4 +1,3 @@
-// src/pages/admin/AdminProductsPage.tsx
 import React, { useEffect, useMemo } from 'react';
 import { Box, Snackbar, Alert, Divider } from '@mui/material';
 import {
@@ -13,11 +12,12 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
+import { useNavigate } from 'react-router-dom';
 
 import StickyTable from '../../../components/StickyTable';
 import LoadingProgress from '../../../components/LoadingProgress';
 import NotFound from '../../../components/NotFound';
-import { IProduct } from '@common/types';
+import type { IProduct } from '@common/types';
 import { defineProductColumns } from './Columns';
 import { useCategories } from '../../../hooks/useCategories';
 import { useProductMutations } from '../../../hooks/useProductMutations';
@@ -29,6 +29,7 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { useAdminProductsStore } from '../../../stores/useAdminProductsStore';
+import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
 
 export default function AdminProductsPage() {
   const {
@@ -48,7 +49,9 @@ export default function AdminProductsPage() {
   const { data: categories = [] } = useCategories();
   const { reorder } = useProductMutations();
   const sensors = useSensors(useSensor(PointerSensor));
+  const navigate = useNavigate();
 
+  // Load products
   useEffect(() => {
     const loadProducts = async () => {
       setLoading(true);
@@ -66,10 +69,10 @@ export default function AdminProductsPage() {
         setLoading(false);
       }
     };
-
     void loadProducts();
   }, [setLoading, setProducts, setProductsSorted]);
 
+  // Drag to reorder
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -94,10 +97,19 @@ export default function AdminProductsPage() {
     }
   };
 
+  // Columns
   const columns = useMemo(
-    () => defineProductColumns(categories, () => setSnackbarOpen(true)),
-    [categories, setSnackbarOpen],
+    () => defineProductColumns(categories, navigate),
+    [categories, navigate],
   );
+
+  // Sync sorting + column filters with the URL
+  useStickyTableQuerySync({
+    sorting,
+    setSorting,
+    columnFilters,
+    setColumnFilters,
+  });
 
   if (loading) return <LoadingProgress />;
   if (products.length === 0) return <NotFound message="No products found." />;
