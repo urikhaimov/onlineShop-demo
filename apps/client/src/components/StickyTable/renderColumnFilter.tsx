@@ -97,7 +97,7 @@ function NumberRangeFilter<T>({
   ];
 
   return (
-    <Stack spacing={1} direction="column" sx={{ minWidth: 180 }}>
+    <Stack spacing={1} direction="column" sx={{ minWidth: 80 }}>
       <Stack direction="row" spacing={1}>
         <FormTextField
           type="number"
@@ -190,15 +190,15 @@ export function renderColumnFilter<T>(
       );
 
     case 'date': {
-      // Expecting [from, to] ISO strings for your betweenDateRange
-      const tuple = (Array.isArray(value) ? value : [null, null]) as
-        | [string | null, string | null]
-        | [null, null];
-      const [start, end] = tuple;
+      const [start, end] = Array.isArray(value) ? value : [null, null];
 
       return (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <Stack direction="column" spacing={1}>
+          <Stack
+            direction="column"
+            spacing={0.5}
+            sx={{ width: 160 }} // 👈 set the width you want (e.g., 140–180)
+          >
             <DatePicker
               label="from"
               value={start ? dayjs(start) : null}
@@ -206,9 +206,15 @@ export function renderColumnFilter<T>(
                 column.setFilterValue([val?.toISOString() ?? null, end ?? null])
               }
               slotProps={{
-                textField: { variant: 'standard', fullWidth: true },
+                textField: {
+                  variant: 'standard',
+                  size: 'small',
+                  fullWidth: false, // 👈 keep the input compact
+                  sx: { width: '100%' }, // fill the 160px stack
+                },
               }}
             />
+
             <DatePicker
               label="to"
               value={end ? dayjs(end) : null}
@@ -219,7 +225,12 @@ export function renderColumnFilter<T>(
                 ])
               }
               slotProps={{
-                textField: { variant: 'standard', fullWidth: true },
+                textField: {
+                  variant: 'standard',
+                  size: 'small',
+                  fullWidth: false, // 👈 compact
+                  sx: { width: '100%' },
+                },
               }}
             />
           </Stack>

@@ -30,6 +30,7 @@ import {
 } from '../../../services/ability.service';
 import { useAdminProductsStore } from '../../../stores/useAdminProductsStore';
 import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
+import ProductExpandedRow from './ProductExpandedRow';
 
 export default function AdminProductsPage() {
   const {
@@ -97,7 +98,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Columns
+  // Columns (with mobile-hide meta + actions)
   const columns = useMemo(
     () => defineProductColumns(categories, navigate),
     [categories, navigate],
@@ -110,6 +111,10 @@ export default function AdminProductsPage() {
     columnFilters,
     setColumnFilters,
   });
+
+  // Helper to resolve category display name for expanded row
+  const getCategoryName = (categoryId?: string | null) =>
+    categories.find((c) => c.id === categoryId)?.name ?? '—';
 
   if (loading) return <LoadingProgress />;
   if (products.length === 0) return <NotFound message="No products found." />;
@@ -135,6 +140,13 @@ export default function AdminProductsPage() {
               enableSorting
               enableColumnFilters
               groupById="categoryId"
+              enableRowExpansion
+              renderExpandedRow={(product) => (
+                <ProductExpandedRow
+                  product={product}
+                  categoryName={getCategoryName(product.categoryId)}
+                />
+              )}
             />
           </SortableContext>
         </DndContext>

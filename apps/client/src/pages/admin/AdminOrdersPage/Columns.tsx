@@ -2,7 +2,7 @@
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { NavigateFunction } from 'react-router-dom';
-
+import { Typography } from '@mui/material';
 import RowActions, { type RowAction } from '../../../components/RowActions';
 import type { Order } from '../../../hooks/useOrders';
 

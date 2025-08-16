@@ -28,6 +28,9 @@ import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync'
 // columns
 import { defineAdminOrderColumns } from './Columns';
 
+// expanded row
+import OrderExpandedRow from './OrderExpandedRow';
+
 export default function AdminOrdersPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -43,7 +46,7 @@ export default function AdminOrdersPage() {
 
   const { data = [], isLoading, error } = useOrders();
 
-  // sync to URL
+  // sync table state to the URL
   useStickyTableQuerySync({
     sorting,
     setSorting,
@@ -100,6 +103,12 @@ export default function AdminOrdersPage() {
             enableSorting
             enableColumnFilters
             rowsPerPage={10}
+            // 👇 expanded row support
+            enableRowExpansion
+            renderExpandedRow={(row) => (
+              // OrderExpandedRow expects TOrder; cast is safe if Order ≈ TOrder
+              <OrderExpandedRow order={row as unknown as any} />
+            )}
           />
         )}
 

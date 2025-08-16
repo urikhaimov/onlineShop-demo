@@ -1,7 +1,7 @@
 // src/pages/Columns.ts
 import { ColumnDef, CellContext } from '@tanstack/react-table';
 import type { TOrder } from '@common/types';
-import { Typography, Stack } from '@mui/material';
+import { Typography } from '@mui/material';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import {
