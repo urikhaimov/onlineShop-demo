@@ -121,9 +121,7 @@ export default function AdminProductsPage() {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      <Box px={2} py={1}>
-        <Divider sx={{ mb: 2 }} />
-
+      <Box px={5} py={4}>
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <SortableContext
             items={products.map((p) => p.id)}

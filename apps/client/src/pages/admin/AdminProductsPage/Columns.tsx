@@ -40,36 +40,36 @@ export function defineProductColumns(
 ): ColumnDef<IProduct>[] {
   return [
     // Image — visible on mobile, sticky left
-    {
-      accessorKey: 'images',
-      header: 'Image',
-      enableColumnFilter: false,
-      size: 100,
-      meta: { sticky: 'left', hiddenOnMobile: false, align: 'left' },
-      cell: ({ row, getValue }) => {
-        const images = getValue<string[] | undefined>() ?? [];
-        const firstImage =
-          images[0] || 'https://picsum.photos/seed/fallback/100/100';
-        const id = row.original.id;
-        return (
-          <Link to={`/product/${id}`}>
-            <CardMedia
-              component="img"
-              sx={{
-                width: IMG_SIZE,
-                height: IMG_SIZE,
-                borderRadius: 1,
-                objectFit: 'cover',
-                mx: { xs: 'auto', sm: 0 },
-                cursor: 'pointer',
-              }}
-              image={firstImage}
-              alt="Product"
-            />
-          </Link>
-        );
-      },
-    },
+    // {
+    //   accessorKey: 'images',
+    //   header: 'Image',
+    //   enableColumnFilter: false,
+    //   size: 100,
+    //   meta: { sticky: 'left', hiddenOnMobile: false, align: 'left' },
+    //   cell: ({ row, getValue }) => {
+    //     const images = getValue<string[] | undefined>() ?? [];
+    //     const firstImage =
+    //       images[0] || 'https://picsum.photos/seed/fallback/100/100';
+    //     const id = row.original.id;
+    //     return (
+    //       <Link to={`/product/${id}`}>
+    //         <CardMedia
+    //           component="img"
+    //           sx={{
+    //             width: IMG_SIZE,
+    //             height: IMG_SIZE,
+    //             borderRadius: 1,
+    //             objectFit: 'cover',
+    //             mx: { xs: 'auto', sm: 0 },
+    //             cursor: 'pointer',
+    //           }}
+    //           image={firstImage}
+    //           alt="Product"
+    //         />
+    //       </Link>
+    //     );
+    //   },
+    // },
 
     // Name — hidden on mobile
     {
@@ -78,7 +78,7 @@ export function defineProductColumns(
       enableColumnFilter: true,
       enableSorting: true,
       size: 240,
-      meta: { filterVariant: 'text', hiddenOnMobile: true, align: 'left' },
+      meta: { filterVariant: 'text', align: 'left' },
       cell: ({ getValue }) => getValue<string>() ?? '—',
     },
 
@@ -92,14 +92,14 @@ export function defineProductColumns(
       filterFn: 'equals',
       meta: {
         filterVariant: 'select',
-        hiddenOnMobile: true,
+
         align: 'left',
         selectOptions: categories.map((c) => ({ label: c.name, value: c.id })),
       },
       cell: ({ getValue }) => {
-        const catId = getValue<string>();
-        const cat = categories.find((c) => c.id === catId);
-        return cat?.name ?? 'Unknown';
+        // const catId = getValue<string>();
+        // const cat = categories.find((c) => c.id === catId);
+        return '';
       },
     },
 
@@ -161,7 +161,7 @@ export function defineProductColumns(
       enableColumnFilter: false,
       enableSorting: false,
       size: 140,
-      meta: { sticky: 'right', hiddenOnMobile: false, align: 'right' },
+      meta: { sticky: 'right', hiddenOnMobile: false, align: 'left' },
       cell: ({ row }) => {
         const ctx = row.original;
         const actions: ReadonlyArray<RowAction<IProduct>> = [

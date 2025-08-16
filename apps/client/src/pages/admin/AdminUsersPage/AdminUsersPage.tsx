@@ -50,7 +50,7 @@ export default function AdminUsersPage() {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      <Box p={2}>
+      <Box px={5} py={4}>
         <Typography variant="h6" gutterBottom>
           Manage Users
         </Typography>

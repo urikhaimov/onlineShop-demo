@@ -36,7 +36,7 @@ export default function AdminCategoriesPage() {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      <Box px={2} py={3}>
+      <Box px={5} py={4}>
         <Box
           display="flex"
           justifyContent="space-between"

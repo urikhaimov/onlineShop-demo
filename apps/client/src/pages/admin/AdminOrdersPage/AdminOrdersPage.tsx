@@ -70,17 +70,18 @@ export default function AdminOrdersPage() {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      <Box sx={{ p: { xs: 1, sm: 2 } }}>
-        <Stack
-          direction="row"
+      <Box px={5} py={4}>
+        <Box
+          display="flex"
           justifyContent="space-between"
           alignItems="center"
+          mb={2}
         >
           <Typography variant="h6">Admin Orders</Typography>
           <Button size="small" variant="outlined" onClick={resetTableFilters}>
             Reset filters
           </Button>
-        </Stack>
+        </Box>
 
         <Divider sx={{ my: 2 }} />
 
