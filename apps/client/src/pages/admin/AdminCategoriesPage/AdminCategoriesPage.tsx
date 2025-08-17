@@ -1,6 +1,17 @@
 // src/pages/admin/AdminCategoriesPage.tsx
-import React, { useMemo } from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import React, { useMemo, useState } from 'react';
+import {
+  Box,
+  Button,
+  Typography,
+  Snackbar,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stack,
+} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useCategories } from '../../../hooks/useCategories';
 import StickyTable from '../../../components/StickyTable';
@@ -16,23 +27,57 @@ import type { TCategory as Category } from '@common/types';
 // ✅ URL sync for table sorting + column filters
 import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
 
+// 🔥 If you're using Firestore; otherwise replace with your API
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '../../../firebase';
+
 export default function AdminCategoriesPage() {
   const { sorting, setSorting, columnFilters, setColumnFilters } =
     useCategoryTableStore();
 
-  const { data: categories = [] } = useCategories();
+  const { data: categories = [], refetch } = useCategories();
   const navigate = useNavigate();
 
-  const columns = useMemo(() => defineCategoryColumns(navigate), [navigate]);
+  // ⛔️ confirm state
+  const [toDelete, setToDelete] = useState<Category | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
 
-  // 🔗 Keep sorting + columnFilters in the query string (hydrate on load too)
+  // Hook URL ↔ table state
   useStickyTableQuerySync({
     sorting,
     setSorting,
     columnFilters,
     setColumnFilters,
-    // viewMode not used here, so omit
   });
+
+  // Pass onDelete into columns; clicking Delete opens the dialog
+  const columns = useMemo(
+    () =>
+      defineCategoryColumns(navigate, (category) => {
+        setDeleteError(null);
+        setToDelete(category);
+      }),
+    [navigate],
+  );
+
+  const handleConfirmDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      // 🔁 Replace with your NestJS/REST call if not on Firestore
+      await deleteDoc(doc(db, 'categories', toDelete.id));
+      setToDelete(null);
+      setSnackbarOpen(true);
+      if (typeof refetch === 'function') await refetch();
+    } catch (err: any) {
+      setDeleteError(err?.message ?? 'Failed to delete category.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
@@ -68,6 +113,62 @@ export default function AdminCategoriesPage() {
           enableSorting
           enableColumnFilters
         />
+
+        {/* ✅ Success toast */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackbarOpen(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity="success" variant="filled">
+            Category deleted successfully
+          </Alert>
+        </Snackbar>
+
+        {/* ⛔️ Confirm delete dialog with warning */}
+        <Dialog
+          open={Boolean(toDelete)}
+          onClose={() => (deleting ? null : setToDelete(null))}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>Delete category?</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Alert severity="warning" variant="outlined">
+                This will permanently delete the category. This action cannot be
+                undone.
+              </Alert>
+              <Typography variant="body2">
+                Are you sure you want to delete category{' '}
+                <strong>{toDelete?.name ?? toDelete?.id}</strong>?
+              </Typography>
+              {deleteError && (
+                <Alert severity="error" variant="filled">
+                  {deleteError}
+                </Alert>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={() => setToDelete(null)}
+              disabled={deleting}
+              variant="text"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
+              disabled={deleting}
+              color="error"
+              variant="contained"
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </PageLayout>
   );

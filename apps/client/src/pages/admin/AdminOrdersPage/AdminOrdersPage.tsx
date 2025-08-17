@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+// src/pages/admin/index.tsx (AdminOrdersPage)
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -7,6 +8,10 @@ import {
   Snackbar,
   Alert,
   Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -21,8 +26,6 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { useAdminOrdersStore } from '../../../stores/useAdminOrdersStore';
-
-// 🔗 URL sync for sorting + filters
 import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
 
 // columns
@@ -30,6 +33,10 @@ import { defineAdminOrderColumns } from './Columns';
 
 // expanded row
 import OrderExpandedRow from './OrderExpandedRow';
+
+// 🔥 If you're using Firestore; otherwise replace with your API
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '../../../firebase';
 
 export default function AdminOrdersPage() {
   const navigate = useNavigate();
@@ -44,7 +51,8 @@ export default function AdminOrdersPage() {
     setSnackbarOpen,
   } = useAdminOrdersStore();
 
-  const { data = [], isLoading, error } = useOrders();
+  // expose refetch if your hook supports it
+  const { data = [], isLoading, error, refetch } = useOrders();
 
   // sync table state to the URL
   useStickyTableQuerySync({
@@ -54,8 +62,18 @@ export default function AdminOrdersPage() {
     setColumnFilters,
   });
 
+  // ⛔️ confirm state
+  const [toDelete, setToDelete] = useState<Order | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // this onDelete is passed into the columns; clicking "Delete" opens the dialog
   const columns: ColumnDef<Order>[] = useMemo(
-    () => defineAdminOrderColumns(navigate),
+    () =>
+      defineAdminOrderColumns(navigate, (order) => {
+        setDeleteError(null);
+        setToDelete(order);
+      }),
     [navigate],
   );
 
@@ -66,6 +84,25 @@ export default function AdminOrdersPage() {
     next.delete('sort');
     next.delete('filters');
     setParams(next, { replace: true });
+  };
+
+  // ✅ perform the deletion when user confirms
+  const handleConfirmDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      // replace this with your REST/NestJS call if you’re not on Firestore
+      await deleteDoc(doc(db, 'orders', toDelete.id));
+      setToDelete(null);
+      setSnackbarOpen(true);
+      // refresh table data if available
+      if (typeof refetch === 'function') await refetch();
+    } catch (err: any) {
+      setDeleteError(err?.message ?? 'Failed to delete order.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -107,12 +144,12 @@ export default function AdminOrdersPage() {
             // 👇 expanded row support
             enableRowExpansion
             renderExpandedRow={(row) => (
-              // OrderExpandedRow expects TOrder; cast is safe if Order ≈ TOrder
               <OrderExpandedRow order={row as unknown as any} />
             )}
           />
         )}
 
+        {/* ✅ Success toast (already in your page) */}
         <Snackbar
           open={snackbarOpen}
           autoHideDuration={3000}
@@ -123,6 +160,50 @@ export default function AdminOrdersPage() {
             Action completed successfully
           </Alert>
         </Snackbar>
+
+        {/* ⛔️ Confirm delete dialog with warning */}
+        <Dialog
+          open={Boolean(toDelete)}
+          onClose={() => (deleting ? null : setToDelete(null))}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>Delete order?</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Alert severity="warning" variant="outlined">
+                This will permanently delete the order and its details. This
+                action cannot be undone.
+              </Alert>
+              <Typography variant="body2">
+                Are you sure you want to delete order{' '}
+                <strong>{toDelete?.id}</strong>?
+              </Typography>
+              {deleteError && (
+                <Alert severity="error" variant="filled">
+                  {deleteError}
+                </Alert>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={() => setToDelete(null)}
+              disabled={deleting}
+              variant="text"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
+              disabled={deleting}
+              color="error"
+              variant="contained"
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </PageLayout>
   );

@@ -9,6 +9,7 @@ import {
   betweenNumberRange,
 } from '../../components/StickyTable/tableFilters';
 import { RankChip } from '../../components/RankChip';
+import { StatusTag, STATUS_OPTIONS } from '../../components/StatusTag';
 
 function getRank<T>(ctx: CellContext<T, unknown>): number {
   const { table, row } = ctx;
@@ -16,6 +17,7 @@ function getRank<T>(ctx: CellContext<T, unknown>): number {
   const idx = rows.findIndex((r) => r.id === row.id);
   return idx >= 0 ? idx + 1 : rows.length; // 1-based, fallback to end
 }
+
 function toDate(value: unknown): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -24,7 +26,6 @@ function toDate(value: unknown): Date | null {
     const d = new Date(value);
     return isNaN(d.getTime()) ? null : d;
   }
-  // support {seconds, nanoseconds}
   if (
     typeof value === 'object' &&
     value !== null &&
@@ -52,9 +53,7 @@ export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
       </Typography>
     ),
   },
-
   {
-    // Fix: createdAt is under metadata
     id: 'createdAt',
     accessorFn: (row) => row.metadata?.createdAt ?? null,
     header: 'Date',
@@ -78,7 +77,7 @@ export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
       filterVariant: 'number',
       align: 'left',
       hiddenOnMobile: true,
-      numberRange: { min: 0, max: 100000, step: 1 }, // <-- here
+      numberRange: { min: 0, max: 100000, step: 1 },
     },
   },
   {
@@ -88,26 +87,11 @@ export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
     filterFn: 'equals',
     meta: {
       filterVariant: 'select',
-      // keep visible on mobile
-      selectOptions: [
-        { label: 'Pending', value: 'pending' },
-        { label: 'Confirmed', value: 'confirmed' },
-        { label: 'Shipped', value: 'shipped' },
-        { label: 'Delivered', value: 'delivered' },
-        { label: 'Cancelled', value: 'cancelled' },
-      ] as const,
+      selectOptions: STATUS_OPTIONS, // <-- reuse from the tag
     },
     cell: ({ row }) => {
       const value = row.getValue<string>('status');
-      return (
-        <Typography
-          variant="body2"
-          color="text.primary"
-          sx={{ textTransform: 'capitalize' }}
-        >
-          {value || '—'}
-        </Typography>
-      );
+      return <StatusTag value={value} />;
     },
   },
 ];

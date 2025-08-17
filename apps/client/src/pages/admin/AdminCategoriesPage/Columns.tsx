@@ -1,123 +1,78 @@
-import { ColumnDef } from '@tanstack/react-table';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { useNavigate } from 'react-router-dom';
-import type { TCategory as Category } from '@common/types';
+// src/pages/admin/Columns.tsx (Categories)
+import * as React from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import type { NavigateFunction } from 'react-router-dom';
 import RowActions, { type RowAction } from '../../../components/RowActions';
-
-const IMG_SIZE = 40;
+import type { TCategory as Category } from '@common/types';
 
 export function defineCategoryColumns(
-  navigate: ReturnType<typeof useNavigate>,
+  navigate: NavigateFunction,
+  onDelete?: (cat: Category) => void, // ✅ add optional second param
 ): ColumnDef<Category>[] {
   return [
-    // Name (visible on mobile, sticky left)
     {
-      header: 'Name',
       accessorKey: 'name',
+      header: 'Name',
       enableSorting: true,
       enableColumnFilter: true,
-      size: 220,
-      meta: {
-        sticky: 'left',
-        align: 'left',
-        filterVariant: 'text',
-        hiddenOnMobile: false,
-      },
+      meta: { align: 'left', filterVariant: 'text' },
+      size: 240,
+      cell: (info) => info.getValue<string>() ?? '—',
     },
-
-    // Image (hidden on mobile)
     {
-      header: 'Image',
-      accessorKey: 'imageUrl',
-      enableSorting: false,
-      enableColumnFilter: false,
-      size: 90,
-      meta: { hiddenOnMobile: true },
-      cell: ({ getValue }) => {
-        const url = getValue<string | null | undefined>();
-        return url ? (
-          <img
-            src={url}
-            alt="category"
-            style={{ width: IMG_SIZE, height: IMG_SIZE, objectFit: 'contain' }}
-          />
-        ) : (
-          'No image'
-        );
-      },
-    },
-
-    // Order (hidden on mobile)
-    {
-      header: 'Order',
-      accessorKey: 'order',
-      enableSorting: true,
-      enableColumnFilter: false,
-      size: 90,
-      meta: { hiddenOnMobile: true, align: 'left', filterVariant: 'number' },
-      cell: ({ getValue }) => getValue<number | null | undefined>() ?? '—',
-    },
-
-    // Description (hidden on mobile)
-    {
-      header: 'Description',
       accessorKey: 'description',
-      enableSorting: true,
-      enableColumnFilter: false,
-      size: 280,
-      meta: { hiddenOnMobile: true, align: 'left' },
-      cell: ({ getValue }) => {
-        const value = getValue<unknown>();
-        return value === null
-          ? 'null'
-          : value === undefined
-            ? 'undefined'
-            : String(value);
-      },
+      header: 'Description',
+      enableSorting: false,
+      enableColumnFilter: true,
+      meta: { align: 'left', filterVariant: 'text', hiddenOnMobile: true },
+      size: 360,
+      cell: (info) => info.getValue<string>() ?? '—',
     },
 
-    // Actions (visible on mobile, sticky right, uses RowActions)
     {
-      header: 'Actions',
       id: 'actions',
+      header: 'Actions',
       enableSorting: false,
       enableColumnFilter: false,
-      size: 120,
-      meta: { sticky: 'left', align: 'left', hiddenOnMobile: false },
+      size: 170,
+      meta: { sticky: 'right', align: 'left' },
       cell: ({ row }) => {
-        const ctx = row.original;
+        const cat = row.original;
         const actions: ReadonlyArray<RowAction<Category>> = [
+          {
+            id: 'view',
+            label: 'View',
+            onClick: (c) => navigate(`/admin/categories/${c.id}`),
+            tooltip: (c) => `View ${c.name ?? c.id}`,
+          },
           {
             id: 'edit',
             label: 'Edit',
-            icon: <EditIcon fontSize="small" />,
             onClick: (c) => navigate(`/admin/categories/edit/${c.id}`),
-            tooltip: (c) => `Edit "${c.name}"`,
+            tooltip: (c) => `Edit ${c.name ?? c.id}`,
           },
           {
             id: 'delete',
             label: 'Delete',
-            icon: <DeleteIcon fontSize="small" />,
             danger: true,
             confirm: {
-              title: 'Delete category',
+              title: 'Delete category?',
               description: (c) =>
-                `Are you sure you want to delete "${c.name}"?`,
+                `This will permanently delete ${c.name ?? c.id}.`,
               confirmText: 'Delete',
-              cancelText: 'Cancel',
-              color: 'error',
             },
-            onClick: (c) => navigate(`/admin/categories/delete/${c.id}`),
-            tooltip: (c) => `Delete "${c.name}"`,
+            onClick: (c) => {
+              if (onDelete)
+                onDelete(c); // ✅ call the callback
+              else console.warn('No delete handler provided for category', c);
+            },
           },
         ];
-
         return (
           <RowActions<Category>
-            context={ctx}
+            context={cat}
             actions={actions}
-            renderMode="auto" // buttons on desktop, menu on mobile
+            renderMode="auto"
             menuBelow="sm"
             size="small"
           />

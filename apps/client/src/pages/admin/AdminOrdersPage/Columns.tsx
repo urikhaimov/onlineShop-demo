@@ -2,9 +2,9 @@
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { NavigateFunction } from 'react-router-dom';
-import { Typography } from '@mui/material';
 import RowActions, { type RowAction } from '../../../components/RowActions';
 import type { Order } from '../../../hooks/useOrders';
+import { StatusTag, STATUS_OPTIONS } from '../../../components/StatusTag';
 
 /** Robust date coercion (supports Date, string/number, Firestore Timestamp-like) */
 function toDate(v: unknown): Date | undefined {
@@ -27,9 +27,9 @@ function toDate(v: unknown): Date | undefined {
 
 export function defineAdminOrderColumns(
   navigate: NavigateFunction,
+  onDelete?: (order: Order) => Promise<void> | void, // optional delete callback
 ): ColumnDef<Order>[] {
   return [
-    // Visible on mobile; sticky left
     {
       accessorKey: 'id',
       header: 'Order ID',
@@ -44,8 +44,6 @@ export function defineAdminOrderColumns(
       },
       cell: (info) => info.getValue<string>() ?? '—',
     },
-
-    // Hidden on mobile
     {
       accessorKey: 'userId',
       header: 'User ID',
@@ -55,8 +53,6 @@ export function defineAdminOrderColumns(
       meta: { hiddenOnMobile: true, align: 'left', filterVariant: 'text' },
       cell: (info) => info.getValue<string>() ?? '—',
     },
-
-    // Hidden on mobile
     {
       accessorKey: 'email',
       header: 'Email',
@@ -66,8 +62,6 @@ export function defineAdminOrderColumns(
       meta: { hiddenOnMobile: true, align: 'left', filterVariant: 'text' },
       cell: (info) => info.getValue<string>() ?? 'N/A',
     },
-
-    // Hidden on mobile
     {
       accessorKey: 'total',
       header: 'Total',
@@ -80,8 +74,6 @@ export function defineAdminOrderColumns(
         return typeof v === 'number' ? `$${v.toFixed(2)}` : 'N/A';
       },
     },
-
-    // Hidden on mobile
     {
       accessorKey: 'createdAt',
       header: 'Date',
@@ -94,36 +86,26 @@ export function defineAdminOrderColumns(
         return d ? d.toLocaleString() : '—';
       },
     },
-
-    // Hidden on mobile (uses select filter)
     {
       accessorKey: 'status',
       header: 'Status',
       enableSorting: true,
       enableColumnFilter: true,
-      size: 140,
+      size: 160,
       meta: {
         hiddenOnMobile: true,
         align: 'left',
         filterVariant: 'select',
-        selectOptions: [
-          { label: 'Pending', value: 'pending' },
-          { label: 'Confirmed', value: 'confirmed' },
-          { label: 'Shipped', value: 'shipped' },
-          { label: 'Delivered', value: 'delivered' },
-          { label: 'Cancelled', value: 'cancelled' },
-        ],
+        selectOptions: STATUS_OPTIONS,
       },
-      cell: (info) => String(info.getValue() ?? '—'),
+      cell: (info) => <StatusTag value={info.getValue<string>()} />,
     },
-
-    // Visible on mobile; sticky right; RowActions
     {
       id: 'actions',
       header: 'Actions',
       enableSorting: false,
       enableColumnFilter: false,
-      size: 160,
+      size: 180,
       meta: { sticky: 'right', hiddenOnMobile: false, align: 'left' },
       cell: ({ row }) => {
         const order = row.original;
@@ -140,24 +122,32 @@ export function defineAdminOrderColumns(
             onClick: (o) => navigate(`/admin/orders/${o.id}?edit=1`),
             tooltip: (o) => `Edit order ${o.id}`,
           },
-          // Example delete (enable later if needed):
-          // {
-          //   id: 'delete',
-          //   label: 'Delete',
-          //   danger: true,
-          //   confirm: {
-          //     title: 'Delete order?',
-          //     description: (o) => `This will permanently delete order ${o.id}.`,
-          //     confirmText: 'Delete',
-          //   },
-          //   onClick: async (o) => { /* call API */ },
-          // },
+          {
+            id: 'delete',
+            label: 'Delete',
+            danger: true,
+            confirm: {
+              title: 'Delete order?',
+              description: (o) => `This will permanently delete order ${o.id}.`,
+              confirmText: 'Delete',
+            },
+            onClick: async (o) => {
+              if (onDelete) {
+                await onDelete(o);
+              } else {
+                console.warn(
+                  'Delete action triggered but no onDelete handler provided',
+                  o,
+                );
+              }
+            },
+          },
         ];
         return (
           <RowActions<Order>
             context={order}
             actions={actions}
-            renderMode="auto" // buttons on desktop; menu on mobile
+            renderMode="auto"
             menuBelow="sm"
             size="small"
           />
