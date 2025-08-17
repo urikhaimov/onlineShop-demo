@@ -17,6 +17,7 @@ import { useCategories } from '../../../hooks/useCategories';
 import StickyTable from '../../../components/StickyTable';
 import { defineCategoryColumns } from './Columns';
 import { PageLayout } from '../../../layouts/page.layout';
+import type { Row } from '@tanstack/react-table';
 import {
   EAbilityActions,
   EAbilitySubjects,
@@ -120,8 +121,8 @@ export default function AdminCategoriesPage() {
           enableColumnFilters
           // 👇 enable row expansion
           enableRowExpansion
-          renderExpandedRow={(row) => (
-            <CategoryExpandedRow category={(row as any).original as Category} />
+          renderExpandedRow={(category) => (
+            <CategoryExpandedRow category={category} />
           )}
         />
 
