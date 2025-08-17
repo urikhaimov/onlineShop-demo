@@ -1,3 +1,4 @@
+// src/pages/admin/CategoryForm.tsx
 import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import {
@@ -12,6 +13,7 @@ import PictureUploaderWithCrop from '../../../components/PictureUploaderWithCrop
 import { useCategoryById } from '../../../hooks/useCategories';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+
 export interface CategoryFormValues {
   name: string;
   description: string;
@@ -19,50 +21,63 @@ export interface CategoryFormValues {
 }
 
 interface Props {
-  mode: 'add' | 'edit';
-  categoryId?: string;
-  onSubmit: (data: CategoryFormValues) => void;
+  mode: 'create' | 'edit'; // ✅ use 'create' | 'edit'
+  categoryId?: string; // required when mode==='edit'
+  initial?: Partial<CategoryFormValues>; // optional defaults for create
+  onSubmit: (data: CategoryFormValues) => Promise<void> | void;
 }
 
-export default function CategoryForm({ mode, categoryId, onSubmit }: Props) {
+export default function CategoryForm({
+  mode,
+  categoryId,
+  initial,
+  onSubmit,
+}: Props) {
   const isEdit = mode === 'edit';
 
   const {
     control,
     handleSubmit,
     setValue,
+    reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CategoryFormValues>({
     defaultValues: {
       name: '',
       description: '',
       imageUrl: '',
+      ...(initial ?? {}),
     },
   });
 
-  const { data: category, isLoading } = useCategoryById(categoryId, {
-    enabled: isEdit && !!categoryId,
-  });
+  const { data: category, isLoading } = useCategoryById(categoryId);
 
+  // Load existing category into the form when editing
   useEffect(() => {
-    if (category) {
-      setValue('name', category.name);
-      setValue('description', category.description);
-      setValue('imageUrl', category.imageUrl);
+    if (isEdit) {
+      if (!categoryId) return; // guard: edit requires id
+      if (category) {
+        reset({
+          name: category.name ?? '',
+          description: category.description ?? '',
+          imageUrl: category.imageUrl ?? '',
+        });
+      }
     }
-  }, [category, setValue]);
+  }, [isEdit, categoryId, category, reset]);
 
   const handleCropUpload = async (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      setValue('imageUrl', base64);
+      setValue('imageUrl', base64, { shouldDirty: true });
     };
     reader.readAsDataURL(file);
   };
 
   const handleDeleteAvatar = () => {
-    setValue('imageUrl', '');
+    setValue('imageUrl', '', { shouldDirty: true });
   };
 
   if (isEdit && isLoading) {
@@ -73,26 +88,37 @@ export default function CategoryForm({ mode, categoryId, onSubmit }: Props) {
     );
   }
 
+  const imageUrl = watch('imageUrl');
+
   return (
-    <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+    <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
       <Stack spacing={2}>
+        {/* Name */}
         <Controller
           control={control}
           name="name"
-          defaultValue=""
+          rules={{
+            required: 'Name is required',
+            minLength: {
+              value: 2,
+              message: 'Name must be at least 2 characters',
+            },
+          }}
           render={({ field }) => (
             <FormTextField
               {...field}
               label="Name"
               errorObject={errors.name}
               required
+              autoFocus
             />
           )}
         />
+
+        {/* Description (rich text) */}
         <Controller
           control={control}
           name="description"
-          defaultValue=""
           render={({ field }) => (
             <Box>
               <Typography variant="subtitle1" mb={1}>
@@ -137,8 +163,9 @@ export default function CategoryForm({ mode, categoryId, onSubmit }: Props) {
           )}
         />
 
+        {/* Image uploader */}
         <PictureUploaderWithCrop
-          avatarUrl={control._formValues.imageUrl}
+          avatarUrl={imageUrl} // ✅ avoid control._formValues
           onCropUpload={handleCropUpload}
           onDeleteAvatar={handleDeleteAvatar}
         />

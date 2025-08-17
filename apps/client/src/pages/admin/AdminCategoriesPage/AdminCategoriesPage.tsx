@@ -30,6 +30,7 @@ import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync'
 // 🔥 If you're using Firestore; otherwise replace with your API
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
+import CategoryExpandedRow from './CategoryExpandedRow';
 
 export default function AdminCategoriesPage() {
   const { sorting, setSorting, columnFilters, setColumnFilters } =
@@ -67,13 +68,18 @@ export default function AdminCategoriesPage() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      // 🔁 Replace with your NestJS/REST call if not on Firestore
       await deleteDoc(doc(db, 'categories', toDelete.id));
       setToDelete(null);
       setSnackbarOpen(true);
       if (typeof refetch === 'function') await refetch();
-    } catch (err: any) {
-      setDeleteError(err?.message ?? 'Failed to delete category.');
+    } catch (err) {
+      if (err instanceof Error) {
+        setDeleteError(err.message);
+      } else if (typeof err === 'string') {
+        setDeleteError(err);
+      } else {
+        setDeleteError('Failed to delete category.');
+      }
     } finally {
       setDeleting(false);
     }
@@ -112,6 +118,11 @@ export default function AdminCategoriesPage() {
           onColumnFiltersChange={setColumnFilters}
           enableSorting
           enableColumnFilters
+          // 👇 enable row expansion
+          enableRowExpansion
+          renderExpandedRow={(row) => (
+            <CategoryExpandedRow category={(row as any).original as Category} />
+          )}
         />
 
         {/* ✅ Success toast */}
