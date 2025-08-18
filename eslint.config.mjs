@@ -29,7 +29,6 @@ export default [
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        tsconfigRootDir: __dirname,
         projectService: true,
         sourceType: 'module',
         ecmaVersion: 'latest',
