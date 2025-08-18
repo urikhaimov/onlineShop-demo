@@ -9,7 +9,7 @@ import json from 'eslint-plugin-json';
 import * as importPlugin from 'eslint-plugin-import';
 import jsdoc from 'eslint-plugin-jsdoc';
 import * as mdx from 'eslint-plugin-mdx';
-import tsParser from '@typescript-eslint/parser';
+import globals from 'globals';
 
 export default [
   ...nx.configs['flat/base'],
@@ -27,15 +27,9 @@ export default [
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
     languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        tsconfigRootDir: __dirname,
-        projectService: true,
-        sourceType: 'module',
-        ecmaVersion: 'latest',
-        project: './tsconfig.json',
-      },
       globals: {
+        ...globals.node,
+        ...globals.browser,
         __dirname: 'readonly',
         __filename: 'readonly',
         jest: 'readonly',
