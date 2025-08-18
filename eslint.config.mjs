@@ -1,5 +1,4 @@
 import nx from '@nx/eslint-plugin';
-import globals from 'globals';
 import jsLint from '@eslint/js';
 import tsLint from '@typescript-eslint/eslint-plugin';
 import prettierPlugin from 'eslint-plugin-prettier';
@@ -10,6 +9,7 @@ import json from 'eslint-plugin-json';
 import * as importPlugin from 'eslint-plugin-import';
 import jsdoc from 'eslint-plugin-jsdoc';
 import * as mdx from 'eslint-plugin-mdx';
+import tsParser from '@typescript-eslint/parser';
 
 export default [
   ...nx.configs['flat/base'],
@@ -27,8 +27,44 @@ export default [
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
     languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        tsconfigRootDir: __dirname,
+        projectService: true,
+        sourceType: 'module',
+        ecmaVersion: 'latest',
+        project: './tsconfig.json',
+      },
       globals: {
-        ...globals.node,
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        jest: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        test: 'readonly',
+        vi: 'readonly',
+        spyOn: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+        NodeJS: 'readonly',
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        localStorage: 'readonly',
+        location: 'readonly',
+        fetch: 'readonly',
+        requestAnimationFrame: 'readonly',
+        cancelAnimationFrame: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        structuredClone: 'readonly',
       },
     },
     rules: {
