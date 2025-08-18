@@ -9,6 +9,7 @@ import json from 'eslint-plugin-json';
 import * as importPlugin from 'eslint-plugin-import';
 import jsdoc from 'eslint-plugin-jsdoc';
 import * as mdx from 'eslint-plugin-mdx';
+import tsParser from '@typescript-eslint/parser';
 import globals from 'globals';
 
 export default [
@@ -27,9 +28,18 @@ export default [
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
     languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        projectService: true,
+        sourceType: 'module',
+        ecmaVersion: 'latest',
+        project: './tsconfig.json',
+      },
       globals: {
         ...globals.node,
+        ...globals.jest,
         ...globals.browser,
+        ...globals.serviceworker,
         __dirname: 'readonly',
         __filename: 'readonly',
         jest: 'readonly',
