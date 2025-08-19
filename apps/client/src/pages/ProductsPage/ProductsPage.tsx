@@ -1,9 +1,25 @@
 // src/pages/ProductsPage/ProductsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Divider, Snackbar, Alert, Button, Stack } from '@mui/material';
+import {
+  Box,
+  Divider,
+  Snackbar,
+  Alert,
+  Button,
+  Stack,
+  Drawer,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from '@mui/material';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableRowsIcon from '@mui/icons-material/TableRows';
+
 import { useInView } from 'react-intersection-observer';
 import { debounce } from 'lodash';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+
 import {
   EAbilityActions,
   EAbilitySubjects,
@@ -14,42 +30,61 @@ import StickyTable from '../../components/StickyTable';
 import { defineProductColumns } from './Columns';
 import LoadingProgress from '../../components/LoadingProgress';
 import NotFound from '../../components/NotFound';
-import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
+import type {
+  SortingState,
+  ColumnFiltersState,
+  Updater,
+} from '@tanstack/react-table';
 
-// URL sync hooks
 import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
+import { useProductFiltersQuerySync } from '../../hooks/useProductFiltersQuerySync';
 
 import type { Dayjs } from 'dayjs';
-
-// Categories for the Category column/filter
 import { useCategories } from '../../hooks/useCategories';
-
-// Expanded row component
 import ProductExpandedRow from './ProductExpandedRow';
 import { PageLayout } from '../../layouts/page.layout';
+
+import UserProductFilters from './UserProductFilters';
+import { useProductStore } from '../../stores/useProductStore';
+import ProductCard from './ProductCard';
+
+type ViewMode = 'table' | 'cards';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
   const [visibleCount, setVisibleCount] = useState(20);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
-  // Page-level filters (synced to URL)
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
-    null,
-  );
-  const [createdAfter, setCreatedAfter] = useState<Dayjs | null>(null);
-  const [minPrice, setMinPrice] = useState<number>(0);
-  const [maxPrice, setMaxPrice] = useState<number>(100000);
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Load categories for the Category column (select filter)
+  const {
+    searchTerm,
+    selectedCategoryId,
+    updatedFrom,
+    updatedTo,
+    minPrice,
+    maxPrice,
+    minStock,
+    maxStock,
+    setSearchTerm,
+    setSelectedCategoryId,
+    setUpdatedFrom,
+    setUpdatedTo,
+    setMinPrice,
+    setMaxPrice,
+    setMinStock,
+    setMaxStock,
+  } = useProductStore();
+
   const { data: categories = [] } = useCategories();
-
   const { ref: sentinelRef, inView } = useInView();
 
-  // Live Firestore list (debounced)
+  useProductFiltersQuerySync(viewMode, setViewMode);
+
   useEffect(() => {
     const q = query(collection(db, 'products'), orderBy('order'));
     const debouncedSet = debounce(
@@ -71,7 +106,6 @@ export default function ProductsPage() {
     };
   }, []);
 
-  // Convert various createdAt shapes to Date
   const toJsDate = (val: unknown): Date | undefined => {
     if (!val) return undefined;
     if (val instanceof Date) return isNaN(val.getTime()) ? undefined : val;
@@ -79,7 +113,7 @@ export default function ProductsPage() {
       const d = new Date(val);
       return isNaN(d.getTime()) ? undefined : d;
     }
-    if (typeof val === 'object' && 'seconds' in (val as any)) {
+    if (typeof val === 'object' && val !== null && 'seconds' in (val as any)) {
       const ts = val as { seconds: number; nanoseconds?: number };
       const d = new Date(
         ts.seconds * 1000 + Math.floor((ts.nanoseconds ?? 0) / 1_000_000),
@@ -89,9 +123,9 @@ export default function ProductsPage() {
     return undefined;
   };
 
-  // Apply page-level filters (search/category/date/price)
   const filteredProducts = useMemo(() => {
-    const caDate = createdAfter?.toDate() ?? undefined;
+    const from = (updatedFrom as Dayjs | null)?.startOf('day')?.toDate();
+    const to = (updatedTo as Dayjs | null)?.endOf('day')?.toDate();
 
     return products.filter((p) => {
       const matchesSearch =
@@ -102,69 +136,80 @@ export default function ProductsPage() {
       const matchesCategory =
         !selectedCategoryId || p.categoryId === selectedCategoryId;
 
-      const createdAt = toJsDate(
-        (p as any)?.createdAt ?? (p as any)?.metadata?.createdAt,
+      const updated = toJsDate(
+        (p as any)?.updatedAt ?? (p as any)?.metadata?.updatedAt,
       );
-      const matchesCreatedAfter = !caDate || !createdAt || createdAt >= caDate;
+      const matchesUpdated =
+        !updated || ((!from || updated >= from) && (!to || updated <= to));
 
       const price = typeof p.price === 'number' ? p.price : 0;
+      const stock = typeof p.stock === 'number' ? p.stock : 0;
+
       const matchesPrice = price >= minPrice && price <= maxPrice;
+      const matchesStock = stock >= minStock && stock <= maxStock;
 
       return (
-        matchesSearch && matchesCategory && matchesCreatedAfter && matchesPrice
+        matchesSearch &&
+        matchesCategory &&
+        matchesUpdated &&
+        matchesPrice &&
+        matchesStock
       );
     });
   }, [
     products,
     searchTerm,
     selectedCategoryId,
-    createdAfter,
+    updatedFrom,
+    updatedTo,
     minPrice,
     maxPrice,
+    minStock,
+    maxStock,
   ]);
 
-  // Infinite scroll (after filtering)
   useEffect(() => {
     if (inView && visibleCount < filteredProducts.length) {
-      const t = setTimeout(() => setVisibleCount((prev) => prev + 10), 300);
+      const t = setTimeout(() => setVisibleCount((prev) => prev + 12), 200);
       return () => clearTimeout(t);
     }
   }, [inView, visibleCount, filteredProducts.length]);
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  // Columns
   const columns = useMemo(
     () => defineProductColumns(categories, setSnackbarOpen),
     [categories],
   );
 
-  // Sync sorting/filters to query string (and hydrate on load)
   useStickyTableQuerySync({
     sorting,
-    setSorting: (s) => setSorting(s),
+    setSorting,
     columnFilters,
-    setColumnFilters: (f) => setColumnFilters(f),
+    setColumnFilters,
   });
 
-  // Sync page filters to query string (and hydrate on load)
-
-  // Reset both table + page filters
   const resetAllFilters = () => {
-    // page-level
     setSearchTerm('');
-    setSelectedCategoryId(null);
-    setCreatedAfter(null);
+    setSelectedCategoryId('');
+    setUpdatedFrom(null);
+    setUpdatedTo(null);
     setMinPrice(0);
     setMaxPrice(100000);
-    // table-level
-    setColumnFilters([]);
+    setMinStock(0);
+    setMaxStock(1000);
     setSorting([]);
+    setColumnFilters([]);
   };
 
-  // Helper to resolve category name for expanded row
   const getCategoryName = (categoryId?: string | null) =>
     categories.find((c) => c.id === categoryId)?.name ?? '—';
+
+  const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
+    setColumnFilters((prev) =>
+      typeof updater === 'function' ? (updater as any)(prev) : updater,
+    );
+  };
 
   return (
     <PageLayout
@@ -172,42 +217,75 @@ export default function ProductsPage() {
       subject={EAbilitySubjects.PRODUCTS}
     >
       <Box px={5} py={4}>
-        {/* Header row with Reset button */}
-        <Stack
-          direction="row"
-          justifyContent="flex-end"
-          alignItems="center"
-          mb={1}
+        {/* Sticky header controls */}
+        <Box
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 5,
+            bgcolor: 'background.paper',
+            py: 1,
+            mb: 1,
+          }}
         >
-          <Button size="small" variant="outlined" onClick={resetAllFilters}>
-            Reset filters
-          </Button>
-        </Stack>
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            gap={1}
+            flexWrap="wrap"
+          >
+            <Stack direction="row" gap={1} alignItems="center">
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setFiltersOpen(true)}
+                startIcon={<FilterListIcon />}
+              >
+                Filters
+              </Button>
 
+              <Button size="small" variant="outlined" onClick={resetAllFilters}>
+                Reset filters
+              </Button>
+            </Stack>
+
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, v: ViewMode | null) => v && setViewMode(v)}
+              size="small"
+              color="primary"
+            >
+              <ToggleButton value="table" aria-label="Table view">
+                <TableRowsIcon sx={{ mr: 0.5 }} />
+                Table
+              </ToggleButton>
+              <ToggleButton value="cards" aria-label="Cards view">
+                <GridViewIcon sx={{ mr: 0.5 }} />
+                Cards
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+        </Box>
+
+        <Divider sx={{ mb: 2 }} />
+
+        {/* Main content: Table or Cards */}
         {filteredProducts.length === 0 ? (
           <NotFound message="No products found." />
-        ) : (
+        ) : viewMode === 'table' ? (
           <StickyTable<IProduct>
             data={visibleProducts}
             columns={columns}
             sorting={sorting}
-            onSortingChange={(updater) =>
-              setSorting(
-                typeof updater === 'function' ? updater(sorting) : updater,
-              )
-            }
+            onSortingChange={setSorting}
+            enableColumnFilters={false}
             columnFilters={columnFilters}
-            onColumnFiltersChange={(updater) =>
-              setColumnFilters(
-                typeof updater === 'function'
-                  ? updater(columnFilters)
-                  : updater,
-              )
-            }
+            onColumnFiltersChange={handleColumnFiltersChange}
             groupById="categoryId"
             enablePagination
             enableSorting
-            enableColumnFilters
             enableRowExpansion
             renderExpandedRow={(product) => (
               <ProductExpandedRow
@@ -215,12 +293,59 @@ export default function ProductsPage() {
                 categoryName={getCategoryName(product.categoryId)}
               />
             )}
+            bodyMaxHeight="60vh"
           />
+        ) : (
+          // ✅ Cards layout with Box (CSS grid)
+          <Box
+            display="grid"
+            gap={2}
+            alignItems="stretch"
+            gridTemplateColumns={{
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            }}
+          >
+            {visibleProducts.map((product) => (
+              <Box key={product.id} display="flex">
+                <ProductCard
+                  product={product}
+                  onAddToCart={() => setSnackbarOpen(true)}
+                />
+              </Box>
+            ))}
+          </Box>
         )}
 
+        {/* Infinite scroll sentinel */}
         <Box ref={sentinelRef} display="flex" justifyContent="center" py={3}>
           {visibleCount < filteredProducts.length && <LoadingProgress />}
         </Box>
+
+        {/* Drawer for Filters */}
+        <Drawer
+          anchor="right"
+          open={filtersOpen}
+          onClose={() => setFiltersOpen(false)}
+          PaperProps={{ sx: { width: { xs: '100%', sm: 360 } } }}
+        >
+          <Box p={2}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Filters
+            </Typography>
+            <UserProductFilters categories={categories} />
+            <Stack direction="row" gap={1} justifyContent="flex-end" mt={2}>
+              <Button variant="outlined" onClick={resetAllFilters}>
+                Reset
+              </Button>
+              <Button variant="contained" onClick={() => setFiltersOpen(false)}>
+                Apply
+              </Button>
+            </Stack>
+          </Box>
+        </Drawer>
 
         <Snackbar
           open={snackbarOpen}

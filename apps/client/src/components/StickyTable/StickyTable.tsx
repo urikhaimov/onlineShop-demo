@@ -1,4 +1,3 @@
-// src/components/StickyTable/index.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   useReactTable,
@@ -39,6 +38,8 @@ import SwapVertIcon from '@mui/icons-material/SwapVert';
 
 import { tableFilters } from './tableFilters';
 import { renderColumnFilter } from './renderColumnFilter';
+import { EXPAND_COL_WIDTH } from './constants';
+import './StickyTable.css';
 
 export interface StickyTableProps<T extends object> {
   columns: ColumnDef<T>[];
@@ -47,16 +48,18 @@ export interface StickyTableProps<T extends object> {
   onSortingChange: (updater: Updater<SortingState>) => void;
   columnFilters: ColumnFiltersState;
   onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) => void;
-  stickyColumnIndex?: number; // reserved
+  stickyColumnIndex?: number;
   enablePagination?: boolean;
   rowsPerPage?: number;
   enableSorting?: boolean;
   enableColumnFilters?: boolean;
   groupById?: keyof T;
   enableRowExpansion?: boolean;
-  /** Custom renderer for expanded row content */
   renderExpandedRow?: (row: T) => React.ReactNode;
+  bodyMaxHeight?: number | string;
 }
+
+const RIGHT_GUTTER = 12; // space from scrollbar
 
 export default function StickyTable<T extends object>({
   columns,
@@ -72,6 +75,7 @@ export default function StickyTable<T extends object>({
   groupById,
   enableRowExpansion = false,
   renderExpandedRow,
+  bodyMaxHeight = 480,
 }: StickyTableProps<T>) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -85,32 +89,21 @@ export default function StickyTable<T extends object>({
   );
   const [denseMode, setDenseMode] = useState(false);
 
-  // Sort whole groups (when grouping is active) by count or alphabetically
   const sortedData = useMemo(() => {
     if (!groupById) return data;
 
     const keyName = groupById;
     const groupMap = new Map<string, T[]>();
-
     for (const item of data) {
       const raw = (item as Record<string, unknown>)[keyName as string];
       const key = String((raw ?? 'Unknown') as unknown);
-      const arr = groupMap.get(key);
-      if (arr) {
-        arr.push(item);
-      } else {
-        groupMap.set(key, [item]);
-      }
+      (groupMap.get(key) ?? groupMap.set(key, []).get(key)!)!.push(item);
     }
-
-    const groupKeys = Array.from(groupMap.keys());
-    groupKeys.sort((a, b) => {
-      if (groupSortMode === 'count') {
-        return groupMap.get(b)!.length - groupMap.get(a)!.length;
-      }
-      return a.localeCompare(b);
-    });
-
+    const groupKeys = Array.from(groupMap.keys()).sort((a, b) =>
+      groupSortMode === 'count'
+        ? groupMap.get(b)!.length - groupMap.get(a)!.length
+        : a.localeCompare(b),
+    );
     return groupKeys.flatMap((k) => groupMap.get(k)!);
   }, [data, groupById, groupSortMode]);
 
@@ -125,40 +118,29 @@ export default function StickyTable<T extends object>({
     getPaginationRowModel: getPaginationRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     manualGrouping: false,
-    initialState: {
-      grouping: groupById ? [String(groupById)] : [],
-    },
+    initialState: { grouping: groupById ? [String(groupById)] : [] },
     enableSorting,
     enableColumnFilters,
-    filterFns: {
-      ...tableFilters,
-    },
+    filterFns: { ...tableFilters },
   });
 
   const rowModel = table.getRowModel();
   const isGrouped = Boolean(groupById) && table.getState().grouping.length > 0;
 
-  // Auto-expand top-level groups initially
   useEffect(() => {
     if (!isGrouped) return;
     const next: Record<string, boolean> = {};
     for (const r of rowModel.rows) {
-      if (r.subRows.length > 0 && r.depth === 0) {
-        next[r.id] = true;
-      }
+      if (r.subRows.length > 0 && r.depth === 0) next[r.id] = true;
     }
     setExpandedGroups(next);
   }, [isGrouped, rowModel.rows]);
 
-  const toggleGroup = (id: string) => {
+  const toggleGroup = (id: string) =>
     setExpandedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const toggleRowExpand = (id: string) => {
+  const toggleRowExpand = (id: string) =>
     setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
 
-  // Helper types & fns for column meta (relies on your module augmentation)
   type MetaOf<C extends Column<any>> = NonNullable<C['columnDef']['meta']>;
 
   const getStickyStyles = (meta?: MetaOf<Column<T>>) => {
@@ -202,11 +184,11 @@ export default function StickyTable<T extends object>({
             return (
               <TableCell
                 key={cell.id}
+                className={meta?.sticky === 'left' ? 'sticky-cell' : undefined}
                 sx={{
                   ...stickyStyles,
                   ...shouldHideColumnOnMobile(meta),
                   textAlign: align,
-                  // verticalAlign intentionally omitted; TableBody sets it globally to "middle"
                   px: denseMode ? 0.5 : 1,
                   py: denseMode ? 0.25 : 0.5,
                   whiteSpace: { xs: 'normal', sm: 'nowrap' },
@@ -221,16 +203,23 @@ export default function StickyTable<T extends object>({
           {enableRowExpansion && (
             <TableCell
               sx={{
-                width: 40,
+                width: EXPAND_COL_WIDTH,
+                minWidth: EXPAND_COL_WIDTH,
+                maxWidth: EXPAND_COL_WIDTH,
                 textAlign: 'center',
                 position: 'sticky',
-                right: 0,
+                right: RIGHT_GUTTER, // keep off the scrollbar
                 zIndex: 3,
                 backgroundColor: theme.palette.background.paper,
-                // vertical-align comes from TableBody rule
+                px: 0,
               }}
             >
-              <IconButton size="small" onClick={() => toggleRowExpand(row.id)}>
+              <IconButton
+                size="small"
+                onClick={() => toggleRowExpand(row.id)}
+                sx={{ p: 0.25 }}
+                aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+              >
                 {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
               </IconButton>
             </TableCell>
@@ -245,7 +234,6 @@ export default function StickyTable<T extends object>({
                 backgroundColor: theme.palette.grey[50],
                 px: 2,
                 py: 1,
-                // vertical-align comes from TableBody rule
               }}
             >
               {renderExpandedRow ? (
@@ -295,7 +283,18 @@ export default function StickyTable<T extends object>({
         )}
       </Stack>
 
-      <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: 1 }}>
+      <TableContainer
+        component={Paper}
+        className="sticky-table-scroll"
+        sx={{
+          borderRadius: 2,
+          boxShadow: 1,
+          maxHeight: bodyMaxHeight,
+          overflow: 'auto',
+          scrollbarGutter: 'stable both-edges',
+          pr: `${RIGHT_GUTTER}px`,
+        }}
+      >
         <Table stickyHeader size={denseMode ? 'small' : 'medium'}>
           <TableHead>
             {table.getHeaderGroups().map((group) => (
@@ -312,6 +311,7 @@ export default function StickyTable<T extends object>({
                   return (
                     <TableCell
                       key={header.id}
+                      className="sticky-header"
                       sx={{
                         ...stickyStyles,
                         ...shouldHideColumnOnMobile(meta),
@@ -323,7 +323,7 @@ export default function StickyTable<T extends object>({
                         },
                         backgroundColor: theme.palette.grey[50],
                         textAlign: align,
-                        verticalAlign: 'top', // header stays top-aligned
+                        verticalAlign: 'top',
                         px: denseMode ? 0.5 : 1,
                         py: denseMode ? 0.25 : 0.5,
                       }}
@@ -354,11 +354,18 @@ export default function StickyTable<T extends object>({
 
                 {enableRowExpansion && (
                   <TableCell
+                    className="sticky-header"
                     sx={{
+                      position: 'sticky',
+                      right: RIGHT_GUTTER,
                       top: 0,
                       zIndex: 10,
                       backgroundColor: theme.palette.grey[50],
-                      verticalAlign: 'top',
+                      width: EXPAND_COL_WIDTH,
+                      minWidth: EXPAND_COL_WIDTH,
+                      maxWidth: EXPAND_COL_WIDTH,
+                      px: 0,
+                      py: denseMode ? 0.25 : 0.5,
                     }}
                   />
                 )}
@@ -366,18 +373,15 @@ export default function StickyTable<T extends object>({
             ))}
           </TableHead>
 
-          {/* Body: all cells vertically centered */}
           <TableBody
             sx={{ '& .MuiTableCell-root': { verticalAlign: 'middle' } }}
           >
             {rowModel.rows.map((row) => {
-              // Group header rows
               if (row.depth === 0 && row.subRows.length > 0 && isGrouped) {
                 const isOpen = expandedGroups[row.id];
                 const label = groupById
                   ? String(row.getValue(String(groupById)))
                   : 'Group';
-
                 return (
                   <React.Fragment key={row.id}>
                     <TableRow
@@ -390,6 +394,9 @@ export default function StickyTable<T extends object>({
                           <IconButton
                             size="small"
                             onClick={() => toggleGroup(row.id)}
+                            aria-label={
+                              isOpen ? 'Collapse group' : 'Expand group'
+                            }
                           >
                             {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                           </IconButton>
@@ -408,7 +415,6 @@ export default function StickyTable<T extends object>({
                 );
               }
 
-              // Normal top-level rows
               if (row.depth === 0) return renderRow(row);
               return null;
             })}

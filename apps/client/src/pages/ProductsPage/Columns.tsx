@@ -1,22 +1,18 @@
-import { ColumnDef, FilterFnOption } from '@tanstack/react-table';
+// src/pages/ProductsPage/Columns.tsx
+import { ColumnDef } from '@tanstack/react-table';
 import type { IProduct } from '@common/types';
-import { CardMedia, Button, Link as MuiLink } from '@mui/material';
+import { CardMedia, Link as MuiLink } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
-import { betweenNumberRange } from '../../components/StickyTable/tableFilters';
 import RowActions from '../../components/RowActions';
 
-import EditIcon from '@mui/icons-material/Edit';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { useNavigate } from 'react-router-dom';
 const COLUMN_WIDTHS = {
   image: 80,
   actions: 120,
   number: 90,
-  category: 140,
-  name: 220,
+  category: 160,
+  name: 240,
 };
 
 export function defineProductColumns(
@@ -24,21 +20,16 @@ export function defineProductColumns(
   setSnackbarOpen: (open: boolean) => void,
 ): ColumnDef<IProduct>[] {
   return [
-    // Category (groupBy) — visible on mobile, sticky left
+    // Category — sticky left
     {
       accessorKey: 'categoryId',
       header: 'Category',
       size: COLUMN_WIDTHS.category,
-      enableColumnFilter: true,
-      filterFn: 'equals',
+      enableColumnFilter: false,
       meta: {
         align: 'left',
         sticky: 'left',
-        filterVariant: 'select',
-        selectOptions: categories.map((c) => ({
-          label: c.name,
-          value: c.id,
-        })) as { label: string; value: string }[], // <-- ✅ Fix
+        hiddenOnMobile: true,
       },
       cell: ({ row }) => {
         const cat = categories.find((c) => c.id === row.original.categoryId);
@@ -46,46 +37,50 @@ export function defineProductColumns(
       },
     },
 
-    // Image — visible on mobile, sticky left
-    // {
-    //   accessorKey: 'images',
-    //   header: 'Image',
-    //   enableColumnFilter: false,
-    //   size: COLUMN_WIDTHS.image,
-    //   meta: { sticky: 'left' },
-    //   cell: ({ row, getValue }) => {
-    //     const images = getValue<string[]>() ?? [];
-    //     const firstImage =
-    //       images[0] || 'https://picsum.photos/seed/fallback/100/100';
-    //     const id = row.original.id;
-    //     return (
-    //       <Link to={`/product/${id}`}>
-    //         <CardMedia
-    //           component="img"
-    //           sx={{
-    //             width: 60,
-    //             height: 60,
-    //             borderRadius: 1,
-    //             ml: 0,
-    //             mr: 'auto',
-    //             objectFit: 'cover',
-    //             cursor: 'pointer',
-    //           }}
-    //           image={firstImage}
-    //           alt="Product"
-    //         />
-    //       </Link>
-    //     );
-    //   },
-    // },
+    // Image — NOT sticky (avoid overlapping with Category)
+    {
+      accessorKey: 'images',
+      header: 'Image',
+      enableColumnFilter: false,
+      size: COLUMN_WIDTHS.image,
+      meta: {
+        /* no sticky here */
+      },
+      cell: ({ row, getValue }) => {
+        const images = getValue<string[]>() ?? [];
+        const firstImage =
+          images[0] || 'https://picsum.photos/seed/fallback/100/100';
+        const id = row.original.id;
+        return (
+          <Link to={`/product/${id}`}>
+            <CardMedia
+              component="img"
+              sx={{
+                width: 60,
+                height: 60,
+                borderRadius: 1,
+                ml: 0,
+                mr: 'auto',
+                objectFit: 'cover',
+                cursor: 'pointer',
+              }}
+              image={firstImage}
+              alt="Product"
+            />
+          </Link>
+        );
+      },
+    },
 
-    // Name — hidden on mobile
+    // Name
     {
       accessorKey: 'name',
       header: 'Name',
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       size: COLUMN_WIDTHS.name,
-      meta: { filterVariant: 'text', hiddenOnMobile: true },
+      meta: {
+        /* hiddenOnMobile: true */
+      }, // uncomment if you want it hidden on xs
       cell: ({ row, getValue }) => {
         const id = row.original.id;
         const name = getValue<string>();
@@ -103,52 +98,39 @@ export function defineProductColumns(
       },
     },
 
-    // Stock — hidden on mobile, number range filter + slider
+    // Stock — numeric
     {
       accessorKey: 'stock',
       header: 'Stock',
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       size: COLUMN_WIDTHS.number,
-      filterFn: betweenNumberRange as FilterFnOption<IProduct>,
-      meta: {
-        filterVariant: 'number',
-        align: 'left',
-        hiddenOnMobile: true,
-        numberRange: { min: 0, max: 100000, step: 1 },
-      },
+      meta: { align: 'left', hiddenOnMobile: true },
     },
 
-    // Price — hidden on mobile, number range filter + slider
+    // Price — numeric
     {
       accessorKey: 'price',
       header: 'Price',
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       size: COLUMN_WIDTHS.number,
-      filterFn: betweenNumberRange as FilterFnOption<IProduct>,
-      meta: {
-        filterVariant: 'number',
-        align: 'left',
-        hiddenOnMobile: true,
-        numberRange: { min: 0, max: 100000, step: 1 },
-      },
+      meta: { align: 'left', hiddenOnMobile: true },
       cell: ({ getValue }) => {
         const v = getValue<number>();
         return typeof v === 'number' ? `$${v.toFixed(2)}` : '—';
       },
     },
 
-    // Actions — visible on mobile, sticky right
+    // Actions — sticky RIGHT, small width
     {
       header: 'Actions',
       id: 'actions',
       enableColumnFilter: false,
       enableSorting: false,
-      size: 120,
-      meta: { sticky: 'left', align: 'left' },
+      size: COLUMN_WIDTHS.actions,
+      meta: { sticky: 'right', align: 'left' },
       cell: ({ row }) => {
         const product = row.original;
         const addToCart = useCartStore.getState().addToCart;
-        const navigate = useNavigate(); // if you're inside a component; otherwise wrap with <Link>
 
         return (
           <RowActions
@@ -158,7 +140,10 @@ export function defineProductColumns(
                 id: 'add',
                 label: 'Add',
                 icon: <AddShoppingCartIcon />,
-                onClick: (p) => addToCart({ ...p, quantity: 1 }),
+                onClick: (p) => {
+                  addToCart({ ...p, quantity: 1 });
+                  setSnackbarOpen(true);
+                },
                 disabled: (p) => p.stock <= 0,
                 tooltip: (p) => (p.stock <= 0 ? 'Out of stock' : 'Add to cart'),
               },

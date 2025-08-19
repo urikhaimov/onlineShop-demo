@@ -1,19 +1,20 @@
 // src/pages/MyOrdersPage.tsx
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   ToggleButtonGroup,
   ToggleButton,
-  useTheme,
-  useMediaQuery,
   Drawer,
   Typography,
   IconButton,
   Button,
   Stack,
+  Divider,
 } from '@mui/material';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableRowsIcon from '@mui/icons-material/TableRows';
 import CloseIcon from '@mui/icons-material/Close';
-import MenuIcon from '@mui/icons-material/Menu';
 
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
@@ -31,30 +32,35 @@ import type { TOrder } from '@common/types';
 import OrderCard from './OrderCard';
 import UserOrderFilters from './UserOrderFilters';
 import { getOrderCreatedDate } from '../../utils/getOrderCreatedDate';
-import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
+import {
+  useOrderFilterStore,
+  ORDER_TOTAL_MIN,
+  ORDER_TOTAL_MAX,
+} from '../../stores/useOrderFilterStore';
 import { useOrdersPageStore } from '../../stores/useOrdersPageStore';
 import OrderExpandedRow from './OrderExpandedRow';
 
-// 🔗 Use the generic table <-> URL sync hook
 import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
+import { useOrderFiltersQuerySync } from '../../hooks/useOrderFiltersQuerySync';
+import type { ColumnFiltersState, Updater } from '@tanstack/react-table';
+
+type ViewMode = 'table' | 'cards';
 
 export default function MyOrdersPage() {
   const { user } = useAuth();
 
-  // Page UI + table state (Zustand)
+  // Table state (Zustand)
   const {
     orders,
     loading,
     sorting,
     columnFilters,
     viewMode,
-    mobileFiltersOpen,
     setOrders,
     setLoading,
     setSorting,
     setColumnFilters,
-    setViewMode, // (mode: 'table' | 'cards') => void
-    setMobileFiltersOpen,
+    setViewMode,
   } = useOrdersPageStore();
 
   // Page-level filters (Zustand)
@@ -63,16 +69,20 @@ export default function MyOrdersPage() {
     status,
     dateFrom,
     dateTo,
+    minTotal,
+    maxTotal,
     setSearchTerm,
     setStatus,
     setDateFrom,
     setDateTo,
+    setMinTotal,
+    setMaxTotal,
   } = useOrderFilterStore();
 
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  // Drawer open (local UI state)
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Fetch my orders
+  // Fetch orders
   useEffect(() => {
     if (!user) return;
 
@@ -92,9 +102,9 @@ export default function MyOrdersPage() {
     void loadOrders();
   }, [user, setOrders, setLoading]);
 
-  // Apply page-level filters
+  // Apply page-level filters (search/status/date/total)
   const filteredOrders = useMemo(() => {
-    const q = searchTerm.toLowerCase();
+    const q = (searchTerm ?? '').toLowerCase();
 
     return orders.filter((order) => {
       const matchesSearch = order.id.toLowerCase().includes(q);
@@ -108,28 +118,48 @@ export default function MyOrdersPage() {
       const matchesDateFrom = !dateFrom || createdStr >= dateFrom;
       const matchesDateTo = !dateTo || createdStr <= dateTo;
 
-      return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
-    });
-  }, [orders, searchTerm, status, dateFrom, dateTo]);
+      const total = typeof order.amount === 'number' ? order.amount : 0;
+      const minT = Number.isFinite(minTotal) ? minTotal : ORDER_TOTAL_MIN;
+      const maxT = Number.isFinite(maxTotal) ? maxTotal : ORDER_TOTAL_MAX;
+      const matchesTotal = total >= minT && total <= maxT;
 
-  // ---- URL Sync (table only + viewMode) ----
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesDateFrom &&
+        matchesDateTo &&
+        matchesTotal
+      );
+    });
+  }, [orders, searchTerm, status, dateFrom, dateTo, minTotal, maxTotal]);
+
+  // URL sync:
+  // - Sorting & columnFilters via generic table hook
   useStickyTableQuerySync({
     sorting,
     setSorting,
     columnFilters,
     setColumnFilters,
-    viewMode,
-    setViewMode: (v) => setViewMode(v as 'table' | 'cards'),
   });
+  // - Page filters + view mode (parity with Products page)
+  useOrderFiltersQuerySync(viewMode as ViewMode, (v) =>
+    setViewMode(v as ViewMode),
+  );
 
-  // ---- Reset all filters (page + table) ----
+  const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
+    setColumnFilters((prev) =>
+      typeof updater === 'function' ? (updater as any)(prev) : updater,
+    );
+  };
+
+  // Reset page + table filters
   const resetAllFilters = () => {
-    // page-level
     setSearchTerm('');
-    setStatus(null);
+    setStatus('');
     setDateFrom(null);
     setDateTo(null);
-    // table-level
+    setMinTotal(ORDER_TOTAL_MIN);
+    setMaxTotal(ORDER_TOTAL_MAX);
     setColumnFilters([]);
     setSorting([]);
   };
@@ -142,93 +172,129 @@ export default function MyOrdersPage() {
       subject={EAbilitySubjects.ORDERS}
     >
       <Box px={5} py={4}>
+        {/* Sticky header controls (parity with Products page) */}
         <Box
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={2}
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 5,
+            bgcolor: 'background.paper',
+            py: 1,
+            mb: 1,
+          }}
         >
-          {/* Left side */}
-          <Stack direction="row" alignItems="center" spacing={1}>
-            {viewMode === 'cards' && isMobile && (
-              <IconButton onClick={() => setMobileFiltersOpen(true)}>
-                <MenuIcon />
-              </IconButton>
-            )}
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            gap={1}
+            flexWrap="wrap"
+          >
+            <Stack direction="row" gap={1} alignItems="center">
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setFiltersOpen(true)}
+                startIcon={<FilterListIcon />}
+              >
+                Filters
+              </Button>
+
+              <Button size="small" variant="outlined" onClick={resetAllFilters}>
+                Reset filters
+              </Button>
+            </Stack>
+
             <ToggleButtonGroup
               value={viewMode}
               exclusive
-              onChange={(_, next) => {
-                if (next) setViewMode(next);
-              }}
+              onChange={(_, v: ViewMode | null) => v && setViewMode(v)}
               size="small"
+              color="primary"
             >
-              <ToggleButton value="table">Table View</ToggleButton>
-              <ToggleButton value="cards">Card View</ToggleButton>
+              <ToggleButton value="table" aria-label="Table view">
+                <TableRowsIcon sx={{ mr: 0.5 }} />
+                Table
+              </ToggleButton>
+              <ToggleButton value="cards" aria-label="Cards view">
+                <GridViewIcon sx={{ mr: 0.5 }} />
+                Cards
+              </ToggleButton>
             </ToggleButtonGroup>
           </Stack>
-
-          {/* Right side: Reset in table view */}
-          {viewMode === 'table' && (
-            <Button size="small" variant="outlined" onClick={resetAllFilters}>
-              Reset filters
-            </Button>
-          )}
         </Box>
 
-        {viewMode === 'cards' && !isMobile && (
-          <Box mb={2}>
-            <UserOrderFilters />
-          </Box>
-        )}
+        <Divider sx={{ mb: 2 }} />
 
         {filteredOrders.length === 0 ? (
           <NotFound message="No orders found." />
         ) : viewMode === 'cards' ? (
+          // Cards — Box CSS grid
           <Box
             display="grid"
             gap={2}
-            gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }}
+            alignItems="stretch"
+            gridTemplateColumns={{
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            }}
           >
             {filteredOrders.map((order) => (
-              <OrderCard key={order.id} order={order} />
+              <Box key={order.id} display="flex">
+                <OrderCard order={order} />
+              </Box>
             ))}
           </Box>
         ) : (
+          // Table — no column filters (filters live in drawer)
           <StickyTable<TOrder>
             columns={defineOrderColumns()}
             data={filteredOrders}
             sorting={sorting}
             onSortingChange={setSorting}
             columnFilters={columnFilters}
-            onColumnFiltersChange={setColumnFilters}
-            stickyColumnIndex={0}
+            onColumnFiltersChange={handleColumnFiltersChange}
+            enableColumnFilters={false}
             enablePagination
             enableSorting
-            enableColumnFilters
             enableRowExpansion
             renderExpandedRow={(order) => <OrderExpandedRow order={order} />}
+            bodyMaxHeight="60vh"
           />
         )}
 
+        {/* Filters Drawer (right) */}
         <Drawer
-          anchor="left"
-          open={mobileFiltersOpen}
-          onClose={() => setMobileFiltersOpen(false)}
+          anchor="right"
+          open={filtersOpen}
+          onClose={() => setFiltersOpen(false)}
+          PaperProps={{ sx: { width: { xs: '100%', sm: 360 } } }}
         >
-          <Box width={280} p={2}>
-            <Box
-              display="flex"
-              justifyContent="space-between"
+          <Box p={2}>
+            <Stack
+              direction="row"
               alignItems="center"
-              mb={2}
+              justifyContent="space-between"
+              mb={1}
             >
               <Typography variant="h6">Filters</Typography>
-              <IconButton onClick={() => setMobileFiltersOpen(false)}>
+              <IconButton onClick={() => setFiltersOpen(false)}>
                 <CloseIcon />
               </IconButton>
-            </Box>
+            </Stack>
+
             <UserOrderFilters />
+
+            <Stack direction="row" gap={1} justifyContent="flex-end" mt={2}>
+              <Button variant="outlined" onClick={resetAllFilters}>
+                Reset
+              </Button>
+              <Button variant="contained" onClick={() => setFiltersOpen(false)}>
+                Apply
+              </Button>
+            </Stack>
           </Box>
         </Drawer>
       </Box>

@@ -4,18 +4,13 @@ import type { TOrder } from '@common/types';
 import { Typography } from '@mui/material';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
-import {
-  betweenDateRange,
-  betweenNumberRange,
-} from '../../components/StickyTable/tableFilters';
-import { RankChip } from '../../components/RankChip';
-import { StatusTag, STATUS_OPTIONS } from '../../components/StatusTag';
+import { StatusTag } from '../../components/StatusTag';
 
 function getRank<T>(ctx: CellContext<T, unknown>): number {
   const { table, row } = ctx;
   const rows = table.getRowModel().rows;
   const idx = rows.findIndex((r) => r.id === row.id);
-  return idx >= 0 ? idx + 1 : rows.length; // 1-based, fallback to end
+  return idx >= 0 ? idx + 1 : rows.length;
 }
 
 function toDate(value: unknown): Date | null {
@@ -43,7 +38,7 @@ export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
     accessorKey: 'id',
     header: 'Order ID',
     enableColumnFilter: false,
-    meta: { sticky: 'left' }, // visible on mobile
+    meta: { sticky: 'left' },
     cell: (info) => (
       <Typography
         variant="body2"
@@ -57,11 +52,11 @@ export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
     id: 'createdAt',
     accessorFn: (row) => row.metadata?.createdAt ?? null,
     header: 'Date',
-    filterFn: betweenDateRange,
-    meta: { filterVariant: 'date', hiddenOnMobile: true },
+    enableColumnFilter: false,
+    meta: { hiddenOnMobile: true, align: 'left' },
     cell: (info) => {
       const raw = info.getValue<unknown>();
-      const date = toDate(raw) ?? new Date(0);
+      const date = toDate(raw) ?? new Date(NaN);
       return (
         <Typography variant="body2" color="text.secondary">
           {isNaN(date.getTime()) ? '—' : format(date, 'PPpp')}
@@ -72,23 +67,18 @@ export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
   {
     accessorKey: 'amount',
     header: 'Total ($)',
-    filterFn: betweenNumberRange,
-    meta: {
-      filterVariant: 'number',
-      align: 'left',
-      hiddenOnMobile: true,
-      numberRange: { min: 0, max: 100000, step: 1 },
+    enableColumnFilter: false,
+    meta: { hiddenOnMobile: true, align: 'right' },
+    cell: ({ getValue }) => {
+      const v = getValue<number>();
+      return typeof v === 'number' ? `$${v.toFixed(2)}` : '—';
     },
   },
   {
     accessorKey: 'status',
     header: 'Status',
-    enableColumnFilter: true,
-    filterFn: 'equals',
-    meta: {
-      filterVariant: 'select',
-      selectOptions: STATUS_OPTIONS, // <-- reuse from the tag
-    },
+    enableColumnFilter: false,
+    meta: { align: 'left' },
     cell: ({ row }) => {
       const value = row.getValue<string>('status');
       return <StatusTag value={value} />;

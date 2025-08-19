@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Card,
   CardContent,
@@ -18,40 +19,49 @@ export default function ProductCard({
   product,
   onAddToCart,
 }: ProductCardProps) {
-  const addToCart = useCartStore((state) => state.addToCart);
+  const addToCart = useCartStore((s) => s.addToCart);
+
+  const price =
+    typeof product.price === 'number'
+      ? product.price.toFixed(2)
+      : Number(product.price ?? 0).toFixed(2);
+  const stock = typeof product.stock === 'number' ? product.stock : 0;
 
   const handleAddToCart = () => {
     addToCart(product);
-    onAddToCart?.(); // trigger snackbar if provided
+    onAddToCart?.();
   };
-  const formattedPrice = Number(product.price).toFixed(2);
+
   return (
     <Card
+      variant="outlined"
       sx={{
         display: 'flex',
-        flexDirection: { xs: 'column', sm: 'row' },
+        flexDirection: 'column',
         alignItems: 'center',
-        gap: 1,
-        p: 1,
+        p: 1.25,
+        borderRadius: 2,
+        boxShadow: 1,
+        height: '100%',
+        textAlign: 'center',
       }}
     >
-      {/* ✅ Image with link */}
+      {/* Responsive square image — larger on big screens */}
       <Box
         component={Link}
         to={`/product/${product.id}`}
         sx={{
-          width: 80,
-          height: 80,
-          display: 'inline-block',
-          borderRadius: 1,
+          borderRadius: 2,
           overflow: 'hidden',
-          mx: { xs: 'auto', sm: 0 },
+          width: { xs: 88, sm: 96, md: 120, lg: 136, xl: 152 },
+          height: { xs: 88, sm: 96, md: 120, lg: 136, xl: 152 },
+          mb: 1.25,
         }}
       >
         <Box
           component="img"
           src={
-            product.images?.[0] || 'https://picsum.photos/seed/fallback/100/100'
+            product.images?.[0] || 'https://picsum.photos/seed/fallback/200/200'
           }
           alt={product.name}
           sx={{
@@ -63,43 +73,48 @@ export default function ProductCard({
         />
       </Box>
 
-      <CardContent
-        sx={{
-          flex: 1,
-          textAlign: { xs: 'center', sm: 'left' },
-          px: 1,
-        }}
-      >
+      <CardContent sx={{ flex: '1 1 auto', width: '100%', px: 1, py: 0.5 }}>
+        {/* Clamp to 2 lines so row heights stay tidy */}
         <Typography
           variant="subtitle1"
-          fontWeight="bold"
+          fontWeight={700}
           component={Link}
           to={`/product/${product.id}`}
           sx={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
             textDecoration: 'none',
             color: 'inherit',
-            '&:hover': { textDecoration: 'underline' },
+            minHeight: 44,
           }}
         >
           {product.name}
         </Typography>
 
-        <Typography variant="body2" color="text.secondary">
-          ${formattedPrice ?? 'N/A'} • Stock: {product?.stock ?? 'N/A'}
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            mt: 0.5,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          ${price} • Stock: {Number.isFinite(stock) ? stock : 'N/A'}
         </Typography>
       </CardContent>
 
-      <CardActions
-        sx={{
-          justifyContent: { xs: 'center', sm: 'flex-end' },
-          px: 1,
-        }}
-      >
+      <CardActions sx={{ justifyContent: 'center', width: '100%', pb: 1 }}>
         <Button
           variant="contained"
           size="small"
           onClick={handleAddToCart}
-          disabled={product.stock <= 0}
+          disabled={stock <= 0}
+          sx={{ minWidth: 120 }}
         >
           Add to Cart
         </Button>

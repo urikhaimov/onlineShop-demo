@@ -1,302 +1,131 @@
 import * as React from 'react';
 import {
   Box,
-  Button,
   IconButton,
   Menu,
   MenuItem,
-  ListItemIcon,
-  ListItemText,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
   useMediaQuery,
   useTheme,
-  CircularProgress,
-  Stack,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 
-export type RowActionId = string;
+type BreakpointKey = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
-export type ConfirmConfig<T extends object> = {
-  title?: string;
-  description?: string | ((ctx: T) => React.ReactNode);
-  confirmText?: string;
-  cancelText?: string;
-  color?: 'primary' | 'error' | 'warning';
-};
-
-export type RowAction<T extends object> = {
-  id: RowActionId;
-  label: string | ((ctx: T) => string);
+export type RowAction<T> = {
+  id: string;
+  label: string;
   icon?: React.ReactNode;
-  tooltip?: string | ((ctx: T) => string);
-  color?:
-    | 'inherit'
-    | 'primary'
-    | 'secondary'
-    | 'success'
-    | 'error'
-    | 'info'
-    | 'warning';
-  variant?: 'text' | 'outlined' | 'contained';
-  /** Called when action is clicked. Can be async. */
-  onClick: (ctx: T) => void | Promise<void>;
-  /** Ask for confirmation before running onClick */
-  confirm?: ConfirmConfig<T> | boolean;
-  /** Hide this action for given row */
-  visible?: (ctx: T) => boolean;
-  /** Disable this action for given row */
+  onClick: (ctx: T) => void;
   disabled?: (ctx: T) => boolean;
-  /** Mark this action as ‘dangerous’ (default confirm color = error) */
-  danger?: boolean;
+  tooltip?: (ctx: T) => string;
 };
 
-export type RowActionsProps<T extends object> = {
+export type RowActionsProps<T> = {
+  actions: RowAction<T>[];
   context: T;
-  actions: ReadonlyArray<RowAction<T>>;
-  /** 'auto' = buttons on desktop, menu on mobile */
-  renderMode?: 'auto' | 'buttons' | 'menu';
-  /** When renderMode='auto', switch to menu under this breakpoint (default 'sm') */
-  menuBelow?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  /** Spacing between buttons (buttons mode) */
-  gap?: number;
-  /** Button size */
+
+  /** How to render actions. "auto" = buttons on wide screens, menu on small. */
+  renderMode?: 'auto' | 'menu' | 'buttons';
+  /** Below which breakpoint should "auto" switch to a menu. */
+  menuBelow?: BreakpointKey;
+  /** Size for IconButtons (when showing buttons). */
   size?: 'small' | 'medium' | 'large';
-  /** If provided, called after an action completes successfully */
-  onActionDone?: (id: RowActionId, ctx: T) => void;
 };
 
-function resolve<T>(v: string | ((ctx: T) => string), ctx: T): string {
-  return typeof v === 'function' ? v(ctx) : v;
-}
-
-function ConfirmDialog<T extends object>({
-  open,
-  onClose,
-  onConfirm,
-  config,
-  ctx,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  config: ConfirmConfig<T>;
-  ctx: T;
-}) {
-  const {
-    title = 'Are you sure?',
-    description,
-    confirmText = 'Confirm',
-    cancelText = 'Cancel',
-    color = 'error',
-  } = config;
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>{title}</DialogTitle>
-      {description && (
-        <DialogContent>
-          <DialogContentText>
-            {typeof description === 'function' ? description(ctx) : description}
-          </DialogContentText>
-        </DialogContent>
-      )}
-      <DialogActions>
-        <Button onClick={onClose}>{cancelText}</Button>
-        <Button onClick={onConfirm} color={color} variant="contained" autoFocus>
-          {confirmText}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-export default function RowActions<T extends object>({
-  context,
+export default function RowActions<T>({
   actions,
+  context,
   renderMode = 'auto',
   menuBelow = 'sm',
-  gap = 1,
   size = 'small',
-  onActionDone,
 }: RowActionsProps<T>) {
   const theme = useTheme();
   const isBelow = useMediaQuery(theme.breakpoints.down(menuBelow));
 
-  // Filter by visibility
-  const visibleActions = React.useMemo(
-    () => actions.filter((a) => (a.visible ? a.visible(context) : true)),
-    [actions, context],
-  );
-
-  // Per-action loading state
-  const [loadingMap, setLoadingMap] = React.useState<
-    Record<RowActionId, boolean>
-  >({});
-  const setLoading = (id: RowActionId, v: boolean) =>
-    setLoadingMap((prev) => ({ ...prev, [id]: v }));
-
-  // Menu state
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const menuOpen = Boolean(anchorEl);
-
-  const openMenu = (e: React.MouseEvent<HTMLElement>) =>
-    setAnchorEl(e.currentTarget);
-  const closeMenu = () => setAnchorEl(null);
-
-  // Confirmation state
-  const [confirmId, setConfirmId] = React.useState<RowActionId | null>(null);
-
-  const runAction = async (action: RowAction<T>) => {
-    const id = action.id;
-    try {
-      setLoading(id, true);
-      await action.onClick(context);
-      onActionDone?.(id, context);
-    } finally {
-      setLoading(id, false);
-    }
+  // ---- Menu anchor handling (robust) ----
+  const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
+  const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(e.currentTarget); // use currentTarget (IconButton), not target (inner svg)
   };
+  const handleClose = () => setAnchorEl(null);
 
-  const onActionClick = async (action: RowAction<T>) => {
-    const needsConfirm =
-      action.confirm &&
-      (typeof action.confirm === 'object' || action.confirm === true);
+  const isValidAnchor = React.useCallback((el: HTMLElement | null) => {
+    if (!el) return false;
+    if (!document.body.contains(el)) return false;
+    return el.getClientRects().length > 0; // avoids display:none/detached
+  }, []);
 
-    if (needsConfirm) {
-      setConfirmId(action.id);
-    } else {
-      await runAction(action);
-      // If clicked from menu, close menu afterwards
-      if (menuOpen) closeMenu();
-    }
-  };
+  React.useEffect(() => {
+    if (anchorEl && !isValidAnchor(anchorEl)) setAnchorEl(null);
+  }, [anchorEl, isValidAnchor]);
 
-  const confirmConfigFor = (action: RowAction<T>): ConfirmConfig<T> => {
-    if (!action.confirm) {
-      return { color: action.danger ? 'error' : 'primary' };
-    }
-    if (typeof action.confirm === 'boolean') {
-      return { color: action.danger ? 'error' : 'primary' };
-    }
-    return {
-      color: action.danger ? 'error' : (action.confirm.color ?? 'primary'),
-      ...action.confirm,
-    };
-  };
+  const open = isValidAnchor(anchorEl);
 
-  // Choose render style
-  const shouldUseMenu =
-    renderMode === 'menu' ||
-    (renderMode === 'auto' && (isBelow || visibleActions.length > 2));
+  // Decide rendering mode
+  const useMenu = renderMode === 'menu' || (renderMode === 'auto' && isBelow);
 
-  if (visibleActions.length === 0) return null;
+  if (useMenu) {
+    return (
+      <>
+        <IconButton
+          size={size}
+          onClick={handleOpen}
+          sx={{ display: 'inline-flex' }}
+        >
+          <MoreVertIcon fontSize={size === 'small' ? 'small' : 'medium'} />
+        </IconButton>
 
-  return (
-    <Box>
-      {/* Buttons mode */}
-      {!shouldUseMenu && (
-        <Stack direction="row" spacing={gap} alignItems="center">
-          {visibleActions.map((action) => {
-            const label = resolve(action.label, context);
-            const disabled = action.disabled ? action.disabled(context) : false;
-            const isLoading = !!loadingMap[action.id];
-            const content = (
-              <Button
-                key={action.id}
-                size={size}
-                variant={action.variant ?? 'outlined'}
-                color={action.color ?? (action.danger ? 'error' : 'primary')}
-                startIcon={
-                  isLoading ? <CircularProgress size={14} /> : action.icon
-                }
-                disabled={disabled || isLoading}
-                onClick={() => onActionClick(action)}
+        <Menu
+          anchorEl={open ? anchorEl : undefined}
+          open={open}
+          onClose={handleClose}
+          keepMounted
+          disableRestoreFocus
+        >
+          {actions.map((a) => {
+            const disabled = a.disabled?.(context) ?? false;
+            const label = a.tooltip?.(context) ?? a.label;
+            return (
+              <MenuItem
+                key={a.id}
+                disabled={disabled}
+                onClick={() => {
+                  a.onClick(context);
+                  handleClose();
+                }}
+                sx={{ gap: 1 }}
               >
+                {a.icon}
                 {label}
-              </Button>
-            );
-            const tooltip = action.tooltip
-              ? resolve(action.tooltip, context)
-              : undefined;
-            return tooltip ? (
-              <Tooltip key={action.id} title={tooltip}>
-                <span>{content}</span>
-              </Tooltip>
-            ) : (
-              content
+              </MenuItem>
             );
           })}
-        </Stack>
-      )}
+        </Menu>
+      </>
+    );
+  }
 
-      {/* Menu mode */}
-      {shouldUseMenu && (
-        <>
-          <IconButton size={size} onClick={openMenu}>
-            <MoreVertIcon />
-          </IconButton>
-          <Menu anchorEl={anchorEl} open={menuOpen} onClose={closeMenu}>
-            {visibleActions.map((action) => {
-              const label = resolve(action.label, context);
-              const disabled = action.disabled
-                ? action.disabled(context)
-                : false;
-              const isLoading = !!loadingMap[action.id];
-              const tooltip = action.tooltip
-                ? resolve(action.tooltip, context)
-                : undefined;
-
-              const item = (
-                <MenuItem
-                  key={action.id}
-                  onClick={async () => {
-                    await onActionClick(action);
-                  }}
-                  disabled={disabled || isLoading}
-                >
-                  <ListItemIcon>
-                    {isLoading ? <CircularProgress size={16} /> : action.icon}
-                  </ListItemIcon>
-                  <ListItemText>{label}</ListItemText>
-                </MenuItem>
-              );
-
-              return tooltip ? (
-                <Tooltip key={action.id} title={tooltip} placement="left">
-                  <span>{item}</span>
-                </Tooltip>
-              ) : (
-                item
-              );
-            })}
-          </Menu>
-        </>
-      )}
-
-      {/* Confirmation dialog */}
-      {confirmId && (
-        <ConfirmDialog<T>
-          open={true}
-          onClose={() => setConfirmId(null)}
-          onConfirm={async () => {
-            const action = visibleActions.find((a) => a.id === confirmId);
-            if (!action) return setConfirmId(null);
-            await runAction(action);
-            setConfirmId(null);
-            if (menuOpen) closeMenu();
-          }}
-          config={confirmConfigFor(
-            visibleActions.find((a) => a.id === confirmId)!,
-          )}
-          ctx={context}
-        />
-      )}
+  // Buttons row
+  return (
+    <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
+      {actions.map((a) => {
+        const disabled = a.disabled?.(context) ?? false;
+        const label = a.tooltip?.(context) ?? a.label;
+        return (
+          <Tooltip key={a.id} title={label}>
+            <span>
+              <IconButton
+                size={size}
+                onClick={() => a.onClick(context)}
+                disabled={disabled}
+              >
+                {a.icon}
+              </IconButton>
+            </span>
+          </Tooltip>
+        );
+      })}
     </Box>
   );
 }
