@@ -1,4 +1,3 @@
-// src/pages/MyOrdersPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
@@ -10,6 +9,7 @@ import {
   Button,
   Stack,
   Divider,
+  Container, // ⬅️ add
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import GridViewIcon from '@mui/icons-material/GridView';
@@ -32,6 +32,7 @@ import type { TOrder } from '@common/types';
 import OrderCard from './OrderCard';
 import UserOrderFilters from './UserOrderFilters';
 import { getOrderCreatedDate } from '../../utils/getOrderCreatedDate';
+
 import {
   useOrderFilterStore,
   ORDER_TOTAL_MIN,
@@ -63,7 +64,7 @@ export default function MyOrdersPage() {
     setViewMode,
   } = useOrdersPageStore();
 
-  // Page-level filters (Zustand)
+  // Page filters (Zustand)
   const {
     searchTerm,
     status,
@@ -77,10 +78,9 @@ export default function MyOrdersPage() {
     setDateTo,
     setMinTotal,
     setMaxTotal,
-    resetFilters, // <-- add this from the store
+    resetFilters,
   } = useOrderFilterStore();
 
-  // Drawer open (local UI state)
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Fetch orders
@@ -103,7 +103,7 @@ export default function MyOrdersPage() {
     void loadOrders();
   }, [user, setOrders, setLoading]);
 
-  // Apply page-level filters (search/status/date/total)
+  // Apply page-level filters
   const filteredOrders = useMemo(() => {
     const q = (searchTerm ?? '').toLowerCase();
 
@@ -134,32 +134,31 @@ export default function MyOrdersPage() {
     });
   }, [orders, searchTerm, status, dateFrom, dateTo, minTotal, maxTotal]);
 
-  // URL sync:
-  // - Sorting & columnFilters via generic table hook
+  // URL sync
   useStickyTableQuerySync({
     sorting,
     setSorting,
     columnFilters,
     setColumnFilters,
   });
-  // - Page filters + view mode (parity with Products page)
   useOrderFiltersQuerySync(viewMode as ViewMode, (v) =>
     setViewMode(v as ViewMode),
   );
 
   useEffect(() => {
     return () => {
-      resetFilters(); // clears store values
+      resetFilters();
     };
   }, [resetFilters]);
 
   const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
     setColumnFilters((prev) =>
-      typeof updater === 'function' ? (updater as any)(prev) : updater,
+      typeof updater === 'function'
+        ? (updater as (p: ColumnFiltersState) => ColumnFiltersState)(prev)
+        : updater,
     );
   };
 
-  // Reset page + table filters
   const resetAllFilters = () => {
     setSearchTerm('');
     setStatus('');
@@ -178,8 +177,21 @@ export default function MyOrdersPage() {
       action={EAbilityActions.MANAGE}
       subject={EAbilitySubjects.ORDERS}
     >
-      <Box px={5} py={4}>
-        {/* Sticky header controls (parity with Products page) */}
+      {/* One container controls equal left/right padding on every breakpoint */}
+      <Container
+        maxWidth="xl"
+        disableGutters
+        sx={{
+          px: { xs: 2, sm: 3, md: 4 }, // symmetric gutters
+          py: 4,
+          mx: 'auto',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          overflowX: 'clip',
+        }}
+      >
+        {/* Sticky header controls */}
         <Box
           sx={{
             position: 'sticky',
@@ -196,8 +208,14 @@ export default function MyOrdersPage() {
             justifyContent="space-between"
             gap={1}
             flexWrap="wrap"
+            sx={{ minWidth: 0 }}
           >
-            <Stack direction="row" gap={1} alignItems="center">
+            <Stack
+              direction="row"
+              gap={1}
+              alignItems="center"
+              sx={{ minWidth: 0 }}
+            >
               <Button
                 variant="outlined"
                 size="small"
@@ -236,26 +254,32 @@ export default function MyOrdersPage() {
         {filteredOrders.length === 0 ? (
           <NotFound message="No orders found." />
         ) : viewMode === 'cards' ? (
-          // Cards — Box CSS grid
+          // Cards Grid
           <Box
             display="grid"
-            gap={2}
             alignItems="stretch"
-            gridTemplateColumns={{
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)',
-              lg: 'repeat(4, 1fr)',
+            gap={2}
+            sx={{
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              overflowX: 'clip',
+              gridTemplateColumns: {
+                xs: 'repeat(1, minmax(0, 1fr))',
+                sm: 'repeat(2, minmax(0, 1fr))',
+                md: 'repeat(3, minmax(0, 1fr))',
+                lg: 'repeat(4, minmax(0, 1fr))',
+              },
             }}
           >
             {filteredOrders.map((order) => (
-              <Box key={order.id} display="flex">
+              <Box key={order.id} sx={{ display: 'flex', minWidth: 0 }}>
                 <OrderCard order={order} />
               </Box>
             ))}
           </Box>
         ) : (
-          // Table — no column filters (filters live in drawer)
+          // Table
           <StickyTable<TOrder>
             columns={defineOrderColumns()}
             data={filteredOrders}
@@ -272,7 +296,7 @@ export default function MyOrdersPage() {
           />
         )}
 
-        {/* Filters Drawer (right) */}
+        {/* Filters Drawer */}
         <Drawer
           anchor="right"
           open={filtersOpen}
@@ -292,12 +316,10 @@ export default function MyOrdersPage() {
               </IconButton>
             </Stack>
 
-            {/* Pass onClose so Enter/select/committed sliders CAN close if you ever enable closeOnChange */}
             <UserOrderFilters onClose={() => setFiltersOpen(false)} />
-            {/* ^ not passing closeOnChange -> stays open while the user edits */}
           </Box>
         </Drawer>
-      </Box>
+      </Container>
     </PageLayout>
   );
 }

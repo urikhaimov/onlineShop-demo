@@ -1,14 +1,11 @@
 // src/components/orders/OrderCard.tsx
 import React from 'react';
-import { Paper, Typography, Divider, Chip, Link } from '@mui/material';
+import { Paper, Typography, Divider, Chip, Link, Box } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { TOrder as Order } from '@common/types';
+import type { TOrder as Order } from '@common/types';
 import { formatCurrency } from '../../utils/formatCurrency';
-import {
-  EAbilityActions,
-  EAbilitySubjects,
-} from '../../services/ability.service';
-import { PageLayout } from '../../layouts/page.layout';
+import { asDate } from '../../utils/asDate';
+import { format } from 'date-fns';
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -25,61 +22,86 @@ function getStatusColor(status: string) {
   }
 }
 
-type Props = {
-  order: Order;
-};
+type Props = { order: Order };
 
 const OrderCard: React.FC<Props> = ({ order }) => {
+  const created = asDate(order.createdAt) ?? asDate(order.metadata?.createdAt);
+
   return (
-    <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.CART}>
-      <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
-        <Typography variant="subtitle1" fontWeight="bold">
-          <Link
-            component={RouterLink}
-            to={`/order/${order.id}`}
-            underline="hover"
-            sx={{ cursor: 'pointer' }}
+    <Paper
+      elevation={3}
+      sx={{
+        p: 3,
+        borderRadius: 3,
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+      }}
+    >
+      <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 0.5 }}>
+        <Box
+          component={RouterLink}
+          to={`/order/${order.id}`}
+          underline="hover"
+          sx={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 0.5,
+            textDecoration: 'none',
+            color: 'inherit',
+            maxWidth: '100%',
+          }}
+        >
+          <Box component="span">Order #</Box>
+          <Box
+            component="span"
+            title={order.id} // full id on hover
+            sx={{
+              minWidth: 0, // allow shrinking
+              flex: '1 1 auto',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis', // ← ellipsis here
+              fontFamily: 'monospace',
+            }}
           >
-            Order #{order.id}
-          </Link>
-        </Typography>
+            {order.id}
+          </Box>
+        </Box>
+      </Typography>
 
-        <Chip
-          label={order.status}
-          color={getStatusColor(order.status)}
-          size="small"
-          sx={{ my: 1 }}
-        />
+      <Chip
+        label={order.status}
+        color={getStatusColor(order.status)}
+        size="small"
+        sx={{ my: 1 }}
+      />
 
-        <Typography variant="body2">
-          Date:{' '}
-          {typeof order.createdAt === 'string'
-            ? new Date(order.createdAt).toLocaleString()
-            : (order.createdAt.toDate?.().toLocaleString?.() ?? 'Invalid date')}
-        </Typography>
+      <Typography variant="body2">
+        Date: {created ? format(created, 'PPpp') : '—'}
+      </Typography>
 
-        <Typography variant="body2">Paid with: Visa ending in 4242</Typography>
+      <Typography variant="body2">Paid with: Visa ending in 4242</Typography>
+      <Typography variant="body2">Shipping: Express Delivery</Typography>
+      <Typography variant="body2">Delivery ETA: July 8, 2025</Typography>
 
-        <Typography variant="body2">Shipping: Express Delivery</Typography>
+      <Typography variant="body2" gutterBottom>
+        Total: {formatCurrency(order.amount)}
+      </Typography>
 
-        <Typography variant="body2">Delivery ETA: July 8, 2025</Typography>
+      <Divider sx={{ my: 1 }} />
 
-        <Typography variant="body2" gutterBottom>
-          Total: {formatCurrency(order.amount)}
-        </Typography>
-
-        <Divider sx={{ my: 1 }} />
-
-        <ul style={{ margin: 0, padding: 0 }}>
-          {order.items.map((item, idx) => (
-            <li key={idx}>
+      <Box component="ul" sx={{ m: 0, p: 0, pl: 2 }}>
+        {order.items.map((item, idx) => (
+          <li key={idx}>
+            <Typography variant="body2">
               {item.name} × {item.quantity} — Price:{' '}
               {formatCurrency(item.price)}
-            </li>
-          ))}
-        </ul>
-      </Paper>
-    </PageLayout>
+            </Typography>
+          </li>
+        ))}
+      </Box>
+    </Paper>
   );
 };
 
