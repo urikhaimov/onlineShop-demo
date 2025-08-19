@@ -7,19 +7,29 @@ import {
   Button,
   Box,
 } from '@mui/material';
+import { darken } from '@mui/material/styles';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
+import { useThemeStore } from '../../stores/useThemeStore';
 import type { Props } from './CardReducer';
 
-type ProductCardProps = Props & {
-  onAddToCart?: () => void;
-};
+type ProductCardProps = Props & { onAddToCart?: () => void };
 
 export default function ProductCard({
   product,
   onAddToCart,
 }: ProductCardProps) {
   const addToCart = useCartStore((s) => s.addToCart);
+  const { themeSettings } = useThemeStore();
+
+  // Ensure we actually get blue unless you override it in the store
+  const primaryColor = themeSettings?.primaryColor || '#1976d2';
+  const borderRadius = themeSettings?.borderRadius ?? 8;
+  const spacingScale = themeSettings?.spacingScale ?? 1;
+
+  // Bigger square image; same across all cards
+  const imgSize = { xs: 140, sm: 160, md: 180, lg: 200, xl: 220 };
+  const minHeight = { xs: 310, sm: 330, md: 360, lg: 380, xl: 400 };
 
   const price =
     typeof product.price === 'number'
@@ -39,23 +49,25 @@ export default function ProductCard({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        p: 1.25,
-        borderRadius: 2,
+        p: 1.25 * spacingScale,
+        borderRadius,
         boxShadow: 1,
         height: '100%',
+        minHeight,
         textAlign: 'center',
       }}
     >
-      {/* Responsive square image — larger on big screens */}
+      {/* Square image — slightly rounded, NOT circular */}
       <Box
         component={Link}
         to={`/product/${product.id}`}
         sx={{
-          borderRadius: 2,
-          overflow: 'hidden',
-          width: { xs: 88, sm: 96, md: 120, lg: 136, xl: 152 },
-          height: { xs: 88, sm: 96, md: 120, lg: 136, xl: 152 },
-          mb: 1.25,
+          borderRadius: 2, // small radius only
+          overflow: 'hidden', // keep corners crisp
+          width: imgSize,
+          height: imgSize,
+          mb: 1.25 * spacingScale,
+          display: 'block',
         }}
       >
         <Box
@@ -69,12 +81,12 @@ export default function ProductCard({
             height: '100%',
             objectFit: 'cover',
             display: 'block',
+            borderRadius: 0, // ensure not circular if global CSS exists
           }}
         />
       </Box>
 
       <CardContent sx={{ flex: '1 1 auto', width: '100%', px: 1, py: 0.5 }}>
-        {/* Clamp to 2 lines so row heights stay tidy */}
         <Typography
           variant="subtitle1"
           fontWeight={700}
@@ -108,13 +120,24 @@ export default function ProductCard({
         </Typography>
       </CardContent>
 
-      <CardActions sx={{ justifyContent: 'center', width: '100%', pb: 1 }}>
+      <CardActions sx={{ width: '100%', pb: 1 }}>
         <Button
-          variant="contained"
           size="small"
           onClick={handleAddToCart}
           disabled={stock <= 0}
-          sx={{ minWidth: 120 }}
+          fullWidth
+          disableElevation
+          sx={{
+            height: 38,
+            // Force true blue regardless of theme palette conflicts
+            backgroundColor: `${primaryColor} !important`,
+            color: '#fff',
+            '&:hover': {
+              backgroundColor: `${darken(primaryColor, 0.32)} !important`,
+            },
+            '&.Mui-disabled': { backgroundColor: 'action.disabledBackground' },
+            borderRadius,
+          }}
         >
           Add to Cart
         </Button>

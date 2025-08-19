@@ -1,25 +1,50 @@
-import React from 'react';
-import { Box, Typography, CardMedia } from '@mui/material';
+// src/pages/ProductsPage/ProductExpandedRow.tsx
+import React, { useMemo } from 'react';
+import { Box, Typography } from '@mui/material';
 import { format } from 'date-fns';
 import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
+import ImageGallery from '../../components/ImageGallery';
+
+type FirestoreLikeTs = {
+  seconds?: number;
+  nanoseconds?: number;
+  toDate?: () => Date;
+};
+type MaybeMetaDates = {
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  metadata?: { createdAt?: unknown; updatedAt?: unknown };
+};
+type OptionalFields = {
+  sku?: string;
+  brand?: string;
+  description?: string; // HTML
+  attributes?: Record<string, unknown>;
+};
 
 function asDate(value: unknown): Date | undefined {
   if (!value) return undefined;
-  if (value instanceof Date) return value;
+  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
   if (typeof value === 'string' || typeof value === 'number') {
     const d = new Date(value);
     return isNaN(d.getTime()) ? undefined : d;
   }
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'seconds' in (value as any)
-  ) {
-    const v = value as { seconds: number; nanoseconds?: number };
-    return new Date(
-      v.seconds * 1000 + Math.floor((v.nanoseconds ?? 0) / 1_000_000),
-    );
+  if (typeof value === 'object' && value !== null) {
+    const v = value as FirestoreLikeTs;
+    if (typeof v.toDate === 'function') {
+      const d = v.toDate();
+      return d instanceof Date && !isNaN(d.getTime()) ? d : undefined;
+    }
+    if (
+      'seconds' in (value as Record<string, unknown>) &&
+      typeof v.seconds === 'number'
+    ) {
+      const ms =
+        v.seconds * 1000 + Math.floor((v.nanoseconds ?? 0) / 1_000_000);
+      const d = new Date(ms);
+      return isNaN(d.getTime()) ? undefined : d;
+    }
   }
   return undefined;
 }
@@ -30,81 +55,89 @@ type Props = {
 };
 
 const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
-  const img =
-    Array.isArray(product.images) && product.images.length > 0
-      ? product.images[0]
-      : undefined;
+  const pWithMeta = product as unknown as MaybeMetaDates;
+  const extras = product as unknown as OptionalFields;
 
-  const created =
-    asDate((product as any)?.createdAt) ??
-    asDate((product as any)?.metadata?.createdAt);
-  const updated =
-    asDate((product as any)?.updatedAt) ??
-    asDate((product as any)?.metadata?.updatedAt);
+  const images = Array.isArray(
+    (product as unknown as { images?: string[] }).images,
+  )
+    ? ((product as unknown as { images?: string[] }).images as string[])
+    : [];
 
-  // Optional fields coming from your editor / schema
-  const sku = (product as any)?.sku as string | undefined;
-  const brand = (product as any)?.brand as string | undefined;
-  const description = (product as any)?.description as string | undefined; // HTML string
-  const attributes = (product as any)?.attributes as
-    | Record<string, unknown>
-    | undefined;
+  const created = asDate(pWithMeta.createdAt ?? pWithMeta.metadata?.createdAt);
+  const updated = asDate(pWithMeta.updatedAt ?? pWithMeta.metadata?.updatedAt);
 
-  const sanitizedDescription = description
-    ? DOMPurify.sanitize(description, { USE_PROFILES: { html: true } })
-    : '';
+  const priceNum = Number(
+    (product as unknown as { price?: unknown }).price ?? 0,
+  );
+  const stockNum = Number(
+    (product as unknown as { stock?: unknown }).stock ?? 0,
+  );
+
+  const priceLabel = Number.isFinite(priceNum)
+    ? `$${priceNum.toFixed(2)}`
+    : '—';
+  const stockLabel = Number.isFinite(stockNum) ? stockNum : ('—' as const);
+
+  const sanitizedDescription = useMemo(
+    () =>
+      extras.description
+        ? DOMPurify.sanitize(extras.description, {
+            USE_PROFILES: { html: true },
+          })
+        : '',
+    [extras.description],
+  );
 
   return (
     <Box
       display="grid"
-      gap={1.5}
-      gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }}
+      gap={2}
+      alignItems="start"
+      gridTemplateColumns={{
+        xs: '1fr', // phones
+        sm: '1fr 1fr', // small tablets
+        md: '300px 1fr 260px', // desktop: 3 columns
+      }}
     >
-      <Box display="flex" gap={1.5} alignItems="flex-start">
-        {img && (
-          <CardMedia
-            component="img"
-            image={img}
-            alt={product.name}
-            sx={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 1 }}
-          />
+      {/* Col 1: images */}
+      <Box sx={{ minWidth: 0 }}>
+        {images.length > 0 ? (
+          <ImageGallery images={images} />
+        ) : (
+          <Box
+            sx={{
+              width: '100%',
+              height: 160,
+              bgcolor: 'action.hover',
+              borderRadius: 1,
+              display: 'grid',
+              placeItems: 'center',
+              typography: 'caption',
+              color: 'text.secondary',
+            }}
+          >
+            No images
+          </Box>
         )}
-        <Box>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            {product.name}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {categoryName ?? '—'}
-          </Typography>
-        </Box>
       </Box>
 
-      <Box>
-        <Typography variant="subtitle2">Pricing / Stock</Typography>
-        <Typography variant="body2">
-          Price:{' '}
-          {typeof product.price === 'number'
-            ? `$${product.price.toFixed(2)}`
-            : '—'}
+      {/* Col 2: title, category, description */}
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
+          {product.name}
         </Typography>
-        <Typography variant="body2">
-          Stock: {typeof product.stock === 'number' ? product.stock : '—'}
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          {categoryName ?? '—'}
         </Typography>
-        {sku && <Typography variant="body2">SKU: {sku}</Typography>}
-        {brand && <Typography variant="body2">Brand: {brand}</Typography>}
-      </Box>
 
-      <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
         <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
           Description
         </Typography>
-
         {sanitizedDescription ? (
           <Box
-            // Render sanitized HTML
             dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
             sx={{
-              // Basic typography for editor HTML
               '& p': {
                 m: 0,
                 mb: 0.5,
@@ -121,37 +154,51 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
         ) : (
           <Typography variant="body2">—</Typography>
         )}
-      </Box>
 
-      {attributes && Object.keys(attributes).length > 0 && (
-        <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
-          <Typography variant="subtitle2">Attributes</Typography>
-          <Box component="ul" sx={{ pl: 3, my: 0 }}>
-            {Object.entries(attributes).map(([k, v]) => (
-              <li key={k}>
-                <Typography variant="body2">
-                  <strong>{k}:</strong>{' '}
-                  {typeof v === 'object' && v !== null
-                    ? JSON.stringify(v)
-                    : String(v)}
-                </Typography>
-              </li>
-            ))}
+        {/* Attributes (keep in middle so they can wrap nicely) */}
+        {extras.attributes && Object.keys(extras.attributes).length > 0 && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="subtitle2">Attributes</Typography>
+            <Box component="ul" sx={{ pl: 3, my: 0 }}>
+              {Object.entries(extras.attributes).map(([k, v]) => (
+                <li key={k}>
+                  <Typography variant="body2">
+                    <strong>{k}:</strong>{' '}
+                    {typeof v === 'object' && v !== null
+                      ? JSON.stringify(v)
+                      : String(v)}
+                  </Typography>
+                </li>
+              ))}
+            </Box>
           </Box>
-        </Box>
-      )}
-
-      <Box>
-        <Typography variant="subtitle2">Created</Typography>
-        <Typography variant="body2">
-          {created ? format(created, 'PPpp') : '—'}
-        </Typography>
+        )}
       </Box>
-      <Box>
-        <Typography variant="subtitle2">Updated</Typography>
-        <Typography variant="body2">
-          {updated ? format(updated, 'PPpp') : '—'}
-        </Typography>
+
+      {/* Col 3: pricing/stock + dates */}
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="subtitle2">Pricing / Stock</Typography>
+        <Typography variant="body2">Price: {priceLabel}</Typography>
+        <Typography variant="body2">Stock: {stockLabel}</Typography>
+        {extras.sku && (
+          <Typography variant="body2">SKU: {extras.sku}</Typography>
+        )}
+        {extras.brand && (
+          <Typography variant="body2">Brand: {extras.brand}</Typography>
+        )}
+
+        <Box sx={{ mt: 1.5 }}>
+          <Typography variant="subtitle2">Created</Typography>
+          <Typography variant="body2">
+            {created ? format(created, 'PPpp') : '—'}
+          </Typography>
+        </Box>
+        <Box sx={{ mt: 1 }}>
+          <Typography variant="subtitle2">Updated</Typography>
+          <Typography variant="body2">
+            {updated ? format(updated, 'PPpp') : '—'}
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
