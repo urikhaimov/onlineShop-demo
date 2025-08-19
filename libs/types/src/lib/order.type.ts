@@ -1,5 +1,10 @@
 // src/types/order.ts
 import { IMetadata } from './common.type';
+export type FirestoreDate =
+  | Date
+  | string
+  | { toDate?: () => Date }
+  | { seconds: number; nanoseconds?: number };
 
 export type TOrderStatus =
   | 'pending'
@@ -47,5 +52,10 @@ export type TOrder = {
     timestamp: string;
     changedBy: string;
   }>;
-  metadata?: IMetadata;
+  createdAt?: FirestoreDate; // 👈 add
+  updatedAt?: FirestoreDate; // 👈 add
+  metadata?: IMetadata & {
+    createdAt?: FirestoreDate;
+    updatedAt?: FirestoreDate;
+  };
 };
