@@ -1,18 +1,17 @@
-// src/pages/ProductsPage/Columns.tsx
 import { ColumnDef } from '@tanstack/react-table';
 import type { IProduct } from '@common/types';
 import { CardMedia, Link as MuiLink } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
 import RowActions from '../../components/RowActions';
 
 const COLUMN_WIDTHS = {
   image: 80,
-  actions: 120,
+  actions: 80,
   number: 90,
-  category: 160,
-  name: 240,
+  category: 140,
+  name: 220,
 };
 
 export function defineProductColumns(
@@ -127,10 +126,11 @@ export function defineProductColumns(
       enableColumnFilter: false,
       enableSorting: false,
       size: COLUMN_WIDTHS.actions,
-      meta: { sticky: 'right', align: 'left' },
+      meta: { sticky: 'right', align: 'left', alwaysVisible: true }, // 👈 keep visible at all sizes
       cell: ({ row }) => {
         const product = row.original;
         const addToCart = useCartStore.getState().addToCart;
+        const navigate = useNavigate();
 
         return (
           <RowActions
@@ -148,9 +148,6 @@ export function defineProductColumns(
                 tooltip: (p) => (p.stock <= 0 ? 'Out of stock' : 'Add to cart'),
               },
             ]}
-            renderMode="auto"
-            menuBelow="sm"
-            size="small"
           />
         );
       },

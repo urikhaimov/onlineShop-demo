@@ -1,3 +1,4 @@
+// src/components/StickyTable/StickyTable.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   useReactTable,
@@ -39,7 +40,7 @@ import SwapVertIcon from '@mui/icons-material/SwapVert';
 import { tableFilters } from './tableFilters';
 import { renderColumnFilter } from './renderColumnFilter';
 import { EXPAND_COL_WIDTH } from './constants';
-import './StickyTable.css';
+import './sticky-table.css';
 
 export interface StickyTableProps<T extends object> {
   columns: ColumnDef<T>[];
@@ -48,18 +49,18 @@ export interface StickyTableProps<T extends object> {
   onSortingChange: (updater: Updater<SortingState>) => void;
   columnFilters: ColumnFiltersState;
   onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) => void;
-  stickyColumnIndex?: number;
+  stickyColumnIndex?: number; // reserved
   enablePagination?: boolean;
   rowsPerPage?: number;
   enableSorting?: boolean;
   enableColumnFilters?: boolean;
   groupById?: keyof T;
   enableRowExpansion?: boolean;
+  /** Custom renderer for expanded row content */
   renderExpandedRow?: (row: T) => React.ReactNode;
+  /** Max height of the scrollable table body (e.g. 480, '60vh'). */
   bodyMaxHeight?: number | string;
 }
-
-const RIGHT_GUTTER = 12; // space from scrollbar
 
 export default function StickyTable<T extends object>({
   columns,
@@ -80,6 +81,9 @@ export default function StickyTable<T extends object>({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
+  // ⬅️ space between right-sticky cells and the scrollbar
+  const RIGHT_GAP = 12;
+
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     {},
   );
@@ -89,21 +93,32 @@ export default function StickyTable<T extends object>({
   );
   const [denseMode, setDenseMode] = useState(false);
 
+  // Sort whole groups (when grouping is active) by count or alphabetically
   const sortedData = useMemo(() => {
     if (!groupById) return data;
 
     const keyName = groupById;
     const groupMap = new Map<string, T[]>();
+
     for (const item of data) {
       const raw = (item as Record<string, unknown>)[keyName as string];
       const key = String((raw ?? 'Unknown') as unknown);
-      (groupMap.get(key) ?? groupMap.set(key, []).get(key)!)!.push(item);
+      const arr = groupMap.get(key);
+      if (arr) {
+        arr.push(item);
+      } else {
+        groupMap.set(key, [item]);
+      }
     }
-    const groupKeys = Array.from(groupMap.keys()).sort((a, b) =>
-      groupSortMode === 'count'
-        ? groupMap.get(b)!.length - groupMap.get(a)!.length
-        : a.localeCompare(b),
-    );
+
+    const groupKeys = Array.from(groupMap.keys());
+    groupKeys.sort((a, b) => {
+      if (groupSortMode === 'count') {
+        return groupMap.get(b)!.length - groupMap.get(a)!.length;
+      }
+      return a.localeCompare(b);
+    });
+
     return groupKeys.flatMap((k) => groupMap.get(k)!);
   }, [data, groupById, groupSortMode]);
 
@@ -118,28 +133,38 @@ export default function StickyTable<T extends object>({
     getPaginationRowModel: getPaginationRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     manualGrouping: false,
-    initialState: { grouping: groupById ? [String(groupById)] : [] },
+    initialState: {
+      grouping: groupById ? [String(groupById)] : [],
+    },
     enableSorting,
     enableColumnFilters,
-    filterFns: { ...tableFilters },
+    filterFns: {
+      ...tableFilters,
+    },
   });
 
   const rowModel = table.getRowModel();
   const isGrouped = Boolean(groupById) && table.getState().grouping.length > 0;
 
+  // Auto-expand top-level groups initially
   useEffect(() => {
     if (!isGrouped) return;
     const next: Record<string, boolean> = {};
     for (const r of rowModel.rows) {
-      if (r.subRows.length > 0 && r.depth === 0) next[r.id] = true;
+      if (r.subRows.length > 0 && r.depth === 0) {
+        next[r.id] = true;
+      }
     }
     setExpandedGroups(next);
   }, [isGrouped, rowModel.rows]);
 
-  const toggleGroup = (id: string) =>
+  const toggleGroup = (id: string) => {
     setExpandedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
-  const toggleRowExpand = (id: string) =>
+  };
+
+  const toggleRowExpand = (id: string) => {
     setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   type MetaOf<C extends Column<any>> = NonNullable<C['columnDef']['meta']>;
 
@@ -155,7 +180,7 @@ export default function StickyTable<T extends object>({
     if (meta?.sticky === 'right') {
       return {
         position: 'sticky' as const,
-        right: 0,
+        right: RIGHT_GAP, // 👈 keep it away from the scrollbar
         zIndex: 3,
         backgroundColor: theme.palette.background.paper,
       };
@@ -163,8 +188,10 @@ export default function StickyTable<T extends object>({
     return {};
   };
 
-  const shouldHideColumnOnMobile = (meta?: MetaOf<Column<T>>) =>
-    meta?.hiddenOnMobile ? { display: { xs: 'none', sm: 'table-cell' } } : {};
+  const responsiveVisibility = (meta?: MetaOf<Column<T>>) =>
+    meta?.hiddenOnMobile
+      ? { display: { xs: 'none', sm: 'none', md: 'none', lg: 'table-cell' } }
+      : {};
 
   const renderRow = (row: Row<T>) => {
     const isExpanded = expandedRows[row.id] ?? false;
@@ -177,18 +204,14 @@ export default function StickyTable<T extends object>({
               | MetaOf<typeof cell.column>
               | undefined;
             const stickyStyles = getStickyStyles(meta);
-            const align: 'left' | 'right' | 'center' =
-              meta?.align ??
-              (meta?.filterVariant === 'number' ? 'right' : 'left');
 
             return (
               <TableCell
                 key={cell.id}
-                className={meta?.sticky === 'left' ? 'sticky-cell' : undefined}
                 sx={{
                   ...stickyStyles,
-                  ...shouldHideColumnOnMobile(meta),
-                  textAlign: align,
+                  ...responsiveVisibility(meta),
+                  textAlign: 'left',
                   px: denseMode ? 0.5 : 1,
                   py: denseMode ? 0.25 : 0.5,
                   whiteSpace: { xs: 'normal', sm: 'nowrap' },
@@ -208,7 +231,7 @@ export default function StickyTable<T extends object>({
                 maxWidth: EXPAND_COL_WIDTH,
                 textAlign: 'center',
                 position: 'sticky',
-                right: RIGHT_GUTTER, // keep off the scrollbar
+                right: RIGHT_GAP, // 👈 gap on body cell
                 zIndex: 3,
                 backgroundColor: theme.palette.background.paper,
                 px: 0,
@@ -285,14 +308,13 @@ export default function StickyTable<T extends object>({
 
       <TableContainer
         component={Paper}
-        className="sticky-table-scroll"
+        className="st-scroll"
         sx={{
           borderRadius: 2,
           boxShadow: 1,
           maxHeight: bodyMaxHeight,
           overflow: 'auto',
-          scrollbarGutter: 'stable both-edges',
-          pr: `${RIGHT_GUTTER}px`,
+          pr: `${RIGHT_GAP}px`, // 👈 ensure visual gap inside the scroller
         }}
       >
         <Table stickyHeader size={denseMode ? 'small' : 'medium'}>
@@ -304,17 +326,13 @@ export default function StickyTable<T extends object>({
                     | MetaOf<typeof header.column>
                     | undefined;
                   const stickyStyles = getStickyStyles(meta);
-                  const align: 'left' | 'right' | 'center' =
-                    meta?.align ??
-                    (meta?.filterVariant === 'number' ? 'right' : 'left');
 
                   return (
                     <TableCell
                       key={header.id}
-                      className="sticky-header"
                       sx={{
                         ...stickyStyles,
-                        ...shouldHideColumnOnMobile(meta),
+                        ...responsiveVisibility(meta),
                         top: 0,
                         zIndex: 10,
                         minWidth: {
@@ -322,18 +340,13 @@ export default function StickyTable<T extends object>({
                           sm: header.column.columnDef.size ?? 100,
                         },
                         backgroundColor: theme.palette.grey[50],
-                        textAlign: align,
+                        textAlign: 'left',
                         verticalAlign: 'top',
                         px: denseMode ? 0.5 : 1,
                         py: denseMode ? 0.25 : 0.5,
                       }}
                     >
-                      <Stack
-                        spacing={0.25}
-                        alignItems={
-                          align === 'right' ? 'flex-end' : 'flex-start'
-                        }
-                      >
+                      <Stack spacing={0.25} alignItems="flex-start">
                         <Typography variant="caption" fontWeight={600}>
                           {flexRender(
                             header.column.columnDef.header,
@@ -354,10 +367,9 @@ export default function StickyTable<T extends object>({
 
                 {enableRowExpansion && (
                   <TableCell
-                    className="sticky-header"
                     sx={{
                       position: 'sticky',
-                      right: RIGHT_GUTTER,
+                      right: RIGHT_GAP, // 👈 gap on header cell
                       top: 0,
                       zIndex: 10,
                       backgroundColor: theme.palette.grey[50],
@@ -382,6 +394,7 @@ export default function StickyTable<T extends object>({
                 const label = groupById
                   ? String(row.getValue(String(groupById)))
                   : 'Group';
+
                 return (
                   <React.Fragment key={row.id}>
                     <TableRow

@@ -1,26 +1,31 @@
-// Keep this file where your tsconfig includes it (e.g. "src/types/**/*.d.ts")
-import type { RowData } from '@tanstack/react-table';
-
-export type FilterVariant = 'text' | 'number' | 'date' | 'select';
+// src/types/react-table.d.ts
+import '@tanstack/react-table';
 
 declare module '@tanstack/react-table' {
-  interface ColumnMeta<TData extends RowData, TValue> {
-    /** Align cell + header text */
-    align?: 'left' | 'right' | 'center';
-    /** Pin to edges in your sticky table */
+  // Extend the column meta we use across the app
+  interface ColumnMeta<TData, TValue> {
+    /** Pin a column to the left or right (StickyTable reads this) */
     sticky?: 'left' | 'right';
-    /** Hide this column on xs screens */
-    hiddenOnMobile?: boolean;
-    /** Which filter UI to render for this column */
-    filterVariant?: FilterVariant;
-    /** Options for 'select' filter */
-    selectOptions?: readonly { label: string; value: string }[];
-    /** Bounds for number range filter UI */
-    numberRange?: { min?: number; max?: number; step?: number }; // <-- NEW
-  }
+    /** Desired text alignment for this column */
+    align?: 'left' | 'right' | 'center';
 
-  interface TableMeta<TData extends RowData> {
-    denseMode?: boolean;
-    customTitle?: string;
+    /** Legacy flag: hide on xs only (kept for backward compat) */
+    hiddenOnMobile?: boolean;
+
+    /**
+     * Hide the column below a breakpoint.
+     * - 'md' -> show from md up
+     * - 'lg' -> show from lg up
+     * - 'xl' -> show from xl up
+     */
+    hideBelow?: 'sm' | 'md' | 'lg' | 'xl';
+
+    /** Force the column to be visible at all sizes (overrides hideBelow) */
+    alwaysVisible?: boolean;
+
+    /** Filter UI hints StickyTable/renderColumnFilter use */
+    filterVariant?: 'text' | 'number' | 'select' | 'date';
+    numberRange?: { min: number; max: number; step?: number };
+    selectOptions?: Array<{ label: string; value: string } | string>;
   }
 }
