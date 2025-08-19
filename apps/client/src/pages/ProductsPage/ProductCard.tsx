@@ -22,14 +22,11 @@ export default function ProductCard({
   const addToCart = useCartStore((s) => s.addToCart);
   const { themeSettings } = useThemeStore();
 
-  // Ensure we actually get blue unless you override it in the store
   const primaryColor = themeSettings?.primaryColor || '#1976d2';
   const borderRadius = themeSettings?.borderRadius ?? 8;
   const spacingScale = themeSettings?.spacingScale ?? 1;
 
-  // Bigger square image; same across all cards
-  const imgSize = { xs: 140, sm: 160, md: 180, lg: 200, xl: 220 };
-  const minHeight = { xs: 310, sm: 330, md: 360, lg: 380, xl: 400 };
+  const minHeight = { xs: 320, sm: 340, md: 360, lg: 380, xl: 400 };
 
   const price =
     typeof product.price === 'number'
@@ -46,6 +43,10 @@ export default function ProductCard({
     <Card
       variant="outlined"
       sx={{
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0, // ← prevent overflow in grid cell
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -57,36 +58,41 @@ export default function ProductCard({
         textAlign: 'center',
       }}
     >
-      {/* Square image — slightly rounded, NOT circular */}
+      {/* Square image */}
       <Box
         component={Link}
         to={`/product/${product.id}`}
         sx={{
-          borderRadius: 2, // small radius only
-          overflow: 'hidden', // keep corners crisp
-          width: imgSize,
-          height: imgSize,
-          mb: 1.25 * spacingScale,
           display: 'block',
+          width: '100%',
+          maxWidth: { xs: 220, sm: 240, md: 260, lg: 280, xl: 300 },
+          mx: 'auto',
+          mb: 1.25 * spacingScale,
+          borderRadius: 2,
+          overflow: 'hidden',
+          aspectRatio: '1 / 1',
         }}
       >
         <Box
           component="img"
           src={
-            product.images?.[0] || 'https://picsum.photos/seed/fallback/200/200'
+            product.images?.[0] || 'https://picsum.photos/seed/fallback/600/600'
           }
           alt={product.name}
+          loading="lazy"
+          decoding="async"
           sx={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
             display: 'block',
-            borderRadius: 0, // ensure not circular if global CSS exists
           }}
         />
       </Box>
 
-      <CardContent sx={{ flex: '1 1 auto', width: '100%', px: 1, py: 0.5 }}>
+      <CardContent
+        sx={{ flex: '1 1 auto', width: '100%', px: 1, py: 0.5, minWidth: 0 }}
+      >
         <Typography
           variant="subtitle1"
           fontWeight={700}
@@ -122,6 +128,7 @@ export default function ProductCard({
 
       <CardActions sx={{ width: '100%', pb: 1 }}>
         <Button
+          variant="contained"
           size="small"
           onClick={handleAddToCart}
           disabled={stock <= 0}
@@ -129,12 +136,9 @@ export default function ProductCard({
           disableElevation
           sx={{
             height: 38,
-            // Force true blue regardless of theme palette conflicts
-            backgroundColor: `${primaryColor} !important`,
+            backgroundColor: primaryColor,
             color: '#fff',
-            '&:hover': {
-              backgroundColor: `${darken(primaryColor, 0.32)} !important`,
-            },
+            '&:hover': { backgroundColor: darken(primaryColor, 0.12) },
             '&.Mui-disabled': { backgroundColor: 'action.disabledBackground' },
             borderRadius,
           }}

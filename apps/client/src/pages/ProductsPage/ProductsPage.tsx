@@ -361,17 +361,23 @@ export default function ProductsPage() {
         ) : (
           <Box
             display="grid"
-            gap={2}
             alignItems="stretch"
-            gridTemplateColumns={{
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)',
-              lg: 'repeat(4, 1fr)',
+            gap={2}
+            sx={{
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              overflowX: 'clip',
+              gridTemplateColumns: {
+                xs: 'repeat(1, minmax(0, 1fr))',
+                sm: 'repeat(2, minmax(0, 1fr))',
+                md: 'repeat(3, minmax(0, 1fr))',
+                lg: 'repeat(4, minmax(0, 1fr))',
+              },
             }}
           >
             {visibleProducts.map((product) => (
-              <Box key={product.id} display="flex">
+              <Box key={product.id} sx={{ display: 'flex', minWidth: 0 }}>
                 <ProductCard
                   product={product}
                   onAddToCart={() => setSnackbarOpen(true)}
