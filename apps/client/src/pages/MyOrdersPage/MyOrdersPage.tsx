@@ -77,6 +77,7 @@ export default function MyOrdersPage() {
     setDateTo,
     setMinTotal,
     setMaxTotal,
+    resetFilters, // <-- add this from the store
   } = useOrderFilterStore();
 
   // Drawer open (local UI state)
@@ -145,6 +146,12 @@ export default function MyOrdersPage() {
   useOrderFiltersQuerySync(viewMode as ViewMode, (v) =>
     setViewMode(v as ViewMode),
   );
+
+  useEffect(() => {
+    return () => {
+      resetFilters(); // clears store values
+    };
+  }, [resetFilters]);
 
   const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
     setColumnFilters((prev) =>

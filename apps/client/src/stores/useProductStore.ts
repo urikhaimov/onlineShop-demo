@@ -1,9 +1,13 @@
 // src/stores/useProductStore.ts
-import { create } from 'zustand'; // ✅ named import (no default)
+import { create } from 'zustand';
 import type { Dayjs } from 'dayjs';
 
+export const PRICE_MIN = 0;
+export const PRICE_MAX = 100_000;
+export const STOCK_MIN = 0;
+export const STOCK_MAX = 1_000;
+
 type ProductFilterState = {
-  // filters
   searchTerm: string;
   selectedCategoryId: string;
   updatedFrom: Dayjs | null;
@@ -13,7 +17,6 @@ type ProductFilterState = {
   minStock: number;
   maxStock: number;
 
-  // setters
   setSearchTerm: (v: string) => void;
   setSelectedCategoryId: (v: string) => void;
   setUpdatedFrom: (v: Dayjs | null) => void;
@@ -23,23 +26,19 @@ type ProductFilterState = {
   setMinStock: (v: number) => void;
   setMaxStock: (v: number) => void;
 
-  // optional helper
-  reset: () => void;
-};
-
-const DEFAULTS = {
-  searchTerm: '',
-  selectedCategoryId: '',
-  updatedFrom: null as Dayjs | null,
-  updatedTo: null as Dayjs | null,
-  minPrice: 0,
-  maxPrice: 100000,
-  minStock: 0,
-  maxStock: 1000,
+  // NEW
+  resetFilters: () => void;
 };
 
 export const useProductStore = create<ProductFilterState>((set) => ({
-  ...DEFAULTS,
+  searchTerm: '',
+  selectedCategoryId: '',
+  updatedFrom: null,
+  updatedTo: null,
+  minPrice: PRICE_MIN,
+  maxPrice: PRICE_MAX,
+  minStock: STOCK_MIN,
+  maxStock: STOCK_MAX,
 
   setSearchTerm: (v) => set({ searchTerm: v }),
   setSelectedCategoryId: (v) => set({ selectedCategoryId: v }),
@@ -50,5 +49,15 @@ export const useProductStore = create<ProductFilterState>((set) => ({
   setMinStock: (v) => set({ minStock: v }),
   setMaxStock: (v) => set({ maxStock: v }),
 
-  reset: () => set({ ...DEFAULTS }),
+  resetFilters: () =>
+    set({
+      searchTerm: '',
+      selectedCategoryId: '',
+      updatedFrom: null,
+      updatedTo: null,
+      minPrice: PRICE_MIN,
+      maxPrice: PRICE_MAX,
+      minStock: STOCK_MIN,
+      maxStock: STOCK_MAX,
+    }),
 }));

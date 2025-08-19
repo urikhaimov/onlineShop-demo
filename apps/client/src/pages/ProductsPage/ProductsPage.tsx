@@ -47,6 +47,12 @@ import { PageLayout } from '../../layouts/page.layout';
 import UserProductFilters from './UserProductFilters';
 import { useProductStore } from '../../stores/useProductStore';
 import ProductCard from './ProductCard';
+import {
+  DEFAULT_MAX_PRICE,
+  DEFAULT_MAX_STOCK,
+  DEFAULT_MIN_PRICE,
+  DEFAULT_MIN_STOCK,
+} from './constants';
 
 type ViewMode = 'table' | 'cards';
 
@@ -106,20 +112,36 @@ export default function ProductsPage() {
     };
   }, []);
 
+  // Convert many possible date shapes to a valid Date or undefined
   const toJsDate = (val: unknown): Date | undefined => {
     if (!val) return undefined;
+
+    // Already a Date
     if (val instanceof Date) return isNaN(val.getTime()) ? undefined : val;
+
+    // Firestore Timestamp-like { seconds, nanoseconds }
+    if (typeof val === 'object' && val !== null) {
+      const anyVal = val as any;
+      if (typeof anyVal.seconds === 'number') {
+        const ms =
+          anyVal.seconds * 1000 +
+          Math.floor((anyVal.nanoseconds ?? 0) / 1_000_000);
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? undefined : d;
+      }
+      // ISO-like string nested in object (e.g., metadata.updatedAt)
+      if (typeof anyVal.toDate === 'function') {
+        const d = anyVal.toDate();
+        return d instanceof Date && !isNaN(d.getTime()) ? d : undefined;
+      }
+    }
+
+    // String or number
     if (typeof val === 'string' || typeof val === 'number') {
       const d = new Date(val);
       return isNaN(d.getTime()) ? undefined : d;
     }
-    if (typeof val === 'object' && val !== null && 'seconds' in (val as any)) {
-      const ts = val as { seconds: number; nanoseconds?: number };
-      const d = new Date(
-        ts.seconds * 1000 + Math.floor((ts.nanoseconds ?? 0) / 1_000_000),
-      );
-      return isNaN(d.getTime()) ? undefined : d;
-    }
+
     return undefined;
   };
 
@@ -127,11 +149,14 @@ export default function ProductsPage() {
     const from = (updatedFrom as Dayjs | null)?.startOf('day')?.toDate();
     const to = (updatedTo as Dayjs | null)?.endOf('day')?.toDate();
 
+    const term = (searchTerm ?? '').toString().trim().toLowerCase();
+
     return products.filter((p) => {
+      const nameLc = (p?.name ?? '').toString().toLowerCase();
+      const idLc = (p?.id ?? '').toString().toLowerCase();
+
       const matchesSearch =
-        !searchTerm ||
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.id.toLowerCase().includes(searchTerm.toLowerCase());
+        term.length === 0 || nameLc.includes(term) || idLc.includes(term);
 
       const matchesCategory =
         !selectedCategoryId || p.categoryId === selectedCategoryId;
@@ -139,14 +164,30 @@ export default function ProductsPage() {
       const updated = toJsDate(
         (p as any)?.updatedAt ?? (p as any)?.metadata?.updatedAt,
       );
+      // Only apply date range if a product actually has an updated date
       const matchesUpdated =
         !updated || ((!from || updated >= from) && (!to || updated <= to));
 
-      const price = typeof p.price === 'number' ? p.price : 0;
-      const stock = typeof p.stock === 'number' ? p.stock : 0;
+      // Coerce numbers safely
+      const priceNum =
+        typeof p.price === 'number' ? p.price : Number(p.price ?? 0);
+      const stockNum =
+        typeof p.stock === 'number' ? p.stock : Number(p.stock ?? 0);
 
-      const matchesPrice = price >= minPrice && price <= maxPrice;
-      const matchesStock = stock >= minStock && stock <= maxStock;
+      const price = Number.isFinite(priceNum) ? priceNum : 0;
+      const stock = Number.isFinite(stockNum) ? stockNum : 0;
+
+      const minP = Number.isFinite(minPrice) ? minPrice : 0;
+      const maxP = Number.isFinite(maxPrice)
+        ? maxPrice
+        : Number.MAX_SAFE_INTEGER;
+      const minS = Number.isFinite(minStock) ? minStock : 0;
+      const maxS = Number.isFinite(maxStock)
+        ? maxStock
+        : Number.MAX_SAFE_INTEGER;
+
+      const matchesPrice = price >= minP && price <= maxP;
+      const matchesStock = stock >= minS && stock <= maxS;
 
       return (
         matchesSearch &&
@@ -166,6 +207,21 @@ export default function ProductsPage() {
     maxPrice,
     minStock,
     maxStock,
+  ]);
+
+  // Reset visible window when filters change (prevents empty viewport after narrowing)
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [
+    searchTerm,
+    selectedCategoryId,
+    updatedFrom,
+    updatedTo,
+    minPrice,
+    maxPrice,
+    minStock,
+    maxStock,
+    viewMode,
   ]);
 
   useEffect(() => {
@@ -188,20 +244,27 @@ export default function ProductsPage() {
     columnFilters,
     setColumnFilters,
   });
-
-  const resetAllFilters = () => {
+  const resetStoreFilters = () => {
     setSearchTerm('');
     setSelectedCategoryId('');
     setUpdatedFrom(null);
     setUpdatedTo(null);
-    setMinPrice(0);
-    setMaxPrice(100000);
-    setMinStock(0);
-    setMaxStock(1000);
-    setSorting([]);
-    setColumnFilters([]);
+    setMinPrice(DEFAULT_MIN_PRICE);
+    setMaxPrice(DEFAULT_MAX_PRICE);
+    setMinStock(DEFAULT_MIN_STOCK);
+    setMaxStock(DEFAULT_MAX_STOCK);
+  };
+  const resetAllFilters = () => {
+    resetStoreFilters(); // store
+    setSorting([]); // UI state
+    setColumnFilters([]); // UI state
   };
 
+  useEffect(() => {
+    return () => {
+      resetAllFilters();
+    };
+  }, []);
   const getCategoryName = (categoryId?: string | null) =>
     categories.find((c) => c.id === categoryId)?.name ?? '—';
 
@@ -296,7 +359,6 @@ export default function ProductsPage() {
             bodyMaxHeight="60vh"
           />
         ) : (
-          // ✅ Cards layout with Box (CSS grid)
           <Box
             display="grid"
             gap={2}
@@ -336,11 +398,8 @@ export default function ProductsPage() {
               Filters
             </Typography>
 
-            {/* ⛔️ Remove `closeOnChange` so the drawer stays open while editing */}
-            <UserProductFilters
-              categories={categories}
-              // onClose={() => setFiltersOpen(false)}  // optional; only needed if the child ever calls it
-            />
+            {/* Keep drawer open while changing filters */}
+            <UserProductFilters categories={categories} />
           </Box>
         </Drawer>
 
