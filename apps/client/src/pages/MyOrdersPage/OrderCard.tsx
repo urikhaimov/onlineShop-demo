@@ -39,7 +39,7 @@ const OrderCard: React.FC<Props> = ({ order }) => {
       }}
     >
       <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 0.5 }}>
-        <Box
+        <Link
           component={RouterLink}
           to={`/order/${order.id}`}
           underline="hover"
@@ -47,8 +47,8 @@ const OrderCard: React.FC<Props> = ({ order }) => {
             display: 'flex',
             alignItems: 'baseline',
             gap: 0.5,
-            textDecoration: 'none',
             color: 'inherit',
+            textDecoration: 'none',
             maxWidth: '100%',
           }}
         >
@@ -61,13 +61,13 @@ const OrderCard: React.FC<Props> = ({ order }) => {
               flex: '1 1 auto',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis', // ← ellipsis here
+              textOverflow: 'ellipsis', // ← ellipsis
               fontFamily: 'monospace',
             }}
           >
             {order.id}
           </Box>
-        </Box>
+        </Link>
       </Typography>
 
       <Chip

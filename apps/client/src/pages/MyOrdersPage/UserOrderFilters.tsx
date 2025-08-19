@@ -17,9 +17,7 @@ const TOTAL_MIN = 0;
 const TOTAL_MAX = 100000;
 
 type Props = {
-  /** called by parent (drawer) to close */
   onClose?: () => void;
-  /** if true, will close after each committed change */
   closeOnChange?: boolean;
 };
 
@@ -28,14 +26,12 @@ export default function UserOrderFilters({
   closeOnChange = false,
 }: Props) {
   const {
-    // state
     searchTerm,
     status,
     dateFrom,
     dateTo,
     minTotal,
     maxTotal,
-    // setters
     setSearchTerm,
     setStatus,
     setDateFrom,
@@ -52,7 +48,6 @@ export default function UserOrderFilters({
     if (closeOnChange && onClose) onClose();
   };
 
-  // Keep the range valid while changing
   const onFromChange = (d: Dayjs | null) => {
     const next = d ? d.format('YYYY-MM-DD') : null;
     if (next && dateTo && next > dateTo) setDateTo(next);
@@ -72,9 +67,7 @@ export default function UserOrderFilters({
     setMinTotal(min);
     setMaxTotal(max);
   };
-  const handleTotalChangeCommitted = () => {
-    maybeClose();
-  };
+  const handleTotalChangeCommitted = () => maybeClose();
 
   const handleReset = () => {
     resetFilters();
@@ -82,38 +75,42 @@ export default function UserOrderFilters({
   };
 
   return (
-    <Stack spacing={2}>
-      {/* Search — don't close while typing; allow Enter to commit/close */}
+    <Stack
+      spacing={2}
+      sx={{
+        // symmetric gutters for the whole panel
+        px: { xs: 2, sm: 3 }, // ← equal left/right padding
+        py: 1,
+      }}
+    >
       <TextField
         label="Search"
+        size="small"
         value={searchTerm ?? ''}
         onChange={(e) => setSearchTerm(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') maybeClose();
-        }}
+        onKeyDown={(e) => e.key === 'Enter' && maybeClose()}
         fullWidth
       />
 
-      {/* Date range */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
         <DatePicker
           label="Date From"
           value={dateFrom ? dayjs(dateFrom) : null}
           onChange={onFromChange}
-          slotProps={{ textField: { fullWidth: true } }}
+          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
         />
         <DatePicker
           label="Date To"
           value={dateTo ? dayjs(dateTo) : null}
           onChange={onToChange}
-          slotProps={{ textField: { fullWidth: true } }}
+          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
         />
       </Stack>
 
-      {/* Status */}
       <TextField
         label="Status"
         select
+        size="small"
         value={status ?? ''}
         onChange={(e) => {
           setStatus(e.target.value || null);
@@ -129,9 +126,9 @@ export default function UserOrderFilters({
         <MenuItem value="cancelled">Cancelled</MenuItem>
       </TextField>
 
-      {/* Total ($) range */}
-      <Box>
-        <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>
+      {/* Slider with inner LR padding to keep edge labels readable */}
+      <Box sx={{ px: { xs: 1, sm: 1.5 } }}>
+        <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
           Total range: {currency(minTotal ?? TOTAL_MIN)} –{' '}
           {currency(maxTotal ?? TOTAL_MAX)}
         </Typography>
@@ -148,6 +145,9 @@ export default function UserOrderFilters({
           max={TOTAL_MAX}
           step={50}
           getAriaLabel={() => 'Total range'}
+          sx={{
+            mx: { xs: 0.5, sm: 1 }, // extra breathing room left/right
+          }}
           marks={[
             { value: TOTAL_MIN, label: currency(TOTAL_MIN) },
             { value: TOTAL_MAX, label: currency(TOTAL_MAX) },
@@ -155,9 +155,13 @@ export default function UserOrderFilters({
         />
       </Box>
 
-      {/* Footer actions */}
-      <Box display="flex" justifyContent="flex-end">
-        <Button onClick={handleReset} variant="outlined" color="secondary">
+      <Box display="flex" justifyContent="flex-end" sx={{ pt: 0.5 }}>
+        <Button
+          onClick={handleReset}
+          variant="outlined"
+          color="secondary"
+          size="small"
+        >
           Reset Filters
         </Button>
       </Box>
