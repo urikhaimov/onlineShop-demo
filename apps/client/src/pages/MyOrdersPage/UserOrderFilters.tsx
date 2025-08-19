@@ -1,3 +1,4 @@
+// src/pages/UserOrderFilters.tsx
 import React from 'react';
 import {
   Box,
@@ -10,26 +11,35 @@ import {
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
-import {
-  useOrderFilterStore,
-  ORDER_TOTAL_MIN,
-  ORDER_TOTAL_MAX,
-} from '../../stores/useOrderFilterStore';
+import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
 
-export default function UserOrderFilters() {
+const TOTAL_MIN = 0;
+const TOTAL_MAX = 100000;
+
+type Props = {
+  /** called by parent (drawer) to close */
+  onClose?: () => void;
+  /** if true, will close after each committed change */
+  closeOnChange?: boolean;
+};
+
+export default function UserOrderFilters({
+  onClose,
+  closeOnChange = false,
+}: Props) {
   const {
     // state
     searchTerm,
+    status,
     dateFrom,
     dateTo,
-    status,
     minTotal,
     maxTotal,
     // setters
     setSearchTerm,
+    setStatus,
     setDateFrom,
     setDateTo,
-    setStatus,
     setMinTotal,
     setMaxTotal,
     resetFilters,
@@ -38,16 +48,23 @@ export default function UserOrderFilters() {
   const currency = (v: number) =>
     `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
+  const maybeClose = () => {
+    if (closeOnChange && onClose) onClose();
+  };
+
+  // Keep the range valid while changing
   const onFromChange = (d: Dayjs | null) => {
     const next = d ? d.format('YYYY-MM-DD') : null;
     if (next && dateTo && next > dateTo) setDateTo(next);
     setDateFrom(next);
+    maybeClose();
   };
 
   const onToChange = (d: Dayjs | null) => {
     const next = d ? d.format('YYYY-MM-DD') : null;
     if (next && dateFrom && next < dateFrom) setDateFrom(next);
     setDateTo(next);
+    maybeClose();
   };
 
   const handleTotalChange = (_: Event, value: number | number[]) => {
@@ -55,14 +72,25 @@ export default function UserOrderFilters() {
     setMinTotal(min);
     setMaxTotal(max);
   };
+  const handleTotalChangeCommitted = () => {
+    maybeClose();
+  };
+
+  const handleReset = () => {
+    resetFilters();
+    maybeClose();
+  };
 
   return (
     <Stack spacing={2}>
-      {/* Search */}
+      {/* Search — don't close while typing; allow Enter to commit/close */}
       <TextField
         label="Search"
-        value={searchTerm}
+        value={searchTerm ?? ''}
         onChange={(e) => setSearchTerm(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') maybeClose();
+        }}
         fullWidth
       />
 
@@ -86,8 +114,11 @@ export default function UserOrderFilters() {
       <TextField
         label="Status"
         select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
+        value={status ?? ''}
+        onChange={(e) => {
+          setStatus(e.target.value || null);
+          maybeClose();
+        }}
         fullWidth
       >
         <MenuItem value="">All</MenuItem>
@@ -101,30 +132,32 @@ export default function UserOrderFilters() {
       {/* Total ($) range */}
       <Box>
         <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>
-          Total range: {currency(minTotal)} – {currency(maxTotal)}
+          Total range: {currency(minTotal ?? TOTAL_MIN)} –{' '}
+          {currency(maxTotal ?? TOTAL_MAX)}
         </Typography>
         <Slider
           value={[
-            Math.max(ORDER_TOTAL_MIN, Math.min(minTotal, ORDER_TOTAL_MAX)),
-            Math.max(ORDER_TOTAL_MIN, Math.min(maxTotal, ORDER_TOTAL_MAX)),
+            Math.max(TOTAL_MIN, Math.min(minTotal ?? TOTAL_MIN, TOTAL_MAX)),
+            Math.max(TOTAL_MIN, Math.min(maxTotal ?? TOTAL_MAX, TOTAL_MAX)),
           ]}
           onChange={handleTotalChange}
+          onChangeCommitted={handleTotalChangeCommitted}
           valueLabelDisplay="auto"
           valueLabelFormat={(v) => currency(v as number)}
-          min={ORDER_TOTAL_MIN}
-          max={ORDER_TOTAL_MAX}
+          min={TOTAL_MIN}
+          max={TOTAL_MAX}
           step={50}
           getAriaLabel={() => 'Total range'}
           marks={[
-            { value: ORDER_TOTAL_MIN, label: currency(ORDER_TOTAL_MIN) },
-            { value: ORDER_TOTAL_MAX, label: currency(ORDER_TOTAL_MAX) },
+            { value: TOTAL_MIN, label: currency(TOTAL_MIN) },
+            { value: TOTAL_MAX, label: currency(TOTAL_MAX) },
           ]}
         />
       </Box>
 
-      {/* Footer */}
+      {/* Footer actions */}
       <Box display="flex" justifyContent="flex-end">
-        <Button onClick={resetFilters} variant="outlined" color="secondary">
+        <Button onClick={handleReset} variant="outlined" color="secondary">
           Reset Filters
         </Button>
       </Box>

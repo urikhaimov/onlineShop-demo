@@ -335,15 +335,12 @@ export default function ProductsPage() {
             <Typography variant="h6" sx={{ mb: 1 }}>
               Filters
             </Typography>
-            <UserProductFilters categories={categories} />
-            <Stack direction="row" gap={1} justifyContent="flex-end" mt={2}>
-              <Button variant="outlined" onClick={resetAllFilters}>
-                Reset
-              </Button>
-              <Button variant="contained" onClick={() => setFiltersOpen(false)}>
-                Apply
-              </Button>
-            </Stack>
+
+            {/* ⛔️ Remove `closeOnChange` so the drawer stays open while editing */}
+            <UserProductFilters
+              categories={categories}
+              // onClose={() => setFiltersOpen(false)}  // optional; only needed if the child ever calls it
+            />
           </Box>
         </Drawer>
 

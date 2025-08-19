@@ -1,4 +1,3 @@
-// src/pages/UserOrderFilters.tsx
 import React from 'react';
 import {
   Box,
@@ -11,140 +10,188 @@ import {
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
-import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
 
-const TOTAL_MIN = 0;
-const TOTAL_MAX = 100000;
+import { useProductStore } from '../../stores/useProductStore';
+import type { TCategory } from '@common/types';
 
-export default function UserOrderFilters() {
+const PRICE_MIN = 0;
+const PRICE_MAX = 100_000;
+const STOCK_MIN = 0;
+const STOCK_MAX = 1_000;
+
+type Props = {
+  categories: TCategory[];
+  /** call to close the drawer */
+  onClose?: () => void;
+  /** close drawer after each change (except typing in Search) */
+  closeOnChange?: boolean;
+};
+
+export default function UserProductFilters({
+  categories,
+  onClose,
+  closeOnChange = false,
+}: Props) {
   const {
     // state
     searchTerm,
-    status,
-    dateFrom, // string | null (YYYY-MM-DD)
-    dateTo, // string | null (YYYY-MM-DD)
-    minTotal, // number (add to store)
-    maxTotal, // number (add to store)
-
+    selectedCategoryId,
+    updatedFrom,
+    updatedTo,
+    minPrice,
+    maxPrice,
+    minStock,
+    maxStock,
     // setters
     setSearchTerm,
-    setStatus,
-    setDateFrom,
-    setDateTo,
-    setMinTotal, // (add to store)
-    setMaxTotal, // (add to store)
-    resetFilters,
-  } = useOrderFilterStore();
+    setSelectedCategoryId,
+    setUpdatedFrom,
+    setUpdatedTo,
+    setMinPrice,
+    setMaxPrice,
+    setMinStock,
+    setMaxStock,
+  } = useProductStore();
+
+  const maybeClose = () => {
+    if (closeOnChange && onClose) onClose();
+  };
 
   const currency = (v: number) =>
     `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
-  // Keep the range valid while changing
-  const onFromChange = (d: Dayjs | null) => {
-    const next = d ? d.format('YYYY-MM-DD') : null;
-    if (next && dateTo && next > dateTo) {
-      setDateTo(next);
-    }
-    setDateFrom(next);
+  const onUpdatedFromChange = (d: Dayjs | null) => {
+    if (d && updatedTo && d.isAfter(updatedTo)) setUpdatedTo(d);
+    setUpdatedFrom(d);
+    maybeClose();
   };
 
-  const onToChange = (d: Dayjs | null) => {
-    const next = d ? d.format('YYYY-MM-DD') : null;
-    if (next && dateFrom && next < dateFrom) {
-      setDateFrom(next);
-    }
-    setDateTo(next);
+  const onUpdatedToChange = (d: Dayjs | null) => {
+    if (d && updatedFrom && d.isBefore(updatedFrom)) setUpdatedFrom(d);
+    setUpdatedTo(d);
+    maybeClose();
   };
 
-  const handleTotalChange = (_: Event, value: number | number[]) => {
+  const handlePriceChange = (_: Event, value: number | number[]) => {
     const [min, max] = value as number[];
-    setMinTotal(min);
-    setMaxTotal(max);
+    setMinPrice(min);
+    setMaxPrice(max);
   };
+  const handlePriceChangeCommitted = () => maybeClose();
+
+  const handleStockChange = (_: Event, value: number | number[]) => {
+    const [min, max] = value as number[];
+    setMinStock(min);
+    setMaxStock(max);
+  };
+  const handleStockChangeCommitted = () => maybeClose();
 
   const handleReset = () => {
-    // If your store's resetFilters already resets totals & dates, this is enough:
-    resetFilters();
-    // If not, uncomment:
-    // setDateFrom(null);
-    // setDateTo(null);
-    // setMinTotal(TOTAL_MIN);
-    // setMaxTotal(TOTAL_MAX);
-    // setSearchTerm('');
-    // setStatus(null);
+    setSearchTerm('');
+    setSelectedCategoryId('');
+    setUpdatedFrom(null);
+    setUpdatedTo(null);
+    setMinPrice(PRICE_MIN);
+    setMaxPrice(PRICE_MAX);
+    setMinStock(STOCK_MIN);
+    setMaxStock(STOCK_MAX);
+    maybeClose();
   };
 
   return (
     <Stack spacing={2}>
-      {/* Search */}
+      {/* Search (do not auto-close while typing) */}
       <TextField
         label="Search"
-        value={searchTerm ?? ''}
+        value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') maybeClose();
+        }}
         fullWidth
       />
 
-      {/* Date range (Created Date) */}
+      {/* Category */}
+      <TextField
+        label="Category"
+        select
+        value={selectedCategoryId}
+        onChange={(e) => {
+          setSelectedCategoryId(e.target.value);
+          maybeClose();
+        }}
+        fullWidth
+      >
+        <MenuItem value="">All</MenuItem>
+        {categories.map((c) => (
+          <MenuItem key={c.id} value={c.id}>
+            {c.name}
+          </MenuItem>
+        ))}
+      </TextField>
+
+      {/* Updated From / To */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
         <DatePicker
-          label="Date From"
-          value={dateFrom ? dayjs(dateFrom) : null}
-          onChange={onFromChange}
+          label="Updated From"
+          value={updatedFrom ?? null}
+          onChange={onUpdatedFromChange}
           slotProps={{ textField: { fullWidth: true } }}
         />
         <DatePicker
-          label="Date To"
-          value={dateTo ? dayjs(dateTo) : null}
-          onChange={onToChange}
+          label="Updated To"
+          value={updatedTo ?? null}
+          onChange={onUpdatedToChange}
           slotProps={{ textField: { fullWidth: true } }}
         />
       </Stack>
 
-      {/* Status */}
-      <TextField
-        label="Status"
-        select
-        value={status ?? ''}
-        onChange={(e) => setStatus(e.target.value || null)}
-        fullWidth
-      >
-        <MenuItem value="">All</MenuItem>
-        <MenuItem value="pending">Pending</MenuItem>
-        <MenuItem value="confirmed">Confirmed</MenuItem>
-        <MenuItem value="shipped">Shipped</MenuItem>
-        <MenuItem value="delivered">Delivered</MenuItem>
-        <MenuItem value="cancelled">Cancelled</MenuItem>
-      </TextField>
-
-      {/* Total ($) range */}
+      {/* Price range */}
       <Box>
         <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>
-          Total range: {currency(minTotal ?? TOTAL_MIN)} –{' '}
-          {currency(maxTotal ?? TOTAL_MAX)}
+          Price range: {currency(minPrice)} – {currency(maxPrice)}
         </Typography>
         <Slider
-          value={[
-            Math.max(TOTAL_MIN, Math.min(minTotal ?? TOTAL_MIN, TOTAL_MAX)),
-            Math.max(TOTAL_MIN, Math.min(maxTotal ?? TOTAL_MAX, TOTAL_MAX)),
-          ]}
-          onChange={handleTotalChange}
+          value={[minPrice, maxPrice]}
+          onChange={handlePriceChange}
+          onChangeCommitted={handlePriceChangeCommitted}
           valueLabelDisplay="auto"
           valueLabelFormat={(v) => currency(v as number)}
-          min={TOTAL_MIN}
-          max={TOTAL_MAX}
+          min={PRICE_MIN}
+          max={PRICE_MAX}
           step={50}
-          getAriaLabel={() => 'Total range'}
+          getAriaLabel={() => 'Price range'}
           marks={[
-            { value: TOTAL_MIN, label: currency(TOTAL_MIN) },
-            { value: TOTAL_MAX, label: currency(TOTAL_MAX) },
+            { value: PRICE_MIN, label: currency(PRICE_MIN) },
+            { value: PRICE_MAX, label: currency(PRICE_MAX) },
           ]}
         />
       </Box>
 
-      {/* Footer actions */}
+      {/* Stock range */}
+      <Box>
+        <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>
+          Stock range: {minStock} – {maxStock}
+        </Typography>
+        <Slider
+          value={[minStock, maxStock]}
+          onChange={handleStockChange}
+          onChangeCommitted={handleStockChangeCommitted}
+          valueLabelDisplay="auto"
+          min={STOCK_MIN}
+          max={STOCK_MAX}
+          step={1}
+          getAriaLabel={() => 'Stock range'}
+          marks={[
+            { value: STOCK_MIN, label: String(STOCK_MIN) },
+            { value: STOCK_MAX, label: String(STOCK_MAX) },
+          ]}
+        />
+      </Box>
+
       <Box display="flex" justifyContent="flex-end">
         <Button onClick={handleReset} variant="outlined" color="secondary">
-          Reset Filters
+          Reset
         </Button>
       </Box>
     </Stack>

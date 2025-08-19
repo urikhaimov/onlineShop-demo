@@ -285,16 +285,9 @@ export default function MyOrdersPage() {
               </IconButton>
             </Stack>
 
-            <UserOrderFilters />
-
-            <Stack direction="row" gap={1} justifyContent="flex-end" mt={2}>
-              <Button variant="outlined" onClick={resetAllFilters}>
-                Reset
-              </Button>
-              <Button variant="contained" onClick={() => setFiltersOpen(false)}>
-                Apply
-              </Button>
-            </Stack>
+            {/* Pass onClose so Enter/select/committed sliders CAN close if you ever enable closeOnChange */}
+            <UserOrderFilters onClose={() => setFiltersOpen(false)} />
+            {/* ^ not passing closeOnChange -> stays open while the user edits */}
           </Box>
         </Drawer>
       </Box>

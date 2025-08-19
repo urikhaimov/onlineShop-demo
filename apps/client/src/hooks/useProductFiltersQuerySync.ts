@@ -1,22 +1,25 @@
+// src/hooks/useProductFiltersQuerySync.ts
 import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs, { Dayjs } from 'dayjs';
 import { useProductStore } from '../stores/useProductStore';
+
+type ViewMode = 'table' | 'cards';
 
 const PRICE_MIN = 0;
 const PRICE_MAX = 100000;
 const STOCK_MIN = 0;
 const STOCK_MAX = 1000;
 
-type ViewMode = 'table' | 'cards';
-
 const toISO = (d: Dayjs | null | undefined) =>
   d ? d.startOf('day').format('YYYY-MM-DD') : '';
+
 const fromISO = (s?: string | null): Dayjs | null => {
   if (!s) return null;
   const d = dayjs(s, 'YYYY-MM-DD', true);
   return d.isValid() ? d : null;
 };
+
 const parseRange = (
   s: string | null,
   minDefault: number,
@@ -29,17 +32,15 @@ const parseRange = (
   if (Number.isFinite(min) && Number.isFinite(max)) return [min, max] as const;
   return [minDefault, maxDefault] as const;
 };
+
 const formatRange = (min: number, max: number) => `${min}-${max}`;
 
-/**
- * Hydrates filters from the URL once, then keeps the URL in sync
- * whenever filters (or view mode) change.
- */
 export function useProductFiltersQuerySync(
   view: ViewMode,
   setView: (v: ViewMode) => void,
 ) {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const paramString = params.toString(); // stable dep vs object identity
   const hydrated = useRef(false);
 
   const {
@@ -63,27 +64,17 @@ export function useProductFiltersQuerySync(
     setMaxStock,
   } = useProductStore();
 
-  // 1) Read from URL once (on mount)
+  // 1) Hydrate from URL once
   useEffect(() => {
     if (hydrated.current) return;
 
-    const q = searchParams.get('q') ?? '';
-    const cat = searchParams.get('cat') ?? '';
-    const viewParam = searchParams.get('view') as ViewMode | null;
-
-    const [pMin, pMax] = parseRange(
-      searchParams.get('price'),
-      PRICE_MIN,
-      PRICE_MAX,
-    );
-    const [sMin, sMax] = parseRange(
-      searchParams.get('stock'),
-      STOCK_MIN,
-      STOCK_MAX,
-    );
-
-    const upFrom = fromISO(searchParams.get('upFrom'));
-    const upTo = fromISO(searchParams.get('upTo'));
+    const q = params.get('q') ?? '';
+    const cat = params.get('cat') ?? '';
+    const [pMin, pMax] = parseRange(params.get('price'), PRICE_MIN, PRICE_MAX);
+    const [sMin, sMax] = parseRange(params.get('stock'), STOCK_MIN, STOCK_MAX);
+    const upFrom = fromISO(params.get('upFrom'));
+    const upTo = fromISO(params.get('upTo'));
+    const viewParam = params.get('view') as ViewMode | null;
 
     setSearchTerm(q);
     setSelectedCategoryId(cat);
@@ -98,18 +89,18 @@ export function useProductFiltersQuerySync(
     hydrated.current = true;
   }, []);
 
-  // 2) Write to URL whenever filters change
+  // 2) Push current filters to URL when they change (only if different)
   useEffect(() => {
     if (!hydrated.current) return;
 
-    const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(paramString);
 
     const setOrDel = (key: string, value?: string, isDefault?: boolean) => {
       if (!value || isDefault) next.delete(key);
       else next.set(key, value);
     };
 
-    setOrDel('q', searchTerm?.trim(), !searchTerm);
+    setOrDel('q', (searchTerm ?? '').trim(), !searchTerm);
     setOrDel('cat', selectedCategoryId, !selectedCategoryId);
 
     const upFromStr = toISO(updatedFrom);
@@ -132,9 +123,10 @@ export function useProductFiltersQuerySync(
 
     setOrDel('view', view);
 
-    const current = searchParams.toString();
     const nextStr = next.toString();
-    if (nextStr !== current) setSearchParams(next, { replace: true });
+    if (nextStr !== paramString) {
+      setParams(next, { replace: true }); // only write when changed
+    }
   }, [
     searchTerm,
     selectedCategoryId,
@@ -145,7 +137,7 @@ export function useProductFiltersQuerySync(
     minStock,
     maxStock,
     view,
-    searchParams,
-    setSearchParams,
+    paramString, // string, not the params object
+    setParams,
   ]);
 }
