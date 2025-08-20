@@ -44,8 +44,7 @@ import OrderExpandedRow from './OrderExpandedRow';
 import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
 import { useOrderFiltersQuerySync } from '../../hooks/useOrderFiltersQuerySync';
 import type { ColumnFiltersState, Updater } from '@tanstack/react-table';
-
-type ViewMode = 'table' | 'cards';
+import TopActionBar, { ViewMode } from '../../components/TopActionBar';
 
 export default function MyOrdersPage() {
   const { user } = useAuth();
@@ -202,53 +201,13 @@ export default function MyOrdersPage() {
             mb: 1,
           }}
         >
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            gap={1}
-            flexWrap="wrap"
-            sx={{ minWidth: 0 }}
-          >
-            <Stack
-              direction="row"
-              gap={1}
-              alignItems="center"
-              sx={{ minWidth: 0 }}
-            >
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setFiltersOpen(true)}
-                startIcon={<FilterListIcon />}
-              >
-                Filters
-              </Button>
-
-              <Button size="small" variant="outlined" onClick={resetAllFilters}>
-                Reset filters
-              </Button>
-            </Stack>
-
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={(_, v: ViewMode | null) => v && setViewMode(v)}
-              size="small"
-              color="primary"
-            >
-              <ToggleButton value="table" aria-label="Table view">
-                <TableRowsIcon sx={{ mr: 0.5 }} />
-                Table
-              </ToggleButton>
-              <ToggleButton value="cards" aria-label="Cards view">
-                <GridViewIcon sx={{ mr: 0.5 }} />
-                Cards
-              </ToggleButton>
-            </ToggleButtonGroup>
-          </Stack>
+          <TopActionBar
+            viewMode={viewMode as ViewMode}
+            onChangeView={(m) => setViewMode(m as ViewMode)}
+            onOpenFilters={() => setFiltersOpen(true)}
+            onResetFilters={resetAllFilters}
+          />
         </Box>
-
         <Divider sx={{ mb: 2 }} />
 
         {filteredOrders.length === 0 ? (

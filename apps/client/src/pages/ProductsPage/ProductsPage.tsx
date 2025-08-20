@@ -53,8 +53,14 @@ import {
   DEFAULT_MIN_PRICE,
   DEFAULT_MIN_STOCK,
 } from './constants';
+import TopActionBar, { ViewMode } from '../../components/TopActionBar';
 
-type ViewMode = 'table' | 'cards';
+const ACTION_BTN_SX = {
+  textTransform: 'none',
+  px: 1.5,
+  minHeight: 34,
+  borderRadius: 2,
+};
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
@@ -291,45 +297,12 @@ export default function ProductsPage() {
             mb: 1,
           }}
         >
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            gap={1}
-            flexWrap="wrap"
-          >
-            <Stack direction="row" gap={1} alignItems="center">
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setFiltersOpen(true)}
-                startIcon={<FilterListIcon />}
-              >
-                Filters
-              </Button>
-
-              <Button size="small" variant="outlined" onClick={resetAllFilters}>
-                Reset filters
-              </Button>
-            </Stack>
-
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={(_, v: ViewMode | null) => v && setViewMode(v)}
-              size="small"
-              color="primary"
-            >
-              <ToggleButton value="table" aria-label="Table view">
-                <TableRowsIcon sx={{ mr: 0.5 }} />
-                Table
-              </ToggleButton>
-              <ToggleButton value="cards" aria-label="Cards view">
-                <GridViewIcon sx={{ mr: 0.5 }} />
-                Cards
-              </ToggleButton>
-            </ToggleButtonGroup>
-          </Stack>
+          <TopActionBar
+            viewMode={viewMode as ViewMode}
+            onChangeView={(m) => setViewMode(m as ViewMode)}
+            onOpenFilters={() => setFiltersOpen(true)}
+            onResetFilters={resetAllFilters}
+          />
         </Box>
 
         <Divider sx={{ mb: 2 }} />

@@ -128,7 +128,6 @@ export default function ProductCard({
 
       <CardActions sx={{ width: '100%', pb: 1 }}>
         <Button
-          variant="contained"
           size="small"
           onClick={handleAddToCart}
           disabled={stock <= 0}

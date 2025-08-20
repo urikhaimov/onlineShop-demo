@@ -1,3 +1,4 @@
+// src/pages/ProductPage/index.tsx
 import { useParams } from 'react-router-dom';
 import {
   Box,
@@ -8,7 +9,9 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material';
+import { darken } from '@mui/material/styles';
 import { useCartStore } from '../../stores/useCartStore';
+import { useThemeStore } from '../../stores/useThemeStore';
 import DOMPurify from 'dompurify';
 import ImageGallery from '../../components/ImageGallery';
 import { useProductById } from '../../hooks/useProductById';
@@ -23,8 +26,13 @@ import {
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
   const addToCart = useCartStore((state) => state.addToCart);
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const { themeSettings } = useThemeStore();
+  const primaryColor = themeSettings?.primaryColor || '#1976d2';
+  const borderRadius = themeSettings?.borderRadius ?? 8;
 
   const {
     data: product,
@@ -32,9 +40,7 @@ export default function ProductPage() {
     error,
   } = useProductById(id ? decodeURIComponent(id) : undefined);
 
-  if (isLoading) {
-    return <LoadingProgress />;
-  }
+  if (isLoading) return <LoadingProgress />;
 
   if (error || !product) {
     return (
@@ -45,6 +51,12 @@ export default function ProductPage() {
       </Box>
     );
   }
+
+  // Now product is defined — safe to derive values
+  const stockCount =
+    typeof product.stock === 'number'
+      ? product.stock
+      : Number(product.stock ?? 0);
 
   return (
     <PageLayout
@@ -73,7 +85,7 @@ export default function ProductPage() {
 
           {/* Right - Product info */}
           <Box flex={1} minWidth={0}>
-            <Paper elevation={3} sx={{ p: 3 }}>
+            <Paper elevation={3} sx={{ p: 3, borderRadius }}>
               <Typography variant="h4" gutterBottom>
                 {product.name}
               </Typography>
@@ -90,20 +102,45 @@ export default function ProductPage() {
               />
 
               <Typography sx={{ mb: 1 }}>
-                Stock: {product.stock > 0 ? product.stock : 'Out of stock'}
+                Stock: {stockCount > 0 ? stockCount : 'Out of stock'}
               </Typography>
 
               <Button
-                variant="contained"
-                disabled={product.stock <= 0}
+                variant="outlined"
+                fullWidth={isMobile}
+                disableElevation
+                disabled={stockCount <= 0}
                 onClick={() =>
                   addToCart({
                     ...product,
-                    createdAt: product.createdAt.toISOString(),
-                    updatedAt: product.updatedAt.toISOString(),
+                    // defensively stringify dates if needed
+                    createdAt:
+                      (product as any)?.createdAt?.toISOString?.() ??
+                      new Date().toISOString(),
+                    updatedAt:
+                      (product as any)?.updatedAt?.toISOString?.() ??
+                      new Date().toISOString(),
                   })
                 }
-                fullWidth={isMobile}
+                sx={{
+                  height: 44,
+                  borderRadius,
+                  // Force primary color; override any global gradient
+                  background: `${primaryColor} !important`,
+                  backgroundImage: 'none !important',
+                  color: '#fff',
+                  boxShadow: 'none',
+                  '&:hover': {
+                    background: `${darken(primaryColor, 0.12)} !important`,
+                    backgroundImage: 'none !important',
+                    boxShadow: 'none',
+                  },
+                  '&.Mui-disabled': {
+                    background: (t) =>
+                      `${t.palette.action.disabledBackground} !important`,
+                    color: (t) => t.palette.action.disabled,
+                  },
+                }}
               >
                 Add to Cart
               </Button>
