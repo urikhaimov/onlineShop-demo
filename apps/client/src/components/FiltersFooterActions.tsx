@@ -1,5 +1,8 @@
+// src/components/FiltersFooterActions.tsx
 import * as React from 'react';
 import { Box, Button, SxProps, Theme } from '@mui/material';
+import { darken } from '@mui/material/styles';
+import { useThemeStore } from '../stores/useThemeStore';
 
 type Props = {
   onReset: () => void;
@@ -32,6 +35,10 @@ export default function FiltersFooterActions({
   resetLabel = 'Reset Filters',
   applyLabel = 'Apply',
 }: Props) {
+  const { themeSettings } = useThemeStore();
+  const primaryColor = themeSettings?.primaryColor || '#1976d2';
+  const borderRadius = themeSettings?.borderRadius ?? 8;
+
   return (
     <Box display="flex" justifyContent="space-between" sx={{ pt: 0.5, ...sx }}>
       <Button
@@ -39,7 +46,7 @@ export default function FiltersFooterActions({
         variant="outlined"
         color="secondary"
         size={size}
-        sx={{ ...BTN_SX, minWidth: minButtonWidth }}
+        sx={{ ...BTN_SX, minWidth: minButtonWidth, borderRadius }}
       >
         {resetLabel}
       </Button>
@@ -47,10 +54,29 @@ export default function FiltersFooterActions({
       {showApply && (
         <Button
           onClick={onApply}
-          variant="outlined" // ← same look as Reset
-          color="primary" // same style, different color
+          // Use store primary color as a filled CTA
+          variant="contained"
           size={size}
-          sx={{ ...BTN_SX, minWidth: minButtonWidth }}
+          disableElevation
+          sx={{
+            ...BTN_SX,
+            minWidth: minButtonWidth,
+            borderRadius,
+            background: `${primaryColor} !important`,
+            backgroundImage: 'none !important',
+            color: '#fff',
+            boxShadow: 'none',
+            '&:hover': {
+              background: `${darken(primaryColor, 0.12)} !important`,
+              backgroundImage: 'none !important',
+              boxShadow: 'none',
+            },
+            '&.Mui-disabled': {
+              background: (t) =>
+                `${t.palette.action.disabledBackground} !important`,
+              color: (t) => t.palette.action.disabled,
+            },
+          }}
         >
           {applyLabel}
         </Button>
