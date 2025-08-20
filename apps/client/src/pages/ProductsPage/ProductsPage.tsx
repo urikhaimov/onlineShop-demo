@@ -378,7 +378,11 @@ export default function ProductsPage() {
             </Typography>
 
             {/* Keep drawer open while changing filters */}
-            <UserProductFilters categories={categories} />
+            <UserProductFilters
+              categories={categories}
+              onClose={() => setFiltersOpen(false)}
+              closeOnChange={false}
+            />
           </Box>
         </Drawer>
 

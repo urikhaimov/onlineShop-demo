@@ -37,39 +37,39 @@ export function defineProductColumns(
     },
 
     // Image — NOT sticky (avoid overlapping with Category)
-    {
-      accessorKey: 'images',
-      header: 'Image',
-      enableColumnFilter: false,
-      size: COLUMN_WIDTHS.image,
-      meta: {
-        /* no sticky here */
-      },
-      cell: ({ row, getValue }) => {
-        const images = getValue<string[]>() ?? [];
-        const firstImage =
-          images[0] || 'https://picsum.photos/seed/fallback/100/100';
-        const id = row.original.id;
-        return (
-          <Link to={`/product/${id}`}>
-            <CardMedia
-              component="img"
-              sx={{
-                width: 60,
-                height: 60,
-                borderRadius: 1,
-                ml: 0,
-                mr: 'auto',
-                objectFit: 'cover',
-                cursor: 'pointer',
-              }}
-              image={firstImage}
-              alt="Product"
-            />
-          </Link>
-        );
-      },
-    },
+    // {
+    //   accessorKey: 'images',
+    //   header: 'Image',
+    //   enableColumnFilter: false,
+    //   size: COLUMN_WIDTHS.image,
+    //   meta: {
+    //     /* no sticky here */
+    //   },
+    //   cell: ({ row, getValue }) => {
+    //     const images = getValue<string[]>() ?? [];
+    //     const firstImage =
+    //       images[0] || 'https://picsum.photos/seed/fallback/100/100';
+    //     const id = row.original.id;
+    //     return (
+    //       <Link to={`/product/${id}`}>
+    //         <CardMedia
+    //           component="img"
+    //           sx={{
+    //             width: 60,
+    //             height: 60,
+    //             borderRadius: 1,
+    //             ml: 0,
+    //             mr: 'auto',
+    //             objectFit: 'cover',
+    //             cursor: 'pointer',
+    //           }}
+    //           image={firstImage}
+    //           alt="Product"
+    //         />
+    //       </Link>
+    //     );
+    //   },
+    // },
 
     // Name
     {

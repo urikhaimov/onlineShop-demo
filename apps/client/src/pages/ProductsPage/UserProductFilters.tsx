@@ -1,19 +1,21 @@
-// src/pages/UserProductFilters.tsx
+// src/pages/ProductsPage/UserProductFilters.tsx
 import React from 'react';
 import {
   Box,
   TextField,
   MenuItem,
-  Button,
   Stack,
   Typography,
   Slider,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs, { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
 
 import { useProductStore } from '../../stores/useProductStore';
 import type { TCategory } from '@common/types';
+import FiltersFooterActions from '../../components/FiltersFooterActions';
 
 const PRICE_MIN = 0;
 const PRICE_MAX = 100_000;
@@ -22,8 +24,8 @@ const STOCK_MAX = 1_000;
 
 type Props = {
   categories: TCategory[];
-  onClose?: () => void;
-  closeOnChange?: boolean;
+  onClose?: () => void; // for "Apply"
+  closeOnChange?: boolean; // auto-close on each change
 };
 
 export default function UserProductFilters({
@@ -31,7 +33,11 @@ export default function UserProductFilters({
   onClose,
   closeOnChange = false,
 }: Props) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // show Apply on mobile
+
   const {
+    // state
     searchTerm,
     selectedCategoryId,
     updatedFrom,
@@ -40,6 +46,7 @@ export default function UserProductFilters({
     maxPrice,
     minStock,
     maxStock,
+    // setters
     setSearchTerm,
     setSelectedCategoryId,
     setUpdatedFrom,
@@ -50,12 +57,12 @@ export default function UserProductFilters({
     setMaxStock,
   } = useProductStore();
 
+  const currency = (v: number) =>
+    `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
   const maybeClose = () => {
     if (closeOnChange && onClose) onClose();
   };
-
-  const currency = (v: number) =>
-    `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
   // Dates
   const onUpdatedFromChange = (d: Dayjs | null) => {
@@ -81,14 +88,14 @@ export default function UserProductFilters({
     setMaxStock(max);
   };
 
+  // Apply: blur active element (IME/keyboard) then close the drawer
+  const handleApply = React.useCallback(() => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    onClose?.();
+  }, [onClose]);
+
   return (
-    <Stack
-      spacing={2}
-      sx={{
-        px: { xs: 2, sm: 3 }, // ← equal L/R padding
-        py: 1,
-      }}
-    >
+    <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, py: 1 }}>
       {/* Search */}
       <TextField
         label="Search"
@@ -186,26 +193,23 @@ export default function UserProductFilters({
         />
       </Box>
 
-      <Box display="flex" justifyContent="flex-end" sx={{ pt: 0.5 }}>
-        <Button
-          variant="outlined"
-          color="secondary"
-          size="small"
-          onClick={() => {
-            setSearchTerm('');
-            setSelectedCategoryId('');
-            setUpdatedFrom(null);
-            setUpdatedTo(null);
-            setMinPrice(PRICE_MIN);
-            setMaxPrice(PRICE_MAX);
-            setMinStock(STOCK_MIN);
-            setMaxStock(STOCK_MAX);
-            maybeClose();
-          }}
-        >
-          Reset Filters
-        </Button>
-      </Box>
+      {/* Footer actions */}
+      <FiltersFooterActions
+        onReset={() => {
+          setSearchTerm('');
+          setSelectedCategoryId('');
+          setUpdatedFrom(null);
+          setUpdatedTo(null);
+          setMinPrice(PRICE_MIN);
+          setMaxPrice(PRICE_MAX);
+          setMinStock(STOCK_MIN);
+          setMaxStock(STOCK_MAX);
+        }}
+        onApply={handleApply}
+        showApply={isMobile} // set to true to always show
+        size="small"
+        minButtonWidth={120}
+      />
     </Stack>
   );
 }

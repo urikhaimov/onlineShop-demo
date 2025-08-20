@@ -4,27 +4,33 @@ import {
   Box,
   TextField,
   MenuItem,
-  Button,
   Stack,
   Typography,
   Slider,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
+
 import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
+import FiltersFooterActions from '../../components/FiltersFooterActions';
 
 const TOTAL_MIN = 0;
-const TOTAL_MAX = 100000;
+const TOTAL_MAX = 100_000;
 
 type Props = {
-  onClose?: () => void;
-  closeOnChange?: boolean;
+  onClose?: () => void; // drawer closer (used by Apply)
+  closeOnChange?: boolean; // optional: auto-close after each change
 };
 
 export default function UserOrderFilters({
   onClose,
   closeOnChange = false,
 }: Props) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // show Apply on mobile by default
+
   const {
     searchTerm,
     status,
@@ -71,18 +77,18 @@ export default function UserOrderFilters({
 
   const handleReset = () => {
     resetFilters();
-    maybeClose();
+    // keep drawer open on reset (same behavior as products); call maybeClose() if you want auto-close
   };
 
+  // Apply: blur active element (IME/keyboard) then close the drawer
+  const handleApply = React.useCallback(() => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    onClose?.();
+  }, [onClose]);
+
   return (
-    <Stack
-      spacing={2}
-      sx={{
-        // symmetric gutters for the whole panel
-        px: { xs: 2, sm: 3 }, // ← equal left/right padding
-        py: 1,
-      }}
-    >
+    <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, py: 1 }}>
+      {/* Search */}
       <TextField
         label="Search"
         size="small"
@@ -92,6 +98,7 @@ export default function UserOrderFilters({
         fullWidth
       />
 
+      {/* Dates */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
         <DatePicker
           label="Date From"
@@ -107,6 +114,7 @@ export default function UserOrderFilters({
         />
       </Stack>
 
+      {/* Status */}
       <TextField
         label="Status"
         select
@@ -126,7 +134,7 @@ export default function UserOrderFilters({
         <MenuItem value="cancelled">Cancelled</MenuItem>
       </TextField>
 
-      {/* Slider with inner LR padding to keep edge labels readable */}
+      {/* Total range */}
       <Box sx={{ px: { xs: 1, sm: 1.5 } }}>
         <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
           Total range: {currency(minTotal ?? TOTAL_MIN)} –{' '}
@@ -145,9 +153,7 @@ export default function UserOrderFilters({
           max={TOTAL_MAX}
           step={50}
           getAriaLabel={() => 'Total range'}
-          sx={{
-            mx: { xs: 0.5, sm: 1 }, // extra breathing room left/right
-          }}
+          sx={{ mx: { xs: 0.5, sm: 1 } }}
           marks={[
             { value: TOTAL_MIN, label: currency(TOTAL_MIN) },
             { value: TOTAL_MAX, label: currency(TOTAL_MAX) },
@@ -155,16 +161,14 @@ export default function UserOrderFilters({
         />
       </Box>
 
-      <Box display="flex" justifyContent="flex-end" sx={{ pt: 0.5 }}>
-        <Button
-          onClick={handleReset}
-          variant="outlined"
-          color="secondary"
-          size="small"
-        >
-          Reset Filters
-        </Button>
-      </Box>
+      {/* Footer actions (reusable, same look/width/padding) */}
+      <FiltersFooterActions
+        onReset={handleReset}
+        onApply={handleApply}
+        showApply={isMobile} // only show on mobile and when we have a closer
+        size="small"
+        minButtonWidth={120}
+      />
     </Stack>
   );
 }
