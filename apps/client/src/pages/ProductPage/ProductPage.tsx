@@ -52,7 +52,6 @@ export default function ProductPage() {
     );
   }
 
-  // Now product is defined — safe to derive values
   const stockCount =
     typeof product.stock === 'number'
       ? product.stock
@@ -106,26 +105,14 @@ export default function ProductPage() {
               </Typography>
 
               <Button
-                variant="outlined"
+                variant="contained"
                 fullWidth={isMobile}
                 disableElevation
                 disabled={stockCount <= 0}
-                onClick={() =>
-                  addToCart({
-                    ...product,
-                    // defensively stringify dates if needed
-                    createdAt:
-                      (product as any)?.createdAt?.toISOString?.() ??
-                      new Date().toISOString(),
-                    updatedAt:
-                      (product as any)?.updatedAt?.toISOString?.() ??
-                      new Date().toISOString(),
-                  })
-                }
+                onClick={() => addToCart(product)} // ✅ just pass the product
                 sx={{
                   height: 44,
                   borderRadius,
-                  // Force primary color; override any global gradient
                   background: `${primaryColor} !important`,
                   backgroundImage: 'none !important',
                   color: '#fff',
