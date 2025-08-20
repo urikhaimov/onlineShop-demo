@@ -138,7 +138,7 @@ export function defineProductColumns(
             actions={[
               {
                 id: 'add',
-                label: 'Add',
+                label: 'Add to cart',
                 icon: <AddShoppingCartIcon />,
                 onClick: (p) => {
                   addToCart({ ...p, quantity: 1 });

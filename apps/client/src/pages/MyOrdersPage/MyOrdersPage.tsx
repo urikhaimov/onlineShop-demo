@@ -1,20 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  ToggleButtonGroup,
-  ToggleButton,
-  Drawer,
-  Typography,
-  IconButton,
-  Button,
-  Stack,
-  Divider,
-  Container, // ⬅️ add
-} from '@mui/material';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import GridViewIcon from '@mui/icons-material/GridView';
-import TableRowsIcon from '@mui/icons-material/TableRows';
-import CloseIcon from '@mui/icons-material/Close';
+import { Box, Divider } from '@mui/material';
 
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
@@ -45,6 +30,10 @@ import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
 import { useOrderFiltersQuerySync } from '../../hooks/useOrderFiltersQuerySync';
 import type { ColumnFiltersState, Updater } from '@tanstack/react-table';
 import TopActionBar, { ViewMode } from '../../components/TopActionBar';
+
+import PageContainer from '../../components/PageContainer';
+import ResponsiveCardsGrid from '../../components/ResponsiveCardsGrid';
+import RightFiltersDrawer from '../../components/RightFiltersDrawer';
 
 export default function MyOrdersPage() {
   const { user } = useAuth();
@@ -176,20 +165,7 @@ export default function MyOrdersPage() {
       action={EAbilityActions.MANAGE}
       subject={EAbilitySubjects.ORDERS}
     >
-      {/* One container controls equal left/right padding on every breakpoint */}
-      <Container
-        maxWidth="xl"
-        disableGutters
-        sx={{
-          px: { xs: 2, sm: 3, md: 4 }, // symmetric gutters
-          py: 4,
-          mx: 'auto',
-          width: '100%',
-          maxWidth: '100%',
-          minWidth: 0,
-          overflowX: 'clip',
-        }}
-      >
+      <PageContainer>
         {/* Sticky header controls */}
         <Box
           sx={{
@@ -208,37 +184,20 @@ export default function MyOrdersPage() {
             onResetFilters={resetAllFilters}
           />
         </Box>
+
         <Divider sx={{ mb: 2 }} />
 
         {filteredOrders.length === 0 ? (
           <NotFound message="No orders found." />
         ) : viewMode === 'cards' ? (
-          // Cards Grid
-          <Box
-            display="grid"
-            alignItems="stretch"
-            gap={2}
-            sx={{
-              width: '100%',
-              maxWidth: '100%',
-              minWidth: 0,
-              overflowX: 'clip',
-              gridTemplateColumns: {
-                xs: 'repeat(1, minmax(0, 1fr))',
-                sm: 'repeat(2, minmax(0, 1fr))',
-                md: 'repeat(3, minmax(0, 1fr))',
-                lg: 'repeat(4, minmax(0, 1fr))',
-              },
-            }}
-          >
+          <ResponsiveCardsGrid>
             {filteredOrders.map((order) => (
               <Box key={order.id} sx={{ display: 'flex', minWidth: 0 }}>
                 <OrderCard order={order} />
               </Box>
             ))}
-          </Box>
+          </ResponsiveCardsGrid>
         ) : (
-          // Table
           <StickyTable<TOrder>
             columns={defineOrderColumns()}
             data={filteredOrders}
@@ -255,30 +214,14 @@ export default function MyOrdersPage() {
           />
         )}
 
-        {/* Filters Drawer */}
-        <Drawer
-          anchor="right"
+        <RightFiltersDrawer
+          title="Filters"
           open={filtersOpen}
           onClose={() => setFiltersOpen(false)}
-          PaperProps={{ sx: { width: { xs: '100%', sm: 360 } } }}
         >
-          <Box p={2}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              mb={1}
-            >
-              <Typography variant="h6">Filters</Typography>
-              <IconButton onClick={() => setFiltersOpen(false)}>
-                <CloseIcon />
-              </IconButton>
-            </Stack>
-
-            <UserOrderFilters onClose={() => setFiltersOpen(false)} />
-          </Box>
-        </Drawer>
-      </Container>
+          <UserOrderFilters onClose={() => setFiltersOpen(false)} />
+        </RightFiltersDrawer>
+      </PageContainer>
     </PageLayout>
   );
 }

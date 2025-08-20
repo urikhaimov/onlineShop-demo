@@ -1,21 +1,5 @@
-// src/pages/ProductsPage/ProductsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Divider,
-  Snackbar,
-  Alert,
-  Button,
-  Stack,
-  Drawer,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-} from '@mui/material';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import GridViewIcon from '@mui/icons-material/GridView';
-import TableRowsIcon from '@mui/icons-material/TableRows';
-
+import { Box, Divider, Snackbar, Alert, Typography } from '@mui/material';
 import { useInView } from 'react-intersection-observer';
 import { debounce } from 'lodash';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
@@ -55,12 +39,11 @@ import {
 } from './constants';
 import TopActionBar, { ViewMode } from '../../components/TopActionBar';
 
-const ACTION_BTN_SX = {
-  textTransform: 'none',
-  px: 1.5,
-  minHeight: 34,
-  borderRadius: 2,
-};
+import PageContainer from '../../components/PageContainer';
+import ResponsiveCardsGrid from '../../components/ResponsiveCardsGrid';
+import RightFiltersDrawer from '../../components/RightFiltersDrawer';
+import InfiniteSentinel from '../../components/InfiniteSentinel';
+import { toJsDate } from '../../utils/toJsDate';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
@@ -118,39 +101,6 @@ export default function ProductsPage() {
     };
   }, []);
 
-  // Convert many possible date shapes to a valid Date or undefined
-  const toJsDate = (val: unknown): Date | undefined => {
-    if (!val) return undefined;
-
-    // Already a Date
-    if (val instanceof Date) return isNaN(val.getTime()) ? undefined : val;
-
-    // Firestore Timestamp-like { seconds, nanoseconds }
-    if (typeof val === 'object' && val !== null) {
-      const anyVal = val as any;
-      if (typeof anyVal.seconds === 'number') {
-        const ms =
-          anyVal.seconds * 1000 +
-          Math.floor((anyVal.nanoseconds ?? 0) / 1_000_000);
-        const d = new Date(ms);
-        return isNaN(d.getTime()) ? undefined : d;
-      }
-      // ISO-like string nested in object (e.g., metadata.updatedAt)
-      if (typeof anyVal.toDate === 'function') {
-        const d = anyVal.toDate();
-        return d instanceof Date && !isNaN(d.getTime()) ? d : undefined;
-      }
-    }
-
-    // String or number
-    if (typeof val === 'string' || typeof val === 'number') {
-      const d = new Date(val);
-      return isNaN(d.getTime()) ? undefined : d;
-    }
-
-    return undefined;
-  };
-
   const filteredProducts = useMemo(() => {
     const from = (updatedFrom as Dayjs | null)?.startOf('day')?.toDate();
     const to = (updatedTo as Dayjs | null)?.endOf('day')?.toDate();
@@ -170,11 +120,9 @@ export default function ProductsPage() {
       const updated = toJsDate(
         (p as any)?.updatedAt ?? (p as any)?.metadata?.updatedAt,
       );
-      // Only apply date range if a product actually has an updated date
       const matchesUpdated =
         !updated || ((!from || updated >= from) && (!to || updated <= to));
 
-      // Coerce numbers safely
       const priceNum =
         typeof p.price === 'number' ? p.price : Number(p.price ?? 0);
       const stockNum =
@@ -215,7 +163,7 @@ export default function ProductsPage() {
     maxStock,
   ]);
 
-  // Reset visible window when filters change (prevents empty viewport after narrowing)
+  // Reset visible window when filters change
   useEffect(() => {
     setVisibleCount(20);
   }, [
@@ -250,6 +198,7 @@ export default function ProductsPage() {
     columnFilters,
     setColumnFilters,
   });
+
   const resetStoreFilters = () => {
     setSearchTerm('');
     setSelectedCategoryId('');
@@ -260,10 +209,11 @@ export default function ProductsPage() {
     setMinStock(DEFAULT_MIN_STOCK);
     setMaxStock(DEFAULT_MAX_STOCK);
   };
+
   const resetAllFilters = () => {
-    resetStoreFilters(); // store
-    setSorting([]); // UI state
-    setColumnFilters([]); // UI state
+    resetStoreFilters();
+    setSorting([]);
+    setColumnFilters([]);
   };
 
   useEffect(() => {
@@ -271,6 +221,7 @@ export default function ProductsPage() {
       resetAllFilters();
     };
   }, []);
+
   const getCategoryName = (categoryId?: string | null) =>
     categories.find((c) => c.id === categoryId)?.name ?? '—';
 
@@ -285,7 +236,7 @@ export default function ProductsPage() {
       action={EAbilityActions.MANAGE}
       subject={EAbilitySubjects.PRODUCTS}
     >
-      <Box px={5} py={4}>
+      <PageContainer>
         {/* Sticky header controls */}
         <Box
           sx={{
@@ -307,7 +258,7 @@ export default function ProductsPage() {
 
         <Divider sx={{ mb: 2 }} />
 
-        {/* Main content: Table or Cards */}
+        {/* Main content */}
         {filteredProducts.length === 0 ? (
           <NotFound message="No products found." />
         ) : viewMode === 'table' ? (
@@ -332,23 +283,7 @@ export default function ProductsPage() {
             bodyMaxHeight="60vh"
           />
         ) : (
-          <Box
-            display="grid"
-            alignItems="stretch"
-            gap={2}
-            sx={{
-              width: '100%',
-              maxWidth: '100%',
-              minWidth: 0,
-              overflowX: 'clip',
-              gridTemplateColumns: {
-                xs: 'repeat(1, minmax(0, 1fr))',
-                sm: 'repeat(2, minmax(0, 1fr))',
-                md: 'repeat(3, minmax(0, 1fr))',
-                lg: 'repeat(4, minmax(0, 1fr))',
-              },
-            }}
-          >
+          <ResponsiveCardsGrid>
             {visibleProducts.map((product) => (
               <Box key={product.id} sx={{ display: 'flex', minWidth: 0 }}>
                 <ProductCard
@@ -357,34 +292,27 @@ export default function ProductsPage() {
                 />
               </Box>
             ))}
-          </Box>
+          </ResponsiveCardsGrid>
         )}
 
         {/* Infinite scroll sentinel */}
-        <Box ref={sentinelRef} display="flex" justifyContent="center" py={3}>
-          {visibleCount < filteredProducts.length && <LoadingProgress />}
-        </Box>
+        <InfiniteSentinel
+          sentinelRef={sentinelRef}
+          hasMore={visibleCount < filteredProducts.length}
+        />
 
-        {/* Drawer for Filters */}
-        <Drawer
-          anchor="right"
+        {/* Filters Drawer */}
+        <RightFiltersDrawer
+          title="Filters"
           open={filtersOpen}
           onClose={() => setFiltersOpen(false)}
-          PaperProps={{ sx: { width: { xs: '100%', sm: 360 } } }}
         >
-          <Box p={2}>
-            <Typography variant="h6" sx={{ mb: 1 }}>
-              Filters
-            </Typography>
-
-            {/* Keep drawer open while changing filters */}
-            <UserProductFilters
-              categories={categories}
-              onClose={() => setFiltersOpen(false)}
-              closeOnChange={false}
-            />
-          </Box>
-        </Drawer>
+          <UserProductFilters
+            categories={categories}
+            onClose={() => setFiltersOpen(false)}
+            closeOnChange={false}
+          />
+        </RightFiltersDrawer>
 
         <Snackbar
           open={snackbarOpen}
@@ -396,7 +324,7 @@ export default function ProductsPage() {
             Product added to cart
           </Alert>
         </Snackbar>
-      </Box>
+      </PageContainer>
     </PageLayout>
   );
 }
