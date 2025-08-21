@@ -1,13 +1,15 @@
-// src/pages/admin/Columns.tsx
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { NavigateFunction } from 'react-router-dom';
 import RowActions, { type RowAction } from '../../../components/RowActions';
-import type { Order } from '../../../hooks/useOrders';
-import { StatusTag, STATUS_OPTIONS } from '../../../components/StatusTag';
+import { TOrder } from '@common/types';
+import { StatusTag } from '../../../components/StatusTag';
 
-/** Robust date coercion (supports Date, string/number, Firestore Timestamp-like) */
-function toDate(v: unknown): Date | undefined {
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+
+function asDate(v: unknown): Date | undefined {
   if (!v) return undefined;
   if (v instanceof Date) return isNaN(v.getTime()) ? undefined : v;
   if (typeof v === 'string' || typeof v === 'number') {
@@ -19,7 +21,7 @@ function toDate(v: unknown): Date | undefined {
       const d = (v as { toDate: () => Date }).toDate();
       return isNaN(d.getTime()) ? undefined : d;
     } catch {
-      return undefined;
+      //todo
     }
   }
   return undefined;
@@ -27,48 +29,34 @@ function toDate(v: unknown): Date | undefined {
 
 export function defineAdminOrderColumns(
   navigate: NavigateFunction,
-  onDelete?: (order: Order) => Promise<void> | void, // optional delete callback
-): ColumnDef<Order>[] {
+  onDelete?: (order: TOrder) => Promise<void> | void,
+): ColumnDef<TOrder>[] {
   return [
     {
       accessorKey: 'id',
       header: 'Order ID',
       enableSorting: true,
-      enableColumnFilter: true,
-      size: 180,
-      meta: {
-        sticky: 'left',
-        hiddenOnMobile: false,
-        align: 'left',
-        filterVariant: 'text',
-      },
-      cell: (info) => info.getValue<string>() ?? '—',
-    },
-    {
-      accessorKey: 'userId',
-      header: 'User ID',
-      enableSorting: true,
-      enableColumnFilter: true,
-      size: 200,
-      meta: { hiddenOnMobile: true, align: 'left', filterVariant: 'text' },
+      enableColumnFilter: false,
+      size: 220,
+      meta: { sticky: 'left', hiddenOnMobile: false, align: 'left' },
       cell: (info) => info.getValue<string>() ?? '—',
     },
     {
       accessorKey: 'email',
       header: 'Email',
       enableSorting: true,
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       size: 220,
-      meta: { hiddenOnMobile: true, align: 'left', filterVariant: 'text' },
+      meta: { hiddenOnMobile: true, align: 'left' },
       cell: (info) => info.getValue<string>() ?? 'N/A',
     },
     {
-      accessorKey: 'total',
+      accessorKey: 'amount',
       header: 'Total',
       enableSorting: true,
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       size: 120,
-      meta: { hiddenOnMobile: true, align: 'left', filterVariant: 'number' },
+      meta: { hiddenOnMobile: true, align: 'left' },
       cell: (info) => {
         const v = info.getValue<number | undefined>();
         return typeof v === 'number' ? `$${v.toFixed(2)}` : 'N/A';
@@ -78,11 +66,13 @@ export function defineAdminOrderColumns(
       accessorKey: 'createdAt',
       header: 'Date',
       enableSorting: true,
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       size: 180,
-      meta: { hiddenOnMobile: true, align: 'left', filterVariant: 'date' },
+      meta: { hiddenOnMobile: true, align: 'left' },
       cell: ({ row }) => {
-        const d = toDate(row.original.createdAt);
+        const d =
+          asDate(row.original.createdAt) ??
+          asDate(row.original.metadata?.createdAt);
         return d ? d.toLocaleString() : '—';
       },
     },
@@ -90,14 +80,9 @@ export function defineAdminOrderColumns(
       accessorKey: 'status',
       header: 'Status',
       enableSorting: true,
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       size: 160,
-      meta: {
-        hiddenOnMobile: true,
-        align: 'left',
-        filterVariant: 'select',
-        selectOptions: STATUS_OPTIONS,
-      },
+      meta: { hiddenOnMobile: true, align: 'left' },
       cell: (info) => <StatusTag value={info.getValue<string>()} />,
     },
     {
@@ -109,45 +94,34 @@ export function defineAdminOrderColumns(
       meta: { sticky: 'right', hiddenOnMobile: false, align: 'left' },
       cell: ({ row }) => {
         const order = row.original;
-        const actions: ReadonlyArray<RowAction<Order>> = [
+        const actions: readonly RowAction<TOrder>[] = [
           {
             id: 'view',
             label: 'View',
+            icon: <VisibilityIcon fontSize="small" />,
             onClick: (o) => navigate(`/admin/orders/${o.id}`),
             tooltip: (o) => `View order ${o.id}`,
           },
           {
             id: 'edit',
             label: 'Edit',
+            icon: <EditIcon fontSize="small" />,
             onClick: (o) => navigate(`/admin/orders/${o.id}?edit=1`),
             tooltip: (o) => `Edit order ${o.id}`,
           },
           {
             id: 'delete',
             label: 'Delete',
-            danger: true,
-            confirm: {
-              title: 'Delete order?',
-              description: (o) => `This will permanently delete order ${o.id}.`,
-              confirmText: 'Delete',
-            },
-            onClick: async (o) => {
-              if (onDelete) {
-                await onDelete(o);
-              } else {
-                console.warn(
-                  'Delete action triggered but no onDelete handler provided',
-                  o,
-                );
-              }
-            },
+            icon: <DeleteIcon fontSize="small" />,
+            onClick: async (o) => onDelete?.(o),
+            tooltip: () => 'Delete order',
           },
         ];
         return (
-          <RowActions<Order>
+          <RowActions<TOrder>
             context={order}
             actions={actions}
-            renderMode="auto"
+            renderMode="auto" // buttons on desktop, menu on small screens
             menuBelow="sm"
             size="small"
           />

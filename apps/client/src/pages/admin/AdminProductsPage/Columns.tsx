@@ -1,9 +1,10 @@
+// src/pages/admin/AdminProductsPage/Columns.tsx
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { CardMedia } from '@mui/material';
-import { Link, useNavigate } from 'react-router-dom';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import type { NavigateFunction } from 'react-router-dom';
+
 import type { IProduct } from '@common/types';
 import ActionRow, { type RowAction } from '../../../components/RowActions';
 import {
@@ -11,66 +12,38 @@ import {
   betweenDateRange,
 } from '../../../components/StickyTable/tableFilters';
 
-const IMG_SIZE = 80;
-
 function toDate(value: unknown): Date | undefined {
   if (!value) return undefined;
-  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
+
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? undefined : value;
+  }
+
   if (typeof value === 'string' || typeof value === 'number') {
     const d = new Date(value);
     return isNaN(d.getTime()) ? undefined : d;
   }
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'seconds' in (value as any)
-  ) {
-    const v = value as { seconds: number; nanoseconds?: number };
-    const d = new Date(
-      v.seconds * 1000 + Math.floor((v.nanoseconds ?? 0) / 1_000_000),
-    );
-    return isNaN(d.getTime()) ? undefined : d;
+
+  // Narrow unknown object shape (e.g., Firestore Timestamp-like)
+  if (typeof value === 'object' && value !== null) {
+    const rec = value as Record<string, unknown>;
+    if (typeof rec.seconds === 'number') {
+      const seconds = rec.seconds as number;
+      const nanos =
+        typeof rec.nanoseconds === 'number' ? (rec.nanoseconds as number) : 0;
+      const d = new Date(seconds * 1000 + Math.floor(nanos / 1_000_000));
+      return isNaN(d.getTime()) ? undefined : d;
+    }
   }
+
   return undefined;
 }
 
 export function defineProductColumns(
   categories: { id: string; name: string }[],
-  navigate: ReturnType<typeof useNavigate>,
+  navigate: NavigateFunction,
 ): ColumnDef<IProduct>[] {
   return [
-    // Image — visible on mobile, sticky left
-    // {
-    //   accessorKey: 'images',
-    //   header: 'Image',
-    //   enableColumnFilter: false,
-    //   size: 100,
-    //   meta: { sticky: 'left', hiddenOnMobile: false, align: 'left' },
-    //   cell: ({ row, getValue }) => {
-    //     const images = getValue<string[] | undefined>() ?? [];
-    //     const firstImage =
-    //       images[0] || 'https://picsum.photos/seed/fallback/100/100';
-    //     const id = row.original.id;
-    //     return (
-    //       <Link to={`/product/${id}`}>
-    //         <CardMedia
-    //           component="img"
-    //           sx={{
-    //             width: IMG_SIZE,
-    //             height: IMG_SIZE,
-    //             borderRadius: 1,
-    //             objectFit: 'cover',
-    //             mx: { xs: 'auto', sm: 0 },
-    //             cursor: 'pointer',
-    //           }}
-    //           image={firstImage}
-    //           alt="Product"
-    //         />
-    //       </Link>
-    //     );
-    //   },
-    // },
-
     // Name — hidden on mobile
     {
       accessorKey: 'name',
@@ -82,7 +55,7 @@ export function defineProductColumns(
       cell: ({ getValue }) => getValue<string>() ?? '—',
     },
 
-    // Category — hidden on mobile, select filter
+    // Category — select filter, show human name
     {
       accessorKey: 'categoryId',
       header: 'Category',
@@ -92,18 +65,17 @@ export function defineProductColumns(
       filterFn: 'equals',
       meta: {
         filterVariant: 'select',
-
         align: 'left',
         selectOptions: categories.map((c) => ({ label: c.name, value: c.id })),
       },
       cell: ({ getValue }) => {
-        // const catId = getValue<string>();
-        // const cat = categories.find((c) => c.id === catId);
-        return '';
+        const catId = getValue<string>();
+        const cat = categories.find((c) => c.id === catId);
+        return cat?.name ?? '—';
       },
     },
 
-    // Stock — hidden on mobile, number range filter
+    // Stock — number range filter
     {
       accessorKey: 'stock',
       header: 'Stock',
@@ -118,7 +90,7 @@ export function defineProductColumns(
       },
     },
 
-    // Price — hidden on mobile, number range filter
+    // Price — number range filter
     {
       accessorKey: 'price',
       header: 'Price',
@@ -133,7 +105,7 @@ export function defineProductColumns(
       },
     },
 
-    // Created At — hidden on mobile, date range filter
+    // Created At — date range filter
     {
       accessorKey: 'createdAt',
       header: 'Created',
@@ -154,7 +126,7 @@ export function defineProductColumns(
       },
     },
 
-    // Actions — visible on mobile, sticky right; ActionRow (RowActions)
+    // Actions — sticky right; uses RowActions component
     {
       id: 'actions',
       header: 'Actions',
@@ -176,16 +148,16 @@ export function defineProductColumns(
             id: 'delete',
             label: 'Delete',
             icon: <DeleteIcon fontSize="small" />,
-            danger: true,
-            confirm: {
-              title: 'Delete product',
-              description: (p) =>
+            onClick: (p) => {
+              const ok = window.confirm(
                 `Are you sure you want to delete "${p.name}"?`,
-              confirmText: 'Delete',
-              cancelText: 'Cancel',
-              color: 'error',
+              );
+              if (ok) {
+                // If your route shows a confirm page, this is enough:
+                navigate(`/admin/products/delete/${p.id}`);
+                // Or call your delete mutation here if you delete in-place.
+              }
             },
-            onClick: (p) => navigate(`/admin/products/delete/${p.id}`),
             tooltip: (p) => `Delete "${p.name}"`,
           },
         ];

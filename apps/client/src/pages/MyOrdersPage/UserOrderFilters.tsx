@@ -1,12 +1,8 @@
-// src/pages/UserOrderFilters.tsx
 import React from 'react';
 import {
-  Box,
   TextField,
   MenuItem,
   Stack,
-  Typography,
-  Slider,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
@@ -15,6 +11,7 @@ import dayjs, { Dayjs } from 'dayjs';
 
 import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
 import FiltersFooterActions from '../../components/FiltersFooterActions';
+import RangeFilterSlider from '../../components/RangeFilterSlider';
 
 const TOTAL_MIN = 0;
 const TOTAL_MAX = 100_000;
@@ -67,13 +64,6 @@ export default function UserOrderFilters({
     setDateTo(next);
     maybeClose();
   };
-
-  const handleTotalChange = (_: Event, value: number | number[]) => {
-    const [min, max] = value as number[];
-    setMinTotal(min);
-    setMaxTotal(max);
-  };
-  const handleTotalChangeCommitted = () => maybeClose();
 
   const handleReset = () => {
     resetFilters();
@@ -135,31 +125,22 @@ export default function UserOrderFilters({
       </TextField>
 
       {/* Total range */}
-      <Box sx={{ px: { xs: 1, sm: 1.5 } }}>
-        <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
-          Total range: {currency(minTotal ?? TOTAL_MIN)} –{' '}
-          {currency(maxTotal ?? TOTAL_MAX)}
-        </Typography>
-        <Slider
-          value={[
-            Math.max(TOTAL_MIN, Math.min(minTotal ?? TOTAL_MIN, TOTAL_MAX)),
-            Math.max(TOTAL_MIN, Math.min(maxTotal ?? TOTAL_MAX, TOTAL_MAX)),
-          ]}
-          onChange={handleTotalChange}
-          onChangeCommitted={handleTotalChangeCommitted}
-          valueLabelDisplay="auto"
-          valueLabelFormat={(v) => currency(v as number)}
-          min={TOTAL_MIN}
-          max={TOTAL_MAX}
-          step={50}
-          getAriaLabel={() => 'Total range'}
-          sx={{ mx: { xs: 0.5, sm: 1 } }}
-          marks={[
-            { value: TOTAL_MIN, label: currency(TOTAL_MIN) },
-            { value: TOTAL_MAX, label: currency(TOTAL_MAX) },
-          ]}
-        />
-      </Box>
+      <RangeFilterSlider
+        label="Total range"
+        min={TOTAL_MIN}
+        max={TOTAL_MAX}
+        step={50}
+        value={[
+          Math.max(TOTAL_MIN, Math.min(minTotal ?? TOTAL_MIN, TOTAL_MAX)),
+          Math.max(TOTAL_MIN, Math.min(maxTotal ?? TOTAL_MAX, TOTAL_MAX)),
+        ]}
+        formatValue={currency}
+        onChange={(min, max) => {
+          setMinTotal(min);
+          setMaxTotal(max);
+        }}
+        onCommit={maybeClose}
+      />
 
       {/* Footer actions (reusable, same look/width/padding) */}
       <FiltersFooterActions

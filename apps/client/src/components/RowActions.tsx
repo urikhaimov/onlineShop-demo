@@ -22,7 +22,8 @@ export type RowAction<T> = {
 };
 
 export type RowActionsProps<T> = {
-  actions: RowAction<T>[];
+  /** Accept readonly arrays too */
+  actions: readonly RowAction<T>[];
   context: T;
 
   /** How to render actions. "auto" = buttons on wide screens, menu on small. */
@@ -43,17 +44,16 @@ export default function RowActions<T>({
   const theme = useTheme();
   const isBelow = useMediaQuery(theme.breakpoints.down(menuBelow));
 
-  // ---- Menu anchor handling (robust) ----
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(e.currentTarget); // use currentTarget (IconButton), not target (inner svg)
+    setAnchorEl(e.currentTarget);
   };
   const handleClose = () => setAnchorEl(null);
 
   const isValidAnchor = React.useCallback((el: HTMLElement | null) => {
     if (!el) return false;
     if (!document.body.contains(el)) return false;
-    return el.getClientRects().length > 0; // avoids display:none/detached
+    return el.getClientRects().length > 0;
   }, []);
 
   React.useEffect(() => {
@@ -61,8 +61,6 @@ export default function RowActions<T>({
   }, [anchorEl, isValidAnchor]);
 
   const open = isValidAnchor(anchorEl);
-
-  // Decide rendering mode
   const useMenu = renderMode === 'menu' || (renderMode === 'auto' && isBelow);
 
   if (useMenu) {
@@ -106,7 +104,6 @@ export default function RowActions<T>({
     );
   }
 
-  // Buttons row
   return (
     <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
       {actions.map((a) => {

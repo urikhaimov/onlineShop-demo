@@ -1,28 +1,28 @@
-// src/stores/useAdminProductsStore.ts
 import { create } from 'zustand';
-import { IProduct } from '@common/types';
-import { Dayjs } from 'dayjs';
-import {
-  ColumnFiltersState,
+import type {
   SortingState,
+  ColumnFiltersState,
   Updater,
 } from '@tanstack/react-table';
+import type { IProduct } from '@common/types';
 
-interface AdminProductsStore {
+export interface AdminProductsStore {
   products: IProduct[];
   loading: boolean;
   snackbarOpen: boolean;
-  reorderPending: boolean;
+
+  // table state
   sorting: SortingState;
   columnFilters: ColumnFiltersState;
 
-  setProducts: (products: IProduct[]) => void;
-  setProductsSorted: (products: IProduct[]) => void;
-  addProducts: (products: IProduct[]) => void;
-  removeProduct: (id: string) => void;
-  setLoading: (loading: boolean) => void;
-  setSnackbarOpen: (open: boolean) => void;
-  setReorderPending: (pending: boolean) => void;
+  // drawer state (persisted so it won’t close on each URL change)
+  filtersOpen: boolean;
+  setFiltersOpen: (open: boolean) => void;
+
+  setProducts: (p: IProduct[]) => void;
+  setProductsSorted: (p: IProduct[]) => void;
+  setLoading: (v: boolean) => void;
+  setSnackbarOpen: (v: boolean) => void;
   setSorting: (updater: Updater<SortingState>) => void;
   setColumnFilters: (updater: Updater<ColumnFiltersState>) => void;
 }
@@ -31,34 +31,26 @@ export const useAdminProductsStore = create<AdminProductsStore>((set, get) => ({
   products: [],
   loading: false,
   snackbarOpen: false,
-  reorderPending: false,
+
   sorting: [],
   columnFilters: [],
 
+  filtersOpen: false,
+  setFiltersOpen: (filtersOpen) => set({ filtersOpen }),
+
   setProducts: (products) => set({ products }),
-  setProductsSorted: (products) =>
-    set({
-      products: [...products].sort(
-        (a, b) => (a.order ?? 9999) - (b.order ?? 9999),
-      ),
-    }),
-  addProducts: (products) =>
-    set((state) => ({ products: [...state.products, ...products] })),
-  removeProduct: (id) =>
-    set((state) => ({
-      products: state.products.filter((p) => p.id !== id),
-    })),
+  setProductsSorted: (products) => set({ products }), // if you sort by a field, do it here
   setLoading: (loading) => set({ loading }),
-  setSnackbarOpen: (open) => set({ snackbarOpen: open }),
-  setReorderPending: (reorderPending) => set({ reorderPending }),
+  setSnackbarOpen: (snackbarOpen) => set({ snackbarOpen }),
+
   setSorting: (updater) => {
-    const prev = get().sorting;
-    const next = typeof updater === 'function' ? updater(prev) : updater;
+    const curr = get().sorting;
+    const next = typeof updater === 'function' ? updater(curr) : updater;
     set({ sorting: next });
   },
   setColumnFilters: (updater) => {
-    const prev = get().columnFilters;
-    const next = typeof updater === 'function' ? updater(prev) : updater;
+    const curr = get().columnFilters;
+    const next = typeof updater === 'function' ? updater(curr) : updater;
     set({ columnFilters: next });
   },
 }));

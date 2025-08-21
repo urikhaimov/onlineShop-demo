@@ -1,16 +1,35 @@
-// src/features/admin/orders/AdminOrderFilters.tsx
 import React from 'react';
-import { Box, Fab, Stack, useMediaQuery, useTheme } from '@mui/material';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import { Box, Stack, useMediaQuery, useTheme } from '@mui/material';
 import dayjs, { Dayjs } from 'dayjs';
 
 import UserFilterTextField from '../../../components/UserFilterTextField';
 import UserFilterDatePicker from '../../../components/UserFilterDatePicker';
-import { useAdminOrdersStore } from '../../../stores/useAdminOrdersStore';
+import RangeFilterSlider from '../../../components/RangeFilterSlider';
+import FiltersFooterActions from '../../../components/FiltersFooterActions';
+import {
+  useAdminOrdersStore,
+  type OrderStatus,
+} from '../../../stores/useAdminOrdersStore';
 
-const statusOptions = ['all', 'pending', 'shipped', 'delivered', 'succeeded'];
+const statusOptions = [
+  'all',
+  'pending',
+  'shipped',
+  'delivered',
+  'succeeded',
+] as const satisfies OrderStatus[]; // ✅ typed options
 
-export default function AdminOrderFilters() {
+const TOTAL_MIN = 0;
+const TOTAL_MAX = 100_000;
+const PRICE_MIN = 0; // kept if you add a price range slider later
+const PRICE_MAX = 100_000;
+
+type Props = {
+  /** Close the filters drawer (used by Apply on mobile) */
+  onClose?: () => void;
+};
+
+export default function AdminOrderFilters({ onClose }: Props) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -28,10 +47,23 @@ export default function AdminOrderFilters() {
       filters.inStockOnly,
   );
 
-  const parseNumber = (val: string): number | undefined => {
-    const num = parseFloat(val);
-    return isNaN(num) ? undefined : num;
-  };
+  const currency = (v: number) =>
+    `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  // Normalized current values (with safe bounds)
+  const totalMin = Math.max(
+    TOTAL_MIN,
+    Math.min(filters.minTotal ?? TOTAL_MIN, TOTAL_MAX),
+  );
+  const totalMax = Math.max(
+    TOTAL_MIN,
+    Math.min(filters.maxTotal ?? TOTAL_MAX, TOTAL_MAX),
+  );
+
+  const handleApply = React.useCallback(() => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    onClose?.();
+  }, [onClose]);
 
   return (
     <>
@@ -43,61 +75,30 @@ export default function AdminOrderFilters() {
             onChange={(val) => updateFilter('email', val)}
             fullWidth
           />
+
           <UserFilterTextField
             label="Status"
             select
             value={filters.status}
-            onChange={(val) => updateFilter('status', val)}
+            onChange={(val) => updateFilter('status', val as OrderStatus)} // ✅ cast to union
             options={statusOptions.map((s) => ({ value: s, label: s }))}
             fullWidth
           />
-          <UserFilterTextField
-            label="Min Total"
-            type="number"
-            value={filters.minTotal?.toString() || ''}
-            onChange={(val) =>
-              updateFilter('minTotal', parseNumber(val) ?? null)
-            }
-            fullWidth
+
+          {/* Total range */}
+          <RangeFilterSlider
+            label="Total range"
+            min={TOTAL_MIN}
+            max={TOTAL_MAX}
+            step={50}
+            value={[totalMin, totalMax]}
+            formatValue={currency}
+            onChange={(lo, hi) => {
+              updateFilter('minTotal', lo);
+              updateFilter('maxTotal', hi);
+            }}
           />
-          <UserFilterTextField
-            label="Max Total"
-            type="number"
-            value={filters.maxTotal?.toString() || ''}
-            onChange={(val) =>
-              updateFilter('maxTotal', parseNumber(val) ?? null)
-            }
-            fullWidth
-          />
-          <UserFilterTextField
-            label="Min Price"
-            type="number"
-            value={filters.minPrice?.toString() || ''}
-            onChange={(val) =>
-              updateFilter('minPrice', parseNumber(val) ?? null)
-            }
-            fullWidth
-          />
-          <UserFilterTextField
-            label="Max Price"
-            type="number"
-            value={filters.maxPrice?.toString() || ''}
-            onChange={(val) =>
-              updateFilter('maxPrice', parseNumber(val) ?? null)
-            }
-            fullWidth
-          />
-          <UserFilterTextField
-            label="In Stock Only"
-            select
-            value={filters.inStockOnly ? 'yes' : 'no'}
-            onChange={(val) => updateFilter('inStockOnly', val === 'yes')}
-            options={[
-              { value: 'no', label: 'All' },
-              { value: 'yes', label: 'In Stock Only' },
-            ]}
-            fullWidth
-          />
+
           <UserFilterDatePicker
             label="Start Date"
             value={filters.startDate ? dayjs(filters.startDate) : null}
@@ -114,6 +115,7 @@ export default function AdminOrderFilters() {
             }
             fullWidth
           />
+
           <UserFilterTextField
             label="Sort By"
             select
@@ -130,22 +132,14 @@ export default function AdminOrderFilters() {
         </Stack>
       </Box>
 
-      {isMobile && hasFilters && (
-        <Fab
-          color="warning"
-          size="medium"
-          aria-label="reset"
-          onClick={resetFilters}
-          sx={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            zIndex: 1300,
-          }}
-        >
-          <RestartAltIcon />
-        </Fab>
-      )}
+      {/* Footer actions: show Apply on mobile, always show Reset */}
+      <FiltersFooterActions
+        onReset={resetFilters}
+        onApply={handleApply}
+        showApply={isMobile}
+        size="small"
+        minButtonWidth={120}
+      />
     </>
   );
 }

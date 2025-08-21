@@ -1,12 +1,8 @@
-// src/pages/ProductsPage/UserProductFilters.tsx
 import React from 'react';
 import {
-  Box,
   TextField,
   MenuItem,
   Stack,
-  Typography,
-  Slider,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -16,6 +12,7 @@ import type { Dayjs } from 'dayjs';
 import { useProductStore } from '../../stores/useProductStore';
 import type { TCategory } from '@common/types';
 import FiltersFooterActions from '../../components/FiltersFooterActions';
+import RangeFilterSlider from '../../components/RangeFilterSlider';
 
 const PRICE_MIN = 0;
 const PRICE_MAX = 100_000;
@@ -76,18 +73,6 @@ export default function UserProductFilters({
     maybeClose();
   };
 
-  // Sliders
-  const handlePriceChange = (_: Event, value: number | number[]) => {
-    const [min, max] = value as number[];
-    setMinPrice(min);
-    setMaxPrice(max);
-  };
-  const handleStockChange = (_: Event, value: number | number[]) => {
-    const [min, max] = value as number[];
-    setMinStock(min);
-    setMaxStock(max);
-  };
-
   // Apply: blur active element (IME/keyboard) then close the drawer
   const handleApply = React.useCallback(() => {
     (document.activeElement as HTMLElement | null)?.blur?.();
@@ -143,55 +128,39 @@ export default function UserProductFilters({
       </Stack>
 
       {/* Price range */}
-      <Box sx={{ px: { xs: 1, sm: 1.5 } }}>
-        <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
-          Price range: {currency(minPrice)} – {currency(maxPrice)}
-        </Typography>
-        <Slider
-          value={[
-            Math.max(PRICE_MIN, Math.min(minPrice, PRICE_MAX)),
-            Math.max(PRICE_MIN, Math.min(maxPrice, PRICE_MAX)),
-          ]}
-          onChange={handlePriceChange}
-          onChangeCommitted={maybeClose}
-          valueLabelDisplay="auto"
-          valueLabelFormat={(v) => currency(v as number)}
-          min={PRICE_MIN}
-          max={PRICE_MAX}
-          step={50}
-          getAriaLabel={() => 'Price range'}
-          sx={{ mx: { xs: 0.5, sm: 1 } }}
-          marks={[
-            { value: PRICE_MIN, label: currency(PRICE_MIN) },
-            { value: PRICE_MAX, label: currency(PRICE_MAX) },
-          ]}
-        />
-      </Box>
+      <RangeFilterSlider
+        label="Price range"
+        min={PRICE_MIN}
+        max={PRICE_MAX}
+        step={50}
+        value={[
+          Math.max(PRICE_MIN, Math.min(minPrice, PRICE_MAX)),
+          Math.max(PRICE_MIN, Math.min(maxPrice, PRICE_MAX)),
+        ]}
+        formatValue={currency}
+        onChange={(min, max) => {
+          setMinPrice(min);
+          setMaxPrice(max);
+        }}
+        onCommit={maybeClose}
+      />
 
       {/* Stock range */}
-      <Box sx={{ px: { xs: 1, sm: 1.5 } }}>
-        <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
-          Stock range: {minStock} – {maxStock}
-        </Typography>
-        <Slider
-          value={[
-            Math.max(STOCK_MIN, Math.min(minStock, STOCK_MAX)),
-            Math.max(STOCK_MIN, Math.min(maxStock, STOCK_MAX)),
-          ]}
-          onChange={handleStockChange}
-          onChangeCommitted={maybeClose}
-          valueLabelDisplay="auto"
-          min={STOCK_MIN}
-          max={STOCK_MAX}
-          step={1}
-          getAriaLabel={() => 'Stock range'}
-          sx={{ mx: { xs: 0.5, sm: 1 } }}
-          marks={[
-            { value: STOCK_MIN, label: String(STOCK_MIN) },
-            { value: STOCK_MAX, label: String(STOCK_MAX) },
-          ]}
-        />
-      </Box>
+      <RangeFilterSlider
+        label="Stock range"
+        min={STOCK_MIN}
+        max={STOCK_MAX}
+        step={1}
+        value={[
+          Math.max(STOCK_MIN, Math.min(minStock, STOCK_MAX)),
+          Math.max(STOCK_MIN, Math.min(maxStock, STOCK_MAX)),
+        ]}
+        onChange={(min, max) => {
+          setMinStock(min);
+          setMaxStock(max);
+        }}
+        onCommit={maybeClose}
+      />
 
       {/* Footer actions */}
       <FiltersFooterActions

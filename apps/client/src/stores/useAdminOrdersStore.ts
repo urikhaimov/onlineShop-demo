@@ -1,41 +1,53 @@
 // src/stores/useAdminOrdersStore.ts
 import { create } from 'zustand';
-import {
+import type {
   ColumnFiltersState,
   SortingState,
   Updater,
 } from '@tanstack/react-table';
 
-export type FilterState = {
+export type OrderStatus =
+  | 'all'
+  | 'pending'
+  | 'confirmed'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  | 'succeeded';
+
+export type SortDirection = 'asc' | 'desc';
+
+export interface AdminOrderFilterState {
   email: string;
-  status: string;
+  status: OrderStatus;
   minTotal: number | null;
   maxTotal: number | null;
   startDate: Date | null;
   endDate: Date | null;
-  sortDirection: 'asc' | 'desc';
+  sortDirection: SortDirection;
   page: number;
   pageSize: number;
   minPrice: number | null;
   maxPrice: number | null;
   inStockOnly: boolean;
-};
+}
 
+// Optional: only keep this if you actually use a reducer elsewhere.
 export type FilterAction =
   | { type: 'setEmail'; payload: string }
-  | { type: 'setStatus'; payload: string }
-  | { type: 'setMinTotal'; payload: number }
-  | { type: 'setMaxTotal'; payload: number }
+  | { type: 'setStatus'; payload: OrderStatus }
+  | { type: 'setMinTotal'; payload: number | null }
+  | { type: 'setMaxTotal'; payload: number | null }
   | { type: 'setStartDate'; payload: Date | null }
   | { type: 'setEndDate'; payload: Date | null }
-  | { type: 'setSortDirection'; payload: 'asc' | 'desc' }
+  | { type: 'setSortDirection'; payload: SortDirection }
   | { type: 'setPage'; payload: number }
   | { type: 'setMinPrice'; payload: number | null }
   | { type: 'setMaxPrice'; payload: number | null }
   | { type: 'setInStockOnly'; payload: boolean }
   | { type: 'RESET_FILTERS' };
 
-export const initialAdminOrderFilters: FilterState = {
+export const initialAdminOrderFilters: AdminOrderFilterState = {
   email: '',
   status: 'all',
   minTotal: null,
@@ -50,56 +62,59 @@ export const initialAdminOrderFilters: FilterState = {
   inStockOnly: false,
 };
 
-interface AdminOrdersStore {
+export interface AdminOrdersStore {
+  // table state
   sorting: SortingState;
-  columnFilters: ColumnFiltersState;
-  snackbarOpen: boolean;
-
-  filters: FilterState;
-
   setSorting: (updater: Updater<SortingState>) => void;
+
+  columnFilters: ColumnFiltersState;
   setColumnFilters: (updater: Updater<ColumnFiltersState>) => void;
+
+  // ui state
+  snackbarOpen: boolean;
   setSnackbarOpen: (open: boolean) => void;
 
-  updateFilter: <K extends keyof FilterState>(
+  // filters
+  filters: AdminOrderFilterState;
+  updateFilter: <K extends keyof AdminOrderFilterState>(
     key: K,
-    value: FilterState[K],
+    value: AdminOrderFilterState[K],
   ) => void;
+  setFilters: (next: AdminOrderFilterState) => void; // bulk set (useful for URL→store)
   resetFilters: () => void;
 }
 
 export const useAdminOrdersStore = create<AdminOrdersStore>((set, get) => ({
   sorting: [],
-  columnFilters: [],
-  snackbarOpen: false,
-
-  filters: initialAdminOrderFilters,
-
   setSorting: (updater) => {
-    const current = get().sorting;
-    const next = typeof updater === 'function' ? updater(current) : updater;
+    const curr = get().sorting;
+    const next = typeof updater === 'function' ? updater(curr) : updater;
     set({ sorting: next });
   },
 
+  columnFilters: [],
   setColumnFilters: (updater) => {
-    const current = get().columnFilters;
-    const next = typeof updater === 'function' ? updater(current) : updater;
+    const curr = get().columnFilters;
+    const next = typeof updater === 'function' ? updater(curr) : updater;
     set({ columnFilters: next });
   },
 
+  snackbarOpen: false,
   setSnackbarOpen: (open) => set({ snackbarOpen: open }),
+
+  filters: initialAdminOrderFilters,
 
   updateFilter: (key, value) =>
     set((state) => ({
       filters: {
         ...state.filters,
         [key]: value,
-        ...(key !== 'page' && { page: 1 }), // Reset to page 1 unless updating page directly
+        // reset to page 1 on any filter change *except* when changing page
+        ...(key === 'page' ? null : { page: 1 }),
       },
     })),
 
-  resetFilters: () =>
-    set({
-      filters: { ...initialAdminOrderFilters },
-    }),
+  setFilters: (next) => set({ filters: next }),
+
+  resetFilters: () => set({ filters: initialAdminOrderFilters }),
 }));

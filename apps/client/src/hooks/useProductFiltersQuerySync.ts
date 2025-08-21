@@ -1,50 +1,39 @@
-// src/hooks/useProductFiltersQuerySync.ts
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs, { Dayjs } from 'dayjs';
 import { useProductStore } from '../stores/useProductStore';
 
-type ViewMode = 'table' | 'cards';
+// Query keys for products filters
+export const PRODUCT_FILTER_PARAM_KEYS = [
+  'p_q',
+  'p_cat',
+  'p_priceMin',
+  'p_priceMax',
+  'p_stockMin',
+  'p_stockMax',
+  'p_from',
+  'p_to',
+] as const;
 
-const PRICE_MIN = 0;
-const PRICE_MAX = 100000;
-const STOCK_MIN = 0;
-const STOCK_MAX = 1000;
+export const clearProductFilterParams = (params: URLSearchParams) => {
+  PRODUCT_FILTER_PARAM_KEYS.forEach((k) => params.delete(k));
+};
 
-const toISO = (d: Dayjs | null | undefined) =>
-  d ? d.startOf('day').format('YYYY-MM-DD') : '';
+const toNum = (v: string | null): number | null => {
+  if (v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
-const fromISO = (s?: string | null): Dayjs | null => {
-  if (!s) return null;
-  const d = dayjs(s, 'YYYY-MM-DD', true);
+const toDayjsOrNull = (v: string | null): Dayjs | null => {
+  if (!v) return null;
+  const d = dayjs(v, 'YYYY-MM-DD', true);
   return d.isValid() ? d : null;
 };
 
-const parseRange = (
-  s: string | null,
-  minDefault: number,
-  maxDefault: number,
-): readonly [number, number] => {
-  if (!s) return [minDefault, maxDefault] as const;
-  const [a, b] = s.split('-');
-  const min = Number(a);
-  const max = Number(b);
-  if (Number.isFinite(min) && Number.isFinite(max)) return [min, max] as const;
-  return [minDefault, maxDefault] as const;
-};
-
-const formatRange = (min: number, max: number) => `${min}-${max}`;
-
-export function useProductFiltersQuerySync(
-  view: ViewMode,
-  setView: (v: ViewMode) => void,
-) {
+export function useProductFiltersQuerySync() {
   const [params, setParams] = useSearchParams();
-  const paramString = params.toString(); // stable dep vs object identity
-  const hydrated = useRef(false);
-
   const {
-    // state
     searchTerm,
     selectedCategoryId,
     updatedFrom,
@@ -53,7 +42,6 @@ export function useProductFiltersQuerySync(
     maxPrice,
     minStock,
     maxStock,
-    // setters
     setSearchTerm,
     setSelectedCategoryId,
     setUpdatedFrom,
@@ -64,70 +52,69 @@ export function useProductFiltersQuerySync(
     setMaxStock,
   } = useProductStore();
 
-  // 1) Hydrate from URL once
+  // URL -> store (once)
   useEffect(() => {
-    if (hydrated.current) return;
+    const q = params.get('p_q') ?? '';
+    const cat = params.get('p_cat') ?? '';
+    const pMin = toNum(params.get('p_priceMin'));
+    const pMax = toNum(params.get('p_priceMax'));
+    const sMin = toNum(params.get('p_stockMin'));
+    const sMax = toNum(params.get('p_stockMax'));
+    const from = toDayjsOrNull(params.get('p_from'));
+    const to = toDayjsOrNull(params.get('p_to'));
 
-    const q = params.get('q') ?? '';
-    const cat = params.get('cat') ?? '';
-    const [pMin, pMax] = parseRange(params.get('price'), PRICE_MIN, PRICE_MAX);
-    const [sMin, sMax] = parseRange(params.get('stock'), STOCK_MIN, STOCK_MAX);
-    const upFrom = fromISO(params.get('upFrom'));
-    const upTo = fromISO(params.get('upTo'));
-    const viewParam = params.get('view') as ViewMode | null;
+    if (q !== searchTerm) setSearchTerm(q);
+    if (cat !== selectedCategoryId) setSelectedCategoryId(cat);
+    if (pMin !== null && pMin !== minPrice) setMinPrice(pMin);
+    if (pMax !== null && pMax !== maxPrice) setMaxPrice(pMax);
+    if (sMin !== null && sMin !== minStock) setMinStock(sMin);
+    if (sMax !== null && sMax !== maxStock) setMaxStock(sMax);
 
-    setSearchTerm(q);
-    setSelectedCategoryId(cat);
-    setUpdatedFrom(upFrom);
-    setUpdatedTo(upTo);
-    setMinPrice(pMin);
-    setMaxPrice(pMax);
-    setMinStock(sMin);
-    setMaxStock(sMax);
-    if (viewParam === 'table' || viewParam === 'cards') setView(viewParam);
+    if (from && (!updatedFrom || !from.isSame(updatedFrom, 'day'))) {
+      setUpdatedFrom(from);
+    }
+    if (to && (!updatedTo || !to.isSame(updatedTo, 'day'))) {
+      setUpdatedTo(to);
+    }
+    // run once on mount
+  }, []); // ← intentional
 
-    hydrated.current = true;
-  }, []);
-
-  // 2) Push current filters to URL when they change (only if different)
+  // store -> URL
   useEffect(() => {
-    if (!hydrated.current) return;
+    const next = new URLSearchParams(params);
 
-    const next = new URLSearchParams(paramString);
-
-    const setOrDel = (key: string, value?: string, isDefault?: boolean) => {
-      if (!value || isDefault) next.delete(key);
-      else next.set(key, value);
+    const setOrDelete = (
+      key: string,
+      val: string | number | null | undefined,
+    ) => {
+      if (val === null || val === undefined || val === '') next.delete(key);
+      else next.set(key, String(val));
     };
 
-    setOrDel('q', (searchTerm ?? '').trim(), !searchTerm);
-    setOrDel('cat', selectedCategoryId, !selectedCategoryId);
+    setOrDelete('p_q', searchTerm);
+    setOrDelete('p_cat', selectedCategoryId);
+    setOrDelete('p_priceMin', minPrice);
+    setOrDelete('p_priceMax', maxPrice);
+    setOrDelete('p_stockMin', minStock);
+    setOrDelete('p_stockMax', maxStock);
 
-    const upFromStr = toISO(updatedFrom);
-    const upToStr = toISO(updatedTo);
-    setOrDel('upFrom', upFromStr);
-    setOrDel('upTo', upToStr);
+    const fmt = (d: Dayjs | null): string =>
+      d && d.isValid() ? d.format('YYYY-MM-DD') : '';
 
-    const priceStr = formatRange(minPrice, maxPrice);
-    const stockStr = formatRange(minStock, maxStock);
-    setOrDel(
-      'price',
-      priceStr,
-      minPrice === PRICE_MIN && maxPrice === PRICE_MAX,
-    );
-    setOrDel(
-      'stock',
-      stockStr,
-      minStock === STOCK_MIN && maxStock === STOCK_MAX,
-    );
+    const fromStr = fmt(updatedFrom);
+    const toStr = fmt(updatedTo);
 
-    setOrDel('view', view);
+    if (fromStr) next.set('p_from', fromStr);
+    else next.delete('p_from');
+    if (toStr) next.set('p_to', toStr);
+    else next.delete('p_to');
 
-    const nextStr = next.toString();
-    if (nextStr !== paramString) {
-      setParams(next, { replace: true }); // only write when changed
-    }
+    const curr = params.toString();
+    const nxt = next.toString();
+    if (curr !== nxt) setParams(next, { replace: true });
   }, [
+    params,
+    setParams,
     searchTerm,
     selectedCategoryId,
     updatedFrom,
@@ -136,8 +123,5 @@ export function useProductFiltersQuerySync(
     maxPrice,
     minStock,
     maxStock,
-    view,
-    paramString, // string, not the params object
-    setParams,
   ]);
 }
