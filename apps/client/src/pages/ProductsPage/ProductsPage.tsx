@@ -21,7 +21,11 @@ import type {
 } from '@tanstack/react-table';
 
 import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
-import { useProductFiltersQuerySync } from '../../hooks/useProductFiltersQuerySync';
+import {
+  useProductFiltersQuerySync,
+  clearProductFilterParams,
+} from '../../hooks/useProductFiltersQuerySync';
+// ...
 
 import type { Dayjs } from 'dayjs';
 import { useCategories } from '../../hooks/useCategories';

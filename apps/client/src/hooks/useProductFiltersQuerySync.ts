@@ -2,8 +2,9 @@ import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs, { Dayjs } from 'dayjs';
 import { useProductStore } from '../stores/useProductStore';
+import type { ViewMode } from '../components/TopActionBar'; // ← use SAME type
 
-// Query keys for products filters
+// Include view in the query keys
 export const PRODUCT_FILTER_PARAM_KEYS = [
   'p_q',
   'p_cat',
@@ -13,6 +14,7 @@ export const PRODUCT_FILTER_PARAM_KEYS = [
   'p_stockMax',
   'p_from',
   'p_to',
+  'p_view', // ← added
 ] as const;
 
 export const clearProductFilterParams = (params: URLSearchParams) => {
@@ -31,8 +33,12 @@ const toDayjsOrNull = (v: string | null): Dayjs | null => {
   return d.isValid() ? d : null;
 };
 
-export function useProductFiltersQuerySync() {
+export function useProductFiltersQuerySync(
+  viewMode?: ViewMode,
+  setViewMode?: (v: ViewMode) => void,
+) {
   const [params, setParams] = useSearchParams();
+
   const {
     searchTerm,
     selectedCategoryId,
@@ -76,10 +82,15 @@ export function useProductFiltersQuerySync() {
     if (to && (!updatedTo || !to.isSame(updatedTo, 'day'))) {
       setUpdatedTo(to);
     }
-    // run once on mount
-  }, []); // ← intentional
 
-  // store -> URL
+    // hydrate view mode
+    const pv = params.get('p_view');
+    if ((pv === 'table' || pv === 'cards') && setViewMode && pv !== viewMode) {
+      setViewMode(pv);
+    }
+  }, []); // run once
+
+  // store -> URL (also write view)
   useEffect(() => {
     const next = new URLSearchParams(params);
 
@@ -100,7 +111,6 @@ export function useProductFiltersQuerySync() {
 
     const fmt = (d: Dayjs | null): string =>
       d && d.isValid() ? d.format('YYYY-MM-DD') : '';
-
     const fromStr = fmt(updatedFrom);
     const toStr = fmt(updatedTo);
 
@@ -109,9 +119,15 @@ export function useProductFiltersQuerySync() {
     if (toStr) next.set('p_to', toStr);
     else next.delete('p_to');
 
-    const curr = params.toString();
-    const nxt = next.toString();
-    if (curr !== nxt) setParams(next, { replace: true });
+    if (viewMode === 'table' || viewMode === 'cards') {
+      next.set('p_view', viewMode);
+    } else {
+      next.delete('p_view');
+    }
+
+    if (params.toString() !== next.toString()) {
+      setParams(next, { replace: true });
+    }
   }, [
     params,
     setParams,
@@ -123,5 +139,6 @@ export function useProductFiltersQuerySync() {
     maxPrice,
     minStock,
     maxStock,
+    viewMode, // ← include viewMode
   ]);
 }

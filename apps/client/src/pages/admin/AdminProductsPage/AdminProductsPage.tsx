@@ -82,7 +82,7 @@ export default function AdminProductsPage() {
     setSorting,
     setColumnFilters,
     filtersOpen,
-    setFiltersOpen, // drawer state in store
+    setFiltersOpen,
   } = useAdminProductsStore();
 
   const {
@@ -111,7 +111,7 @@ export default function AdminProductsPage() {
   const sensors = useSensors(useSensor(PointerSensor));
   const navigate = useNavigate();
 
-  // table ↔ URL
+  // Table ↔ URL
   useStickyTableQuerySync({
     sorting,
     setSorting,
@@ -119,7 +119,7 @@ export default function AdminProductsPage() {
     setColumnFilters,
   });
 
-  // filters ↔ URL
+  // Product filters ↔ URL
   useAdminProductFiltersQuerySync();
 
   useEffect(() => {
@@ -173,6 +173,7 @@ export default function AdminProductsPage() {
   const getCategoryName = (categoryId?: string | null) =>
     categories.find((c) => c.id === categoryId)?.name ?? '—';
 
+  /** Apply filters (client-side) */
   const filteredProducts = useMemo<IProduct[]>(() => {
     const term = (searchTerm || '').trim().toLowerCase();
     const cat = selectedCategoryId || '';
@@ -193,15 +194,18 @@ export default function AdminProductsPage() {
           .toLowerCase();
         if (!haystack.includes(term)) return false;
       }
+
       if (cat && p.categoryId !== cat) return false;
 
-      const price = typeof p.price === 'number' ? p.price : (p as any)?.price;
+      const price =
+        typeof p.price === 'number' ? p.price : ((p as any)?.price ?? null);
       if (price !== null) {
         if (price < (minPrice ?? PRICE_MIN)) return false;
         if (price > (maxPrice ?? PRICE_MAX)) return false;
       }
 
-      const stock = typeof p.stock === 'number' ? p.stock : (p as any)?.stock;
+      const stock =
+        typeof p.stock === 'number' ? p.stock : ((p as any)?.stock ?? null);
       if (stock !== null) {
         if (stock < (minStock ?? STOCK_MIN)) return false;
         if (stock > (maxStock ?? STOCK_MAX)) return false;
@@ -225,12 +229,13 @@ export default function AdminProductsPage() {
     updatedTo,
   ]);
 
+  /** Reset table + product filters + URL (same UX as Orders) */
   const resetAll = React.useCallback(() => {
-    // table
+    // Table
     setSorting([]);
     setColumnFilters([]);
 
-    // filters
+    // Filters (store)
     setSearchTerm('');
     setSelectedCategoryId('');
     setMinPrice(PRICE_MIN);
@@ -245,7 +250,9 @@ export default function AdminProductsPage() {
     next.delete('sort');
     next.delete('filters');
     clearAdminProductFiltersInSearchParams(next);
-    setParams(next, { replace: true });
+    if (params.toString() !== next.toString()) {
+      setParams(next, { replace: true });
+    }
   }, [
     params,
     setParams,
@@ -266,7 +273,7 @@ export default function AdminProductsPage() {
       <PageContainer>
         <AdminHeaderBar title="Admin Products" onReset={resetAll} />
 
-        {/* Always show controls, even when loading / empty */}
+        {/* Controls (always visible) */}
         <Box
           sx={{
             position: 'sticky',
@@ -319,7 +326,7 @@ export default function AdminProductsPage() {
                 onColumnFiltersChange={setColumnFilters}
                 enablePagination
                 enableSorting
-                enableColumnFilters={false}
+                enableColumnFilters={false} // filters live in the drawer
                 groupById="categoryId"
                 enableRowExpansion
                 renderExpandedRow={(product) => (
@@ -334,7 +341,7 @@ export default function AdminProductsPage() {
           </DndContext>
         )}
 
-        {/* Drawer (stays open while editing) */}
+        {/* Filters drawer (stays open while editing) */}
         <RightFiltersDrawer
           title="Filters"
           open={filtersOpen}
@@ -342,7 +349,7 @@ export default function AdminProductsPage() {
         >
           <AdminProductFilters
             categories={categories}
-            onClose={() => setFiltersOpen(false)}
+            onClose={() => setFiltersOpen(false)} // Apply on mobile closes it
           />
         </RightFiltersDrawer>
 

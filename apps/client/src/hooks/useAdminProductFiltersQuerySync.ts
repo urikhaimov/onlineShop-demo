@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs, { Dayjs } from 'dayjs';
 import { useProductStore } from '../stores/useProductStore';
 
-export const ADMIN_PRODUCT_FILTER_PARAM_KEYS = [
+export const PRODUCT_FILTER_PARAM_KEYS = [
   'p_q',
   'p_cat',
   'p_pmin',
@@ -17,89 +17,130 @@ export const ADMIN_PRODUCT_FILTER_PARAM_KEYS = [
 export const clearAdminProductFiltersInSearchParams = (
   params: URLSearchParams,
 ) => {
-  ADMIN_PRODUCT_FILTER_PARAM_KEYS.forEach((k) => params.delete(k));
+  PRODUCT_FILTER_PARAM_KEYS.forEach((k) => params.delete(k));
 };
 
 const toNum = (v: string | null): number | null => {
-  if (v === null || v === '') return null;
+  if (v === null || v.trim() === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
 
-const toDayjs = (v: string | null): Dayjs | null => (v ? dayjs(v) : null);
-const toYMD = (d: Dayjs | null | undefined): string | null =>
-  d ? d.format('YYYY-MM-DD') : null;
+const toDay = (v: string | null): Dayjs | null => {
+  if (!v) return null;
+  const d = dayjs(v);
+  return d.isValid() ? d : null;
+};
 
 export function useAdminProductFiltersQuerySync() {
   const [params, setParams] = useSearchParams();
+  const hydrated = useRef(false);
+
   const {
+    // state
     searchTerm,
-    setSearchTerm,
     selectedCategoryId,
-    setSelectedCategoryId,
     minPrice,
     maxPrice,
-    setMinPrice,
-    setMaxPrice,
     minStock,
     maxStock,
-    setMinStock,
-    setMaxStock,
     updatedFrom,
     updatedTo,
+    // setters
+    setSearchTerm,
+    setSelectedCategoryId,
+    setMinPrice,
+    setMaxPrice,
+    setMinStock,
+    setMaxStock,
     setUpdatedFrom,
     setUpdatedTo,
   } = useProductStore();
 
-  // URL → store (once on mount)
+  /** URL → store (run once) */
   useEffect(() => {
-    const q = params.get('p_q') ?? '';
-    const cat = params.get('p_cat') ?? '';
-    const pmin = toNum(params.get('p_pmin'));
-    const pmax = toNum(params.get('p_pmax'));
-    const smin = toNum(params.get('p_smin'));
-    const smax = toNum(params.get('p_smax'));
-    const from = toDayjs(params.get('p_from'));
-    const to = toDayjs(params.get('p_to'));
+    if (hydrated.current) return;
+    hydrated.current = true;
 
-    if (q !== searchTerm) setSearchTerm(q);
-    if (cat !== selectedCategoryId) setSelectedCategoryId(cat);
-    if ((pmin ?? 0) !== minPrice) setMinPrice(pmin ?? 0);
-    if ((pmax ?? 100_000) !== maxPrice) setMaxPrice(pmax ?? 100_000);
-    if ((smin ?? 0) !== minStock) setMinStock(smin ?? 0);
-    if ((smax ?? 1_000) !== maxStock) setMaxStock(smax ?? 1_000);
-    if ((from?.valueOf() ?? null) !== (updatedFrom?.valueOf() ?? null))
-      setUpdatedFrom(from);
-    if ((to?.valueOf() ?? null) !== (updatedTo?.valueOf() ?? null))
-      setUpdatedTo(to);
-  }, []);
+    const initial = {
+      q: params.get('p_q') ?? '',
+      cat: params.get('p_cat') ?? '',
+      pmin: toNum(params.get('p_pmin')),
+      pmax: toNum(params.get('p_pmax')),
+      smin: toNum(params.get('p_smin')),
+      smax: toNum(params.get('p_smax')),
+      from: toDay(params.get('p_from')),
+      to: toDay(params.get('p_to')),
+    };
 
-  // store → URL (replace to avoid history spam)
+    if (initial.q !== searchTerm) setSearchTerm(initial.q);
+    if (initial.cat !== selectedCategoryId) setSelectedCategoryId(initial.cat);
+    if (initial.pmin !== null && initial.pmin !== minPrice)
+      setMinPrice(initial.pmin);
+    if (initial.pmax !== null && initial.pmax !== maxPrice)
+      setMaxPrice(initial.pmax);
+    if (initial.smin !== null && initial.smin !== minStock)
+      setMinStock(initial.smin);
+    if (initial.smax !== null && initial.smax !== maxStock)
+      setMaxStock(initial.smax);
+
+    if (
+      initial.from &&
+      (!updatedFrom || !updatedFrom.isSame(initial.from, 'day'))
+    ) {
+      setUpdatedFrom(initial.from);
+    }
+    if (initial.to && (!updatedTo || !updatedTo.isSame(initial.to, 'day'))) {
+      setUpdatedTo(initial.to);
+    }
+    // run once on mount
+  }, []); // intentional
+
+  /** store → URL (guarded) */
   useEffect(() => {
+    if (!hydrated.current) return;
+
     const next = new URLSearchParams(params);
 
     const setOrDelete = (key: string, val: unknown) => {
-      let out = '';
-      if (val === null) out = '';
-      else if (typeof val === 'string') out = val;
-      else if (typeof val === 'number') out = String(val);
-      else if (dayjs.isDayjs(val)) out = toYMD(val as Dayjs) ?? '';
-      if (out) next.set(key, out);
-      else next.delete(key);
+      const s = String(val ?? '');
+      if (!s) next.delete(key);
+      else next.set(key, s);
     };
 
-    setOrDelete('p_q', searchTerm || '');
-    setOrDelete('p_cat', selectedCategoryId || '');
-    setOrDelete('p_pmin', minPrice);
-    setOrDelete('p_pmax', maxPrice);
-    setOrDelete('p_smin', minStock);
-    setOrDelete('p_smax', maxStock);
-    setOrDelete('p_from', updatedFrom);
-    setOrDelete('p_to', updatedTo);
+    setOrDelete('p_q', searchTerm);
+    setOrDelete('p_cat', selectedCategoryId);
 
-    if (params.toString() !== next.toString())
-      setParams(next, { replace: true });
+    if (minPrice === null) next.delete('p_pmin');
+    else next.set('p_pmin', String(minPrice));
+
+    if (maxPrice === null) next.delete('p_pmax');
+    else next.set('p_pmax', String(maxPrice));
+
+    if (minStock === null) next.delete('p_smin');
+    else next.set('p_smin', String(minStock));
+
+    if (maxStock === null) next.delete('p_smax');
+    else next.set('p_smax', String(maxStock));
+
+    const fmt = (d: Dayjs | null): string =>
+      d && d.isValid() ? d.format('YYYY-MM-DD') : '';
+
+    const fromStr = fmt(updatedFrom);
+    const toStr = fmt(updatedTo);
+
+    if (fromStr) next.set('p_from', fromStr);
+    else next.delete('p_from');
+
+    if (toStr) next.set('p_to', toStr);
+    else next.delete('p_to');
+
+    const curr = params.toString();
+    const nxt = next.toString();
+    if (curr !== nxt) setParams(next, { replace: true });
   }, [
+    params,
+    setParams,
     searchTerm,
     selectedCategoryId,
     minPrice,
@@ -108,7 +149,5 @@ export function useAdminProductFiltersQuerySync() {
     maxStock,
     updatedFrom,
     updatedTo,
-    params,
-    setParams,
   ]);
 }
