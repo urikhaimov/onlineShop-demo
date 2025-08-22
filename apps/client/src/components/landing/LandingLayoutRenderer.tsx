@@ -2,7 +2,7 @@
 import React from 'react';
 import {
   HOMEPAGE_LAYOUTS,
-  type HOMEPAGE_LAYOUT,
+  type HomepageLayout,
   type LandingPageData,
 } from '@common/types';
 import HeroBento from './layouts/HeroBento';
@@ -10,10 +10,7 @@ import SplitShowcase from './layouts/SplitShowcase';
 import ProductMosaic from './layouts/ProductMosaic';
 import StoryScroll from './layouts/StoryScroll';
 
-const RENDERERS: Record<
-  HOMEPAGE_LAYOUT,
-  React.FC<{ data: LandingPageData }>
-> = {
+const RENDERERS: Record<HomepageLayout, React.FC<{ data: LandingPageData }>> = {
   [HOMEPAGE_LAYOUTS.Hero]: HeroBento,
   [HOMEPAGE_LAYOUTS.Bento]: HeroBento,
   [HOMEPAGE_LAYOUTS.Split]: SplitShowcase,

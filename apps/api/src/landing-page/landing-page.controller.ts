@@ -1,45 +1,18 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Body, Controller, Get, Put } from '@nestjs/common';
+import { LandingPageService } from './landing-page.service';
+import { LandingPageData } from './types';
 
-export interface LandingPageSection {
-  title?: string;
-  subtitle?: string;
-  content?: string;
-}
-
-export interface LandingPageData {
-  title?: string;
-  subtitle?: string;
-  bannerImageUrl?: string;
-  ctaButtonText?: string;
-  ctaButtonLink?: string;
-  sections?: LandingPageSection[];
-}
-
-const landingPageData: LandingPageData = {
-  title: 'Welcome to Bunder Shop',
-  subtitle: 'Your one-stop e-commerce store',
-  bannerImageUrl: '/assets/banner.jpg',
-  ctaButtonText: 'Shop Now',
-  ctaButtonLink: '/products',
-  sections: [
-    {
-      title: 'Featured Deals',
-      subtitle: 'Best prices for you',
-      content: 'Check out our daily deals on popular products.',
-    },
-  ],
-};
-
-@Controller('landing-page')
+@Controller('landing') // <- /api/landing (with global prefix)
 export class LandingPageController {
+  constructor(private readonly svc: LandingPageService) {}
+
   @Get()
   getLandingPage(): LandingPageData {
-    return landingPageData;
+    return this.svc.get();
   }
 
-  @Post()
-  updateLandingPage(@Body() updatedData: LandingPageData): LandingPageData {
-    // TODO: persist updatedData if needed
-    return updatedData;
+  @Put()
+  updateLandingPage(@Body() body: LandingPageData): LandingPageData {
+    return this.svc.update(body);
   }
 }

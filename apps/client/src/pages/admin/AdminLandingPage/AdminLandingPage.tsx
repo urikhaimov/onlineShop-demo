@@ -21,7 +21,6 @@ import { footerHeight, headerHeight } from '../../../config/themeConfig';
 import { PageLayout } from '../../../layouts/page.layout';
 import FormTextField from '../../../components/FormTextField';
 import PictureUploaderWithCrop from '../../../components/PictureUploaderWithCrop';
-
 import {
   useLandingPage,
   useUpdateLandingPage,
@@ -32,6 +31,24 @@ import {
 } from '../../../services/ability.service';
 import { storage } from '../../../firebase';
 
+const DEFAULT_FORM: LandingPageData = {
+  title: 'Welcome to Bunder Shop',
+  subtitle: 'Your one-stop e-commerce store',
+  bannerImageUrl: '',
+  ctaButtonText: 'Shop Now',
+  ctaButtonLink: '/products',
+  homepageLayout: HOMEPAGE_LAYOUTS.Hero,
+  sections: [
+    {
+      title: 'Featured Deals',
+      content: 'Check out our daily deals on popular products.',
+    },
+  ],
+};
+
+const isLayout = (v: unknown): v is LandingPageData['homepageLayout'] =>
+  (Object.values(HOMEPAGE_LAYOUTS) as string[]).includes(v as string);
+
 export default function AdminLandingPage() {
   const { data, isLoading, isError } = useLandingPage();
   const updateMutation = useUpdateLandingPage();
@@ -41,28 +58,38 @@ export default function AdminLandingPage() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { isDirty, isSubmitting, errors },
   } = useForm<LandingPageData>({
-    defaultValues: {
-      title: '',
-      subtitle: '',
-      bannerImageUrl: '', // kept in form state (no visible input)
-      ctaButtonText: '',
-      ctaButtonLink: '',
-      homepageLayout: HOMEPAGE_LAYOUTS.Hero,
-      sections: [],
-    },
+    defaultValues: DEFAULT_FORM,
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control,
     name: 'sections',
   });
+
   const [toastOpen, setToastOpen] = useState(false);
 
+  // merge server → form defaults; validate layout; sync FieldArray
   useEffect(() => {
-    if (data) reset(data);
-  }, [data, reset]);
+    if (!data) return;
+
+    const merged: LandingPageData = {
+      ...DEFAULT_FORM,
+      ...data,
+      homepageLayout: isLayout((data as any).homepageLayout)
+        ? (data as any).homepageLayout
+        : HOMEPAGE_LAYOUTS.Hero,
+      sections: (data.sections ?? []).map((s) => ({
+        title: s.title ?? '',
+        content: s.content ?? '',
+      })),
+    };
+
+    reset(merged); // sync all non-array fields
+    replace(merged.sections); // ensure FieldArray items render
+  }, [data, reset, replace]);
 
   const uploadBannerToStorage = async (file: File): Promise<string> => {
     const objectRef = ref(storage, `landing/banner_${Date.now()}.jpg`);
@@ -84,7 +111,9 @@ export default function AdminLandingPage() {
 
   const onSubmit = async (formData: LandingPageData) => {
     try {
-      await updateMutation.mutateAsync(formData);
+      const saved = await updateMutation.mutateAsync(formData);
+      reset((saved ?? formData) as LandingPageData);
+      replace((saved ?? formData).sections ?? []);
       setToastOpen(true);
     } catch (error) {
       console.error('Failed to update landing page:', error);
@@ -108,6 +137,7 @@ export default function AdminLandingPage() {
   }
 
   const saving = updateMutation.status === 'pending';
+  const bannerPreview = watch('bannerImageUrl');
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
@@ -126,11 +156,10 @@ export default function AdminLandingPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2}>
-              {/* Banner uploader (replaces manual URL input) */}
               <Stack spacing={1}>
                 <Typography variant="subtitle2">Banner image</Typography>
                 <PictureUploaderWithCrop
-                  avatarUrl={(data?.bannerImageUrl ?? '') || undefined}
+                  avatarUrl={bannerPreview || undefined}
                   onCropUpload={handleBannerCropUpload}
                   onDeleteAvatar={handleDeleteBanner}
                   disabled={saving}
@@ -145,7 +174,6 @@ export default function AdminLandingPage() {
                 required
                 disabled={saving}
               />
-
               <FormTextField
                 label="Subtitle"
                 name="subtitle"
@@ -153,7 +181,6 @@ export default function AdminLandingPage() {
                 errorObject={errors.subtitle}
                 disabled={saving}
               />
-
               <FormTextField
                 label="CTA Button Text"
                 name="ctaButtonText"
@@ -161,7 +188,6 @@ export default function AdminLandingPage() {
                 errorObject={errors.ctaButtonText}
                 disabled={saving}
               />
-
               <FormTextField
                 label="CTA Button Link"
                 name="ctaButtonLink"
@@ -181,8 +207,7 @@ export default function AdminLandingPage() {
               >
                 {(Object.values(HOMEPAGE_LAYOUTS) as string[]).map((layout) => (
                   <MenuItem key={layout} value={layout}>
-                    {String(layout).charAt(0).toUpperCase() +
-                      String(layout).slice(1)}
+                    {layout.charAt(0).toUpperCase() + layout.slice(1)}
                   </MenuItem>
                 ))}
               </FormTextField>
@@ -245,6 +270,7 @@ export default function AdminLandingPage() {
               <Button
                 type="submit"
                 variant="contained"
+                color="primary"
                 disabled={!isDirty || isSubmitting || saving}
                 fullWidth
                 sx={{ mt: 3 }}
