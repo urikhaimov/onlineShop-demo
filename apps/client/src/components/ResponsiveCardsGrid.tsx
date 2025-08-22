@@ -11,7 +11,7 @@ type Props = {
 export default function ResponsiveCardsGrid({
   children,
   gap = 2,
-  columns = { xs: 1, sm: 2, md: 3, lg: 4 },
+  columns = { xs: 1, sm: 2, md: 2, lg: 3 },
   sx,
 }: Props) {
   return (
