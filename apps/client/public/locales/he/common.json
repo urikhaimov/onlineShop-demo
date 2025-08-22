@@ -1,0 +1,20 @@
+{
+  "app": {
+    "title": "החנות שלי",
+    "language": "שפה",
+    "english": "אנגלית",
+    "hebrew": "עברית"
+  },
+  "nav": {
+    "home": "דף הבית",
+    "products": "מוצרים",
+    "cart": "עגלה"
+  },
+  "hero": {
+    "headline": "ברוכים הבאים לחנות שלנו",
+    "cta": "לקנייה"
+  },
+  "dates": {
+    "todayIs": "היום {{date, datetime}}"
+  }
+}

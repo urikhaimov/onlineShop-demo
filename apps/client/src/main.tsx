@@ -18,12 +18,11 @@ import { AuthProvider } from './context/AuthContext';
 import { AbilityContext } from './context/AbilityContext';
 import { defineAbilityFor } from './services/ability.service';
 
-import { LocalizationProvider } from '@mui/x-date-pickers';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-
 import { loadStoreConfig } from './utils/loadStoreConfig';
-
 import { ThemeProvider } from './context/ThemeContext';
+
+// ✅ i18n / RTL / MUI theme handled inside AppProviders
+import AppProviders from './providers/AppProviders';
 
 import 'react-quill/dist/quill.snow.css';
 import './styles.less';
@@ -41,17 +40,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <StoreConfigContext.Provider value={storeConfig}>
           <QueryClientProvider client={queryClient}>
             <ThemeProvider>
-              {' '}
-              {/* ✅ Must be inside QueryClientProvider */}
               <StoreBoundThemeProvider>
                 <AuthProvider>
                   <AbilityContext.Provider
                     value={defineAbilityFor({ user: null, role: null })}
                   >
                     <RedirectProvider>
-                      <LocalizationProvider dateAdapter={AdapterDayjs}>
+                      <AppProviders>
                         <App />
-                      </LocalizationProvider>
+                      </AppProviders>
                     </RedirectProvider>
                   </AbilityContext.Provider>
                 </AuthProvider>

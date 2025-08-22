@@ -1,0 +1,20 @@
+{
+  "app": {
+    "title": "My Store",
+    "language": "Language",
+    "english": "English",
+    "hebrew": "Hebrew"
+  },
+  "nav": {
+    "home": "Home",
+    "products": "Products",
+    "cart": "Cart"
+  },
+  "hero": {
+    "headline": "Welcome to our shop",
+    "cta": "Shop now"
+  },
+  "dates": {
+    "todayIs": "Today is {{date, datetime}}"
+  }
+}
