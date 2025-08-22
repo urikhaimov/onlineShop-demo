@@ -12,22 +12,25 @@ import {
   Typography,
   MenuItem,
 } from '@mui/material';
-import { useForm, useFieldArray } from 'react-hook-form';
 import { Add, Delete } from '@mui/icons-material';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+import { LandingPageData, HOMEPAGE_LAYOUTS } from '@common/types';
+import { footerHeight, headerHeight } from '../../../config/themeConfig';
+import { PageLayout } from '../../../layouts/page.layout';
+import FormTextField from '../../../components/FormTextField';
+import PictureUploaderWithCrop from '../../../components/PictureUploaderWithCrop';
 
 import {
   useLandingPage,
   useUpdateLandingPage,
 } from '../../../hooks/useLandingPage';
-import { LandingPageData } from '../../../types/landing';
-import { footerHeight, headerHeight } from '../../../config/themeConfig';
-import { HOMEPAGE_LAYOUTS } from '@common/types';
-import FormTextField from '../../../components/FormTextField';
 import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../../services/ability.service';
-import { PageLayout } from '../../../layouts/page.layout';
+import { storage } from '../../../firebase';
 
 export default function AdminLandingPage() {
   const { data, isLoading, isError } = useLandingPage();
@@ -37,15 +40,16 @@ export default function AdminLandingPage() {
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { isDirty, isSubmitting, errors },
   } = useForm<LandingPageData>({
     defaultValues: {
       title: '',
       subtitle: '',
-      bannerImageUrl: '',
+      bannerImageUrl: '', // kept in form state (no visible input)
       ctaButtonText: '',
       ctaButtonLink: '',
-      homepageLayout: HOMEPAGE_LAYOUTS.Hero, // ✅ Added
+      homepageLayout: HOMEPAGE_LAYOUTS.Hero,
       sections: [],
     },
   });
@@ -54,12 +58,29 @@ export default function AdminLandingPage() {
     control,
     name: 'sections',
   });
-
   const [toastOpen, setToastOpen] = useState(false);
 
   useEffect(() => {
     if (data) reset(data);
   }, [data, reset]);
+
+  const uploadBannerToStorage = async (file: File): Promise<string> => {
+    const objectRef = ref(storage, `landing/banner_${Date.now()}.jpg`);
+    await uploadBytes(objectRef, file, { contentType: file.type });
+    return await getDownloadURL(objectRef);
+  };
+
+  const handleBannerCropUpload = async (file: File) => {
+    const url = await uploadBannerToStorage(file);
+    setValue('bannerImageUrl', url, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleDeleteBanner = () => {
+    setValue('bannerImageUrl', '', { shouldDirty: true, shouldValidate: true });
+  };
 
   const onSubmit = async (formData: LandingPageData) => {
     try {
@@ -105,6 +126,17 @@ export default function AdminLandingPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2}>
+              {/* Banner uploader (replaces manual URL input) */}
+              <Stack spacing={1}>
+                <Typography variant="subtitle2">Banner image</Typography>
+                <PictureUploaderWithCrop
+                  avatarUrl={(data?.bannerImageUrl ?? '') || undefined}
+                  onCropUpload={handleBannerCropUpload}
+                  onDeleteAvatar={handleDeleteBanner}
+                  disabled={saving}
+                />
+              </Stack>
+
               <FormTextField
                 label="Title"
                 name="title"
@@ -113,6 +145,7 @@ export default function AdminLandingPage() {
                 required
                 disabled={saving}
               />
+
               <FormTextField
                 label="Subtitle"
                 name="subtitle"
@@ -120,13 +153,7 @@ export default function AdminLandingPage() {
                 errorObject={errors.subtitle}
                 disabled={saving}
               />
-              <FormTextField
-                label="Banner Image URL"
-                name="bannerImageUrl"
-                control={control}
-                errorObject={errors.bannerImageUrl}
-                disabled={saving}
-              />
+
               <FormTextField
                 label="CTA Button Text"
                 name="ctaButtonText"
@@ -134,6 +161,7 @@ export default function AdminLandingPage() {
                 errorObject={errors.ctaButtonText}
                 disabled={saving}
               />
+
               <FormTextField
                 label="CTA Button Link"
                 name="ctaButtonLink"
@@ -142,18 +170,19 @@ export default function AdminLandingPage() {
                 disabled={saving}
               />
 
-              {/* ✅ Layout Selector */}
+              {/* Layout Selector */}
               <FormTextField
                 label="Homepage Layout"
                 name="homepageLayout"
                 control={control}
                 select
-                errorObject={errors.homepageLayout}
+                errorObject={errors.homepageLayout as any}
                 disabled={saving}
               >
-                {Object.values(HOMEPAGE_LAYOUTS).map((layout) => (
+                {(Object.values(HOMEPAGE_LAYOUTS) as string[]).map((layout) => (
                   <MenuItem key={layout} value={layout}>
-                    {layout.charAt(0).toUpperCase() + layout.slice(1)}
+                    {String(layout).charAt(0).toUpperCase() +
+                      String(layout).slice(1)}
                   </MenuItem>
                 ))}
               </FormTextField>
@@ -178,14 +207,14 @@ export default function AdminLandingPage() {
                       label="Section Title"
                       name={`sections.${index}.title`}
                       control={control}
-                      errorObject={errors.sections?.[index]?.title}
+                      errorObject={errors.sections?.[index]?.title as any}
                       disabled={saving}
                     />
                     <FormTextField
                       label="Section Content"
                       name={`sections.${index}.content`}
                       control={control}
-                      errorObject={errors.sections?.[index]?.content}
+                      errorObject={errors.sections?.[index]?.content as any}
                       multiline
                       rows={3}
                       disabled={saving}
