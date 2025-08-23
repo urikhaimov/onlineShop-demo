@@ -1,5 +1,7 @@
+// src/pages/admin/orders/components/OrderSummaryCard.tsx
 import React from 'react';
 import { Paper, Typography, Divider, Box, Chip } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   order: {
@@ -24,23 +26,30 @@ interface Props {
 }
 
 export default function OrderSummaryCard({ order }: Props) {
+  const { t } = useTranslation();
+
   const items = order.items ?? [];
   const subtotal = items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
 
-  const paymentStatus = order.payment?.status ?? 'unpaid';
-  const paymentColor = paymentStatus === 'paid' ? 'success' : 'warning';
+  // Narrow to the union so Chip color can be typed precisely
+  const paymentStatus: 'paid' | 'unpaid' =
+    order.payment?.status === 'paid' ? 'paid' : 'unpaid';
+  const paymentColor: 'success' | 'warning' =
+    paymentStatus === 'paid' ? 'success' : 'warning';
 
   return (
     <Paper sx={{ p: 2, mb: 2 }}>
       <Typography variant="h6" gutterBottom>
-        Order Summary
+        {t('orderSummary.title', { defaultValue: 'Order Summary' })}
       </Typography>
 
       <Box sx={{ mb: 1 }}>
-        <Typography variant="subtitle2">Subtotal:</Typography>
+        <Typography variant="subtitle2">
+          {t('orderSummary.subtotal', { defaultValue: 'Subtotal' })}:
+        </Typography>
         <Typography>${subtotal.toFixed(2)}</Typography>
       </Box>
 
@@ -48,7 +57,9 @@ export default function OrderSummaryCard({ order }: Props) {
         <>
           <Divider sx={{ my: 1 }} />
           <Box sx={{ mb: 1 }}>
-            <Typography variant="subtitle2">Customer:</Typography>
+            <Typography variant="subtitle2">
+              {t('orderSummary.customer', { defaultValue: 'Customer' })}:
+            </Typography>
             <Typography>{order.shippingAddress.fullName || '—'}</Typography>
             <Typography variant="body2">
               {order.shippingAddress.phone || '—'}
@@ -57,7 +68,12 @@ export default function OrderSummaryCard({ order }: Props) {
 
           <Divider sx={{ my: 1 }} />
           <Box sx={{ mb: 1 }}>
-            <Typography variant="subtitle2">Shipping Address:</Typography>
+            <Typography variant="subtitle2">
+              {t('orderSummary.shippingAddress', {
+                defaultValue: 'Shipping Address',
+              })}
+              :
+            </Typography>
             <Typography variant="body2">
               {order.shippingAddress.street || ''},{' '}
               {order.shippingAddress.city || ''},{' '}
@@ -72,18 +88,25 @@ export default function OrderSummaryCard({ order }: Props) {
         <>
           <Divider sx={{ my: 1 }} />
           <Box sx={{ mb: 1 }}>
-            <Typography variant="subtitle2">Payment:</Typography>
+            <Typography variant="subtitle2">
+              {t('orderSummary.payment', { defaultValue: 'Payment' })}:
+            </Typography>
             <Typography variant="body2">
-              {order.payment.method || 'N/A'}
+              {order.payment.method ||
+                t('orderSummary.na', { defaultValue: 'N/A' })}
             </Typography>
             <Chip
-              label={paymentStatus.toUpperCase()}
+              label={t(`orderSummary.paymentStatus.${paymentStatus}`, {
+                defaultValue: paymentStatus.toUpperCase(),
+              })}
               color={paymentColor}
               size="small"
+              sx={{ mt: 0.5 }}
             />
             {order.payment.transactionId && (
               <Typography variant="caption" display="block">
-                Tx: {order.payment.transactionId}
+                {t('orderSummary.tx', { defaultValue: 'Tx' })}:{' '}
+                {order.payment.transactionId}
               </Typography>
             )}
           </Box>

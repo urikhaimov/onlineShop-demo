@@ -1,3 +1,4 @@
+// src/pages/admin/orders/components/OrderItemsTable.tsx
 import React from 'react';
 import {
   Table,
@@ -9,8 +10,8 @@ import {
   Paper,
   TableContainer,
   Avatar,
-  Box,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 export interface OrderItem {
   productId: string;
@@ -21,10 +22,12 @@ export interface OrderItem {
 }
 
 interface Props {
-  items?: OrderItem[]; // ✅ optional for safety
+  items?: OrderItem[];
 }
 
 export default function OrderItemsTable({ items = [] }: Props) {
+  const { t } = useTranslation();
+
   const total = items.reduce((sum, item) => {
     const price = Number(item.price || 0);
     const qty = Number(item.quantity || 0);
@@ -34,23 +37,33 @@ export default function OrderItemsTable({ items = [] }: Props) {
   return (
     <Paper sx={{ p: 2 }}>
       <Typography variant="h6" gutterBottom>
-        Order Items
+        {t('orderItems.title', { defaultValue: 'Order Items' })}
       </Typography>
 
       {items.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
-          No items in this order.
+          {t('orderItems.empty', { defaultValue: 'No items in this order.' })}
         </Typography>
       ) : (
         <TableContainer>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Image</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell align="right">Qty</TableCell>
-                <TableCell align="right">Price</TableCell>
-                <TableCell align="right">Subtotal</TableCell>
+                <TableCell>
+                  {t('orderItems.image', { defaultValue: 'Image' })}
+                </TableCell>
+                <TableCell>
+                  {t('orderItems.name', { defaultValue: 'Name' })}
+                </TableCell>
+                <TableCell align="right">
+                  {t('orderItems.qty', { defaultValue: 'Qty' })}
+                </TableCell>
+                <TableCell align="right">
+                  {t('orderItems.price', { defaultValue: 'Price' })}
+                </TableCell>
+                <TableCell align="right">
+                  {t('orderItems.subtotal', { defaultValue: 'Subtotal' })}
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -59,11 +72,19 @@ export default function OrderItemsTable({ items = [] }: Props) {
                   <TableCell>
                     <Avatar
                       src={item.image || ''}
-                      alt={item.name || 'No image'}
+                      alt={
+                        item.name ||
+                        t('orderItems.noImage', { defaultValue: 'No image' })
+                      }
                       variant="rounded"
                     />
                   </TableCell>
-                  <TableCell>{item.name || 'Unnamed Product'}</TableCell>
+                  <TableCell>
+                    {item.name ||
+                      t('orderItems.unnamed', {
+                        defaultValue: 'Unnamed Product',
+                      })}
+                  </TableCell>
                   <TableCell align="right">{item.quantity ?? 0}</TableCell>
                   <TableCell align="right">
                     ${Number(item.price).toFixed(2)}
@@ -75,7 +96,9 @@ export default function OrderItemsTable({ items = [] }: Props) {
               ))}
               <TableRow>
                 <TableCell colSpan={4} align="right">
-                  <strong>Total</strong>
+                  <strong>
+                    {t('orderItems.total', { defaultValue: 'Total' })}
+                  </strong>
                 </TableCell>
                 <TableCell align="right">
                   <strong>${total.toFixed(2)}</strong>

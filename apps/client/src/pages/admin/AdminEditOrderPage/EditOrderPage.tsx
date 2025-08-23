@@ -1,3 +1,4 @@
+// src/pages/admin/orders/EditOrderPage.tsx
 import React, { useEffect, useState } from 'react';
 import {
   Box,
@@ -27,6 +28,7 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../../services/ability.service';
+import { useTranslation } from 'react-i18next';
 
 const STATUS_OPTIONS = [
   'pending',
@@ -34,9 +36,10 @@ const STATUS_OPTIONS = [
   'shipped',
   'delivered',
   'cancelled',
-];
+] as const;
 
 export default function EditOrderPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const { data: order, isLoading, isError, error } = useOrder(id);
   const updateOrderMutation = useUpdateOrder(id);
@@ -78,7 +81,10 @@ export default function EditOrderPage() {
     return (
       <Box sx={{ p: 3 }}>
         <Typography color="error">
-          Error loading order: {error?.message}
+          {t('orderEdit.errorLoading', {
+            defaultValue: 'Error loading order: {{message}}',
+            message: error?.message,
+          })}
         </Typography>
       </Box>
     );
@@ -96,7 +102,10 @@ export default function EditOrderPage() {
         }}
       >
         <Typography variant="h5" gutterBottom>
-          Edit Order #{order?.id ?? ''}
+          {t('orderEdit.title', {
+            defaultValue: 'Edit Order #{{id}}',
+            id: order?.id ?? '',
+          })}
         </Typography>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -105,16 +114,16 @@ export default function EditOrderPage() {
             {/* Status */}
             <Paper sx={{ p: 2 }}>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
-                Order Status
+                {t('orderEdit.orderStatus', { defaultValue: 'Order Status' })}
               </Typography>
               <FormTextField
-                label="Status"
+                label={t('orderEdit.status', { defaultValue: 'Status' })}
                 name="status"
                 control={control}
                 errorObject={errors.status}
                 isSelect
                 selectOptions={STATUS_OPTIONS.map((value) => ({
-                  label: value.toUpperCase(),
+                  label: t(`status.${value}`, { defaultValue: value }),
                   value,
                 }))}
                 required
@@ -128,18 +137,22 @@ export default function EditOrderPage() {
             {/* Delivery */}
             <Paper sx={{ p: 2 }}>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
-                Delivery Information
+                {t('orderEdit.deliveryInfo', {
+                  defaultValue: 'Delivery Information',
+                })}
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <FormTextField
-                  label="Provider"
+                  label={t('orderEdit.provider', { defaultValue: 'Provider' })}
                   name="delivery.provider"
                   control={control}
                   errorObject={errors?.delivery?.provider}
                   fullWidth
                 />
                 <FormTextField
-                  label="Tracking Number"
+                  label={t('orderEdit.trackingNumber', {
+                    defaultValue: 'Tracking Number',
+                  })}
                   name="delivery.trackingNumber"
                   control={control}
                   errorObject={errors?.delivery?.trackingNumber}
@@ -148,7 +161,9 @@ export default function EditOrderPage() {
               </Stack>
               <Box mt={2}>
                 <FormTextField
-                  label="ETA (ISO or text)"
+                  label={t('orderEdit.eta', {
+                    defaultValue: 'ETA (ISO or text)',
+                  })}
                   name="delivery.eta"
                   control={control}
                   errorObject={errors?.delivery?.eta}
@@ -160,10 +175,12 @@ export default function EditOrderPage() {
             {/* Notes */}
             <Paper sx={{ p: 2 }}>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
-                Admin Notes
+                {t('orderEdit.adminNotes', { defaultValue: 'Admin Notes' })}
               </Typography>
               <FormTextField
-                label="Internal Notes"
+                label={t('orderEdit.internalNotes', {
+                  defaultValue: 'Internal Notes',
+                })}
                 name="notes"
                 control={control}
                 errorObject={errors.notes}
@@ -185,7 +202,7 @@ export default function EditOrderPage() {
                 {updateOrderMutation.status === 'pending' ? (
                   <CircularProgress size={24} />
                 ) : (
-                  'Save Changes'
+                  t('orderEdit.saveChanges', { defaultValue: 'Save Changes' })
                 )}
               </Button>
             </Box>
@@ -193,8 +210,7 @@ export default function EditOrderPage() {
 
           {/* RIGHT SIDEBAR */}
           <Stack flex={1} spacing={2}>
-            {order && <OrderSummaryCard order={order} />}{' '}
-            {/* ✅ Fixed warning */}
+            {order && <OrderSummaryCard order={order} />}
             <Divider />
             <OrderItemsTable items={order?.items ?? []} />
           </Stack>
@@ -206,7 +222,9 @@ export default function EditOrderPage() {
           onClose={() => setToastOpen(false)}
         >
           <Alert severity="success" onClose={() => setToastOpen(false)}>
-            Order updated successfully!
+            {t('orderEdit.success', {
+              defaultValue: 'Order updated successfully!',
+            })}
           </Alert>
         </Snackbar>
       </Box>

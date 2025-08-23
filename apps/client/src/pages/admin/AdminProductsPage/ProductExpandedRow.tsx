@@ -1,8 +1,10 @@
+// src/pages/ProductsPage/ProductExpandedRow.tsx
 import React from 'react';
 import { Box, Typography, CardMedia } from '@mui/material';
 import { format } from 'date-fns';
 import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
+import { useTranslation } from 'react-i18next';
 
 function asDate(value: unknown): Date | undefined {
   if (!value) return undefined;
@@ -30,6 +32,8 @@ type Props = {
 };
 
 const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
+  const { t } = useTranslation();
+
   const img =
     Array.isArray(product.images) && product.images.length > 0
       ? product.images[0]
@@ -42,10 +46,10 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
     asDate((product as any)?.updatedAt) ??
     asDate((product as any)?.metadata?.updatedAt);
 
-  // Optional fields coming from your editor / schema
+  // Optional fields from editor/schema
   const sku = (product as any)?.sku as string | undefined;
   const brand = (product as any)?.brand as string | undefined;
-  const description = (product as any)?.description as string | undefined; // HTML string
+  const description = (product as any)?.description as string | undefined; // HTML
   const attributes = (product as any)?.attributes as
     | Record<string, unknown>
     | undefined;
@@ -80,31 +84,42 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
       </Box>
 
       <Box>
-        <Typography variant="subtitle2">Pricing / Stock</Typography>
+        <Typography variant="subtitle2">
+          {t('productExpanded.pricingStock', {
+            defaultValue: 'Pricing / Stock',
+          })}
+        </Typography>
         <Typography variant="body2">
-          Price:{' '}
+          {t('productExpanded.price', { defaultValue: 'Price' })}:{' '}
           {typeof product.price === 'number'
             ? `$${product.price.toFixed(2)}`
             : '—'}
         </Typography>
         <Typography variant="body2">
-          Stock: {typeof product.stock === 'number' ? product.stock : '—'}
+          {t('productExpanded.stock', { defaultValue: 'Stock' })}:{' '}
+          {typeof product.stock === 'number' ? product.stock : '—'}
         </Typography>
-        {sku && <Typography variant="body2">SKU: {sku}</Typography>}
-        {brand && <Typography variant="body2">Brand: {brand}</Typography>}
+        {sku && (
+          <Typography variant="body2">
+            {t('productExpanded.sku', { defaultValue: 'SKU' })}: {sku}
+          </Typography>
+        )}
+        {brand && (
+          <Typography variant="body2">
+            {t('productExpanded.brand', { defaultValue: 'Brand' })}: {brand}
+          </Typography>
+        )}
       </Box>
 
       <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
         <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-          Description
+          {t('productExpanded.description', { defaultValue: 'Description' })}
         </Typography>
 
         {sanitizedDescription ? (
           <Box
-            // Render sanitized HTML
             dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
             sx={{
-              // Basic typography for editor HTML
               '& p': {
                 m: 0,
                 mb: 0.5,
@@ -125,7 +140,9 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
 
       {attributes && Object.keys(attributes).length > 0 && (
         <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
-          <Typography variant="subtitle2">Attributes</Typography>
+          <Typography variant="subtitle2">
+            {t('productExpanded.attributes', { defaultValue: 'Attributes' })}
+          </Typography>
           <Box component="ul" sx={{ pl: 3, my: 0 }}>
             {Object.entries(attributes).map(([k, v]) => (
               <li key={k}>
@@ -142,13 +159,17 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
       )}
 
       <Box>
-        <Typography variant="subtitle2">Created</Typography>
+        <Typography variant="subtitle2">
+          {t('productExpanded.created', { defaultValue: 'Created' })}
+        </Typography>
         <Typography variant="body2">
           {created ? format(created, 'PPpp') : '—'}
         </Typography>
       </Box>
       <Box>
-        <Typography variant="subtitle2">Updated</Typography>
+        <Typography variant="subtitle2">
+          {t('productExpanded.updated', { defaultValue: 'Updated' })}
+        </Typography>
         <Typography variant="body2">
           {updated ? format(updated, 'PPpp') : '—'}
         </Typography>

@@ -62,7 +62,9 @@
     "feedback": "משוב"
   },
   "validation": {
-    "name_required": "יש להזין שם."
+    "name_required": "יש להזין שם.",
+    "name_minLen": "השם חייב להכיל לפחות 2 תווים.",
+    "price_required": "יש להזין מחיר."
   },
   "filters": {
     "open": "מסננים",
@@ -95,7 +97,8 @@
     "status": "סטטוס",
     "count": "כמות",
     "denseMode": "מצב דחוס",
-    "created": "תאריך יצירה"
+    "created": "תאריך יצירה",
+    "image": "תמונה"
   },
   "sort": {
     "by": "מיון לפי",
@@ -192,6 +195,149 @@
   },
   "common": {
     "all": "הכול",
-    "apply": "החל"
+    "apply": "החל",
+    "saving": "שומר…"
+  },
+  "adminCategories": {
+    "fallbackName": "קטגוריה",
+    "imageAria": "תמונה של {{name}}",
+    "actions": {
+      "tooltipEdit": "עריכת {{name}}"
+    },
+    "confirm": {
+      "title": "למחוק קטגוריה?",
+      "description": "פעולה זו תמחק לצמיתות את {{name}}."
+    }
+  },
+  "adminCategoriesAddPage": {
+    "title": "הוספת קטגוריה חדשה",
+    "snackbarCreated": "הקטגוריה נוצרה",
+    "failedToCreateFallback": "נכשל ביצירת הקטגוריה."
+  },
+  "adminCategoriesPage": {
+    "title": "ניהול קטגוריות",
+    "add": "הוסף קטגוריה",
+    "snackbarDeleted": "הקטגוריה נמחקה בהצלחה",
+    "failedToDeleteFallback": "נכשל במחיקת הקטגוריה.",
+    "dialog": {
+      "title": "למחוק קטגוריה?",
+      "warning": "פעולה זו תמחק את הקטגוריה לצמיתות. לא ניתן לבטל.",
+      "confirm": "האם אתה בטוח שברצונך למחוק את הקטגוריה {{name}}?",
+      "cancel": "ביטול",
+      "delete": "מחיקה",
+      "deleting": "מוחק…"
+    }
+  },
+  "adminCategoriesEditPage": {
+    "title": "עריכת קטגוריה",
+    "snackbarUpdated": "הקטגוריה עודכנה",
+    "missingId": "חסר מזהה קטגוריה בכתובת ה־URL.",
+    "failedToUpdateFallback": "נכשל בעדכון הקטגוריה."
+  },
+  "adminCategoriesForm": {
+    "name": "שם",
+    "description": "תיאור",
+    "create": "יצירת קטגוריה",
+    "update": "עדכון קטגוריה"
+  },
+
+  "adminProductForm": {
+    "titleAdd": "הוספת מוצר חדש",
+    "titleEdit": "עריכת מוצר",
+    "name": "שם",
+    "description": "תיאור",
+    "price": "מחיר",
+    "stock": "מלאי",
+    "category": "קטגוריה",
+    "invalidCategory": "מזהה קטגוריה לא תקין: {{id}}",
+    "images": "תמונות מוצר",
+    "loading": "טוען מוצר או קטגוריות...",
+    "savedOk": "המוצר נשמר בהצלחה!",
+    "saveFailed": "שמירת המוצר נכשלה. בדקו את הקונסול לפרטים."
+  },
+  "productExpanded": {
+    "pricingStock": "תמחור / מלאי",
+    "price": "מחיר",
+    "stock": "מלאי",
+    "sku": "מק״ט",
+    "brand": "מותג",
+    "description": "תיאור",
+    "attributes": "מאפיינים",
+    "created": "נוצר",
+    "updated": "עודכן"
+  },
+  "status": {
+    "pending": "ממתין",
+    "confirmed": "אושר",
+    "shipped": "נשלח",
+    "delivered": "נמסר",
+    "cancelled": "בוטל"
+  },
+  "orderEdit": {
+    "title": "עריכת הזמנה #{{id}}",
+    "orderStatus": "סטטוס הזמנה",
+    "status": "סטטוס",
+    "deliveryInfo": "פרטי משלוח",
+    "provider": "ספק",
+    "trackingNumber": "מספר מעקב",
+    "eta": "זמן משוער (ISO או טקסט)",
+    "adminNotes": "הערות מנהל",
+    "internalNotes": "הערות פנימיות",
+    "saveChanges": "שמירת שינויים",
+    "success": "ההזמנה עודכנה בהצלחה!",
+    "errorLoading": "שגיאה בטעינת ההזמנה: {{message}}"
+  },
+  "orderSummary": {
+    "title": "סיכום הזמנה",
+    "subtotal": "סכום ביניים",
+    "customer": "לקוח",
+    "shippingAddress": "כתובת משלוח",
+    "payment": "תשלום",
+    "na": "לא זמין",
+    "tx": "מזהה עסקה",
+    "paymentStatus": {
+      "paid": "שולם",
+      "unpaid": "לא שולם"
+    }
+  },
+  "orderItems": {
+    "title": "פריטי הזמנה",
+    "empty": "אין פריטים בהזמנה זו.",
+    "image": "תמונה",
+    "name": "שם",
+    "qty": "כמות",
+    "price": "מחיר",
+    "subtotal": "סכום ביניים",
+    "total": "סה״כ",
+    "noImage": "ללא תמונה",
+    "unnamed": "מוצר ללא שם"
+  },
+  "layouts": {
+    "Hero": "הרואי",
+    "Showcase": "תצוגה",
+    "Grid": "רשת",
+    "Carousel": "קרוסלה"
+  },
+  "adminLanding": {
+    "title": "עריכת דף נחיתה",
+    "failedToLoad": "נכשל בטעינת נתוני דף הנחיתה.",
+    "form": {
+      "title": "כותרת",
+      "subtitle": "כותרת משנה",
+      "bannerImageUrl": "כתובת תמונת באנר",
+      "ctaText": "טקסט לחצן קריאה לפעולה",
+      "ctaLink": "קישור לחצן קריאה לפעולה",
+      "homepageLayout": "פריסת דף הבית"
+    },
+    "sections": {
+      "title": "מקטעים",
+      "sectionTitle": "כותרת מקטע",
+      "sectionContent": "תוכן מקטע",
+      "add": "הוסף מקטע",
+      "remove": "הסר מקטע"
+    },
+    "toast": {
+      "updated": "דף הנחיתה עודכן בהצלחה!"
+    }
   }
 }

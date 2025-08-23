@@ -1,11 +1,10 @@
+// src/pages/admin/ProductFormPage.tsx
 import React, { useEffect, useRef } from 'react';
 import { Box, Typography, Paper, Stack, Button } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import ReactQuill from 'react-quill';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
-import { storage } from '../../../firebase';
 import { useProduct } from '../../../hooks/useProduct';
 import { useCategories } from '../../../hooks/useCategories';
 import { useSaveProductMutation } from '../../../hooks/useSaveProductMutation';
@@ -21,6 +20,7 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../../services/ability.service';
+import { useTranslation } from 'react-i18next';
 
 export type FormState = {
   name: string;
@@ -31,18 +31,16 @@ export type FormState = {
 };
 
 export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
+  const { t } = useTranslation();
   const saveMutation = useSaveProductMutation();
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
-  const hasResetOnce = useRef(false);
 
   const {
-    product,
     combinedImages,
     isUploadingImages,
     categories,
     deletedImageIds,
-    ready,
     setProduct,
     setCombinedImages,
     setUploadingImages,
@@ -62,7 +60,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     handleSubmit,
     control,
     reset,
-    watch,
     formState: { isSubmitting, errors },
   } = useForm<FormState>({
     defaultValues: {
@@ -76,21 +73,51 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
   const watchedCategoryId = useWatch({ control, name: 'categoryId' });
 
-  const isReady =
-    mode === 'add'
-      ? !categoriesLoading
-      : !productLoading &&
-        !categoriesLoading &&
-        productData &&
-        categoryData.length > 0;
-
+  // ---------- GUARD 1: Only push categories to the store when they actually change ----------
+  const prevCatSigRef = useRef<string>('');
   useEffect(() => {
-    setCategories(categoryData);
+    // Build a light signature that stays stable if categories didn't change
+    const sig = JSON.stringify(categoryData.map((c) => c.id));
+    if (sig !== prevCatSigRef.current) {
+      setCategories(categoryData);
+      prevCatSigRef.current = sig;
+    }
   }, [categoryData, setCategories]);
 
+  // ---------- GUARD 2: Bootstrap form once per productId ----------
+  const bootstrappedForIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!productData || categoryData.length === 0 || hasResetOnce.current)
+    if (mode === 'add') {
+      // For "add" we only mark ready once
+      if (bootstrappedForIdRef.current !== 'add') {
+        reset({
+          name: '',
+          description: '',
+          price: '',
+          stock: '',
+          categoryId: '',
+        });
+        setCombinedImages([]);
+        setProduct(undefined as any); // or leave undefined if your store expects it
+        setReady(true);
+        bootstrappedForIdRef.current = 'add';
+      }
       return;
+    }
+
+    // Edit mode bootstrap
+    if (
+      !productId ||
+      productLoading ||
+      categoriesLoading ||
+      !productData ||
+      categoryData.length === 0
+    ) {
+      return;
+    }
+
+    // Ensure we don't keep re-seeding on every render
+    if (bootstrappedForIdRef.current === productId) return;
 
     const {
       name = '',
@@ -108,24 +135,31 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     reset({
       name,
       description,
-      price: price.toString(),
-      stock: stock.toString(),
+      price: String(price ?? ''),
+      stock: String(stock ?? ''),
       categoryId: validCategoryId,
     });
 
     const formattedImages: CombinedImage[] = Array.isArray(images)
-      ? images.map((url) => ({
-          id: `existing-${url}`,
-          url,
-          type: 'existing',
-        }))
+      ? images.map((url) => ({ id: `existing-${url}`, url, type: 'existing' }))
       : [];
 
     setProduct(productData);
     setCombinedImages(formattedImages);
     setReady(true);
-    hasResetOnce.current = true;
-  }, [productData, categoryData]);
+    bootstrappedForIdRef.current = productId;
+  }, [
+    mode,
+    productId,
+    productLoading,
+    categoriesLoading,
+    productData,
+    categoryData,
+    reset,
+    setProduct,
+    setCombinedImages,
+    setReady,
+  ]);
 
   const handleImageDrop = (files: File[]) => {
     const timestamp = Date.now();
@@ -143,7 +177,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     try {
       setUploadingImages(true);
 
-      const payload = {
+      await saveMutation.mutateAsync({
         productId,
         mode,
         data: {
@@ -153,24 +187,39 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
         },
         images: combinedImages,
         deletedImageIds,
-      };
+      });
 
-      await saveMutation.mutateAsync(payload);
-
-      alert('✅ Product saved successfully!');
+      alert(
+        t('adminProductForm.savedOk', {
+          defaultValue: 'Product saved successfully!',
+        }),
+      );
       navigate('/admin/products');
     } catch (err) {
       console.error('❌ Failed to save product:', err);
-      alert('Failed to save product. Check console for details.');
+      alert(
+        t('adminProductForm.saveFailed', {
+          defaultValue: 'Failed to save product. Check console for details.',
+        }),
+      );
     } finally {
       setUploadingImages(false);
     }
   };
 
+  const isReady =
+    mode === 'add'
+      ? !categoriesLoading
+      : !productLoading && !categoriesLoading && !!productData;
+
   if (!isReady) {
     return (
       <Box p={3}>
-        <Typography>Loading product or categories...</Typography>
+        <Typography>
+          {t('adminProductForm.loading', {
+            defaultValue: 'Loading product or categories...',
+          })}
+        </Typography>
       </Box>
     );
   }
@@ -199,14 +248,24 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
           }}
         >
           <Typography variant="h5" mb={3}>
-            {mode === 'add' ? 'Add New Product' : 'Edit Product'}
+            {mode === 'add'
+              ? t('adminProductForm.titleAdd', {
+                  defaultValue: 'Add New Product',
+                })
+              : t('adminProductForm.titleEdit', {
+                  defaultValue: 'Edit Product',
+                })}
           </Typography>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={3}>
               <FormTextField
-                label="Name"
-                register={register('name', { required: 'Name is required' })}
+                label={t('adminProductForm.name', { defaultValue: 'Name' })}
+                register={register('name', {
+                  required: t('validation.name_required', {
+                    defaultValue: 'Name is required.',
+                  }) as string,
+                })}
                 errorObject={errors.name}
               />
 
@@ -217,7 +276,9 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 render={({ field }) => (
                   <Box>
                     <Typography variant="subtitle1" mb={1}>
-                      Description
+                      {t('adminProductForm.description', {
+                        defaultValue: 'Description',
+                      })}
                     </Typography>
                     <Box
                       sx={{
@@ -255,16 +316,18 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <FormTextField
-                  label="Price"
+                  label={t('adminProductForm.price', { defaultValue: 'Price' })}
                   type="number"
                   fullWidth
                   register={register('price', {
-                    required: 'Price is required',
+                    required: t('validation.price_required', {
+                      defaultValue: 'Price is required.',
+                    }) as string,
                   })}
                   errorObject={errors.price}
                 />
                 <FormTextField
-                  label="Stock"
+                  label={t('adminProductForm.stock', { defaultValue: 'Stock' })}
                   type="number"
                   fullWidth
                   register={register('stock')}
@@ -273,7 +336,9 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
               </Stack>
 
               <FormTextField
-                label="Category"
+                label={t('adminProductForm.category', {
+                  defaultValue: 'Category',
+                })}
                 name="categoryId"
                 control={control}
                 errorObject={errors.categoryId}
@@ -288,13 +353,16 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
               {!categories.some((c) => c.id === watchedCategoryId) &&
                 watchedCategoryId && (
                   <Typography color="error">
-                    ⚠️ Invalid category ID: {watchedCategoryId}
+                    {t('adminProductForm.invalidCategory', {
+                      id: watchedCategoryId,
+                      defaultValue: 'Invalid category ID: {{id}}',
+                    })}
                   </Typography>
                 )}
 
               <Box>
                 <Typography variant="subtitle1" mb={1}>
-                  Product Images
+                  {t('adminProductForm.images')}
                 </Typography>
                 <ImageUploader
                   images={combinedImages}
@@ -308,14 +376,15 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                         imageToDelete.id.replace('existing-', ''),
                       );
                     }
-
                     setCombinedImages(
                       combinedImages.filter((img) => img.id !== id),
                     );
                   }}
                   onReorderAll={(newOrder) => setCombinedImages(newOrder)}
                   showSnackbar={false}
-                  onCloseSnackbar={() => false}
+                  onCloseSnackbar={() => {
+                    //todo
+                  }}
                 />
               </Box>
 
@@ -325,7 +394,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   variant="contained"
                   disabled={isSubmitting || isUploadingImages}
                 >
-                  Save
+                  {t('actions.save', { defaultValue: 'Save' })}
                 </Button>
               </Box>
             </Stack>

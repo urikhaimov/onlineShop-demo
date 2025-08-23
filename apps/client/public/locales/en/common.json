@@ -62,7 +62,9 @@
     "feedback": "Feedback"
   },
   "validation": {
-    "name_required": "Name is required."
+    "name_required": "Name is required.",
+    "name_minLen": "Name must be at least 2 characters.",
+    "price_required": "Price is required."
   },
   "filters": {
     "open": "Filters",
@@ -95,7 +97,8 @@
     "status": "Status",
     "count": "Count",
     "denseMode": "Dense mode",
-    "created": "Created"
+    "created": "Created",
+    "image": "Image"
   },
   "sort": {
     "by": "Sort By",
@@ -192,6 +195,151 @@
   },
   "common": {
     "all": "All",
-    "apply": "Apply"
+    "apply": "Apply",
+    "saving": "Saving…"
+  },
+  "adminCategories": {
+    "fallbackName": "Category",
+    "imageAria": "{{name}} image",
+    "actions": {
+      "tooltipEdit": "Edit {{name}}"
+    },
+    "confirm": {
+      "title": "Delete category?",
+      "description": "This will permanently delete {{name}}."
+    }
+  },
+
+  "adminCategoriesPage": {
+    "title": "Manage Categories",
+    "add": "Add Category",
+    "snackbarDeleted": "Category deleted successfully",
+    "failedToDeleteFallback": "Failed to delete category.",
+    "dialog": {
+      "title": "Delete category?",
+      "warning": "This will permanently delete the category. This action cannot be undone.",
+      "confirm": "Are you sure you want to delete category {{name}}?",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "deleting": "Deleting…"
+    }
+  },
+
+  "adminCategoriesAddPage": {
+    "title": "Add New Category",
+    "snackbarCreated": "Category created",
+    "failedToCreateFallback": "Failed to create category."
+  },
+
+  "adminCategoriesEditPage": {
+    "title": "Edit Category",
+    "snackbarUpdated": "Category updated",
+    "missingId": "Missing category ID in URL.",
+    "failedToUpdateFallback": "Failed to update category."
+  },
+  "adminCategoriesForm": {
+    "name": "Name",
+    "description": "Description",
+    "create": "Create Category",
+    "update": "Update Category"
+  },
+  "adminProductForm": {
+    "titleAdd": "Add New Product",
+    "titleEdit": "Edit Product",
+    "name": "Name",
+    "description": "Description",
+    "price": "Price",
+    "stock": "Stock",
+    "category": "Category",
+    "invalidCategory": "Invalid category ID: {{id}}",
+    "images": "Product Images",
+    "loading": "Loading product or categories...",
+    "savedOk": "Product saved successfully!",
+    "saveFailed": "Failed to save product. Check console for details."
+  },
+  "productExpanded": {
+    "pricingStock": "Pricing / Stock",
+    "price": "Price",
+    "stock": "Stock",
+    "sku": "SKU",
+    "brand": "Brand",
+    "description": "Description",
+    "attributes": "Attributes",
+    "created": "Created",
+    "updated": "Updated"
+  },
+  "status": {
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "shipped": "Shipped",
+    "delivered": "Delivered",
+    "cancelled": "Cancelled"
+  },
+  "orderEdit": {
+    "title": "Edit Order #{{id}}",
+    "orderStatus": "Order Status",
+    "status": "Status",
+    "deliveryInfo": "Delivery Information",
+    "provider": "Provider",
+    "trackingNumber": "Tracking Number",
+    "eta": "ETA (ISO or text)",
+    "adminNotes": "Admin Notes",
+    "internalNotes": "Internal Notes",
+    "saveChanges": "Save Changes",
+    "success": "Order updated successfully!",
+    "errorLoading": "Error loading order: {{message}}"
+  },
+  "orderSummary": {
+    "title": "Order Summary",
+    "subtotal": "Subtotal",
+    "customer": "Customer",
+    "shippingAddress": "Shipping Address",
+    "payment": "Payment",
+    "na": "N/A",
+    "tx": "Tx",
+    "paymentStatus": {
+      "paid": "PAID",
+      "unpaid": "UNPAID"
+    }
+  },
+  "orderItems": {
+    "title": "Order Items",
+    "empty": "No items in this order.",
+    "image": "Image",
+    "name": "Name",
+    "qty": "Qty",
+    "price": "Price",
+    "subtotal": "Subtotal",
+    "total": "Total",
+    "noImage": "No image",
+    "unnamed": "Unnamed Product"
+  },
+  "layouts": {
+    "Hero": "Hero",
+    "Showcase": "Showcase",
+    "Grid": "Grid",
+    "Carousel": "Carousel"
+  },
+  "adminLanding": {
+    "title": "Edit Landing Page",
+    "failedToLoad": "Failed to load landing page data.",
+    "form": {
+      "title": "Title",
+      "subtitle": "Subtitle",
+      "bannerImageUrl": "Banner Image URL",
+      "ctaText": "CTA Button Text",
+      "ctaLink": "CTA Button Link",
+      "homepageLayout": "Homepage Layout"
+    },
+    "sections": {
+      "title": "Sections",
+      "sectionTitle": "Section Title",
+      "sectionContent": "Section Content",
+      "add": "Add Section",
+      "remove": "Remove section"
+    },
+    "toast": {
+      "updated": "Landing page updated successfully!"
+    }
   }
 }

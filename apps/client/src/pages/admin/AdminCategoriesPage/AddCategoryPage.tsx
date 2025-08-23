@@ -1,4 +1,3 @@
-// src/pages/admin/AddCategoryPage.tsx
 import React, { useState } from 'react';
 import { Box, Typography, Snackbar, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +7,7 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../../services/ability.service';
+import { useTranslation } from 'react-i18next';
 
 // 🔥 Firestore version — replace with your NestJS/REST call if not using Firestore
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
@@ -20,6 +20,7 @@ type CategoryFormValues = {
 };
 
 export default function AddCategoryPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [okOpen, setOkOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -39,7 +40,12 @@ export default function AddCategoryPage() {
       // Go back to the list shortly after success
       setTimeout(() => navigate('/admin/categories'), 300);
     } catch (e: any) {
-      setErr(e?.message ?? 'Failed to create category');
+      setErr(
+        e?.message ??
+          t('adminCategoriesAddPage.failedToCreateFallback', {
+            defaultValue: 'Failed to create category.',
+          }),
+      );
     }
   };
 
@@ -47,12 +53,14 @@ export default function AddCategoryPage() {
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
       <Box px={2} py={3}>
         <Typography variant="h5" fontWeight="bold" gutterBottom>
-          Add New Category
+          {t('adminCategoriesAddPage.title', {
+            defaultValue: 'Add New Category',
+          })}
         </Typography>
 
         <CategoryForm
-          mode="create" // ✅ use "create", not "add"
-          initial={{ name: '', description: '', imageUrl: '' }} // optional defaults
+          mode="create"
+          initial={{ name: '', description: '', imageUrl: '' }}
           onSubmit={handleSubmit}
         />
 
@@ -64,7 +72,9 @@ export default function AddCategoryPage() {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="success" variant="filled">
-            Category created
+            {t('adminCategoriesAddPage.snackbarCreated', {
+              defaultValue: 'Category created',
+            })}
           </Alert>
         </Snackbar>
 

@@ -1,4 +1,3 @@
-// src/pages/admin/AdminCategoriesPage.tsx
 import React, { useMemo, useState } from 'react';
 import {
   Box,
@@ -32,8 +31,10 @@ import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync'
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import CategoryExpandedRow from './CategoryExpandedRow';
+import { useTranslation } from 'react-i18next';
 
 export default function AdminCategoriesPage() {
+  const { t } = useTranslation();
   const { sorting, setSorting, columnFilters, setColumnFilters } =
     useCategoryTableStore();
 
@@ -79,7 +80,11 @@ export default function AdminCategoriesPage() {
       } else if (typeof err === 'string') {
         setDeleteError(err);
       } else {
-        setDeleteError('Failed to delete category.');
+        setDeleteError(
+          t('adminCategoriesPage.failedToDeleteFallback', {
+            defaultValue: 'Failed to delete category.',
+          }),
+        );
       }
     } finally {
       setDeleting(false);
@@ -96,14 +101,16 @@ export default function AdminCategoriesPage() {
           mb={2}
         >
           <Typography variant="h5" fontWeight="bold">
-            Manage Categories
+            {t('adminCategoriesPage.title', {
+              defaultValue: 'Manage Categories',
+            })}
           </Typography>
           <Button
             variant="contained"
             color="primary"
             onClick={() => navigate('/admin/categories/add')}
           >
-            Add Category
+            {t('adminCategoriesPage.add', { defaultValue: 'Add Category' })}
           </Button>
         </Box>
 
@@ -119,7 +126,6 @@ export default function AdminCategoriesPage() {
           onColumnFiltersChange={setColumnFilters}
           enableSorting
           enableColumnFilters
-          // 👇 enable row expansion
           enableRowExpansion
           renderExpandedRow={(category) => (
             <CategoryExpandedRow category={category} />
@@ -134,7 +140,9 @@ export default function AdminCategoriesPage() {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="success" variant="filled">
-            Category deleted successfully
+            {t('adminCategoriesPage.snackbarDeleted', {
+              defaultValue: 'Category deleted successfully',
+            })}
           </Alert>
         </Snackbar>
 
@@ -145,16 +153,25 @@ export default function AdminCategoriesPage() {
           maxWidth="xs"
           fullWidth
         >
-          <DialogTitle>Delete category?</DialogTitle>
+          <DialogTitle>
+            {t('adminCategoriesPage.dialog.title', {
+              defaultValue: 'Delete category?',
+            })}
+          </DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
               <Alert severity="warning" variant="outlined">
-                This will permanently delete the category. This action cannot be
-                undone.
+                {t('adminCategoriesPage.dialog.warning', {
+                  defaultValue:
+                    'This will permanently delete the category. This action cannot be undone.',
+                })}
               </Alert>
               <Typography variant="body2">
-                Are you sure you want to delete category{' '}
-                <strong>{toDelete?.name ?? toDelete?.id}</strong>?
+                {t('adminCategoriesPage.dialog.confirm', {
+                  name: toDelete?.name ?? toDelete?.id,
+                  defaultValue:
+                    'Are you sure you want to delete category {{name}}?',
+                })}
               </Typography>
               {deleteError && (
                 <Alert severity="error" variant="filled">
@@ -169,7 +186,9 @@ export default function AdminCategoriesPage() {
               disabled={deleting}
               variant="text"
             >
-              Cancel
+              {t('adminCategoriesPage.dialog.cancel', {
+                defaultValue: 'Cancel',
+              })}
             </Button>
             <Button
               onClick={handleConfirmDelete}
@@ -177,7 +196,13 @@ export default function AdminCategoriesPage() {
               color="error"
               variant="contained"
             >
-              {deleting ? 'Deleting…' : 'Delete'}
+              {deleting
+                ? t('adminCategoriesPage.dialog.deleting', {
+                    defaultValue: 'Deleting…',
+                  })
+                : t('adminCategoriesPage.dialog.delete', {
+                    defaultValue: 'Delete',
+                  })}
             </Button>
           </DialogActions>
         </Dialog>

@@ -1,4 +1,3 @@
-// src/pages/admin/EditCategoryPage.tsx
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, Snackbar, Alert } from '@mui/material';
@@ -8,12 +7,14 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../../services/ability.service';
+import { useTranslation } from 'react-i18next';
 
 // 🔥 Firestore version — replace with your NestJS/REST call if not using Firestore
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 
 export default function EditCategoryPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -24,7 +25,9 @@ export default function EditCategoryPage() {
     return (
       <Box px={2} py={3}>
         <Typography variant="h6" color="error">
-          Missing category ID in URL.
+          {t('adminCategoriesEditPage.missingId', {
+            defaultValue: 'Missing category ID in URL.',
+          })}
         </Typography>
       </Box>
     );
@@ -46,7 +49,12 @@ export default function EditCategoryPage() {
       // Return to categories list (or stay on page—up to you)
       setTimeout(() => navigate('/admin/categories'), 300);
     } catch (e: any) {
-      setErr(e?.message ?? 'Failed to update category');
+      setErr(
+        e?.message ??
+          t('adminCategoriesEditPage.failedToUpdateFallback', {
+            defaultValue: 'Failed to update category.',
+          }),
+      );
     }
   };
 
@@ -54,7 +62,9 @@ export default function EditCategoryPage() {
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
       <Box px={2} py={3}>
         <Typography variant="h5" fontWeight="bold" gutterBottom>
-          Edit Category
+          {t('adminCategoriesEditPage.title', {
+            defaultValue: 'Edit Category',
+          })}
         </Typography>
 
         {/* CategoryForm handles loading existing values when mode="edit" + categoryId */}
@@ -68,7 +78,9 @@ export default function EditCategoryPage() {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="success" variant="filled">
-            Category updated
+            {t('adminCategoriesEditPage.snackbarUpdated', {
+              defaultValue: 'Category updated',
+            })}
           </Alert>
         </Snackbar>
 

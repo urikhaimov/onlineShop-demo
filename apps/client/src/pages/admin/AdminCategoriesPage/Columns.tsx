@@ -1,10 +1,12 @@
-// src/pages/admin/Columns.tsx (Categories)
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { NavigateFunction } from 'react-router-dom';
 import { Avatar, Box, Typography } from '@mui/material';
 import RowActions, { type RowAction } from '../../../components/RowActions';
 import type { TCategory as Category } from '@common/types';
+import i18n from 'i18next';
+
+const t = (k: string, o?: any) => i18n.t(k, o);
 
 export function defineCategoryColumns(
   navigate: NavigateFunction,
@@ -14,29 +16,37 @@ export function defineCategoryColumns(
     // 🖼 Image (thumbnail)
     {
       id: 'image',
-      header: 'Image',
+      header: t('table.image', { defaultValue: 'Image' }),
       enableSorting: false,
       enableColumnFilter: false,
       size: 72,
       meta: { sticky: 'left', align: 'left' },
       cell: ({ row }) => {
         const { imageUrl, name } = row.original;
+        const fallbackName =
+          name ??
+          t('adminCategories.fallbackName', { defaultValue: 'Category' });
+
         if (!imageUrl) {
           // fallback: avatar with initial
           return (
             <Avatar
               sx={{ width: 40, height: 40, fontWeight: 600 }}
-              aria-label={`${name ?? 'Category'} image`}
+              aria-label={t('adminCategories.imageAria', {
+                name: fallbackName,
+                defaultValue: '{{name}} image',
+              })}
             >
-              {(name ?? '?').charAt(0).toUpperCase()}
+              {fallbackName.charAt(0).toUpperCase()}
             </Avatar>
           );
         }
+
         return (
           <Box
             component="img"
             src={imageUrl}
-            alt={name ?? 'Category'}
+            alt={fallbackName}
             sx={{
               width: 48,
               height: 48,
@@ -53,7 +63,7 @@ export function defineCategoryColumns(
     // 📛 Name
     {
       accessorKey: 'name',
-      header: 'Name',
+      header: t('table.name', { defaultValue: 'Name' }),
       enableSorting: true,
       enableColumnFilter: true,
       meta: { align: 'left', filterVariant: 'text', sticky: 'left' },
@@ -65,12 +75,10 @@ export function defineCategoryColumns(
       ),
     },
 
-    // ❌ Description column removed (now shown in expanded row)
-
     // ⚙️ Actions
     {
       id: 'actions',
-      header: 'Actions',
+      header: t('table.actions', { defaultValue: 'Actions' }),
       enableSorting: false,
       enableColumnFilter: false,
       size: 170,
@@ -80,19 +88,28 @@ export function defineCategoryColumns(
         const actions: ReadonlyArray<RowAction<Category>> = [
           {
             id: 'edit',
-            label: 'Edit',
+            label: t('actions.edit', { defaultValue: 'Edit' }),
             onClick: (c) => navigate(`/admin/categories/edit/${c.id}`),
-            tooltip: (c) => `Edit ${c.name ?? c.id}`,
+            tooltip: (c) =>
+              t('adminCategories.actions.tooltipEdit', {
+                name: c.name ?? c.id,
+                defaultValue: 'Edit {{name}}',
+              }),
           },
           {
             id: 'delete',
-            label: 'Delete',
+            label: t('actions.delete', { defaultValue: 'Delete' }),
             danger: true,
             confirm: {
-              title: 'Delete category?',
+              title: t('adminCategories.confirm.title', {
+                defaultValue: 'Delete category?',
+              }),
               description: (c) =>
-                `This will permanently delete ${c.name ?? c.id}.`,
-              confirmText: 'Delete',
+                t('adminCategories.confirm.description', {
+                  name: c.name ?? c.id,
+                  defaultValue: 'This will permanently delete {{name}}.',
+                }),
+              confirmText: t('actions.delete', { defaultValue: 'Delete' }),
             },
             onClick: (c) => {
               if (onDelete) onDelete(c);
