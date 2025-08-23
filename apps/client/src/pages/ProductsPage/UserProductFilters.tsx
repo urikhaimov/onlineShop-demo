@@ -1,4 +1,5 @@
-import React from 'react';
+import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   TextField,
   MenuItem,
@@ -30,6 +31,7 @@ export default function UserProductFilters({
   onClose,
   closeOnChange = false,
 }: Props) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // show Apply on mobile
 
@@ -83,7 +85,10 @@ export default function UserProductFilters({
     <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, py: 1 }}>
       {/* Search */}
       <TextField
-        label="Search"
+        label={t('actions.searchPlaceholder', { defaultValue: 'Search…' })}
+        placeholder={t('actions.searchPlaceholder', {
+          defaultValue: 'Search…',
+        })}
         size="small"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
@@ -93,7 +98,7 @@ export default function UserProductFilters({
 
       {/* Category */}
       <TextField
-        label="Category"
+        label={t('table.category', { defaultValue: 'Category' })}
         select
         size="small"
         value={selectedCategoryId}
@@ -103,7 +108,7 @@ export default function UserProductFilters({
         }}
         fullWidth
       >
-        <MenuItem value="">All</MenuItem>
+        <MenuItem value="">{t('common.all', { defaultValue: 'All' })}</MenuItem>
         {categories.map((c) => (
           <MenuItem key={c.id} value={c.id}>
             {c.name}
@@ -114,13 +119,13 @@ export default function UserProductFilters({
       {/* Updated From / To */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
         <DatePicker
-          label="Updated From"
+          label={t('filters.updatedFrom', { defaultValue: 'Updated From' })}
           value={updatedFrom ?? null}
           onChange={onUpdatedFromChange}
           slotProps={{ textField: { fullWidth: true, size: 'small' } }}
         />
         <DatePicker
-          label="Updated To"
+          label={t('filters.updatedTo', { defaultValue: 'Updated To' })}
           value={updatedTo ?? null}
           onChange={onUpdatedToChange}
           slotProps={{ textField: { fullWidth: true, size: 'small' } }}
@@ -129,7 +134,7 @@ export default function UserProductFilters({
 
       {/* Price range */}
       <RangeFilterSlider
-        label="Price range"
+        label={t('filters.priceRange', { defaultValue: 'Price range' })}
         min={PRICE_MIN}
         max={PRICE_MAX}
         step={50}
@@ -147,7 +152,7 @@ export default function UserProductFilters({
 
       {/* Stock range */}
       <RangeFilterSlider
-        label="Stock range"
+        label={t('filters.stockRange', { defaultValue: 'Stock range' })}
         min={STOCK_MIN}
         max={STOCK_MAX}
         step={1}
@@ -175,9 +180,11 @@ export default function UserProductFilters({
           setMaxStock(STOCK_MAX);
         }}
         onApply={handleApply}
-        showApply={isMobile} // set to true to always show
+        showApply={isMobile}
         size="small"
         minButtonWidth={120}
+        resetLabel={t('filters.reset', { defaultValue: 'Reset filters' })}
+        applyLabel={t('common.apply', { defaultValue: 'Apply' })}
       />
     </Stack>
   );

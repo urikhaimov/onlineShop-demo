@@ -8,12 +8,38 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "webpack-cli build",
-        "args": ["--node-env=production"]
+        "commands": [
+          {
+            "command": "webpack-cli build",
+            "args": ["--node-env=production"]
+          },
+          {
+            "command": "copyfiles -u 2 \"apps/api/src/i18n/**/*\" dist/apps/api/i18n"
+          }
+        ]
       },
       "configurations": {
         "development": {
-          "args": ["--node-env=development"]
+          "commands": [
+            {
+              "command": "webpack-cli build",
+              "args": ["--node-env=development"]
+            },
+            {
+              "command": "copyfiles -u 2 \"apps/api/src/i18n/**/*\" dist/apps/api/i18n"
+            }
+          ]
+        },
+        "production": {
+          "commands": [
+            {
+              "command": "webpack-cli build",
+              "args": ["--node-env=production"]
+            },
+            {
+              "command": "copyfiles -u 2 \"apps/api/src/i18n/**/*\" dist/apps/api/i18n"
+            }
+          ]
         }
       }
     },

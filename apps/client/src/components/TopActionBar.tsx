@@ -6,6 +6,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import TableRowsIcon from '@mui/icons-material/TableRows';
 import GridViewIcon from '@mui/icons-material/GridView';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../stores/useThemeStore';
 
 export type ViewMode = 'table' | 'cards';
@@ -41,6 +42,7 @@ export default function TopActionBar({
   leftSx,
   rightSx,
 }: Props) {
+  const { t } = useTranslation();
   const { themeSettings } = useThemeStore();
   const primaryColor = themeSettings?.primaryColor || '#1976d2';
 
@@ -59,7 +61,6 @@ export default function TopActionBar({
 
   const inactiveBtnSx: SxProps<Theme> = {
     ...baseBtnSx,
-    // give a subtle border tint using theme divider; you can swap to primaryColor if you want
     borderColor: 'divider',
   };
 
@@ -72,7 +73,7 @@ export default function TopActionBar({
       flexWrap="wrap"
       sx={{ minWidth: 0, ...sx }}
     >
-      {/* Left: Filters + Reset (uniform design/width) */}
+      {/* Left: Filters + Reset */}
       <Stack
         direction="row"
         gap={1}
@@ -87,7 +88,7 @@ export default function TopActionBar({
           disableElevation
           sx={inactiveBtnSx}
         >
-          Filters
+          {t('filters.open')}
         </Button>
 
         <Button
@@ -98,11 +99,11 @@ export default function TopActionBar({
           disableElevation
           sx={inactiveBtnSx}
         >
-          Reset filters
+          {t('filters.reset')}
         </Button>
       </Stack>
 
-      {/* Right: Table + Cards (selected = primaryColor) */}
+      {/* Right: Table + Cards */}
       <Stack
         direction="row"
         gap={1}
@@ -117,7 +118,7 @@ export default function TopActionBar({
           variant="outlined"
           sx={viewMode === 'table' ? activeBtnSx : inactiveBtnSx}
         >
-          Table
+          {t('view.table')}
         </Button>
 
         <Button
@@ -128,7 +129,7 @@ export default function TopActionBar({
           variant="outlined"
           sx={viewMode === 'cards' ? activeBtnSx : inactiveBtnSx}
         >
-          Cards
+          {t('view.cards')}
         </Button>
       </Stack>
     </Stack>

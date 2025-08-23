@@ -1,8 +1,8 @@
-// src/components/FiltersFooterActions.tsx
 import * as React from 'react';
 import { Box, Button, SxProps, Theme } from '@mui/material';
 import { darken } from '@mui/material/styles';
 import { useThemeStore } from '../stores/useThemeStore';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   onReset: () => void;
@@ -13,9 +13,9 @@ type Props = {
   minButtonWidth?: number; // default 120
   /** spacing on top; and custom sx for wrapper */
   sx?: SxProps<Theme>;
-  /** labels (i18n friendly) */
-  resetLabel?: string; // default 'Reset Filters'
-  applyLabel?: string; // default 'Apply'
+  /** labels (i18n friendly) — if provided, overrides i18n */
+  resetLabel?: string;
+  applyLabel?: string;
 };
 
 const BTN_SX: SxProps<Theme> = {
@@ -32,12 +32,16 @@ export default function FiltersFooterActions({
   size = 'small',
   minButtonWidth = 120,
   sx,
-  resetLabel = 'Reset Filters',
-  applyLabel = 'Apply',
+  resetLabel,
+  applyLabel,
 }: Props) {
+  const { t } = useTranslation();
   const { themeSettings } = useThemeStore();
   const primaryColor = themeSettings?.primaryColor || '#1976d2';
   const borderRadius = themeSettings?.borderRadius ?? 8;
+
+  const resetText = resetLabel ?? t('filters.reset');
+  const applyText = applyLabel ?? t('actions.apply');
 
   return (
     <Box display="flex" justifyContent="space-between" sx={{ pt: 0.5, ...sx }}>
@@ -48,13 +52,12 @@ export default function FiltersFooterActions({
         size={size}
         sx={{ ...BTN_SX, minWidth: minButtonWidth, borderRadius }}
       >
-        {resetLabel}
+        {resetText}
       </Button>
 
       {showApply && (
         <Button
           onClick={onApply}
-          // Use store primary color as a filled CTA
           variant="contained"
           size={size}
           disableElevation
@@ -78,7 +81,7 @@ export default function FiltersFooterActions({
             },
           }}
         >
-          {applyLabel}
+          {applyText}
         </Button>
       )}
     </Box>

@@ -1,4 +1,3 @@
-// src/pages/admin/AdminProductsPage/Columns.tsx
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import EditIcon from '@mui/icons-material/Edit';
@@ -12,19 +11,16 @@ import {
   betweenDateRange,
 } from '../../../components/StickyTable/tableFilters';
 
+import { t } from 'i18next';
+import i18n from '../../../i18n/i18n';
+
 function toDate(value: unknown): Date | undefined {
   if (!value) return undefined;
-
-  if (value instanceof Date) {
-    return isNaN(value.getTime()) ? undefined : value;
-  }
-
+  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
   if (typeof value === 'string' || typeof value === 'number') {
     const d = new Date(value);
     return isNaN(d.getTime()) ? undefined : d;
   }
-
-  // Narrow unknown object shape (e.g., Firestore Timestamp-like)
   if (typeof value === 'object' && value !== null) {
     const rec = value as Record<string, unknown>;
     if (typeof rec.seconds === 'number') {
@@ -35,7 +31,6 @@ function toDate(value: unknown): Date | undefined {
       return isNaN(d.getTime()) ? undefined : d;
     }
   }
-
   return undefined;
 }
 
@@ -47,7 +42,7 @@ export function defineProductColumns(
     // Name — hidden on mobile
     {
       accessorKey: 'name',
-      header: 'Name',
+      header: t('table.name'),
       enableColumnFilter: true,
       enableSorting: true,
       size: 240,
@@ -58,7 +53,7 @@ export function defineProductColumns(
     // Category — select filter, show human name
     {
       accessorKey: 'categoryId',
-      header: 'Category',
+      header: t('table.category'),
       enableColumnFilter: true,
       enableSorting: true,
       size: 180,
@@ -78,7 +73,7 @@ export function defineProductColumns(
     // Stock — number range filter
     {
       accessorKey: 'stock',
-      header: 'Stock',
+      header: t('table.stock'),
       enableColumnFilter: true,
       enableSorting: true,
       size: 120,
@@ -90,10 +85,10 @@ export function defineProductColumns(
       },
     },
 
-    // Price — number range filter
+    // Price — number range filter (localized currency)
     {
       accessorKey: 'price',
-      header: 'Price',
+      header: t('table.price'),
       enableColumnFilter: true,
       enableSorting: true,
       size: 120,
@@ -101,14 +96,20 @@ export function defineProductColumns(
       meta: { filterVariant: 'number', hiddenOnMobile: true, align: 'left' },
       cell: ({ getValue }) => {
         const v = getValue<number | undefined>();
-        return typeof v === 'number' ? `$${v.toFixed(2)}` : '—';
+        if (typeof v !== 'number') return '—';
+        const lng = (i18n.language || 'en').split('-')[0];
+        return new Intl.NumberFormat(lng, {
+          style: 'currency',
+          currency: 'USD', // change to your store currency if needed
+          maximumFractionDigits: 2,
+        }).format(v);
       },
     },
 
-    // Created At — date range filter
+    // Created At — date range filter (localized date)
     {
       accessorKey: 'createdAt',
-      header: 'Created',
+      header: t('table.created'),
       enableColumnFilter: true,
       enableSorting: true,
       size: 160,
@@ -116,20 +117,18 @@ export function defineProductColumns(
       meta: { filterVariant: 'date', hiddenOnMobile: true, align: 'left' },
       cell: ({ getValue }) => {
         const date = toDate(getValue<unknown>());
-        return date
-          ? date.toLocaleDateString(undefined, {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })
-          : '—';
+        if (!date) return '—';
+        const lng = (i18n.language || 'en').split('-')[0];
+        return new Intl.DateTimeFormat(lng, { dateStyle: 'medium' }).format(
+          date,
+        );
       },
     },
 
-    // Actions — sticky right; uses RowActions component
+    // Actions — sticky right
     {
       id: 'actions',
-      header: 'Actions',
+      header: t('table.actions'),
       enableColumnFilter: false,
       enableSorting: false,
       size: 140,
@@ -139,26 +138,26 @@ export function defineProductColumns(
         const actions: ReadonlyArray<RowAction<IProduct>> = [
           {
             id: 'edit',
-            label: 'Edit',
+            label: t('actions.edit'),
             icon: <EditIcon fontSize="small" />,
             onClick: (p) => navigate(`/admin/products/edit/${p.id}`),
-            tooltip: (p) => `Edit "${p.name}"`,
+            tooltip: (p) =>
+              t('adminProducts.actions.tooltipEdit', { name: p.name }),
           },
           {
             id: 'delete',
-            label: 'Delete',
+            label: t('actions.delete'),
             icon: <DeleteIcon fontSize="small" />,
             onClick: (p) => {
               const ok = window.confirm(
-                `Are you sure you want to delete "${p.name}"?`,
+                t('adminProducts.confirmDelete', { name: p.name }),
               );
               if (ok) {
-                // If your route shows a confirm page, this is enough:
                 navigate(`/admin/products/delete/${p.id}`);
-                // Or call your delete mutation here if you delete in-place.
               }
             },
-            tooltip: (p) => `Delete "${p.name}"`,
+            tooltip: (p) =>
+              t('adminProducts.actions.tooltipDelete', { name: p.name }),
           },
         ];
 

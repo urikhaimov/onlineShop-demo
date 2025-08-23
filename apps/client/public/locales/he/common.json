@@ -8,13 +8,190 @@
   "nav": {
     "home": "דף הבית",
     "products": "מוצרים",
-    "cart": "עגלה"
+    "myOrders": "ההזמנות שלי",
+    "cart": "עגלה",
+    "admin": "ניהול"
+  },
+  "auth": {
+    "login": "התחברות",
+    "logout": "התנתקות",
+    "profile": "פרופיל"
+  },
+  "actions": {
+    "save": "שמירה",
+    "cancel": "ביטול",
+    "edit": "עריכה",
+    "delete": "מחיקה",
+    "searchPlaceholder": "חיפוש…",
+    "apply": "החל",
+    "reset": "איפוס"
   },
   "hero": {
     "headline": "ברוכים הבאים לחנות שלנו",
     "cta": "לקנייה"
   },
   "dates": {
-    "todayIs": "היום {{date, datetime}}"
+    "todayIs": "היום {{date, datetime}}",
+    "from": "מ־",
+    "to": "עד"
+  },
+  "toasts": {
+    "themeUpdated": "הנושא עודכן עבור חנות: {{storeId}}",
+    "modeDark": "מצב כהה הופעל 🌙",
+    "modeLight": "מצב בהיר הופעל ☀️"
+  },
+  "cart": {
+    "items": "פריט {{count}}",
+    "items_plural": "‏{{count}} פריטים",
+    "empty": "העגלה שלך ריקה",
+    "checkout": "לתשלום"
+  },
+  "admin": {
+    "dashboardHome": "דף ניהול",
+    "categories": "קטגוריות",
+    "users": "משתמשים",
+    "products": "מוצרים",
+    "orders": "הזמנות",
+    "theme": "ערכת נושא",
+    "landingPage": "דף נחיתה",
+    "securityLogs": "יומני אבטחה"
+  },
+  "settings": {
+    "settings": "הגדרות",
+    "about": "אודות",
+    "feedback": "משוב"
+  },
+  "validation": {
+    "name_required": "יש להזין שם."
+  },
+  "filters": {
+    "open": "מסננים",
+    "reset": "איפוס מסננים",
+    "search": "חיפוש",
+    "dateFrom": "מתאריך",
+    "dateTo": "עד תאריך",
+    "status": "סטטוס",
+    "totalRange": "טווח סכום",
+    "all": "הכול",
+    "userEmail": "אימייל משתמש",
+    "category": "קטגוריה",
+    "priceRange": "טווח מחיר",
+    "stockRange": "טווח מלאי",
+    "updatedFrom": "עודכן מ־",
+    "updatedTo": "עודכן עד"
+  },
+  "view": { "table": "טבלה", "cards": "כרטיסים" },
+  "table": {
+    "actions": "פעולות",
+    "price": "מחיר",
+    "stock": "מלאי",
+    "name": "שם",
+    "category": "קטגוריה",
+    "addToCart": "הוסף לעגלה",
+    "outOfStock": "אזל מהמלאי",
+    "orderId": "מספר הזמנה",
+    "date": "תאריך",
+    "total": "סך הכל",
+    "status": "סטטוס",
+    "count": "כמות",
+    "denseMode": "מצב דחוס",
+    "created": "תאריך יצירה"
+  },
+  "sort": {
+    "by": "מיון לפי",
+    "newest": "חדש ביותר",
+    "oldest": "ישן ביותר"
+  },
+  "orders": {
+    "status": {
+      "pending": "ממתינה",
+      "confirmed": "אושרה",
+      "shipped": "נשלחה",
+      "delivered": "נמסרה",
+      "cancelled": "בוטלה",
+      "succeeded": "הושלמה"
+    }
+  },
+  "adminUsers": {
+    "columns": { "email": "אימייל", "role": "תפקיד", "actions": "פעולות" },
+    "actions": {
+      "editRole": "ערוך תפקיד",
+      "delete": "מחיקה",
+      "tooltipEditRole": "ערוך תפקיד עבור {{email}}",
+      "tooltipDelete": "מחק את {{email}}"
+    },
+    "roles": { "user": "משתמש", "admin": "מנהל", "superadmin": "סופר־אדמין" }
+  },
+  "adminOrders": {
+    "actions": {
+      "view": "צפה",
+      "edit": "עריכה",
+      "delete": "מחיקה",
+      "tooltipView": "צפה בהזמנה {{id}}",
+      "tooltipEdit": "ערוך הזמנה {{id}}",
+      "tooltipDelete": "מחק הזמנה {{id}}"
+    }
+  },
+  "adminProducts": {
+    "actions": {
+      "tooltipEdit": "ערוך \"{{name}}\"",
+      "tooltipDelete": "מחק \"{{name}}\""
+    },
+    "confirmDelete": "האם אתה בטוח שברצונך למחוק את \"{{name}}\"?"
+  },
+  "adminProductsPage": {
+    "title": "מוצרי ניהול",
+    "snackbarReordered": "סדר המוצרים עודכן"
+  },
+  "adminOrdersPage": {
+    "snackbarSuccess": "הפעולה הושלמה בהצלחה",
+    "failedToLoad": "טעינת ההזמנות נכשלה: {{message}}",
+    "failedToDeleteFallback": "מחיקת ההזמנה נכשלה.",
+    "notFound": "לא נמצאו הזמנות.",
+    "dialog": {
+      "title": "למחוק הזמנה?",
+      "warning": "פעולה זו תמחק לצמיתות את ההזמנה ואת פרטיה. לא ניתן לבטל פעולה זו.",
+      "confirm": "האם למחוק את ההזמנה {{id}}?",
+      "cancel": "ביטול",
+      "delete": "מחיקה",
+      "deleting": "מוחק…"
+    }
+  },
+  "orderDetails": {
+    "customer": "לקוח",
+    "shippingAddress": "כתובת משלוח",
+    "items": "פריטים",
+    "total": "סך הכל",
+    "payment": "תשלום",
+    "method": "אמצעי",
+    "status": "סטטוס",
+    "transaction": "מזהה עסקה",
+    "delivery": "משלוח",
+    "provider": "ספק",
+    "tracking": "מספר מעקב",
+    "eta": "תאריך משוער",
+    "created": "נוצר",
+    "updated": "עודכן",
+    "notes": "הערות",
+    "line": "{{name}} — {{qty}} × {{price}}"
+  },
+  "productDetails": {
+    "noImages": "אין תמונות",
+    "description": "תיאור",
+    "attributes": "מאפיינים",
+    "pricingStock": "מחיר / מלאי",
+    "price": "מחיר",
+    "stock": "מלאי",
+    "sku": "מק\"ט",
+    "brand": "מותג",
+    "created": "נוצר",
+    "updated": "עודכן"
+  },
+  "empty": {
+    "noProducts": "לא נמצאו מוצרים."
+  },
+  "common": {
+    "all": "הכול",
+    "apply": "החל"
   }
 }

@@ -7,6 +7,7 @@ import UserFilterDatePicker from '../../../components/UserFilterDatePicker';
 import RangeFilterSlider from '../../../components/RangeFilterSlider';
 import FiltersFooterActions from '../../../components/FiltersFooterActions';
 import { useProductStore } from '../../../stores/useProductStore';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   categories: { id: string; name: string }[];
@@ -19,6 +20,7 @@ const STOCK_MIN = 0;
 const STOCK_MAX = 1_000;
 
 export default function AdminProductFilters({ categories, onClose }: Props) {
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -41,18 +43,12 @@ export default function AdminProductFilters({ categories, onClose }: Props) {
     setMaxStock,
   } = useProductStore();
 
-  const hasFilters =
-    (searchTerm ?? '').trim().length > 0 ||
-    (selectedCategoryId ?? '') !== '' ||
-    minPrice > PRICE_MIN ||
-    maxPrice < PRICE_MAX ||
-    minStock > STOCK_MIN ||
-    maxStock < STOCK_MAX ||
-    Boolean(updatedFrom) ||
-    Boolean(updatedTo);
-
   const currency = (v: number) =>
-    `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
+      style: 'currency',
+      currency: 'USD', // change if your store uses a different currency
+      maximumFractionDigits: 0,
+    }).format(v);
 
   const reset = () => {
     setSearchTerm('');
@@ -75,19 +71,19 @@ export default function AdminProductFilters({ categories, onClose }: Props) {
       <Box pr={1}>
         <Stack spacing={2}>
           <UserFilterTextField
-            label="Search"
+            label={t('filters.search')}
             value={searchTerm}
             onChange={(val) => setSearchTerm(val)}
             fullWidth
           />
 
           <UserFilterTextField
-            label="Category"
+            label={t('filters.category')}
             select
             value={selectedCategoryId}
             onChange={(val) => setSelectedCategoryId(val)}
             options={[
-              { value: '', label: 'All' },
+              { value: '', label: t('filters.all') },
               ...categories.map((c) => ({ value: c.id, label: c.name })),
             ]}
             fullWidth
@@ -95,7 +91,7 @@ export default function AdminProductFilters({ categories, onClose }: Props) {
 
           {/* Price range */}
           <RangeFilterSlider
-            label="Price range"
+            label={t('filters.priceRange')}
             min={PRICE_MIN}
             max={PRICE_MAX}
             step={50}
@@ -112,7 +108,7 @@ export default function AdminProductFilters({ categories, onClose }: Props) {
 
           {/* Stock range */}
           <RangeFilterSlider
-            label="Stock range"
+            label={t('filters.stockRange')}
             min={STOCK_MIN}
             max={STOCK_MAX}
             step={1}
@@ -127,13 +123,13 @@ export default function AdminProductFilters({ categories, onClose }: Props) {
           />
 
           <UserFilterDatePicker
-            label="Updated From"
+            label={t('filters.updatedFrom')}
             value={updatedFrom ?? null}
             onChange={(d: Dayjs | null) => setUpdatedFrom(d)}
             fullWidth
           />
           <UserFilterDatePicker
-            label="Updated To"
+            label={t('filters.updatedTo')}
             value={updatedTo ?? null}
             onChange={(d: Dayjs | null) => setUpdatedTo(d)}
             fullWidth

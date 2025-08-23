@@ -8,6 +8,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import type { IUser as User, TUserRole as Role } from '@common/types';
 import ActionRow, { type RowAction } from '../../../components/RowActions';
+import { useTranslation } from 'react-i18next';
+import { t } from 'i18next';
 
 type Options = {
   onChangeRole: (id: string, role: Role) => Promise<void> | void;
@@ -23,6 +25,7 @@ function RoleSelectCell({
   user: User;
   onChangeRole: (id: string, role: Role) => Promise<void> | void;
 }) {
+  const { t } = useTranslation();
   const [value, setValue] = React.useState<Role>(user.role);
   const [saving, setSaving] = React.useState(false);
 
@@ -40,8 +43,7 @@ function RoleSelectCell({
       try {
         await onChangeRole(user.id, next);
       } catch {
-        // revert on error (optional)
-        setValue(user.role);
+        setValue(user.role); // revert on error (optional)
       } finally {
         setSaving(false);
       }
@@ -57,14 +59,16 @@ function RoleSelectCell({
       <Select
         size="small"
         value={value}
-        onChange={handleChange} // (event: SelectChangeEvent, child?: ReactNode) => void
+        onChange={handleChange}
         disabled={saving}
         sx={{ minWidth: 120 }}
         MenuProps={{ disablePortal: true }}
       >
-        <MenuItem value="user">User</MenuItem>
-        <MenuItem value="admin">Admin</MenuItem>
-        <MenuItem value="superadmin">Superadmin</MenuItem>
+        <MenuItem value="user">{t('adminUsers.roles.user')}</MenuItem>
+        <MenuItem value="admin">{t('adminUsers.roles.admin')}</MenuItem>
+        <MenuItem value="superadmin">
+          {t('adminUsers.roles.superadmin')}
+        </MenuItem>
       </Select>
     </Box>
   );
@@ -74,7 +78,7 @@ export function defineUserColumns(opts: Options): ColumnDef<User>[] {
   return [
     // Email — visible on mobile, sticky left, filterable
     {
-      header: 'Email',
+      header: t('adminUsers.columns.email'),
       accessorKey: 'email',
       enableSorting: true,
       enableColumnFilter: true,
@@ -90,7 +94,7 @@ export function defineUserColumns(opts: Options): ColumnDef<User>[] {
 
     // Role — hidden on mobile; inline select with optimistic update
     {
-      header: 'Role',
+      header: t('adminUsers.columns.role'),
       accessorKey: 'role',
       enableSorting: true,
       enableColumnFilter: false,
@@ -104,7 +108,7 @@ export function defineUserColumns(opts: Options): ColumnDef<User>[] {
     // Actions — visible on mobile, sticky right
     {
       id: 'actions',
-      header: 'Actions',
+      header: t('table.actions'), // or t('adminUsers.columns.actions')
       enableSorting: false,
       enableColumnFilter: false,
       size: 100,
@@ -118,17 +122,19 @@ export function defineUserColumns(opts: Options): ColumnDef<User>[] {
         const actions: ReadonlyArray<RowAction<User>> = [
           {
             id: 'edit',
-            label: 'Edit role',
+            label: t('adminUsers.actions.editRole'),
             icon: <EditIcon fontSize="small" />,
-            tooltip: (u) => `Edit role for ${u.email}`,
+            tooltip: (u) =>
+              t('adminUsers.actions.tooltipEditRole', { email: u.email }),
             onClick: (u) => opts.onEditClicked(u),
           },
           {
             id: 'delete',
-            label: 'Delete',
+            label: t('adminUsers.actions.delete'),
             icon: <DeleteIcon fontSize="small" />,
             danger: true,
-            tooltip: (u) => `Delete ${u.email}`,
+            tooltip: (u) =>
+              t('adminUsers.actions.tooltipDelete', { email: u.email }),
             onClick: (u) => opts.onDeleteClicked(u),
           },
         ];

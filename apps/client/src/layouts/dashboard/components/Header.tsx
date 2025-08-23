@@ -10,6 +10,7 @@ import NavbarBreadcrumbs from './NavbarBreadcrumbs';
 import MenuButton from './MenuButton';
 import ColorModeIconDropdown from '../../shared-theme/ColorModeIconDropdown';
 import Search from './Search';
+import LanguageSwitcher from '../../../components/LanguageSwitcher'; // 👈 add this
 import { useCartCount } from '../../../stores/useCartStore';
 import { useSidebarStore } from '../../../stores/useSidebarStore';
 
@@ -17,6 +18,7 @@ export default function Header() {
   const cartCount = useCartCount();
   const openCartDrawer = useSidebarStore((s) => s.openCartDrawer);
   console.log('Header rendered with cartCount:', cartCount);
+
   return (
     <Stack
       direction="row"
@@ -34,9 +36,14 @@ export default function Header() {
       spacing={2}
     >
       <NavbarBreadcrumbs />
-      <Stack direction="row" sx={{ gap: 1 }}>
+
+      <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
         <Search />
         <CustomDatePicker />
+
+        {/* 🌐 Language selector */}
+        <LanguageSwitcher />
+
         <MenuButton showBadge aria-label="Open notifications">
           <NotificationsRoundedIcon />
         </MenuButton>

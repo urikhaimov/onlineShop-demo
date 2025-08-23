@@ -47,6 +47,7 @@ import {
 
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
+import { useTranslation } from 'react-i18next';
 
 /** ---------- types & helpers (fully typed) ---------- */
 type OrderItem = {
@@ -55,10 +56,8 @@ type OrderItem = {
 };
 
 type OrderLike = TOrder & {
-  /** Some sources may expose another total field */
   total?: number | null;
   amount?: number | null;
-  /** Be liberal about shapes we might see */
   items?: OrderItem[] | null;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
@@ -93,25 +92,21 @@ function computeOrderTotal(o: OrderLike): number | null {
 }
 
 function orderMatchesFilters(o: OrderLike, f: AdminOrderFilterState): boolean {
-  // email search
   const emailTerm = (f.email || '').trim().toLowerCase();
   if (emailTerm) {
     const email = extractEmail(o)?.toLowerCase() ?? '';
     if (!email.includes(emailTerm)) return false;
   }
 
-  // status
   if (f.status && f.status !== 'all') {
     const s = String((o as { status?: unknown }).status ?? '').toLowerCase();
     if (s !== String(f.status).toLowerCase()) return false;
   }
 
-  // totals
   const total = computeOrderTotal(o);
   if (f.minTotal !== null && total !== null && total < f.minTotal) return false;
   if (f.maxTotal !== null && total !== null && total > f.maxTotal) return false;
 
-  // item price range: accept if ANY item price is within range
   if (f.minPrice !== null || f.maxPrice !== null) {
     const items = Array.isArray(o.items) ? o.items : [];
     const hasPriceInRange = items.some((it) => {
@@ -124,7 +119,6 @@ function orderMatchesFilters(o: OrderLike, f: AdminOrderFilterState): boolean {
     if (!hasPriceInRange) return false;
   }
 
-  // date range (createdAt/updatedAt/date)
   const d =
     toDate(o.createdAt ?? null) ??
     toDate(o.updatedAt ?? null) ??
@@ -143,7 +137,6 @@ function orderMatchesFilters(o: OrderLike, f: AdminOrderFilterState): boolean {
   )
     return false;
 
-  // inStockOnly: at least one item with quantity > 0
   if (f.inStockOnly) {
     const items = Array.isArray(o.items) ? o.items : [];
     const anyQty = items.some((it) => Number(it?.quantity ?? 0) > 0);
@@ -155,6 +148,7 @@ function orderMatchesFilters(o: OrderLike, f: AdminOrderFilterState): boolean {
 /** --------------------------------------------------- */
 
 export default function AdminOrdersPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
 
@@ -193,7 +187,6 @@ export default function AdminOrdersPage() {
     [navigate],
   );
 
-  /** APPLY FILTERS HERE (type-safe) */
   const filteredData = useMemo<TOrder[]>(() => {
     const list: TOrder[] = Array.isArray(data) ? (data as TOrder[]) : [];
     return list.filter((o) => orderMatchesFilters(o as OrderLike, filters));
@@ -222,7 +215,9 @@ export default function AdminOrdersPage() {
       if (typeof refetch === 'function') await refetch();
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : 'Failed to delete order.';
+        err instanceof Error
+          ? err.message
+          : t('adminOrdersPage.failedToDeleteFallback');
       setDeleteError(msg);
     } finally {
       setDeleting(false);
@@ -250,7 +245,7 @@ export default function AdminOrdersPage() {
               startIcon={<FilterListIcon />}
               onClick={() => setFiltersOpen(true)}
             >
-              Filters
+              {t('filters.open')}
             </Button>
             <Button
               variant="outlined"
@@ -258,7 +253,7 @@ export default function AdminOrdersPage() {
               startIcon={<RestartAltIcon />}
               onClick={resetTableFilters}
             >
-              Reset filters
+              {t('filters.reset')}
             </Button>
           </Stack>
         </Box>
@@ -269,10 +264,12 @@ export default function AdminOrdersPage() {
           <LoadingProgress />
         ) : error ? (
           <Typography color="error" sx={{ p: 2 }}>
-            Failed to load orders: {error.message}
+            {t('adminOrdersPage.failedToLoad', {
+              message: (error as any)?.message ?? '',
+            })}
           </Typography>
         ) : filteredData.length === 0 ? (
-          <NotFound message="No orders found." />
+          <NotFound message={t('adminOrdersPage.notFound')} />
         ) : (
           <StickyTable<TOrder>
             columns={columns}
@@ -298,27 +295,25 @@ export default function AdminOrdersPage() {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="success" variant="filled">
-            Action completed successfully
+            {t('adminOrdersPage.snackbarSuccess')}
           </Alert>
         </Snackbar>
 
         {/* confirm delete */}
         <Dialog
           open={Boolean(toDelete)}
-          onClose={() => (deleting ? null : setToDelete(null))}
+          onClose={(_, __) => (deleting ? undefined : setToDelete(null))}
           maxWidth="xs"
           fullWidth
         >
-          <DialogTitle>Delete order?</DialogTitle>
+          <DialogTitle>{t('adminOrdersPage.dialog.title')}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
               <Alert severity="warning" variant="outlined">
-                This will permanently delete the order and its details. This
-                action cannot be undone.
+                {t('adminOrdersPage.dialog.warning')}
               </Alert>
               <Typography variant="body2">
-                Are you sure you want to delete order{' '}
-                <strong>{toDelete?.id}</strong>?
+                {t('adminOrdersPage.dialog.confirm', { id: toDelete?.id })}
               </Typography>
               {deleteError && (
                 <Alert severity="error" variant="filled">
@@ -333,7 +328,7 @@ export default function AdminOrdersPage() {
               disabled={deleting}
               variant="text"
             >
-              Cancel
+              {t('adminOrdersPage.dialog.cancel')}
             </Button>
             <Button
               onClick={handleConfirmDelete}
@@ -341,14 +336,16 @@ export default function AdminOrdersPage() {
               color="error"
               variant="contained"
             >
-              {deleting ? 'Deleting…' : 'Delete'}
+              {deleting
+                ? t('adminOrdersPage.dialog.deleting')
+                : t('adminOrdersPage.dialog.delete')}
             </Button>
           </DialogActions>
         </Dialog>
 
         {/* Filters drawer */}
         <RightFiltersDrawer
-          title="Filters"
+          title={t('filters.open')}
           open={filtersOpen}
           onClose={() => setFiltersOpen(false)}
         >

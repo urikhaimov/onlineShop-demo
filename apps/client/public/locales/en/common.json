@@ -8,13 +8,190 @@
   "nav": {
     "home": "Home",
     "products": "Products",
-    "cart": "Cart"
+    "myOrders": "My Orders",
+    "cart": "Cart",
+    "admin": "Admin"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "profile": "Profile"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "searchPlaceholder": "Search…",
+    "apply": "Apply",
+    "reset": "Reset"
   },
   "hero": {
     "headline": "Welcome to our shop",
     "cta": "Shop now"
   },
   "dates": {
-    "todayIs": "Today is {{date, datetime}}"
+    "todayIs": "Today is {{date, datetime}}",
+    "from": "From",
+    "to": "To"
+  },
+  "toasts": {
+    "themeUpdated": "Theme updated for store: {{storeId}}",
+    "modeDark": "Dark Mode Enabled 🌙",
+    "modeLight": "Light Mode Enabled ☀️"
+  },
+  "cart": {
+    "items": "{{count}} item",
+    "items_plural": "{{count}} items",
+    "empty": "Your cart is empty",
+    "checkout": "Checkout"
+  },
+  "admin": {
+    "dashboardHome": "Dashboard Home",
+    "categories": "Categories",
+    "users": "Users",
+    "products": "Products",
+    "orders": "Orders",
+    "theme": "Theme",
+    "landingPage": "Landing Page",
+    "securityLogs": "Security Logs"
+  },
+  "settings": {
+    "settings": "Settings",
+    "about": "About",
+    "feedback": "Feedback"
+  },
+  "validation": {
+    "name_required": "Name is required."
+  },
+  "filters": {
+    "open": "Filters",
+    "reset": "Reset filters",
+    "search": "Search",
+    "dateFrom": "Date From",
+    "dateTo": "Date To",
+    "status": "Status",
+    "totalRange": "Total range",
+    "all": "All",
+    "userEmail": "User Email",
+    "category": "Category",
+    "priceRange": "Price range",
+    "stockRange": "Stock range",
+    "updatedFrom": "Updated From",
+    "updatedTo": "Updated To"
+  },
+  "view": { "table": "Table", "cards": "Cards" },
+  "table": {
+    "actions": "Actions",
+    "price": "Price",
+    "stock": "Stock",
+    "name": "Name",
+    "category": "Category",
+    "addToCart": "Add to cart",
+    "outOfStock": "Out of stock",
+    "orderId": "Order ID",
+    "date": "Date",
+    "total": "Total",
+    "status": "Status",
+    "count": "Count",
+    "denseMode": "Dense mode",
+    "created": "Created"
+  },
+  "sort": {
+    "by": "Sort By",
+    "newest": "Newest",
+    "oldest": "Oldest"
+  },
+  "orders": {
+    "status": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "shipped": "Shipped",
+      "delivered": "Delivered",
+      "cancelled": "Cancelled",
+      "succeeded": "Succeeded"
+    }
+  },
+  "adminUsers": {
+    "columns": { "email": "Email", "role": "Role", "actions": "Actions" },
+    "actions": {
+      "editRole": "Edit role",
+      "delete": "Delete",
+      "tooltipEditRole": "Edit role for {{email}}",
+      "tooltipDelete": "Delete {{email}}"
+    },
+    "roles": { "user": "User", "admin": "Admin", "superadmin": "Superadmin" }
+  },
+  "adminOrders": {
+    "actions": {
+      "view": "View",
+      "edit": "Edit",
+      "delete": "Delete",
+      "tooltipView": "View order {{id}}",
+      "tooltipEdit": "Edit order {{id}}",
+      "tooltipDelete": "Delete order {{id}}"
+    }
+  },
+  "adminProducts": {
+    "actions": {
+      "tooltipEdit": "Edit \"{{name}}\"",
+      "tooltipDelete": "Delete \"{{name}}\""
+    },
+    "confirmDelete": "Are you sure you want to delete \"{{name}}\"?"
+  },
+  "adminProductsPage": {
+    "title": "Admin Products",
+    "snackbarReordered": "Product order updated"
+  },
+  "adminOrdersPage": {
+    "snackbarSuccess": "Action completed successfully",
+    "failedToLoad": "Failed to load orders: {{message}}",
+    "failedToDeleteFallback": "Failed to delete order.",
+    "notFound": "No orders found.",
+    "dialog": {
+      "title": "Delete order?",
+      "warning": "This will permanently delete the order and its details. This action cannot be undone.",
+      "confirm": "Are you sure you want to delete order {{id}}?",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "deleting": "Deleting…"
+    }
+  },
+  "orderDetails": {
+    "customer": "Customer",
+    "shippingAddress": "Shipping Address",
+    "items": "Items",
+    "total": "Total",
+    "payment": "Payment",
+    "method": "Method",
+    "status": "Status",
+    "transaction": "Txn",
+    "delivery": "Delivery",
+    "provider": "Provider",
+    "tracking": "Tracking",
+    "eta": "ETA",
+    "created": "Created",
+    "updated": "Updated",
+    "notes": "Notes",
+    "line": "{{name}} — {{qty}} × {{price}}"
+  },
+  "productDetails": {
+    "noImages": "No images",
+    "description": "Description",
+    "attributes": "Attributes",
+    "pricingStock": "Pricing / Stock",
+    "price": "Price",
+    "stock": "Stock",
+    "sku": "SKU",
+    "brand": "Brand",
+    "created": "Created",
+    "updated": "Updated"
+  },
+  "empty": {
+    "noProducts": "No products found."
+  },
+  "common": {
+    "all": "All",
+    "apply": "Apply"
   }
 }
