@@ -1,3 +1,4 @@
+// src/pages/user/components/ChangePasswordForm.tsx
 import React, { useState } from 'react';
 import {
   Alert,
@@ -19,6 +20,7 @@ import {
 import { auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import FormTextField from '../../../components/FormTextField';
+import { useTranslation } from 'react-i18next';
 
 interface PasswordFormData {
   oldPassword: string;
@@ -27,7 +29,9 @@ interface PasswordFormData {
 }
 
 export default function ChangePasswordForm() {
+  const { t } = useTranslation();
   const { user } = useAuth();
+
   const {
     control,
     handleSubmit,
@@ -49,13 +53,21 @@ export default function ChangePasswordForm() {
 
   const onSubmit = async (data: PasswordFormData) => {
     if (data.newPassword !== data.confirmPassword) {
-      setErrorMsg('New passwords do not match');
+      setErrorMsg(
+        t('userProfile.changePassword.errors.mismatch', {
+          defaultValue: 'New passwords do not match',
+        }),
+      );
       return;
     }
 
     try {
       if (!user?.email || !auth.currentUser) {
-        throw new Error('Not authenticated');
+        throw new Error(
+          t('userProfile.changePassword.errors.unauthenticated', {
+            defaultValue: 'Not authenticated',
+          }),
+        );
       }
 
       const credential = EmailAuthProvider.credential(
@@ -65,22 +77,35 @@ export default function ChangePasswordForm() {
       await reauthenticateWithCredential(auth.currentUser, credential);
       await updatePassword(auth.currentUser, data.newPassword);
 
-      setSuccessMsg('Password updated successfully');
+      setSuccessMsg(
+        t('userProfile.changePassword.success', {
+          defaultValue: 'Password updated successfully',
+        }),
+      );
       reset();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to update password');
+      setErrorMsg(
+        err?.message ||
+          t('userProfile.changePassword.errors.updateFailed', {
+            defaultValue: 'Failed to update password',
+          }),
+      );
     }
   };
 
   return (
     <Box mt={4} component="form" onSubmit={handleSubmit(onSubmit)}>
       <Typography variant="h6" gutterBottom>
-        Change Password
+        {t('userProfile.changePassword.title', {
+          defaultValue: 'Change Password',
+        })}
       </Typography>
 
       <Stack spacing={2}>
         <FormTextField
-          label="Old Password"
+          label={t('userProfile.changePassword.old', {
+            defaultValue: 'Old Password',
+          })}
           name="oldPassword"
           control={control}
           required
@@ -89,10 +114,7 @@ export default function ChangePasswordForm() {
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton
-                  onClick={() => setShowOld((prev) => !prev)}
-                  edge="end"
-                >
+                <IconButton onClick={() => setShowOld((p) => !p)} edge="end">
                   {showOld ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
@@ -101,7 +123,9 @@ export default function ChangePasswordForm() {
         />
 
         <FormTextField
-          label="New Password"
+          label={t('userProfile.changePassword.new', {
+            defaultValue: 'New Password',
+          })}
           name="newPassword"
           control={control}
           required
@@ -110,10 +134,7 @@ export default function ChangePasswordForm() {
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton
-                  onClick={() => setShowNew((prev) => !prev)}
-                  edge="end"
-                >
+                <IconButton onClick={() => setShowNew((p) => !p)} edge="end">
                   {showNew ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
@@ -122,7 +143,9 @@ export default function ChangePasswordForm() {
         />
 
         <FormTextField
-          label="Confirm Password"
+          label={t('userProfile.changePassword.confirm', {
+            defaultValue: 'Confirm Password',
+          })}
           name="confirmPassword"
           control={control}
           required
@@ -132,7 +155,7 @@ export default function ChangePasswordForm() {
             endAdornment: (
               <InputAdornment position="end">
                 <IconButton
-                  onClick={() => setShowConfirm((prev) => !prev)}
+                  onClick={() => setShowConfirm((p) => !p)}
                   edge="end"
                 >
                   {showConfirm ? <VisibilityOff /> : <Visibility />}
@@ -143,7 +166,9 @@ export default function ChangePasswordForm() {
         />
 
         <Button type="submit" variant="outlined" fullWidth>
-          Change Password
+          {t('userProfile.changePassword.submit', {
+            defaultValue: 'Change Password',
+          })}
         </Button>
       </Stack>
 

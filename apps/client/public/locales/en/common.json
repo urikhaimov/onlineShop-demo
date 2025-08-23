@@ -1,53 +1,14 @@
 {
-  "app": {
-    "title": "My Store",
-    "language": "Language",
-    "english": "English",
-    "hebrew": "Hebrew"
+  "common": {
+    "saving": "Saving…"
   },
   "nav": {
     "home": "Home",
     "products": "Products",
-    "myOrders": "My Orders",
-    "cart": "Cart",
-    "admin": "Admin"
-  },
-  "auth": {
-    "login": "Login",
-    "logout": "Logout",
-    "profile": "Profile"
-  },
-  "actions": {
-    "save": "Save",
-    "cancel": "Cancel",
-    "edit": "Edit",
-    "delete": "Delete",
-    "searchPlaceholder": "Search…",
-    "apply": "Apply",
-    "reset": "Reset"
-  },
-  "hero": {
-    "headline": "Welcome to our shop",
-    "cta": "Shop now"
-  },
-  "dates": {
-    "todayIs": "Today is {{date, datetime}}",
-    "from": "From",
-    "to": "To"
-  },
-  "toasts": {
-    "themeUpdated": "Theme updated for store: {{storeId}}",
-    "modeDark": "Dark Mode Enabled 🌙",
-    "modeLight": "Light Mode Enabled ☀️"
-  },
-  "cart": {
-    "items": "{{count}} item",
-    "items_plural": "{{count}} items",
-    "empty": "Your cart is empty",
-    "checkout": "Checkout"
+    "myOrders": "My Orders"
   },
   "admin": {
-    "dashboardHome": "Dashboard Home",
+    "dashboardHome": "Admin Home",
     "categories": "Categories",
     "users": "Users",
     "products": "Products",
@@ -56,54 +17,68 @@
     "landingPage": "Landing Page",
     "securityLogs": "Security Logs"
   },
-  "settings": {
-    "settings": "Settings",
-    "about": "About",
-    "feedback": "Feedback"
+  "view": {
+    "cards": "Cards",
+    "table": "Table"
+  },
+  "menu": {
+    "openAria": "Open menu",
+    "profile": "Profile",
+    "account": "Account",
+    "logout": "Logout"
+  },
+  "actions": {
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "searchPlaceholder": "Search…"
   },
   "validation": {
     "name_required": "Name is required.",
     "name_minLen": "Name must be at least 2 characters.",
     "price_required": "Price is required."
   },
+  "table": {
+    "image": "Image",
+    "name": "Name",
+    "actions": "Actions",
+    "orderId": "Order ID",
+    "total": "Total",
+    "date": "Date",
+    "status": "Status",
+    "category": "Category",
+    "stock": "Stock",
+    "price": "Price",
+    "created": "Created"
+  },
   "filters": {
     "open": "Filters",
-    "reset": "Reset filters",
-    "search": "Search",
-    "dateFrom": "Date From",
-    "dateTo": "Date To",
-    "status": "Status",
-    "totalRange": "Total range",
-    "all": "All",
+    "reset": "Reset",
     "userEmail": "User Email",
+    "status": "Status",
+    "all": "All",
+    "totalRange": "Total range",
+    "dateFrom": "Date from",
+    "dateTo": "Date to",
+    "search": "Search",
     "category": "Category",
     "priceRange": "Price range",
     "stockRange": "Stock range",
-    "updatedFrom": "Updated From",
-    "updatedTo": "Updated To"
-  },
-  "view": { "table": "Table", "cards": "Cards" },
-  "table": {
-    "actions": "Actions",
-    "price": "Price",
-    "stock": "Stock",
-    "name": "Name",
-    "category": "Category",
-    "addToCart": "Add to cart",
-    "outOfStock": "Out of stock",
-    "orderId": "Order ID",
-    "date": "Date",
-    "total": "Total",
-    "status": "Status",
-    "count": "Count",
-    "denseMode": "Dense mode",
-    "created": "Created",
-    "image": "Image"
+    "updatedFrom": "Updated from",
+    "updatedTo": "Updated to"
   },
   "sort": {
-    "by": "Sort By",
+    "by": "Sort by",
     "newest": "Newest",
     "oldest": "Oldest"
+  },
+  "status": {
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "shipped": "Shipped",
+    "delivered": "Delivered",
+    "cancelled": "Cancelled"
   },
   "orders": {
     "status": {
@@ -116,87 +91,43 @@
     }
   },
   "adminUsers": {
-    "columns": { "email": "Email", "role": "Role", "actions": "Actions" },
-    "actions": {
-      "editRole": "Edit role",
-      "delete": "Delete",
-      "tooltipEditRole": "Edit role for {{email}}",
-      "tooltipDelete": "Delete {{email}}"
+    "columns": {
+      "email": "Email",
+      "role": "Role"
     },
-    "roles": { "user": "User", "admin": "Admin", "superadmin": "Superadmin" }
-  },
-  "adminOrders": {
-    "actions": {
-      "view": "View",
-      "edit": "Edit",
-      "delete": "Delete",
-      "tooltipView": "View order {{id}}",
-      "tooltipEdit": "Edit order {{id}}",
-      "tooltipDelete": "Delete order {{id}}"
+    "roles": {
+      "user": "User",
+      "admin": "Admin",
+      "roles": {
+        "user": "User",
+        "admin": "Admin"
+      }
     }
   },
-  "adminProducts": {
-    "actions": {
-      "tooltipEdit": "Edit \"{{name}}\"",
-      "tooltipDelete": "Delete \"{{name}}\""
-    },
-    "confirmDelete": "Are you sure you want to delete \"{{name}}\"?"
+  "adminCategoriesAddPage": {
+    "title": "Add New Category",
+    "snackbarCreated": "Category created",
+    "failedToCreateFallback": "Failed to create category."
   },
-  "adminProductsPage": {
-    "title": "Admin Products",
-    "snackbarReordered": "Product order updated"
-  },
-  "adminOrdersPage": {
-    "snackbarSuccess": "Action completed successfully",
-    "failedToLoad": "Failed to load orders: {{message}}",
-    "failedToDeleteFallback": "Failed to delete order.",
-    "notFound": "No orders found.",
+  "adminCategoriesPage": {
+    "title": "Manage Categories",
+    "add": "Add Category",
+    "snackbarDeleted": "Category deleted successfully",
+    "failedToDeleteFallback": "Failed to delete category.",
     "dialog": {
-      "title": "Delete order?",
-      "warning": "This will permanently delete the order and its details. This action cannot be undone.",
-      "confirm": "Are you sure you want to delete order {{id}}?",
+      "title": "Delete category?",
+      "warning": "This will permanently delete the category. This action cannot be undone.",
+      "confirm": "Are you sure you want to delete category {{name}}?",
       "cancel": "Cancel",
-      "delete": "Delete",
-      "deleting": "Deleting…"
+      "deleting": "Deleting…",
+      "delete": "Delete"
     }
   },
-  "orderDetails": {
-    "customer": "Customer",
-    "shippingAddress": "Shipping Address",
-    "items": "Items",
-    "total": "Total",
-    "payment": "Payment",
-    "method": "Method",
-    "status": "Status",
-    "transaction": "Txn",
-    "delivery": "Delivery",
-    "provider": "Provider",
-    "tracking": "Tracking",
-    "eta": "ETA",
-    "created": "Created",
-    "updated": "Updated",
-    "notes": "Notes",
-    "line": "{{name}} — {{qty}} × {{price}}"
-  },
-  "productDetails": {
-    "noImages": "No images",
-    "description": "Description",
-    "attributes": "Attributes",
-    "pricingStock": "Pricing / Stock",
-    "price": "Price",
-    "stock": "Stock",
-    "sku": "SKU",
-    "brand": "Brand",
-    "created": "Created",
-    "updated": "Updated"
-  },
-  "empty": {
-    "noProducts": "No products found."
-  },
-  "common": {
-    "all": "All",
-    "apply": "Apply",
-    "saving": "Saving…"
+  "adminCategoriesEditPage": {
+    "missingId": "Missing category ID in URL.",
+    "failedToUpdateFallback": "Failed to update category.",
+    "title": "Edit Category",
+    "snackbarUpdated": "Category updated"
   },
   "adminCategories": {
     "fallbackName": "Category",
@@ -209,120 +140,15 @@
       "description": "This will permanently delete {{name}}."
     }
   },
-
-  "adminCategoriesPage": {
-    "title": "Manage Categories",
-    "add": "Add Category",
-    "snackbarDeleted": "Category deleted successfully",
-    "failedToDeleteFallback": "Failed to delete category.",
-    "dialog": {
-      "title": "Delete category?",
-      "warning": "This will permanently delete the category. This action cannot be undone.",
-      "confirm": "Are you sure you want to delete category {{name}}?",
-      "cancel": "Cancel",
-      "delete": "Delete",
-      "deleting": "Deleting…"
-    }
-  },
-
-  "adminCategoriesAddPage": {
-    "title": "Add New Category",
-    "snackbarCreated": "Category created",
-    "failedToCreateFallback": "Failed to create category."
-  },
-
-  "adminCategoriesEditPage": {
-    "title": "Edit Category",
-    "snackbarUpdated": "Category updated",
-    "missingId": "Missing category ID in URL.",
-    "failedToUpdateFallback": "Failed to update category."
-  },
   "adminCategoriesForm": {
     "name": "Name",
     "description": "Description",
-    "create": "Create Category",
-    "update": "Update Category"
-  },
-  "adminProductForm": {
-    "titleAdd": "Add New Product",
-    "titleEdit": "Edit Product",
-    "name": "Name",
-    "description": "Description",
-    "price": "Price",
-    "stock": "Stock",
-    "category": "Category",
-    "invalidCategory": "Invalid category ID: {{id}}",
-    "images": "Product Images",
-    "loading": "Loading product or categories...",
-    "savedOk": "Product saved successfully!",
-    "saveFailed": "Failed to save product. Check console for details."
-  },
-  "productExpanded": {
-    "pricingStock": "Pricing / Stock",
-    "price": "Price",
-    "stock": "Stock",
-    "sku": "SKU",
-    "brand": "Brand",
-    "description": "Description",
-    "attributes": "Attributes",
-    "created": "Created",
-    "updated": "Updated"
-  },
-  "status": {
-    "pending": "Pending",
-    "confirmed": "Confirmed",
-    "shipped": "Shipped",
-    "delivered": "Delivered",
-    "cancelled": "Cancelled"
-  },
-  "orderEdit": {
-    "title": "Edit Order #{{id}}",
-    "orderStatus": "Order Status",
-    "status": "Status",
-    "deliveryInfo": "Delivery Information",
-    "provider": "Provider",
-    "trackingNumber": "Tracking Number",
-    "eta": "ETA (ISO or text)",
-    "adminNotes": "Admin Notes",
-    "internalNotes": "Internal Notes",
-    "saveChanges": "Save Changes",
-    "success": "Order updated successfully!",
-    "errorLoading": "Error loading order: {{message}}"
-  },
-  "orderSummary": {
-    "title": "Order Summary",
-    "subtotal": "Subtotal",
-    "customer": "Customer",
-    "shippingAddress": "Shipping Address",
-    "payment": "Payment",
-    "na": "N/A",
-    "tx": "Tx",
-    "paymentStatus": {
-      "paid": "PAID",
-      "unpaid": "UNPAID"
-    }
-  },
-  "orderItems": {
-    "title": "Order Items",
-    "empty": "No items in this order.",
-    "image": "Image",
-    "name": "Name",
-    "qty": "Qty",
-    "price": "Price",
-    "subtotal": "Subtotal",
-    "total": "Total",
-    "noImage": "No image",
-    "unnamed": "Unnamed Product"
-  },
-  "layouts": {
-    "Hero": "Hero",
-    "Showcase": "Showcase",
-    "Grid": "Grid",
-    "Carousel": "Carousel"
+    "update": "Update Category",
+    "create": "Create Category"
   },
   "adminLanding": {
-    "title": "Edit Landing Page",
     "failedToLoad": "Failed to load landing page data.",
+    "title": "Edit Landing Page",
     "form": {
       "title": "Title",
       "subtitle": "Subtitle",
@@ -335,11 +161,187 @@
       "title": "Sections",
       "sectionTitle": "Section Title",
       "sectionContent": "Section Content",
-      "add": "Add Section",
-      "remove": "Remove section"
+      "remove": "Remove section",
+      "add": "Add Section"
     },
     "toast": {
       "updated": "Landing page updated successfully!"
+    }
+  },
+  "layouts": {
+    "Hero": "Hero",
+    "Bento": "Bento",
+    "Split": "Split",
+    "Mosaic": "Mosaic",
+    "Story": "Story"
+  },
+  "adminOrdersPage": {
+    "failedToDeleteFallback": "Failed to delete order.",
+    "failedToLoad": "Failed to load orders: {{message}}",
+    "notFound": "No orders found",
+    "snackbarSuccess": "Action completed successfully",
+    "dialog": {
+      "title": "Delete order?",
+      "warning": "This will permanently delete the order. This action cannot be undone.",
+      "confirm": "Are you sure you want to delete order {{id}}?",
+      "cancel": "Cancel",
+      "deleting": "Deleting…",
+      "delete": "Delete"
+    }
+  },
+  "adminOrders": {
+    "actions": {
+      "view": "View",
+      "tooltipView": "View order {{id}}",
+      "edit": "Edit",
+      "tooltipEdit": "Edit order {{id}}",
+      "delete": "Delete",
+      "tooltipDelete": "Delete order {{id}}"
+    }
+  },
+  "orderDetails": {
+    "customer": "Customer",
+    "shippingAddress": "Shipping Address",
+    "items": "Items",
+    "line": "{{name}} ×{{qty}} — {{price}}",
+    "total": "Total",
+    "payment": "Payment",
+    "method": "Method",
+    "status": "Status",
+    "transaction": "Transaction",
+    "delivery": "Delivery",
+    "provider": "Provider",
+    "tracking": "Tracking",
+    "eta": "ETA",
+    "created": "Created",
+    "updated": "Updated",
+    "notes": "Notes"
+  },
+  "orderEdit": {
+    "errorLoading": "Error loading order: {{message}}",
+    "title": "Edit Order #{{id}}",
+    "orderStatus": "Order Status",
+    "status": "Status",
+    "deliveryInfo": "Delivery Information",
+    "provider": "Provider",
+    "trackingNumber": "Tracking Number",
+    "eta": "ETA (ISO or text)",
+    "adminNotes": "Admin Notes",
+    "internalNotes": "Internal Notes",
+    "saveChanges": "Save Changes",
+    "success": "Order updated successfully!"
+  },
+  "orderSummary": {
+    "title": "Order Summary",
+    "subtotal": "Subtotal",
+    "customer": "Customer",
+    "shippingAddress": "Shipping Address",
+    "payment": "Payment",
+    "na": "N/A",
+    "paymentStatus": {
+      "paid": "Paid",
+      "unpaid": "Unpaid"
+    },
+    "tx": "Tx"
+  },
+  "orderItems": {
+    "title": "Order Items",
+    "empty": "No items in this order.",
+    "image": "Image",
+    "name": "Name",
+    "qty": "Qty",
+    "price": "Price",
+    "subtotal": "Subtotal",
+    "noImage": "No image",
+    "unnamed": "Unnamed Product",
+    "total": "Total"
+  },
+  "adminProductForm": {
+    "savedOk": "Product saved successfully!",
+    "saveFailed": "Failed to save product. Check console for details.",
+    "loading": "Loading product or categories...",
+    "titleAdd": "Add New Product",
+    "titleEdit": "Edit Product",
+    "name": "Name",
+    "description": "Description",
+    "price": "Price",
+    "stock": "Stock",
+    "category": "Category",
+    "invalidCategory": "Invalid category ID: {{id}}",
+    "images": "Images"
+  },
+  "adminProductsPage": {
+    "title": "Manage Products",
+    "snackbarReordered": "Product order updated"
+  },
+  "adminProducts": {
+    "actions": {
+      "tooltipEdit": "Edit {{name}}",
+      "tooltipDelete": "Delete {{name}}"
+    },
+    "confirmDelete": "Are you sure you want to delete {{name}}?"
+  },
+  "productExpanded": {
+    "pricingStock": "Pricing / Stock",
+    "price": "Price",
+    "stock": "Stock",
+    "sku": "SKU",
+    "brand": "Brand",
+    "description": "Description",
+    "attributes": "Attributes",
+    "created": "Created",
+    "updated": "Updated"
+  },
+  "productDetails": {
+    "pricingStock": "Pricing / Stock",
+    "price": "Price",
+    "stock": "Stock",
+    "description": "Description",
+    "created": "Created",
+    "updated": "Updated"
+  },
+  "empty": {
+    "noProducts": "No products found",
+    "noOrders": "No orders found"
+  },
+  "userProfile": {
+    "title": "My Profile",
+    "fields": {
+      "name": "Name",
+      "email": "Email",
+      "uid": "UID"
+    },
+    "saveChanges": "Save Changes",
+    "toasts": {
+      "profileUpdated": "Profile updated",
+      "avatarDeleted": "Avatar deleted"
+    },
+    "errors": {
+      "updateFailed": "Failed to update profile.",
+      "avatarUploadFailed": "Avatar upload failed.",
+      "deleteAvatarFailed": "Failed to delete avatar"
+    },
+    "empty": {
+      "noUser": "No user data available."
+    },
+    "dialog": {
+      "resetAvatar": {
+        "title": "Reset Avatar",
+        "confirm": "Are you sure you want to reset your avatar to the default?"
+      }
+    },
+    "changePassword": {
+      "title": "Change Password",
+      "old": "Old Password",
+      "new": "New Password",
+      "confirm": "Confirm Password",
+      "submit": "Change Password",
+      "success": "Password updated successfully",
+      "errors": {
+        "mismatch": "New passwords do not match",
+        "unauthenticated": "Not authenticated",
+        "updateFailed": "Failed to update password"
+      }
     }
   }
 }

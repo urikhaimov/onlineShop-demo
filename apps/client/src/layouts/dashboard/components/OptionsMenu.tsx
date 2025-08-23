@@ -1,3 +1,4 @@
+// src/components/header/OptionsMenu.tsx
 import * as React from 'react';
 import { styled } from '@mui/material/styles';
 import Divider, { dividerClasses } from '@mui/material/Divider';
@@ -12,6 +13,7 @@ import MenuButton from './MenuButton';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { ListItemButton } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 export const ROUTES = {
   PROFILE: '/profile',
@@ -26,6 +28,7 @@ const StyledListItemButton = styled(ListItemButton)(() => ({
 }));
 
 export default function OptionsMenu() {
+  const { t } = useTranslation();
   const { signOut } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const location = useLocation();
@@ -49,13 +52,15 @@ export default function OptionsMenu() {
       navigate(ROUTES.LOGIN);
     } catch (error) {
       console.error('Logout failed:', error);
+    } finally {
+      setAnchorEl(null);
     }
   };
 
   return (
     <>
       <MenuButton
-        aria-label="Open menu"
+        aria-label={t('menu.openAria', { defaultValue: 'Open menu' })}
         onClick={handleClick}
         sx={{ borderColor: 'transparent' }}
       >
@@ -70,29 +75,18 @@ export default function OptionsMenu() {
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         sx={{
-          [`& .${listClasses.root}`]: {
-            padding: '4px',
-          },
-          [`& .${paperClasses.root}`]: {
-            padding: 0,
-          },
-          [`& .${dividerClasses.root}`]: {
-            margin: '4px -4px',
-          },
+          [`& .${listClasses.root}`]: { padding: '4px' },
+          [`& .${paperClasses.root}`]: { padding: 0 },
+          [`& .${dividerClasses.root}`]: { margin: '4px -4px' },
         }}
       >
         <StyledListItemButton
           selected={isSelected(ROUTES.PROFILE)}
           onClick={handleNavigate(ROUTES.PROFILE)}
         >
-          <ListItemText>Profile</ListItemText>
-        </StyledListItemButton>
-
-        <StyledListItemButton
-          selected={isSelected(ROUTES.ACCOUNT)}
-          onClick={handleNavigate(ROUTES.ACCOUNT)}
-        >
-          <ListItemText>My Account</ListItemText>
+          <ListItemText
+            primary={t('menu.profile', { defaultValue: 'Profile' })}
+          />
         </StyledListItemButton>
 
         <Divider />
@@ -100,13 +94,12 @@ export default function OptionsMenu() {
         <StyledListItemButton
           onClick={handleLogout}
           sx={{
-            [`& .${listItemIconClasses.root}`]: {
-              ml: 'auto',
-              minWidth: 0,
-            },
+            [`& .${listItemIconClasses.root}`]: { ml: 'auto', minWidth: 0 },
           }}
         >
-          <ListItemText>Logout</ListItemText>
+          <ListItemText
+            primary={t('menu.logout', { defaultValue: 'Logout' })}
+          />
           <ListItemIcon>
             <LogoutRoundedIcon fontSize="small" />
           </ListItemIcon>

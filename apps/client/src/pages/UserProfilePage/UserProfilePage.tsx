@@ -1,3 +1,4 @@
+// src/pages/user/UserProfilePage.tsx (or your current path)
 import React, { useEffect } from 'react';
 import {
   Alert,
@@ -32,9 +33,12 @@ import {
   useUserProfileToastStore,
   useUserProfileUIStore,
 } from '../../stores/useUserProfileUIStore';
+import { useTranslation } from 'react-i18next';
 
 export default function UserProfilePage() {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
+
   const {
     toastOpen,
     toastMessage,
@@ -79,10 +83,18 @@ export default function UserProfilePage() {
   const onSubmit = async (data: { name: string }) => {
     try {
       await updateMutation.mutateAsync({ name: data.name });
-      setToastMessage('Profile updated');
+      setToastMessage(
+        t('userProfile.toasts.profileUpdated', {
+          defaultValue: 'Profile updated',
+        }),
+      );
       setToastOpen(true);
     } catch {
-      setErrorMsg('Failed to update profile.');
+      setErrorMsg(
+        t('userProfile.errors.updateFailed', {
+          defaultValue: 'Failed to update profile.',
+        }),
+      );
     }
   };
 
@@ -91,12 +103,18 @@ export default function UserProfilePage() {
       setUploading(true);
       await uploadAvatarMutation.mutateAsync(file);
       incrementAvatarVer();
-      setToastMessage('Profile updated');
+      setToastMessage(
+        t('userProfile.toasts.profileUpdated', {
+          defaultValue: 'Profile updated',
+        }),
+      );
       setToastOpen(true);
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Avatar upload failed.';
-      setErrorMsg(errorMessage);
+      const fallback = t('userProfile.errors.avatarUploadFailed', {
+        defaultValue: 'Avatar upload failed.',
+      });
+      const message = err instanceof Error ? err.message : fallback;
+      setErrorMsg(message || fallback);
     } finally {
       setUploading(false);
     }
@@ -106,10 +124,18 @@ export default function UserProfilePage() {
     try {
       await deleteAvatarMutation.mutateAsync();
       incrementAvatarVer();
-      setToastMessage('Avatar deleted');
+      setToastMessage(
+        t('userProfile.toasts.avatarDeleted', {
+          defaultValue: 'Avatar deleted',
+        }),
+      );
       setToastOpen(true);
     } catch {
-      setErrorMsg('Failed to delete avatar');
+      setErrorMsg(
+        t('userProfile.errors.deleteAvatarFailed', {
+          defaultValue: 'Failed to delete avatar',
+        }),
+      );
     } finally {
       setDeleteDialog(false);
     }
@@ -122,7 +148,9 @@ export default function UserProfilePage() {
   if (!user) {
     return (
       <Typography variant="h6" textAlign="center" mt={4}>
-        No user data available.
+        {t('userProfile.empty.noUser', {
+          defaultValue: 'No user data available.',
+        })}
       </Typography>
     );
   }
@@ -153,7 +181,7 @@ export default function UserProfilePage() {
           elevation={3}
         >
           <Typography variant="h5" textAlign="center" gutterBottom>
-            My Profile
+            {t('userProfile.title', { defaultValue: 'My Profile' })}
           </Typography>
 
           <Stack spacing={3} mt={2} alignItems="center">
@@ -174,21 +202,23 @@ export default function UserProfilePage() {
               <Stack spacing={2}>
                 <FormTextField
                   name="name"
-                  label="Name"
+                  label={t('userProfile.fields.name', { defaultValue: 'Name' })}
                   control={control}
                   required
                   errorObject={errors.name}
                 />
                 <FormTextField
                   name="email"
-                  label="Email"
+                  label={t('userProfile.fields.email', {
+                    defaultValue: 'Email',
+                  })}
                   control={control}
                   disabled
                   value={user.email ?? ''}
                 />
                 <FormTextField
                   name="uid"
-                  label="UID"
+                  label={t('userProfile.fields.uid', { defaultValue: 'UID' })}
                   control={control}
                   disabled
                   value={user.uid ?? ''}
@@ -200,13 +230,16 @@ export default function UserProfilePage() {
                   fullWidth
                   disabled={isSubmitting}
                 >
-                  Save Changes
+                  {t('userProfile.saveChanges', {
+                    defaultValue: 'Save Changes',
+                  })}
                 </Button>
               </Stack>
             </Box>
           </Stack>
         </Paper>
 
+        {/* success toast */}
         <Snackbar
           open={toastOpen}
           autoHideDuration={3000}
@@ -218,6 +251,7 @@ export default function UserProfilePage() {
           </Alert>
         </Snackbar>
 
+        {/* error toast */}
         <Snackbar
           open={!!errorMsg}
           autoHideDuration={4000}
@@ -229,21 +263,31 @@ export default function UserProfilePage() {
           </Alert>
         </Snackbar>
 
+        {/* delete avatar dialog */}
         <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialog(false)}>
-          <DialogTitle>Reset Avatar</DialogTitle>
+          <DialogTitle>
+            {t('userProfile.dialog.resetAvatar.title', {
+              defaultValue: 'Reset Avatar',
+            })}
+          </DialogTitle>
           <DialogContent>
             <Typography>
-              Are you sure you want to reset your avatar to the default?
+              {t('userProfile.dialog.resetAvatar.confirm', {
+                defaultValue:
+                  'Are you sure you want to reset your avatar to the default?',
+              })}
             </Typography>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setDeleteDialog(false)}>Cancel</Button>
+            <Button onClick={() => setDeleteDialog(false)}>
+              {t('actions.cancel', { defaultValue: 'Cancel' })}
+            </Button>
             <Button
               variant="contained"
               color="error"
               onClick={handleAvatarDelete}
             >
-              Delete
+              {t('actions.delete', { defaultValue: 'Delete' })}
             </Button>
           </DialogActions>
         </Dialog>
