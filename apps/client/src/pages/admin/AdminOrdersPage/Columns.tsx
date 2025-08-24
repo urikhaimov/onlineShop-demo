@@ -109,13 +109,13 @@ export function defineAdminOrderColumns(
       cell: ({ row }) => {
         const order = row.original;
         const actions: readonly RowAction<TOrder>[] = [
-          {
-            id: 'view',
-            label: t('adminOrders.actions.view'),
-            icon: <VisibilityIcon fontSize="small" />,
-            onClick: (o) => navigate(`/admin/orders/${o.id}`),
-            tooltip: (o) => t('adminOrders.actions.tooltipView', { id: o.id }),
-          },
+          // {
+          //   id: 'view',
+          //   label: t('adminOrders.actions.view'),
+          //   icon: <VisibilityIcon fontSize="small" />,
+          //   onClick: (o) => navigate(`/admin/orders/${o.id}`),
+          //   tooltip: (o) => t('adminOrders.actions.tooltipView', { id: o.id }),
+          // },
           {
             id: 'edit',
             label: t('adminOrders.actions.edit'),

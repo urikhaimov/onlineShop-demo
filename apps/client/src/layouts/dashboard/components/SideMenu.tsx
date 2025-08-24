@@ -43,9 +43,9 @@ export default function SideMenu() {
           p: 1.5,
         }}
       >
-        <SelectContent />
+        {/* <SelectContent /> */}
       </Box>
-      <Divider />
+
       <Box
         sx={{
           overflow: 'auto',
@@ -55,7 +55,7 @@ export default function SideMenu() {
         }}
       >
         <MenuContent />
-        <CardAlert />
+        {/* <CardAlert /> */}
       </Box>
       <Stack
         direction="row"
