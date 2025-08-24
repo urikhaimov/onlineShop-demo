@@ -1,6 +1,7 @@
+// src/pages/admin/categories/EditCategoryPage.tsx
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Snackbar, Alert } from '@mui/material';
+import { Box, Typography, Snackbar, Alert, Paper, Stack } from '@mui/material';
 import CategoryForm, { CategoryFormValues } from './CategoryForm';
 import { PageLayout } from '../../../layouts/page.layout';
 import {
@@ -9,14 +10,24 @@ import {
 } from '../../../services/ability.service';
 import { useTranslation } from 'react-i18next';
 
-// 🔥 Firestore version — replace with your NestJS/REST call if not using Firestore
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
+
+import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import { useThemeStore } from '../../../stores/useThemeStore';
+import {
+  contentBoxSx,
+  contentPaperSx,
+  getLayoutTokens,
+} from '../../../utils/uiLayout';
 
 export default function EditCategoryPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+  const { themeSettings } = useThemeStore();
+  const { radius, contentMax } = getLayoutTokens(themeSettings, 'form');
 
   const [okOpen, setOkOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -36,7 +47,6 @@ export default function EditCategoryPage() {
   const handleSubmit = async (data: CategoryFormValues) => {
     setErr(null);
     try {
-      // ✅ Update Firestore document (adjust field names to your type)
       const ref = doc(db, 'categories', id);
       await updateDoc(ref, {
         name: data.name?.trim() ?? '',
@@ -46,7 +56,6 @@ export default function EditCategoryPage() {
       });
 
       setOkOpen(true);
-      // Return to categories list (or stay on page—up to you)
       setTimeout(() => navigate('/admin/categories'), 300);
     } catch (e: any) {
       setErr(
@@ -60,43 +69,42 @@ export default function EditCategoryPage() {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      <Box px={2} py={3}>
-        <Typography variant="h5" fontWeight="bold" gutterBottom>
-          {t('adminCategoriesEditPage.title', {
-            defaultValue: 'Edit Category',
-          })}
-        </Typography>
+      <Box sx={contentBoxSx(headerHeight, footerHeight)}>
+        <Paper elevation={2} sx={contentPaperSx({ contentMax, radius })}>
+          <Stack>
+            <Typography variant="h5" fontWeight={600} sx={{ mb: 4 }}>
+              {t('adminCategoriesEditPage.title', {
+                defaultValue: 'Edit Category',
+              })}
+            </Typography>
 
-        {/* CategoryForm handles loading existing values when mode="edit" + categoryId */}
-        <CategoryForm mode="edit" categoryId={id} onSubmit={handleSubmit} />
+            <CategoryForm mode="edit" categoryId={id} onSubmit={handleSubmit} />
 
-        {/* ✅ Success toast */}
-        <Snackbar
-          open={okOpen}
-          autoHideDuration={2500}
-          onClose={() => setOkOpen(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="success" variant="filled">
-            {t('adminCategoriesEditPage.snackbarUpdated', {
-              defaultValue: 'Category updated',
-            })}
-          </Alert>
-        </Snackbar>
-
-        {/* ⛔ Error alert (inline) */}
-        {err && (
-          <Box mt={2}>
-            <Alert
-              severity="error"
-              variant="filled"
-              onClose={() => setErr(null)}
-            >
-              {err}
-            </Alert>
-          </Box>
-        )}
+            {err && (
+              <Alert
+                severity="error"
+                variant="filled"
+                onClose={() => setErr(null)}
+              >
+                {err}
+              </Alert>
+            )}
+          </Stack>
+        </Paper>
       </Box>
+
+      <Snackbar
+        open={okOpen}
+        autoHideDuration={2500}
+        onClose={() => setOkOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" variant="filled">
+          {t('adminCategoriesEditPage.snackbarUpdated', {
+            defaultValue: 'Category updated',
+          })}
+        </Alert>
+      </Snackbar>
     </PageLayout>
   );
 }

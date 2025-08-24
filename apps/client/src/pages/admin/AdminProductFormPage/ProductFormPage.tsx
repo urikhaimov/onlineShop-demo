@@ -1,10 +1,24 @@
 // src/pages/admin/ProductFormPage.tsx
 import React, { useEffect, useRef } from 'react';
-import { Box, Typography, Paper, Stack, Button } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Box, Typography, Paper, Stack, Button } from '@mui/material';
+import { PageLayout } from '../../../layouts/page.layout';
+import {
+  EAbilityActions,
+  EAbilitySubjects,
+} from '../../../services/ability.service';
+import { useTranslation } from 'react-i18next';
+
+import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import { useThemeStore } from '../../../stores/useThemeStore';
+import {
+  contentBoxSx,
+  contentPaperSx,
+  getLayoutTokens,
+} from '../../../utils/uiLayout';
+
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import ReactQuill from 'react-quill';
-
 import { useProduct } from '../../../hooks/useProduct';
 import { useCategories } from '../../../hooks/useCategories';
 import { useSaveProductMutation } from '../../../hooks/useSaveProductMutation';
@@ -14,13 +28,6 @@ import ImageUploader, {
   CombinedImage,
 } from '../../../components/ImageUploader';
 import { useProductFormStore } from '../../../stores/useProductFormStore';
-import { PageLayout } from '../../../layouts/page.layout';
-import { headerHeight, footerHeight } from '../../../config/themeConfig';
-import {
-  EAbilityActions,
-  EAbilitySubjects,
-} from '../../../services/ability.service';
-import { useTranslation } from 'react-i18next';
 
 export type FormState = {
   name: string;
@@ -73,10 +80,12 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
   const watchedCategoryId = useWatch({ control, name: 'categoryId' });
 
-  // ---------- GUARD 1: Only push categories to the store when they actually change ----------
+  const { themeSettings } = useThemeStore();
+  const { radius, contentMax } = getLayoutTokens(themeSettings, 'form');
+
+  // categories stable push
   const prevCatSigRef = useRef<string>('');
   useEffect(() => {
-    // Build a light signature that stays stable if categories didn't change
     const sig = JSON.stringify(categoryData.map((c) => c.id));
     if (sig !== prevCatSigRef.current) {
       setCategories(categoryData);
@@ -84,11 +93,10 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     }
   }, [categoryData, setCategories]);
 
-  // ---------- GUARD 2: Bootstrap form once per productId ----------
+  // bootstrap
   const bootstrappedForIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (mode === 'add') {
-      // For "add" we only mark ready once
       if (bootstrappedForIdRef.current !== 'add') {
         reset({
           name: '',
@@ -98,25 +106,20 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
           categoryId: '',
         });
         setCombinedImages([]);
-        setProduct(undefined as any); // or leave undefined if your store expects it
+        setProduct(undefined as any);
         setReady(true);
         bootstrappedForIdRef.current = 'add';
       }
       return;
     }
-
-    // Edit mode bootstrap
     if (
       !productId ||
       productLoading ||
       categoriesLoading ||
       !productData ||
       categoryData.length === 0
-    ) {
+    )
       return;
-    }
-
-    // Ensure we don't keep re-seeding on every render
     if (bootstrappedForIdRef.current === productId) return;
 
     const {
@@ -176,7 +179,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   const onSubmit = async (formData: FormState) => {
     try {
       setUploadingImages(true);
-
       await saveMutation.mutateAsync({
         productId,
         mode,
@@ -188,7 +190,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
         images: combinedImages,
         deletedImageIds,
       });
-
       alert(
         t('adminProductForm.savedOk', {
           defaultValue: 'Product saved successfully!',
@@ -211,7 +212,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     mode === 'add'
       ? !categoriesLoading
       : !productLoading && !categoriesLoading && !!productData;
-
   if (!isReady) {
     return (
       <Box p={3}>
@@ -226,179 +226,166 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      <Box
-        sx={{
-          mt: `${headerHeight}px`,
-          mb: `${footerHeight}px`,
-          height: `calc(100vh - ${headerHeight + footerHeight + 120}px)`,
-          display: 'flex',
-          justifyContent: 'center',
-        }}
-      >
-        <Paper
-          elevation={2}
-          sx={{
-            width: '100%',
-            maxWidth: 700,
-            height: '100%',
-            overflowY: 'auto',
-            px: { xs: 2, sm: 3 },
-            py: 3,
-            borderRadius: 2,
-          }}
-        >
-          <Typography variant="h5" mb={3}>
-            {mode === 'add'
-              ? t('adminProductForm.titleAdd', {
-                  defaultValue: 'Add New Product',
-                })
-              : t('adminProductForm.titleEdit', {
-                  defaultValue: 'Edit Product',
-                })}
-          </Typography>
+      <Box sx={contentBoxSx(headerHeight, footerHeight)}>
+        <Paper elevation={2} sx={contentPaperSx({ contentMax, radius })}>
+          <Stack>
+            <Typography variant="h5" fontWeight={600} sx={{ mb: 4 }}>
+              {mode === 'add'
+                ? t('adminProductForm.titleAdd', {
+                    defaultValue: 'Add New Product',
+                  })
+                : t('adminProductForm.titleEdit', {
+                    defaultValue: 'Edit Product',
+                  })}
+            </Typography>
 
-          <form onSubmit={handleSubmit(onSubmit)} noValidate>
-            <Stack spacing={3}>
-              <FormTextField
-                label={t('adminProductForm.name', { defaultValue: 'Name' })}
-                register={register('name', {
-                  required: t('validation.name_required', {
-                    defaultValue: 'Name is required.',
-                  }) as string,
-                })}
-                errorObject={errors.name}
-              />
-
-              <Controller
-                control={control}
-                name="description"
-                defaultValue=""
-                render={({ field }) => (
-                  <Box>
-                    <Typography variant="subtitle1" mb={1}>
-                      {t('adminProductForm.description', {
-                        defaultValue: 'Description',
-                      })}
-                    </Typography>
-                    <Box
-                      sx={{
-                        border: 1,
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                        overflow: 'hidden',
-                        '& .ql-toolbar': {
-                          bgcolor: 'background.paper',
-                          borderBottom: 1,
-                          borderColor: 'divider',
-                        },
-                        '& .ql-container': {
-                          bgcolor: 'background.default',
-                          color: 'text.primary',
-                          minHeight: 200,
-                        },
-                        '& .ql-editor': {
-                          fontFamily: 'inherit',
-                          fontSize: '1rem',
-                          px: 2,
-                          py: 1,
-                        },
-                      }}
-                    >
-                      <ReactQuill
-                        theme="snow"
-                        value={field.value}
-                        onChange={field.onChange}
-                      />
-                    </Box>
-                  </Box>
-                )}
-              />
-
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <form onSubmit={handleSubmit(onSubmit)} noValidate>
+              <Stack spacing={2}>
                 <FormTextField
-                  label={t('adminProductForm.price', { defaultValue: 'Price' })}
-                  type="number"
-                  fullWidth
-                  register={register('price', {
-                    required: t('validation.price_required', {
-                      defaultValue: 'Price is required.',
+                  label={t('adminProductForm.name', { defaultValue: 'Name' })}
+                  register={register('name', {
+                    required: t('validation.name_required', {
+                      defaultValue: 'Name is required.',
                     }) as string,
                   })}
-                  errorObject={errors.price}
+                  errorObject={errors.name}
                 />
-                <FormTextField
-                  label={t('adminProductForm.stock', { defaultValue: 'Stock' })}
-                  type="number"
-                  fullWidth
-                  register={register('stock')}
-                  errorObject={errors.stock}
+
+                <Controller
+                  control={control}
+                  name="description"
+                  defaultValue=""
+                  render={({ field }) => (
+                    <Box>
+                      <Typography variant="subtitle1" mb={1}>
+                        {t('adminProductForm.description', {
+                          defaultValue: 'Description',
+                        })}
+                      </Typography>
+                      <Box
+                        sx={{
+                          border: 1,
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                          overflow: 'hidden',
+                          '& .ql-toolbar': {
+                            bgcolor: 'background.paper',
+                            borderBottom: 1,
+                            borderColor: 'divider',
+                          },
+                          '& .ql-container': {
+                            bgcolor: 'background.default',
+                            color: 'text.primary',
+                            minHeight: 200,
+                          },
+                          '& .ql-editor': {
+                            fontFamily: 'inherit',
+                            fontSize: '1rem',
+                            px: 2,
+                            py: 1,
+                          },
+                        }}
+                      >
+                        <ReactQuill
+                          theme="snow"
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
+                      </Box>
+                    </Box>
+                  )}
                 />
-              </Stack>
 
-              <FormTextField
-                label={t('adminProductForm.category', {
-                  defaultValue: 'Category',
-                })}
-                name="categoryId"
-                control={control}
-                errorObject={errors.categoryId}
-                isSelect
-                required
-                selectOptions={categories.map((cat) => ({
-                  label: cat.name,
-                  value: cat.id,
-                }))}
-              />
-
-              {!categories.some((c) => c.id === watchedCategoryId) &&
-                watchedCategoryId && (
-                  <Typography color="error">
-                    {t('adminProductForm.invalidCategory', {
-                      id: watchedCategoryId,
-                      defaultValue: 'Invalid category ID: {{id}}',
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <FormTextField
+                    label={t('adminProductForm.price', {
+                      defaultValue: 'Price',
                     })}
-                  </Typography>
-                )}
+                    type="number"
+                    fullWidth
+                    register={register('price', {
+                      required: t('validation.price_required', {
+                        defaultValue: 'Price is required.',
+                      }) as string,
+                    })}
+                    errorObject={errors.price}
+                  />
+                  <FormTextField
+                    label={t('adminProductForm.stock', {
+                      defaultValue: 'Stock',
+                    })}
+                    type="number"
+                    fullWidth
+                    register={register('stock')}
+                    errorObject={errors.stock}
+                  />
+                </Stack>
 
-              <Box>
-                <Typography variant="subtitle1" mb={1}>
-                  {t('adminProductForm.images')}
-                </Typography>
-                <ImageUploader
-                  images={combinedImages}
-                  onDrop={handleImageDrop}
-                  onRemove={(id) => {
-                    const imageToDelete = combinedImages.find(
-                      (img) => img.id === id,
-                    );
-                    if (imageToDelete?.type === 'existing') {
-                      addDeletedImageId(
-                        imageToDelete.id.replace('existing-', ''),
-                      );
-                    }
-                    setCombinedImages(
-                      combinedImages.filter((img) => img.id !== id),
-                    );
-                  }}
-                  onReorderAll={(newOrder) => setCombinedImages(newOrder)}
-                  showSnackbar={false}
-                  onCloseSnackbar={() => {
-                    //todo
-                  }}
+                <FormTextField
+                  label={t('adminProductForm.category', {
+                    defaultValue: 'Category',
+                  })}
+                  name="categoryId"
+                  control={control}
+                  errorObject={errors.categoryId}
+                  isSelect
+                  required
+                  selectOptions={categories.map((cat) => ({
+                    label: cat.name,
+                    value: cat.id,
+                  }))}
                 />
-              </Box>
 
-              <Box textAlign="right">
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={isSubmitting || isUploadingImages}
-                >
-                  {t('actions.save', { defaultValue: 'Save' })}
-                </Button>
-              </Box>
-            </Stack>
-          </form>
+                {!categories.some((c) => c.id === watchedCategoryId) &&
+                  watchedCategoryId && (
+                    <Typography color="error">
+                      {t('adminProductForm.invalidCategory', {
+                        id: watchedCategoryId,
+                        defaultValue: 'Invalid category ID: {{id}}',
+                      })}
+                    </Typography>
+                  )}
+
+                <Box>
+                  <Typography variant="subtitle1" mb={1}>
+                    {t('adminProductForm.images')}
+                  </Typography>
+                  <ImageUploader
+                    images={combinedImages}
+                    onDrop={handleImageDrop}
+                    onRemove={(id) => {
+                      const imageToDelete = combinedImages.find(
+                        (img) => img.id === id,
+                      );
+                      if (imageToDelete?.type === 'existing') {
+                        addDeletedImageId(
+                          imageToDelete.id.replace('existing-', ''),
+                        );
+                      }
+                      setCombinedImages(
+                        combinedImages.filter((img) => img.id !== id),
+                      );
+                    }}
+                    onReorderAll={(newOrder) => setCombinedImages(newOrder)}
+                    showSnackbar={false}
+                    onCloseSnackbar={() => {
+                      //todo
+                    }}
+                  />
+                </Box>
+
+                <Box textAlign="right">
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={isSubmitting || isUploadingImages}
+                  >
+                    {t('actions.save', { defaultValue: 'Save' })}
+                  </Button>
+                </Box>
+              </Stack>
+            </form>
+          </Stack>
         </Paper>
       </Box>
     </PageLayout>

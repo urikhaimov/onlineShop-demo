@@ -18,6 +18,7 @@ import type { TransitionProps } from '@mui/material/transitions';
 import CloseIcon from '@mui/icons-material/Close';
 import { useCartStore } from '../stores/useCartStore';
 import { useSwipeable } from 'react-swipeable';
+import { useTranslation } from 'react-i18next';
 
 import { IProduct } from '@common/types';
 export type CartItem = IProduct & { quantity: number };
@@ -45,6 +46,7 @@ function SwipeableCartItem({
   onUpdate: (quantity: number) => void;
   showToast: (msg: string) => void;
 }) {
+  const { t } = useTranslation();
   const handlers = useSwipeable({
     onSwipedLeft: onRemove,
     delta: 50,
@@ -93,7 +95,7 @@ function SwipeableCartItem({
             <Button
               onClick={() => {
                 onUpdate(item.quantity - 1);
-                showToast(`Reduced ${item.name}`);
+                showToast(t('cart.decreaseToast', { name: item.name }));
               }}
               disabled={item.quantity <= 1}
               sx={{ minWidth: 32, px: 0 }}
@@ -104,7 +106,7 @@ function SwipeableCartItem({
             <Button
               onClick={() => {
                 onUpdate(item.quantity + 1);
-                showToast(`Increased ${item.name}`);
+                showToast(t('cart.increaseToast', { name: item.name }));
               }}
               disabled={item.quantity >= item.stock}
               sx={{ minWidth: 32, px: 0 }}
@@ -118,10 +120,10 @@ function SwipeableCartItem({
             size="small"
             onClick={() => {
               onRemove();
-              showToast(`Removed ${item.name}`);
+              showToast(t('cart.removedToast', { name: item.name }));
             }}
           >
-            Remove
+            {t('cart.remove')}
           </Button>
         </Box>
       </Box>
@@ -130,6 +132,7 @@ function SwipeableCartItem({
 }
 
 const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const items = useCartStore((s) => s.items);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
@@ -164,7 +167,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
             color: 'primary.contrastText',
           }}
         >
-          <Typography variant="h6">Your Cart</Typography>
+          <Typography variant="h6">{t('cart.title')}</Typography>
           <IconButton onClick={onClose} sx={{ color: 'primary.contrastText' }}>
             <CloseIcon />
           </IconButton>
@@ -175,7 +178,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
         <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}>
           {items.length === 0 ? (
             <Typography variant="body2" align="center" color="text.secondary">
-              Your cart is empty.
+              {t('cart.empty')}
             </Typography>
           ) : (
             <List>
@@ -196,7 +199,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
 
         <Box sx={{ p: 2 }}>
           <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            Total: ${subtotal.toFixed(2)}
+            {t('cart.total')}: ${subtotal.toFixed(2)}
           </Typography>
           <Button
             variant="contained"
@@ -209,7 +212,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
               navigate('/checkout');
             }}
           >
-            Checkout
+            {t('cart.checkout')}
           </Button>
           <Button
             variant="outlined"
@@ -217,14 +220,14 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
             fullWidth
             onClick={() => {
               clearCart();
-              showToast('Cart cleared');
+              showToast(t('cart.clearedToast'));
             }}
             disabled={items.length === 0}
           >
-            Clear Cart
+            {t('cart.clear')}
           </Button>
           <Button variant="text" fullWidth sx={{ mt: 1 }} onClick={onClose}>
-            Close
+            {t('cart.close')}
           </Button>
         </Box>
       </Box>

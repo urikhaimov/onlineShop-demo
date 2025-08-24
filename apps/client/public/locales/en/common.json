@@ -343,5 +343,43 @@
         "updateFailed": "Failed to update password"
       }
     }
+  },
+  "cart": {
+    "title": "Your Cart",
+    "empty": "Your cart is empty.",
+    "qtyShort": "Qty",
+    "increaseToast": "Increased {{name}}",
+    "decreaseToast": "Reduced {{name}}",
+    "removedToast": "Removed {{name}}",
+    "remove": "Remove",
+    "total": "Total",
+    "checkout": "Checkout",
+    "clear": "Clear Cart",
+    "clearedToast": "Cart cleared",
+    "close": "Close"
+  },
+  "checkoutForm": {
+    "paymentDetails": "Payment Details",
+    "ownerName": "Owner Name",
+    "ownerNameRequired": "Owner name is required",
+    "passportId": "Passport ID",
+    "passportIdRequired": "Passport ID is required",
+    "payNow": "Pay Now",
+    "errors": {
+      "stripeNotReady": "Stripe is not ready yet",
+      "paymentFailed": "Payment failed",
+      "paymentStatus": "Payment status: {{status}}",
+      "unexpected": "Unexpected error"
+    }
+  },
+  "checkoutSuccess": {
+    "title": "🎉 Thank You for Your Order!",
+    "subtitle": "We’ve received your payment and your order is being processed.",
+    "goHome": "Go to Home",
+    "viewOrders": "View My Orders",
+    "processing": "Processing order...",
+    "errors": {
+      "generic": "Something went wrong during order confirmation."
+    }
   }
 }

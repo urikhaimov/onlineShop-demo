@@ -1,7 +1,8 @@
+// src/pages/admin/categories/AddCategoryPage.tsx
 import React, { useState } from 'react';
-import { Box, Typography, Snackbar, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import CategoryForm from './CategoryForm';
+import { Box, Typography, Snackbar, Alert, Paper, Stack } from '@mui/material';
+import CategoryForm, { CategoryFormValues } from './CategoryForm';
 import { PageLayout } from '../../../layouts/page.layout';
 import {
   EAbilityActions,
@@ -9,19 +10,24 @@ import {
 } from '../../../services/ability.service';
 import { useTranslation } from 'react-i18next';
 
-// 🔥 Firestore version — replace with your NestJS/REST call if not using Firestore
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 
-type CategoryFormValues = {
-  name: string;
-  description?: string;
-  imageUrl?: string;
-};
+import { headerHeight, footerHeight } from '../../../config/themeConfig';
+import { useThemeStore } from '../../../stores/useThemeStore';
+import {
+  contentBoxSx,
+  contentPaperSx,
+  getLayoutTokens,
+} from '../../../utils/uiLayout';
 
 export default function AddCategoryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+
+  const { themeSettings } = useThemeStore();
+  const { radius, contentMax } = getLayoutTokens(themeSettings, 'form');
+
   const [okOpen, setOkOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -37,7 +43,6 @@ export default function AddCategoryPage() {
       });
 
       setOkOpen(true);
-      // Go back to the list shortly after success
       setTimeout(() => navigate('/admin/categories'), 300);
     } catch (e: any) {
       setErr(
@@ -51,46 +56,46 @@ export default function AddCategoryPage() {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      <Box px={2} py={3}>
-        <Typography variant="h5" fontWeight="bold" gutterBottom>
-          {t('adminCategoriesAddPage.title', {
-            defaultValue: 'Add New Category',
-          })}
-        </Typography>
+      <Box sx={contentBoxSx(headerHeight, footerHeight)}>
+        <Paper elevation={2} sx={contentPaperSx({ contentMax, radius })}>
+          <Stack>
+            <Typography variant="h5" fontWeight={600} sx={{ mb: 4 }}>
+              {t('adminCategoriesAddPage.title', {
+                defaultValue: 'Add New Category',
+              })}
+            </Typography>
 
-        <CategoryForm
-          mode="create"
-          initial={{ name: '', description: '', imageUrl: '' }}
-          onSubmit={handleSubmit}
-        />
+            <CategoryForm
+              mode="create"
+              initial={{ name: '', description: '', imageUrl: '' }}
+              onSubmit={handleSubmit}
+            />
 
-        {/* Success toast */}
-        <Snackbar
-          open={okOpen}
-          autoHideDuration={2500}
-          onClose={() => setOkOpen(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="success" variant="filled">
-            {t('adminCategoriesAddPage.snackbarCreated', {
-              defaultValue: 'Category created',
-            })}
-          </Alert>
-        </Snackbar>
-
-        {/* Error message (inline) */}
-        {err && (
-          <Box mt={2}>
-            <Alert
-              severity="error"
-              variant="filled"
-              onClose={() => setErr(null)}
-            >
-              {err}
-            </Alert>
-          </Box>
-        )}
+            {err && (
+              <Alert
+                severity="error"
+                variant="filled"
+                onClose={() => setErr(null)}
+              >
+                {err}
+              </Alert>
+            )}
+          </Stack>
+        </Paper>
       </Box>
+
+      <Snackbar
+        open={okOpen}
+        autoHideDuration={2500}
+        onClose={() => setOkOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" variant="filled">
+          {t('adminCategoriesAddPage.snackbarCreated', {
+            defaultValue: 'Category created',
+          })}
+        </Alert>
+      </Snackbar>
     </PageLayout>
   );
 }

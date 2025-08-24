@@ -343,5 +343,53 @@
         "updateFailed": "עדכון הסיסמה נכשל"
       }
     }
+  },
+  "cart": {
+    "title": "העגלה שלך",
+    "empty": "העגלה שלך ריקה.",
+    "qtyShort": "כמות",
+    "increaseToast": "הוגדלה הכמות עבור {{name}}",
+    "decreaseToast": "הופחתה הכמות עבור {{name}}",
+    "removedToast": "הוסר {{name}}",
+    "remove": "הסרה",
+    "total": "סך הכול",
+    "checkout": "לתשלום",
+    "clear": "ניקוי עגלה",
+    "clearedToast": "העגלה נוקתה",
+    "close": "סגירה"
+  },
+  "checkout": {
+    "title": "תשלום",
+    "subtotal": "סיכום ביניים",
+    "shipping": "משלוח",
+    "tax": "מס ({{rate}}%)",
+    "discount": "הנחה",
+    "total": "סך הכול",
+    "currency": "USD",
+    "failedToLoad": "טעינת טופס התשלום נכשלה. נסה שוב מאוחר יותר."
+  },
+  "checkoutForm": {
+    "paymentDetails": "פרטי תשלום",
+    "ownerName": "שם בעל הכרטיס",
+    "ownerNameRequired": "נדרש שם בעל הכרטיס",
+    "passportId": "מספר דרכון",
+    "passportIdRequired": "נדרש מספר דרכון",
+    "payNow": "שלם עכשיו",
+    "errors": {
+      "stripeNotReady": "Stripe עדיין לא מוכן",
+      "paymentFailed": "התשלום נכשל",
+      "paymentStatus": "סטטוס התשלום: {{status}}",
+      "unexpected": "שגיאה לא צפויה"
+    }
+  },
+  "checkoutSuccess": {
+    "title": "🎉 תודה על ההזמנה!",
+    "subtitle": "קיבלנו את התשלום וההזמנה בתהליך טיפול.",
+    "goHome": "חזרה לדף הבית",
+    "viewOrders": "הצג את ההזמנות שלי",
+    "processing": "מעבד הזמנה...",
+    "errors": {
+      "generic": "משהו השתבש במהלך אישור ההזמנה."
+    }
   }
 }

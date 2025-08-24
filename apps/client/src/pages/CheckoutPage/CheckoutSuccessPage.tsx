@@ -1,3 +1,4 @@
+// src/pages/checkout/CheckoutSuccessPage.tsx
 import React from 'react';
 import { Box, Typography, Button, Stack, Snackbar, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -7,8 +8,10 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
+import { useTranslation } from 'react-i18next';
 
 export default function CheckoutSuccessPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const { loading, error, setToastOpen } = useConfirmOrder();
@@ -19,7 +22,7 @@ export default function CheckoutSuccessPage() {
       subject={EAbilitySubjects.CHECKOUT}
     >
       <Box
-        minHeight="calc(100vh - 64px - 56px)" // adjust for your header/footer if needed
+        minHeight="calc(100vh - 64px - 56px)"
         display="flex"
         alignItems="center"
         justifyContent="center"
@@ -33,10 +36,16 @@ export default function CheckoutSuccessPage() {
           maxWidth={480}
         >
           <Typography variant="h4" fontWeight={600}>
-            🎉 Thank You for Your Order!
+            {t('checkoutSuccess.title', {
+              defaultValue: '🎉 Thank You for Your Order!',
+            })}
           </Typography>
+
           <Typography color="text.secondary">
-            We’ve received your payment and your order is being processed.
+            {t('checkoutSuccess.subtitle', {
+              defaultValue:
+                'We’ve received your payment and your order is being processed.',
+            })}
           </Typography>
 
           <Stack direction="row" spacing={2}>
@@ -45,16 +54,20 @@ export default function CheckoutSuccessPage() {
               color="primary"
               onClick={() => navigate('/')}
             >
-              Go to Home
+              {t('checkoutSuccess.goHome', { defaultValue: 'Go to Home' })}
             </Button>
             <Button variant="outlined" onClick={() => navigate('/my-orders')}>
-              View My Orders
+              {t('checkoutSuccess.viewOrders', {
+                defaultValue: 'View My Orders',
+              })}
             </Button>
           </Stack>
 
           {loading && (
             <Typography variant="body2" color="text.secondary">
-              Processing order...
+              {t('checkoutSuccess.processing', {
+                defaultValue: 'Processing order...',
+              })}
             </Typography>
           )}
         </Stack>
@@ -66,7 +79,10 @@ export default function CheckoutSuccessPage() {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="error" sx={{ width: '100%' }}>
-            {error || 'Something went wrong during order confirmation.'}
+            {error ||
+              t('checkoutSuccess.errors.generic', {
+                defaultValue: 'Something went wrong during order confirmation.',
+              })}
           </Alert>
         </Snackbar>
       </Box>
