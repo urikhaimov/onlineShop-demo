@@ -1,26 +1,30 @@
-// src/pages/user/UserProfilePage.tsx (or your current path)
-import React, { useEffect } from 'react';
+// src/pages/user/UserProfilePage.tsx
+import * as React from 'react';
+import { useEffect } from 'react';
 import {
+  Snackbar,
   Alert,
+  Divider,
   Box,
   Button,
+  Stack,
+  Paper,
+  Typography,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Paper,
-  Snackbar,
-  Stack,
-  Typography,
 } from '@mui/material';
+import SaveAltIcon from '@mui/icons-material/SaveAlt';
+
 import { useForm } from 'react-hook-form';
 import { useUserProfileQuery } from '../../hooks/useUserProfileQuery';
 import { useUpdateUserProfileMutation } from '../../hooks/useUpdateUserProfileMutation';
 import { useUploadAvatarMutation } from '../../hooks/useUploadAvatarMutation';
 import { useDeleteAvatarMutation } from '../../hooks/useDeleteAvatarMutation';
+
 import PictureUploaderWithCrop from '../../components/PictureUploaderWithCrop';
 import LoadingProgress from '../../components/LoadingProgress';
-import { footerHeight, headerHeight } from '../../config/themeConfig';
 import ChangePasswordForm from './components/ChangePasswordForm';
 import { useAuth } from '../../hooks/useAuth';
 import FormTextField from '../../components/FormTextField';
@@ -34,6 +38,11 @@ import {
   useUserProfileUIStore,
 } from '../../stores/useUserProfileUIStore';
 import { useTranslation } from 'react-i18next';
+
+import PageContainer from '../../components/PageContainer';
+import AdminHeaderBar from '../../components/AdminHeaderBar';
+
+type FormValues = { name: string; email?: string; uid?: string };
 
 export default function UserProfilePage() {
   const { t } = useTranslation();
@@ -62,7 +71,7 @@ export default function UserProfilePage() {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm({ defaultValues: { name: '', email: '' } });
+  } = useForm<FormValues>({ defaultValues: { name: '', email: '', uid: '' } });
 
   const { data: userDoc, isLoading: userDocLoading } = useUserProfileQuery(
     user?.uid,
@@ -76,6 +85,7 @@ export default function UserProfilePage() {
       reset({
         name: userDoc.name ?? '',
         email: user.email ?? '',
+        uid: user.uid ?? '',
       });
     }
   }, [user, userDoc, reset]);
@@ -141,103 +151,121 @@ export default function UserProfilePage() {
     }
   };
 
-  if (loading || userDocLoading) {
-    return <LoadingProgress />;
-  }
-
-  if (!user) {
-    return (
-      <Typography variant="h6" textAlign="center" mt={4}>
-        {t('userProfile.empty.noUser', {
-          defaultValue: 'No user data available.',
-        })}
-      </Typography>
-    );
-  }
-
   return (
     <PageLayout
       action={EAbilityActions.MANAGE}
       subject={EAbilitySubjects.PROFILE}
     >
-      <Box
-        sx={{
-          height: `calc(100vh - ${headerHeight + footerHeight}px)`,
-          overflowY: 'auto',
-          mt: `${headerHeight}px`,
-          mb: `${footerHeight}px`,
-          px: { xs: 2, md: 4 },
-          py: { xs: 2, md: 3 },
-        }}
-      >
-        <Paper
+      <PageContainer>
+        <AdminHeaderBar
+          title={t('userProfile.title', { defaultValue: 'My Profile' })}
+        />
+
+        {/* Controls (always visible) */}
+        <Box
           sx={{
-            p: { xs: 2, sm: 3 },
-            width: '100%',
-            maxWidth: 500,
-            mx: 'auto',
-            borderRadius: 3,
+            position: 'sticky',
+            top: 0,
+            zIndex: 5,
+            bgcolor: 'background.paper',
+            py: 1,
+            mb: 1,
           }}
-          elevation={3}
         >
-          <Typography variant="h5" textAlign="center" gutterBottom>
-            {t('userProfile.title', { defaultValue: 'My Profile' })}
-          </Typography>
-
-          <Stack spacing={3} mt={2} alignItems="center">
-            <PictureUploaderWithCrop
-              avatarUrl={
-                userDoc?.photoURL ? `${userDoc.photoURL}?v=${avatarVer}` : null
-              }
-              onCropUpload={handleAvatarUpload}
-              onDeleteAvatar={() => setDeleteDialog(true)}
-              disabled={avatarUploading || isSubmitting}
-            />
-
-            <Box
-              component="form"
-              onSubmit={handleSubmit(onSubmit)}
-              width="100%"
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<SaveAltIcon />}
+              onClick={handleSubmit(onSubmit)}
+              disabled={isSubmitting || avatarUploading}
             >
-              <Stack spacing={2}>
-                <FormTextField
-                  name="name"
-                  label={t('userProfile.fields.name', { defaultValue: 'Name' })}
-                  control={control}
-                  required
-                  errorObject={errors.name}
-                />
-                <FormTextField
-                  name="email"
-                  label={t('userProfile.fields.email', {
-                    defaultValue: 'Email',
-                  })}
-                  control={control}
-                  disabled
-                  value={user.email ?? ''}
-                />
-                <FormTextField
-                  name="uid"
-                  label={t('userProfile.fields.uid', { defaultValue: 'UID' })}
-                  control={control}
-                  disabled
-                  value={user.uid ?? ''}
-                />
-                <ChangePasswordForm />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  fullWidth
-                  disabled={isSubmitting}
-                >
-                  {t('userProfile.saveChanges', {
-                    defaultValue: 'Save Changes',
-                  })}
-                </Button>
-              </Stack>
-            </Box>
+              {t('userProfile.saveChanges', { defaultValue: 'Save Changes' })}
+            </Button>
           </Stack>
-        </Paper>
+        </Box>
+
+        <Divider sx={{ mb: 2 }} />
+
+        {/* Body */}
+        {loading || userDocLoading ? (
+          <LoadingProgress />
+        ) : !user ? (
+          <Typography variant="h6" textAlign="center" mt={4}>
+            {t('userProfile.empty.noUser', {
+              defaultValue: 'No user data available.',
+            })}
+          </Typography>
+        ) : (
+          <Paper
+            elevation={2}
+            sx={{
+              width: '100%',
+              maxWidth: 520,
+              mx: 'auto',
+              p: { xs: 2, sm: 3 },
+              borderRadius: 3,
+            }}
+          >
+            <Typography
+              variant="h5"
+              textAlign="center"
+              sx={{ mb: 1 }}
+              fontWeight={600}
+            >
+              {t('userProfile.title', { defaultValue: 'My Profile' })}
+            </Typography>
+
+            <Stack spacing={3} mt={1} alignItems="center">
+              <PictureUploaderWithCrop
+                avatarUrl={
+                  userDoc?.photoURL
+                    ? `${userDoc.photoURL}?v=${avatarVer}`
+                    : null
+                }
+                onCropUpload={handleAvatarUpload}
+                onDeleteAvatar={() => setDeleteDialog(true)}
+                disabled={avatarUploading || isSubmitting}
+              />
+
+              <Box
+                component="form"
+                onSubmit={handleSubmit(onSubmit)}
+                width="100%"
+              >
+                <Stack spacing={2}>
+                  <FormTextField
+                    name="name"
+                    label={t('userProfile.fields.name', {
+                      defaultValue: 'Name',
+                    })}
+                    control={control}
+                    required
+                    errorObject={errors.name}
+                  />
+                  <FormTextField
+                    name="email"
+                    label={t('userProfile.fields.email', {
+                      defaultValue: 'Email',
+                    })}
+                    control={control}
+                    disabled
+                  />
+                  <FormTextField
+                    name="uid"
+                    label={t('userProfile.fields.uid', { defaultValue: 'UID' })}
+                    control={control}
+                    disabled
+                  />
+                  <ChangePasswordForm />
+
+                  {/* Hidden submit so Enter key works; the sticky Save button calls handleSubmit too */}
+                  <button type="submit" style={{ display: 'none' }} />
+                </Stack>
+              </Box>
+            </Stack>
+          </Paper>
+        )}
 
         {/* success toast */}
         <Snackbar
@@ -291,7 +319,7 @@ export default function UserProfilePage() {
             </Button>
           </DialogActions>
         </Dialog>
-      </Box>
+      </PageContainer>
     </PageLayout>
   );
 }

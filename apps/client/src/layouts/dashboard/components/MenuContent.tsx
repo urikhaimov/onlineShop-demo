@@ -75,17 +75,17 @@ export default function MenuContent() {
           icon: <ReceiptIcon />,
           path: '/admin/orders',
         },
-        { label: t('admin.theme'), icon: <BrushIcon />, path: '/admin/theme' },
+        // { label: t('admin.theme'), icon: <BrushIcon />, path: '/admin/theme' },
         {
           label: t('admin.landingPage'),
           icon: <HomeIcon />,
           path: '/admin/landingPage',
         },
-        {
-          label: t('admin.securityLogs'),
-          icon: <SecurityIcon />,
-          path: '/admin/security-logs',
-        },
+        // {
+        //   label: t('admin.securityLogs'),
+        //   icon: <SecurityIcon />,
+        //   path: '/admin/security-logs',
+        // },
       ];
     }
     return [
