@@ -272,6 +272,7 @@
   },
   "adminProductsPage": {
     "title": "Manage Products",
+    "addProduct": "Add Product",
     "snackbarReordered": "Product order updated"
   },
   "adminProducts": {

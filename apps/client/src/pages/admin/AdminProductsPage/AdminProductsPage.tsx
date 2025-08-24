@@ -2,7 +2,8 @@ import * as React from 'react';
 import { useEffect, useMemo } from 'react';
 import { Snackbar, Alert, Divider, Box, Button, Stack } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
+// import RestartAltIcon from '@mui/icons-material/RestartAlt'; // removed
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import {
   DndContext,
   type DragEndEvent,
@@ -289,22 +290,29 @@ export default function AdminProductsPage() {
             mb: 1,
           }}
         >
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} justifyContent="space-between">
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<FilterListIcon />}
+                onClick={() => setFiltersOpen(true)}
+              >
+                {t('filters.open')}
+              </Button>
+              {/* Removed reset button */}
+            </Stack>
+
+            {/* New: Add Product */}
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
-              startIcon={<FilterListIcon />}
-              onClick={() => setFiltersOpen(true)}
+              startIcon={<AddCircleOutlineIcon />}
+              onClick={() => navigate('/admin/products/add')}
             >
-              {t('filters.open')}
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<RestartAltIcon />}
-              onClick={resetAll}
-            >
-              {t('filters.reset')}
+              {t('adminProductsPage.addProduct', {
+                defaultValue: 'Add Product',
+              })}
             </Button>
           </Stack>
         </Box>

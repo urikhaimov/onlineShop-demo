@@ -19,16 +19,6 @@ export default function AdminHeaderBar({ title, onReset, sx }: Props) {
     <Box sx={{ mb: 2, ...sx }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between">
         <Typography variant="h6">{title}</Typography>
-        {onReset && (
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={onReset}
-            sx={BUTTON_SX}
-          >
-            Reset table state
-          </Button>
-        )}
       </Stack>
     </Box>
   );

@@ -272,6 +272,7 @@
   },
   "adminProductsPage": {
     "title": "ניהול מוצרים",
+    "addProduct": "הוסף מוצר",
     "snackbarReordered": "סדר המוצרים עודכן"
   },
   "adminProducts": {
