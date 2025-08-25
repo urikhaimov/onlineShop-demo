@@ -1,3 +1,6 @@
+[![Build CI](https://github.com/Bunder-shop/React-NestJS-FireBase-store/actions/workflows/build.yml/badge.svg)](https://github.com/Bunder-shop/React-NestJS-FireBase-store/actions/workflows/build.yml)
+[![Linter CI](https://github.com/Bunder-shop/React-NestJS-FireBase-store/actions/workflows/linter.yml/badge.svg)](https://github.com/Bunder-shop/React-NestJS-FireBase-store/actions/workflows/linter.yml)
+
 # 🛍️ My Online Store Template
 
 A modern e-commerce web app built with **React + Vite**, styled using **Material UI**, and powered by **Firebase** for authentication, Firestore, and Cloud Functions.
