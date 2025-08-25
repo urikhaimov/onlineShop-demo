@@ -5,9 +5,9 @@ name: Linter CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "nx" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "nx" ]
 
 jobs:
   linter:
