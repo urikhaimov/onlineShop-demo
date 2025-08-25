@@ -8,39 +8,28 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": [
-          {
-            "command": "webpack-cli build",
-            "args": ["--node-env=production"]
-          },
-          {
-            "command": "copyfiles -u 2 \"apps/api/src/i18n/**/*\" dist/apps/api/i18n"
-          }
-        ]
+        "command": "webpack-cli build",
+        "args": ["--node-env=production"]
       },
       "configurations": {
         "development": {
-          "commands": [
-            {
-              "command": "webpack-cli build",
-              "args": ["--node-env=development"]
-            },
-            {
-              "command": "copyfiles -u 2 \"apps/api/src/i18n/**/*\" dist/apps/api/i18n"
-            }
-          ]
+          "args": ["--node-env=development"]
         },
         "production": {
-          "commands": [
-            {
-              "command": "webpack-cli build",
-              "args": ["--node-env=production"]
-            },
-            {
-              "command": "copyfiles -u 2 \"apps/api/src/i18n/**/*\" dist/apps/api/i18n"
-            }
-          ]
+          "args": ["--node-env=production"]
         }
+      }
+    },
+    "prune-lockfile": {
+      "dependsOn": ["build"],
+      "cache": true,
+      "executor": "@nx/js:prune-lockfile",
+      "outputs": [
+        "{workspaceRoot}/dist/apps/api/package.json",
+        "{workspaceRoot}/dist/apps/api/package-lock.json"
+      ],
+      "options": {
+        "buildTarget": "build"
       }
     },
     "serve": {
