@@ -27,7 +27,7 @@ jobs:
         run: npx nx run auth-client:build
 
       - name: Build UI Client
-        run: npx nx run client:vite:build
+        run: npx nx run client:build
 
       - name: Build Firebase Admin
         run: npx nx run firebase:build
