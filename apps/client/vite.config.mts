@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig(async () => {
-  // @ts-ignore - expected error
+  // @ts-expect-error - expected error
   const { default: react } = await import('@vitejs/plugin-react');
   return {
     cacheDir: '../../node_modules/.vite/apps/client',
