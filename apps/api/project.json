@@ -20,6 +20,18 @@
         }
       }
     },
+    "prune-lockfile": {
+      "dependsOn": ["build"],
+      "cache": true,
+      "executor": "@nx/js:prune-lockfile",
+      "outputs": [
+        "{workspaceRoot}/dist/apps/api/package.json",
+        "{workspaceRoot}/dist/apps/api/package-lock.json"
+      ],
+      "options": {
+        "buildTarget": "build"
+      }
+    },
     "serve": {
       "continuous": true,
       "executor": "@nx/js:node",
