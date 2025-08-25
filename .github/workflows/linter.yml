@@ -30,13 +30,13 @@ jobs:
         run: npx nx run client:lint
 
       - name: Lint Firebase Admin
-        run: npx nx run firebase:eslint:lint
+        run: npx nx run firebase:lint
 
       - name: Lint MS Auth
-        run: npx nx run auth:eslint:lint
+        run: npx nx run auth:lint
 
       - name: Lint Types
-        run: npx nx run types:eslint:lint
+        run: npx nx run types:lint
 
       - name: Lint Utils
-        run: npx nx run utils:eslint:lint
+        run: npx nx run utils:lint
