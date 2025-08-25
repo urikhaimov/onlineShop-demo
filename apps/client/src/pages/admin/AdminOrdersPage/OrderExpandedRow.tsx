@@ -1,67 +1,47 @@
+// src/pages/AdminOrdersPage/OrderExpandedRow.tsx
 import * as React from 'react';
 import { Box, Typography } from '@mui/material';
 import type { TOrder } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-type FirestoreDate =
-  | Date
-  | string
-  | number
-  | { seconds: number; nanoseconds?: number }
-  | { toDate: () => Date };
-
-function asDate(value: FirestoreDate | null | undefined): Date | undefined {
-  if (!value) return undefined;
-  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
-  if (typeof value === 'string' || typeof value === 'number') {
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? undefined : d;
-  }
-  if (typeof value === 'object') {
-    if ('seconds' in value && typeof value.seconds === 'number') {
-      const ns =
-        'nanoseconds' in value && typeof value.nanoseconds === 'number'
-          ? value.nanoseconds
-          : 0;
-      const d = new Date(value.seconds * 1000 + Math.floor(ns / 1_000_000));
-      return isNaN(d.getTime()) ? undefined : d;
-    }
-    if ('toDate' in value && typeof value.toDate === 'function') {
-      try {
-        const d = value.toDate();
-        return d instanceof Date && !isNaN(d.getTime()) ? d : undefined;
-      } catch {
-        return undefined;
-      }
-    }
-  }
-  return undefined;
-}
+import {
+  DASH as EMPTY,
+  asDate,
+  getLocale,
+  makeCurrencyFormatter,
+  makeDateTimeFormatter,
+} from '../../../utils/columns.util'; // ← adjust path if needed
 
 type Props = { order: TOrder };
 
 const OrderExpandedRow: React.FC<Props> = ({ order }) => {
   const { t, i18n } = useTranslation();
+
+  // locale + memoized formatters
+  const lng = getLocale(i18n.resolvedLanguage || i18n.language);
+  const formatCurrency = React.useMemo(
+    () => makeCurrencyFormatter(lng, 'USD'), // change currency if needed
+    [lng],
+  );
+  const formatDateTime = React.useMemo(() => makeDateTimeFormatter(lng), [lng]);
+
+  const toMaybeDate = (v: unknown): Date | undefined => asDate(v as any);
+
   const addr = order.shippingAddress;
   const items = order.items ?? [];
   const amount = typeof order.amount === 'number' ? order.amount : undefined;
 
-  const lng = (i18n.language || 'en').split('-')[0];
-  const fmtCurrency = (n: number) =>
-    new Intl.NumberFormat(lng, {
-      style: 'currency',
-      currency: 'USD', // change if your store uses a different currency
-      maximumFractionDigits: 2,
-    }).format(n);
-  const fmtDateTime = (d: Date) =>
-    new Intl.DateTimeFormat(lng, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(d);
-
   // Prefer top-level createdAt/updatedAt, then metadata fallback
-  const created = asDate(order.createdAt) ?? asDate(order.metadata?.createdAt);
-  const updated = asDate(order.updatedAt) ?? asDate(order.metadata?.updatedAt);
+  const created =
+    toMaybeDate(order.createdAt) ?? toMaybeDate(order.metadata?.createdAt);
+  const updated =
+    toMaybeDate(order.updatedAt) ?? toMaybeDate(order.metadata?.updatedAt);
+
+  // Try to format ETA if it's date-like; otherwise show as plain text or EMPTY
+  const etaDate = toMaybeDate(order.delivery?.eta as any);
+  const etaLabel = etaDate
+    ? formatDateTime(etaDate)
+    : ((order.delivery?.eta as unknown as string) ?? EMPTY);
 
   return (
     <Box
@@ -73,8 +53,8 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
         <Typography variant="subtitle2">
           {t('orderDetails.customer')}
         </Typography>
-        <Typography variant="body2">{order.ownerName ?? '—'}</Typography>
-        <Typography variant="body2">{order.email ?? '—'}</Typography>
+        <Typography variant="body2">{order.ownerName ?? EMPTY}</Typography>
+        <Typography variant="body2">{order.email ?? EMPTY}</Typography>
       </Box>
 
       <Box>
@@ -82,13 +62,14 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
           {t('orderDetails.shippingAddress')}
         </Typography>
         <Typography variant="body2">
-          {addr?.fullName ?? '—'}
+          {addr?.fullName ?? EMPTY}
           <br />
-          {[addr?.street, addr?.city].filter(Boolean).join(', ') || '—'}
+          {[addr?.street, addr?.city].filter(Boolean).join(', ') || EMPTY}
           <br />
-          {[addr?.postalCode, addr?.country].filter(Boolean).join(', ') || '—'}
+          {[addr?.postalCode, addr?.country].filter(Boolean).join(', ') ||
+            EMPTY}
           <br />
-          {addr?.phone ?? '—'}
+          {addr?.phone ?? EMPTY}
         </Typography>
       </Box>
 
@@ -97,12 +78,12 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
         {items.length > 0 ? (
           <Box component="ul" sx={{ pl: 3, my: 0 }}>
             {items.map((it, idx) => {
-              const name = it.name ?? '—';
+              const name = it.name ?? EMPTY;
               const qty = it.quantity ?? 0;
               const price =
-                typeof it.price === 'number' ? fmtCurrency(it.price) : '—';
+                typeof it.price === 'number' ? formatCurrency(it.price) : EMPTY;
               return (
-                <li key={`${it.productId}:${idx}`}>
+                <li key={`${it.productId ?? 'item'}:${idx}`}>
                   <Typography variant="body2">
                     {t('orderDetails.line', { name, qty, price })}
                   </Typography>
@@ -111,24 +92,25 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
             })}
           </Box>
         ) : (
-          <Typography variant="body2">—</Typography>
+          <Typography variant="body2">{EMPTY}</Typography>
         )}
         <Typography variant="body2" sx={{ mt: 0.5 }}>
           <strong>{t('orderDetails.total')}:</strong>{' '}
-          {amount !== undefined ? fmtCurrency(amount) : '—'}
+          {amount !== undefined ? formatCurrency(amount) : EMPTY}
         </Typography>
       </Box>
 
       <Box>
         <Typography variant="subtitle2">{t('orderDetails.payment')}</Typography>
         <Typography variant="body2">
-          {t('orderDetails.method')}: {order.payment?.method ?? '—'}
+          {t('orderDetails.method')}: {order.payment?.method ?? EMPTY}
         </Typography>
         <Typography variant="body2">
-          {t('orderDetails.status')}: {order.payment?.status ?? '—'}
+          {t('orderDetails.status')}: {order.payment?.status ?? EMPTY}
         </Typography>
         <Typography variant="body2">
-          {t('orderDetails.transaction')}: {order.payment?.transactionId ?? '—'}
+          {t('orderDetails.transaction')}:{' '}
+          {order.payment?.transactionId ?? EMPTY}
         </Typography>
       </Box>
 
@@ -137,33 +119,34 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
           {t('orderDetails.delivery')}
         </Typography>
         <Typography variant="body2">
-          {t('orderDetails.provider')}: {order.delivery?.provider ?? '—'}
+          {t('orderDetails.provider')}: {order.delivery?.provider ?? EMPTY}
         </Typography>
         <Typography variant="body2">
-          {t('orderDetails.tracking')}: {order.delivery?.trackingNumber ?? '—'}
+          {t('orderDetails.tracking')}:{' '}
+          {order.delivery?.trackingNumber ?? EMPTY}
         </Typography>
         <Typography variant="body2">
-          {t('orderDetails.eta')}: {order.delivery?.eta ?? '—'}
+          {t('orderDetails.eta')}: {etaLabel}
         </Typography>
       </Box>
 
       <Box>
         <Typography variant="subtitle2">{t('orderDetails.created')}</Typography>
         <Typography variant="body2">
-          {created ? fmtDateTime(created) : '—'}
+          {created ? formatDateTime(created) : EMPTY}
         </Typography>
       </Box>
 
       <Box>
         <Typography variant="subtitle2">{t('orderDetails.updated')}</Typography>
         <Typography variant="body2">
-          {updated ? fmtDateTime(updated) : '—'}
+          {updated ? formatDateTime(updated) : EMPTY}
         </Typography>
       </Box>
 
       <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
         <Typography variant="subtitle2">{t('orderDetails.notes')}</Typography>
-        <Typography variant="body2">{order.notes ?? '—'}</Typography>
+        <Typography variant="body2">{order.notes ?? EMPTY}</Typography>
       </Box>
     </Box>
   );

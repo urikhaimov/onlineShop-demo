@@ -1,29 +1,17 @@
+// src/pages/ProductsPage/ProductExpandedRow.tsx
 import React, { useMemo } from 'react';
 import { Box, Typography, CardMedia } from '@mui/material';
 import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-function asDate(value: unknown): Date | undefined {
-  if (!value) return undefined;
-  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
-  if (typeof value === 'string' || typeof value === 'number') {
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? undefined : d;
-  }
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'seconds' in (value as any)
-  ) {
-    const v = value as { seconds: number; nanoseconds?: number };
-    const d = new Date(
-      v.seconds * 1000 + Math.floor((v.nanoseconds ?? 0) / 1_000_000),
-    );
-    return isNaN(d.getTime()) ? undefined : d;
-  }
-  return undefined;
-}
+import {
+  DASH,
+  asDate,
+  getLocale,
+  makeCurrencyFormatter,
+  makeDateTimeFormatter,
+} from '../../utils/columns.util';
 
 type Props = {
   product: IProduct;
@@ -45,7 +33,7 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
     asDate((product as any)?.updatedAt) ??
     asDate((product as any)?.metadata?.updatedAt);
 
-  // Optional fields from your schema
+  // Optional fields from schema/editor
   const sku = (product as any)?.sku as string | undefined;
   const brand = (product as any)?.brand as string | undefined;
   const description = (product as any)?.description as string | undefined; // HTML
@@ -61,23 +49,18 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
     [description],
   );
 
-  const lng = (i18n.language || 'en').split('-')[0];
-  const fmtCurrency = (n: number) =>
-    new Intl.NumberFormat(lng, {
-      style: 'currency',
-      currency: 'USD', // change if your store uses another currency
-      maximumFractionDigits: 2,
-    }).format(n);
-  const fmtDateTime = (d: Date) =>
-    new Intl.DateTimeFormat(lng, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(d);
+  const lng = getLocale(i18n.resolvedLanguage || i18n.language);
+  const formatCurrency = useMemo(
+    () => makeCurrencyFormatter(lng, 'USD'),
+    [lng],
+  );
+  const formatDateTime = useMemo(() => makeDateTimeFormatter(lng), [lng]);
 
   const priceLabel =
-    typeof product.price === 'number' ? fmtCurrency(product.price) : '—';
-  const stockLabel =
-    typeof product.stock === 'number' ? product.stock : ('—' as const);
+    typeof product.price === 'number' ? formatCurrency(product.price) : DASH;
+  const stockLabel = typeof product.stock === 'number' ? product.stock : DASH;
+
+  const hasAttributes = attributes && Object.keys(attributes).length > 0;
 
   return (
     <Box
@@ -99,7 +82,7 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
             {product.name}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {categoryName ?? '—'}
+            {categoryName ?? DASH}
           </Typography>
         </Box>
       </Box>
@@ -149,17 +132,17 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
             }}
           />
         ) : (
-          <Typography variant="body2">—</Typography>
+          <Typography variant="body2">{DASH}</Typography>
         )}
       </Box>
 
-      {attributes && Object.keys(attributes).length > 0 && (
+      {hasAttributes && (
         <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
           <Typography variant="subtitle2">
             {t('productDetails.attributes')}
           </Typography>
           <Box component="ul" sx={{ pl: 3, my: 0 }}>
-            {Object.entries(attributes).map(([k, v]) => (
+            {Object.entries(attributes!).map(([k, v]) => (
               <li key={k}>
                 <Typography variant="body2">
                   <strong>{k}:</strong>{' '}
@@ -178,15 +161,16 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
           {t('productDetails.created')}
         </Typography>
         <Typography variant="body2">
-          {created ? fmtDateTime(created) : '—'}
+          {created ? formatDateTime(created) : DASH}
         </Typography>
       </Box>
+
       <Box>
         <Typography variant="subtitle2">
           {t('productDetails.updated')}
         </Typography>
         <Typography variant="body2">
-          {updated ? fmtDateTime(updated) : '—'}
+          {updated ? formatDateTime(updated) : DASH}
         </Typography>
       </Box>
     </Box>

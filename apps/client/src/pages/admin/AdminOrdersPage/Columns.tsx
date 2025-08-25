@@ -5,35 +5,29 @@ import RowActions, { type RowAction } from '../../../components/RowActions';
 import { TOrder } from '@common/types';
 import { StatusTag } from '../../../components/StatusTag';
 
-import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 import { t } from 'i18next';
 import i18n from '../../../i18n/i18n';
 
-function asDate(v: unknown): Date | undefined {
-  if (!v) return undefined;
-  if (v instanceof Date) return isNaN(v.getTime()) ? undefined : v;
-  if (typeof v === 'string' || typeof v === 'number') {
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? undefined : d;
-  }
-  if (typeof v === 'object' && v !== null && 'toDate' in (v as any)) {
-    try {
-      const d = (v as { toDate: () => Date }).toDate();
-      return isNaN(d.getTime()) ? undefined : d;
-    } catch {
-      // ignore
-    }
-  }
-  return undefined;
-}
+import {
+  DASH,
+  asDate,
+  getLocale,
+  makeCurrencyFormatter,
+  makeDateTimeFormatter,
+} from '../../../utils/columns.util'; // adjust path if needed
 
 export function defineAdminOrderColumns(
   navigate: NavigateFunction,
   onDelete?: (order: TOrder) => Promise<void> | void,
 ): ColumnDef<TOrder>[] {
+  // Compute once per invocation and reuse
+  const lng = getLocale(i18n.resolvedLanguage || i18n.language);
+  const currencyFmt = makeCurrencyFormatter(lng, 'USD'); // change currency if needed
+  const dateTimeFmt = makeDateTimeFormatter(lng);
+
   return [
     {
       accessorKey: 'id',
@@ -42,16 +36,16 @@ export function defineAdminOrderColumns(
       enableColumnFilter: false,
       size: 220,
       meta: { sticky: 'left', hiddenOnMobile: false, align: 'left' },
-      cell: (info) => info.getValue<string>() ?? '—',
+      cell: (info) => info.getValue<string>() ?? DASH,
     },
     {
       accessorKey: 'email',
-      header: t('adminUsers.columns.email'), // reuse existing key
+      header: t('adminUsers.columns.email'),
       enableSorting: true,
       enableColumnFilter: false,
       size: 220,
       meta: { hiddenOnMobile: true, align: 'left' },
-      cell: (info) => info.getValue<string>() ?? '—',
+      cell: (info) => info.getValue<string>() ?? DASH,
     },
     {
       accessorKey: 'amount',
@@ -62,13 +56,7 @@ export function defineAdminOrderColumns(
       meta: { hiddenOnMobile: true, align: 'left' },
       cell: (info) => {
         const v = info.getValue<number | undefined>();
-        if (typeof v !== 'number') return '—';
-        const lng = (i18n.language || 'en').split('-')[0];
-        return new Intl.NumberFormat(lng, {
-          style: 'currency',
-          currency: 'USD', // adjust if your store uses a different currency
-          maximumFractionDigits: 2,
-        }).format(v);
+        return typeof v === 'number' ? currencyFmt.format(v) : DASH;
       },
     },
     {
@@ -82,12 +70,7 @@ export function defineAdminOrderColumns(
         const d =
           asDate(row.original.createdAt) ??
           asDate(row.original.metadata?.createdAt);
-        if (!d) return '—';
-        const lng = (i18n.language || 'en').split('-')[0];
-        return new Intl.DateTimeFormat(lng, {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        }).format(d);
+        return d ? dateTimeFmt(d) : DASH;
       },
     },
     {
@@ -108,14 +91,7 @@ export function defineAdminOrderColumns(
       meta: { sticky: 'right', hiddenOnMobile: false, align: 'left' },
       cell: ({ row }) => {
         const order = row.original;
-        const actions: readonly RowAction<TOrder>[] = [
-          // {
-          //   id: 'view',
-          //   label: t('adminOrders.actions.view'),
-          //   icon: <VisibilityIcon fontSize="small" />,
-          //   onClick: (o) => navigate(`/admin/orders/${o.id}`),
-          //   tooltip: (o) => t('adminOrders.actions.tooltipView', { id: o.id }),
-          // },
+        const actions: RowAction<TOrder>[] = [
           {
             id: 'edit',
             label: t('adminOrders.actions.edit'),
@@ -136,7 +112,7 @@ export function defineAdminOrderColumns(
           <RowActions<TOrder>
             context={order}
             actions={actions}
-            renderMode="auto" // buttons on desktop, menu on small screens
+            renderMode="auto"
             menuBelow="sm"
             size="small"
           />

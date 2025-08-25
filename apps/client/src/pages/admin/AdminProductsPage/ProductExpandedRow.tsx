@@ -1,30 +1,17 @@
 // src/pages/ProductsPage/ProductExpandedRow.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Typography, CardMedia } from '@mui/material';
-import { format } from 'date-fns';
 import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-function asDate(value: unknown): Date | undefined {
-  if (!value) return undefined;
-  if (value instanceof Date) return value;
-  if (typeof value === 'string' || typeof value === 'number') {
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? undefined : d;
-  }
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'seconds' in (value as any)
-  ) {
-    const v = value as { seconds: number; nanoseconds?: number };
-    return new Date(
-      v.seconds * 1000 + Math.floor((v.nanoseconds ?? 0) / 1_000_000),
-    );
-  }
-  return undefined;
-}
+import {
+  DASH,
+  asDate,
+  getLocale,
+  makeCurrencyFormatter,
+  makeDateTimeFormatter,
+} from '../../../utils/columns.util'; // ← adjust path if needed
 
 type Props = {
   product: IProduct;
@@ -32,7 +19,7 @@ type Props = {
 };
 
 const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const img =
     Array.isArray(product.images) && product.images.length > 0
@@ -54,9 +41,26 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
     | Record<string, unknown>
     | undefined;
 
-  const sanitizedDescription = description
-    ? DOMPurify.sanitize(description, { USE_PROFILES: { html: true } })
-    : '';
+  const sanitizedDescription = useMemo(
+    () =>
+      description
+        ? DOMPurify.sanitize(description, { USE_PROFILES: { html: true } })
+        : '',
+    [description],
+  );
+
+  const lng = getLocale(i18n.resolvedLanguage || i18n.language);
+  const formatCurrency = useMemo(
+    () => makeCurrencyFormatter(lng, 'USD'),
+    [lng],
+  );
+  const formatDateTime = useMemo(() => makeDateTimeFormatter(lng), [lng]);
+
+  const priceLabel =
+    typeof product.price === 'number' ? formatCurrency(product.price) : DASH;
+  const stockLabel = typeof product.stock === 'number' ? product.stock : DASH;
+
+  const hasAttributes = attributes && Object.keys(attributes).length > 0;
 
   return (
     <Box
@@ -78,7 +82,7 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
             {product.name}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {categoryName ?? '—'}
+            {categoryName ?? DASH}
           </Typography>
         </Box>
       </Box>
@@ -90,14 +94,10 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
           })}
         </Typography>
         <Typography variant="body2">
-          {t('productExpanded.price', { defaultValue: 'Price' })}:{' '}
-          {typeof product.price === 'number'
-            ? `$${product.price.toFixed(2)}`
-            : '—'}
+          {t('productExpanded.price', { defaultValue: 'Price' })}: {priceLabel}
         </Typography>
         <Typography variant="body2">
-          {t('productExpanded.stock', { defaultValue: 'Stock' })}:{' '}
-          {typeof product.stock === 'number' ? product.stock : '—'}
+          {t('productExpanded.stock', { defaultValue: 'Stock' })}: {stockLabel}
         </Typography>
         {sku && (
           <Typography variant="body2">
@@ -134,17 +134,17 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
             }}
           />
         ) : (
-          <Typography variant="body2">—</Typography>
+          <Typography variant="body2">{DASH}</Typography>
         )}
       </Box>
 
-      {attributes && Object.keys(attributes).length > 0 && (
+      {hasAttributes && (
         <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
           <Typography variant="subtitle2">
             {t('productExpanded.attributes', { defaultValue: 'Attributes' })}
           </Typography>
           <Box component="ul" sx={{ pl: 3, my: 0 }}>
-            {Object.entries(attributes).map(([k, v]) => (
+            {Object.entries(attributes!).map(([k, v]) => (
               <li key={k}>
                 <Typography variant="body2">
                   <strong>{k}:</strong>{' '}
@@ -163,7 +163,7 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
           {t('productExpanded.created', { defaultValue: 'Created' })}
         </Typography>
         <Typography variant="body2">
-          {created ? format(created, 'PPpp') : '—'}
+          {created ? formatDateTime(created) : DASH}
         </Typography>
       </Box>
       <Box>
@@ -171,7 +171,7 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
           {t('productExpanded.updated', { defaultValue: 'Updated' })}
         </Typography>
         <Typography variant="body2">
-          {updated ? format(updated, 'PPpp') : '—'}
+          {updated ? formatDateTime(updated) : DASH}
         </Typography>
       </Box>
     </Box>
