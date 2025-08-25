@@ -34,8 +34,10 @@ import TopActionBar, { ViewMode } from '../../components/TopActionBar';
 import PageContainer from '../../components/PageContainer';
 import ResponsiveCardsGrid from '../../components/ResponsiveCardsGrid';
 import RightFiltersDrawer from '../../components/RightFiltersDrawer';
+import { useTranslation } from 'react-i18next';
 
 export default function MyOrdersPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
 
   // Table state (Zustand)
@@ -188,7 +190,7 @@ export default function MyOrdersPage() {
         <Divider sx={{ mb: 2 }} />
 
         {filteredOrders.length === 0 ? (
-          <NotFound message="No orders found." />
+          <NotFound message={t('empty.noOrders')} />
         ) : viewMode === 'cards' ? (
           <ResponsiveCardsGrid>
             {filteredOrders.map((order) => (
@@ -215,7 +217,7 @@ export default function MyOrdersPage() {
         )}
 
         <RightFiltersDrawer
-          title="Filters"
+          title={t('filters.open')}
           open={filtersOpen}
           onClose={() => setFiltersOpen(false)}
         >

@@ -72,10 +72,6 @@ export default function ImageUploader({
 
   return (
     <Box>
-      <Typography variant="subtitle1" fontWeight={600} mb={1}>
-        Product Images
-      </Typography>
-
       <ReorderComponent
         images={images}
         onReorder={onReorderAll}

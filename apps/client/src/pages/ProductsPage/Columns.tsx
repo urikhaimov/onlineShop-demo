@@ -1,10 +1,12 @@
 import { ColumnDef } from '@tanstack/react-table';
 import type { IProduct } from '@common/types';
-import { CardMedia, Link as MuiLink } from '@mui/material';
+import { Link as MuiLink } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
 import RowActions from '../../components/RowActions';
+import { t } from 'i18next';
+import i18n from '../../i18n/i18n';
 
 const COLUMN_WIDTHS = {
   image: 80,
@@ -22,7 +24,7 @@ export function defineProductColumns(
     // Category — sticky left
     {
       accessorKey: 'categoryId',
-      header: 'Category',
+      header: t('table.category'),
       size: COLUMN_WIDTHS.category,
       enableColumnFilter: false,
       meta: {
@@ -36,50 +38,13 @@ export function defineProductColumns(
       },
     },
 
-    // Image — NOT sticky (avoid overlapping with Category)
-    // {
-    //   accessorKey: 'images',
-    //   header: 'Image',
-    //   enableColumnFilter: false,
-    //   size: COLUMN_WIDTHS.image,
-    //   meta: {
-    //     /* no sticky here */
-    //   },
-    //   cell: ({ row, getValue }) => {
-    //     const images = getValue<string[]>() ?? [];
-    //     const firstImage =
-    //       images[0] || 'https://picsum.photos/seed/fallback/100/100';
-    //     const id = row.original.id;
-    //     return (
-    //       <Link to={`/product/${id}`}>
-    //         <CardMedia
-    //           component="img"
-    //           sx={{
-    //             width: 60,
-    //             height: 60,
-    //             borderRadius: 1,
-    //             ml: 0,
-    //             mr: 'auto',
-    //             objectFit: 'cover',
-    //             cursor: 'pointer',
-    //           }}
-    //           image={firstImage}
-    //           alt="Product"
-    //         />
-    //       </Link>
-    //     );
-    //   },
-    // },
-
     // Name
     {
       accessorKey: 'name',
-      header: 'Name',
+      header: t('table.name'),
       enableColumnFilter: false,
       size: COLUMN_WIDTHS.name,
-      meta: {
-        /* hiddenOnMobile: true */
-      }, // uncomment if you want it hidden on xs
+      meta: {},
       cell: ({ row, getValue }) => {
         const id = row.original.id;
         const name = getValue<string>();
@@ -100,37 +65,42 @@ export function defineProductColumns(
     // Stock — numeric
     {
       accessorKey: 'stock',
-      header: 'Stock',
+      header: t('table.stock'),
       enableColumnFilter: false,
       size: COLUMN_WIDTHS.number,
       meta: { align: 'left', hiddenOnMobile: true },
     },
 
-    // Price — numeric
+    // Price — numeric + localized currency
     {
       accessorKey: 'price',
-      header: 'Price',
+      header: t('table.price'),
       enableColumnFilter: false,
       size: COLUMN_WIDTHS.number,
       meta: { align: 'left', hiddenOnMobile: true },
       cell: ({ getValue }) => {
         const v = getValue<number>();
-        return typeof v === 'number' ? `$${v.toFixed(2)}` : '—';
+        if (typeof v !== 'number') return '—';
+        const lng = (i18n.language || 'en').split('-')[0];
+        return new Intl.NumberFormat(lng, {
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: 2,
+        }).format(v);
       },
     },
 
-    // Actions — sticky RIGHT, small width
+    // Actions — sticky RIGHT
     {
-      header: 'Actions',
+      header: t('table.actions'),
       id: 'actions',
       enableColumnFilter: false,
       enableSorting: false,
       size: COLUMN_WIDTHS.actions,
-      meta: { sticky: 'right', align: 'left', alwaysVisible: true }, // 👈 keep visible at all sizes
+      meta: { sticky: 'right', align: 'left', alwaysVisible: true },
       cell: ({ row }) => {
         const product = row.original;
         const addToCart = useCartStore.getState().addToCart;
-        const navigate = useNavigate();
 
         return (
           <RowActions
@@ -138,14 +108,15 @@ export function defineProductColumns(
             actions={[
               {
                 id: 'add',
-                label: 'Add to cart',
+                label: t('table.addToCart'),
                 icon: <AddShoppingCartIcon />,
                 onClick: (p) => {
                   addToCart({ ...p, quantity: 1 });
                   setSnackbarOpen(true);
                 },
                 disabled: (p) => p.stock <= 0,
-                tooltip: (p) => (p.stock <= 0 ? 'Out of stock' : 'Add to cart'),
+                tooltip: (p) =>
+                  p.stock <= 0 ? t('table.outOfStock') : t('table.addToCart'),
               },
             ]}
           />

@@ -1,0 +1,5 @@
+{
+  "greeting": "שלום",
+  "errors": { "unauthorized": "אין לך הרשאה." },
+  "validation": { "name_required": "יש להזין שם." }
+}

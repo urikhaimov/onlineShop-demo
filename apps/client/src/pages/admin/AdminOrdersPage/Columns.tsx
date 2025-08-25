@@ -9,6 +9,9 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
+import { t } from 'i18next';
+import i18n from '../../../i18n/i18n';
+
 function asDate(v: unknown): Date | undefined {
   if (!v) return undefined;
   if (v instanceof Date) return isNaN(v.getTime()) ? undefined : v;
@@ -21,7 +24,7 @@ function asDate(v: unknown): Date | undefined {
       const d = (v as { toDate: () => Date }).toDate();
       return isNaN(d.getTime()) ? undefined : d;
     } catch {
-      //todo
+      // ignore
     }
   }
   return undefined;
@@ -34,7 +37,7 @@ export function defineAdminOrderColumns(
   return [
     {
       accessorKey: 'id',
-      header: 'Order ID',
+      header: t('table.orderId'),
       enableSorting: true,
       enableColumnFilter: false,
       size: 220,
@@ -43,28 +46,34 @@ export function defineAdminOrderColumns(
     },
     {
       accessorKey: 'email',
-      header: 'Email',
+      header: t('adminUsers.columns.email'), // reuse existing key
       enableSorting: true,
       enableColumnFilter: false,
       size: 220,
       meta: { hiddenOnMobile: true, align: 'left' },
-      cell: (info) => info.getValue<string>() ?? 'N/A',
+      cell: (info) => info.getValue<string>() ?? '—',
     },
     {
       accessorKey: 'amount',
-      header: 'Total',
+      header: t('table.total'),
       enableSorting: true,
       enableColumnFilter: false,
       size: 120,
       meta: { hiddenOnMobile: true, align: 'left' },
       cell: (info) => {
         const v = info.getValue<number | undefined>();
-        return typeof v === 'number' ? `$${v.toFixed(2)}` : 'N/A';
+        if (typeof v !== 'number') return '—';
+        const lng = (i18n.language || 'en').split('-')[0];
+        return new Intl.NumberFormat(lng, {
+          style: 'currency',
+          currency: 'USD', // adjust if your store uses a different currency
+          maximumFractionDigits: 2,
+        }).format(v);
       },
     },
     {
       accessorKey: 'createdAt',
-      header: 'Date',
+      header: t('table.date'),
       enableSorting: true,
       enableColumnFilter: false,
       size: 180,
@@ -73,12 +82,17 @@ export function defineAdminOrderColumns(
         const d =
           asDate(row.original.createdAt) ??
           asDate(row.original.metadata?.createdAt);
-        return d ? d.toLocaleString() : '—';
+        if (!d) return '—';
+        const lng = (i18n.language || 'en').split('-')[0];
+        return new Intl.DateTimeFormat(lng, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }).format(d);
       },
     },
     {
       accessorKey: 'status',
-      header: 'Status',
+      header: t('table.status'),
       enableSorting: true,
       enableColumnFilter: false,
       size: 160,
@@ -87,7 +101,7 @@ export function defineAdminOrderColumns(
     },
     {
       id: 'actions',
-      header: 'Actions',
+      header: t('table.actions'),
       enableSorting: false,
       enableColumnFilter: false,
       size: 180,
@@ -95,26 +109,27 @@ export function defineAdminOrderColumns(
       cell: ({ row }) => {
         const order = row.original;
         const actions: readonly RowAction<TOrder>[] = [
-          {
-            id: 'view',
-            label: 'View',
-            icon: <VisibilityIcon fontSize="small" />,
-            onClick: (o) => navigate(`/admin/orders/${o.id}`),
-            tooltip: (o) => `View order ${o.id}`,
-          },
+          // {
+          //   id: 'view',
+          //   label: t('adminOrders.actions.view'),
+          //   icon: <VisibilityIcon fontSize="small" />,
+          //   onClick: (o) => navigate(`/admin/orders/${o.id}`),
+          //   tooltip: (o) => t('adminOrders.actions.tooltipView', { id: o.id }),
+          // },
           {
             id: 'edit',
-            label: 'Edit',
+            label: t('adminOrders.actions.edit'),
             icon: <EditIcon fontSize="small" />,
             onClick: (o) => navigate(`/admin/orders/${o.id}?edit=1`),
-            tooltip: (o) => `Edit order ${o.id}`,
+            tooltip: (o) => t('adminOrders.actions.tooltipEdit', { id: o.id }),
           },
           {
             id: 'delete',
-            label: 'Delete',
+            label: t('adminOrders.actions.delete'),
             icon: <DeleteIcon fontSize="small" />,
             onClick: async (o) => onDelete?.(o),
-            tooltip: () => 'Delete order',
+            tooltip: (o) =>
+              t('adminOrders.actions.tooltipDelete', { id: o.id }),
           },
         ];
         return (

@@ -2,9 +2,10 @@
 import { ColumnDef, CellContext } from '@tanstack/react-table';
 import type { TOrder } from '@common/types';
 import { Typography } from '@mui/material';
-import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import { StatusTag } from '../../components/StatusTag';
+import { t } from 'i18next';
+import i18n from '../../i18n/i18n';
 
 function getRank<T>(ctx: CellContext<T, unknown>): number {
   const { table, row } = ctx;
@@ -36,7 +37,7 @@ function toDate(value: unknown): Date | null {
 export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
   {
     accessorKey: 'id',
-    header: 'Order ID',
+    header: t('table.orderId'),
     enableColumnFilter: false,
     meta: { sticky: 'left' },
     cell: (info) => (
@@ -51,32 +52,47 @@ export const defineOrderColumns = (): ColumnDef<TOrder>[] => [
   {
     id: 'createdAt',
     accessorFn: (row) => row.metadata?.createdAt ?? null,
-    header: 'Date',
+    header: t('table.date'),
     enableColumnFilter: false,
     meta: { hiddenOnMobile: true, align: 'left' },
     cell: (info) => {
       const raw = info.getValue<unknown>();
       const date = toDate(raw) ?? new Date(NaN);
+      if (isNaN(date.getTime()))
+        return <Typography variant="body2">—</Typography>;
+
+      const lng = (i18n.language || 'en').split('-')[0];
+      const formatted = new Intl.DateTimeFormat(lng, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(date);
+
       return (
         <Typography variant="body2" color="text.secondary">
-          {isNaN(date.getTime()) ? '—' : format(date, 'PPpp')}
+          {formatted}
         </Typography>
       );
     },
   },
   {
     accessorKey: 'amount',
-    header: 'Total ($)',
+    header: t('table.total'),
     enableColumnFilter: false,
     meta: { hiddenOnMobile: true, align: 'right' },
     cell: ({ getValue }) => {
       const v = getValue<number>();
-      return typeof v === 'number' ? `$${v.toFixed(2)}` : '—';
+      if (typeof v !== 'number') return '—';
+      const lng = (i18n.language || 'en').split('-')[0];
+      return new Intl.NumberFormat(lng, {
+        style: 'currency',
+        currency: 'USD', // change if your store uses a different currency
+        maximumFractionDigits: 2,
+      }).format(v);
     },
   },
   {
     accessorKey: 'status',
-    header: 'Status',
+    header: t('table.status'),
     enableColumnFilter: false,
     meta: { align: 'left' },
     cell: ({ row }) => {

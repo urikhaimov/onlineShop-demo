@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import FormTextField from '../../components/FormTextField';
 import { useCartStore } from '../../stores/useCartStore';
 import { useStripeCheckoutStore } from '../../stores/useStripeCheckoutStore';
+import { useTranslation } from 'react-i18next';
 
 type FormData = {
   ownerName: string;
@@ -25,6 +26,7 @@ type FormData = {
 };
 
 export default function StripeCheckoutForm() {
+  const { t } = useTranslation();
   const stripe = useStripe();
   const elements = useElements();
   const navigate = useNavigate();
@@ -41,7 +43,11 @@ export default function StripeCheckoutForm() {
 
   const onSubmit = async (data: FormData) => {
     if (!stripe || !elements) {
-      setError('Stripe is not ready yet');
+      setError(
+        t('checkoutForm.errors.stripeNotReady', {
+          defaultValue: 'Stripe is not ready yet',
+        }),
+      );
       return;
     }
 
@@ -66,7 +72,12 @@ export default function StripeCheckoutForm() {
 
       if (stripeError) {
         console.error('❌ Payment failed:', stripeError);
-        setError(stripeError.message || 'Payment failed');
+        setError(
+          stripeError.message ||
+            t('checkoutForm.errors.paymentFailed', {
+              defaultValue: 'Payment failed',
+            }),
+        );
         return;
       }
 
@@ -76,12 +87,22 @@ export default function StripeCheckoutForm() {
         navigate('/checkout/success');
       } else {
         console.warn('PaymentIntent status:', paymentIntent?.status);
-        setError(`Payment status: ${paymentIntent?.status}`);
+        setError(
+          t('checkoutForm.errors.paymentStatus', {
+            status: paymentIntent?.status ?? 'unknown',
+            defaultValue: 'Payment status: {{status}}',
+          }),
+        );
       }
     } catch (err: any) {
       setLoading(false);
       console.error('Unexpected error confirming payment:', err);
-      setError(err.message || 'Unexpected error');
+      setError(
+        err?.message ||
+          t('checkoutForm.errors.unexpected', {
+            defaultValue: 'Unexpected error',
+          }),
+      );
     }
   };
 
@@ -92,21 +113,25 @@ export default function StripeCheckoutForm() {
       sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}
     >
       <Typography variant="subtitle2" gutterBottom>
-        Payment Details
+        {t('checkoutForm.paymentDetails', { defaultValue: 'Payment Details' })}
       </Typography>
 
       <FormTextField
-        label="Owner Name"
+        label={t('checkoutForm.ownerName', { defaultValue: 'Owner Name' })}
         register={register('ownerName', {
-          required: 'Owner name is required',
+          required: t('checkoutForm.ownerNameRequired', {
+            defaultValue: 'Owner name is required',
+          }) as string,
         })}
         errorObject={errors.ownerName}
       />
 
       <FormTextField
-        label="Passport ID"
+        label={t('checkoutForm.passportId', { defaultValue: 'Passport ID' })}
         register={register('passportId', {
-          required: 'Passport ID is required',
+          required: t('checkoutForm.passportIdRequired', {
+            defaultValue: 'Passport ID is required',
+          }) as string,
         })}
         errorObject={errors.passportId}
       />
@@ -130,7 +155,11 @@ export default function StripeCheckoutForm() {
         disabled={!stripe || loading}
         sx={{ mt: 2 }}
       >
-        {loading ? <CircularProgress size={24} /> : 'Pay Now'}
+        {loading ? (
+          <CircularProgress size={24} />
+        ) : (
+          t('checkoutForm.payNow', { defaultValue: 'Pay Now' })
+        )}
       </Button>
 
       <Snackbar

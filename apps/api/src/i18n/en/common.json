@@ -1,0 +1,5 @@
+{
+  "greeting": "Hello",
+  "errors": { "unauthorized": "You are not authorized." },
+  "validation": { "name_required": "Name is required." }
+}

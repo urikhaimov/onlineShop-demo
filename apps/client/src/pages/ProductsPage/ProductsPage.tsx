@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Divider, Snackbar, Alert, Typography } from '@mui/material';
+import { Box, Divider, Snackbar, Alert } from '@mui/material';
 import { useInView } from 'react-intersection-observer';
 import { debounce } from 'lodash';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
@@ -12,7 +12,6 @@ import type { IProduct } from '@common/types';
 import { db } from '../../firebase';
 import StickyTable from '../../components/StickyTable';
 import { defineProductColumns } from './Columns';
-import LoadingProgress from '../../components/LoadingProgress';
 import NotFound from '../../components/NotFound';
 import type {
   SortingState,
@@ -21,11 +20,7 @@ import type {
 } from '@tanstack/react-table';
 
 import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
-import {
-  useProductFiltersQuerySync,
-  clearProductFilterParams,
-} from '../../hooks/useProductFiltersQuerySync';
-// ...
+import { useProductFiltersQuerySync } from '../../hooks/useProductFiltersQuerySync';
 
 import type { Dayjs } from 'dayjs';
 import { useCategories } from '../../hooks/useCategories';
@@ -48,8 +43,10 @@ import ResponsiveCardsGrid from '../../components/ResponsiveCardsGrid';
 import RightFiltersDrawer from '../../components/RightFiltersDrawer';
 import InfiniteSentinel from '../../components/InfiniteSentinel';
 import { toJsDate } from '../../utils/toJsDate';
+import { useTranslation } from 'react-i18next';
 
 export default function ProductsPage() {
+  const { t } = useTranslation();
   const [products, setProducts] = useState<IProduct[]>([]);
   const [visibleCount, setVisibleCount] = useState(20);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -184,8 +181,8 @@ export default function ProductsPage() {
 
   useEffect(() => {
     if (inView && visibleCount < filteredProducts.length) {
-      const t = setTimeout(() => setVisibleCount((prev) => prev + 12), 200);
-      return () => clearTimeout(t);
+      const tmo = setTimeout(() => setVisibleCount((prev) => prev + 12), 200);
+      return () => clearTimeout(tmo);
     }
   }, [inView, visibleCount, filteredProducts.length]);
 
@@ -264,7 +261,7 @@ export default function ProductsPage() {
 
         {/* Main content */}
         {filteredProducts.length === 0 ? (
-          <NotFound message="No products found." />
+          <NotFound message={t('empty.noProducts')} />
         ) : viewMode === 'table' ? (
           <StickyTable<IProduct>
             data={visibleProducts}
@@ -307,7 +304,7 @@ export default function ProductsPage() {
 
         {/* Filters Drawer */}
         <RightFiltersDrawer
-          title="Filters"
+          title={t('filters.open')}
           open={filtersOpen}
           onClose={() => setFiltersOpen(false)}
         >
@@ -325,7 +322,7 @@ export default function ProductsPage() {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="success" variant="filled">
-            Product added to cart
+            {t('toasts.addedToCart')}
           </Alert>
         </Snackbar>
       </PageContainer>

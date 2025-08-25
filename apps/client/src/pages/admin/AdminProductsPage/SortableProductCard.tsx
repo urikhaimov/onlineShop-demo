@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import ProductAdminCard from './ProductAdminCard';
+
 import { IProduct } from '@common/types';
 import React from 'react';
 
@@ -33,17 +33,5 @@ export default function SortableProductCard({
     willChange: 'transform', // 🔥 ensures smoothness
   };
 
-  return (
-    <div ref={setNodeRef} style={style}>
-      <ProductAdminCard
-        product={product}
-        onConfirmDelete={onConfirmDelete}
-        disabled={disabled}
-        dragHandleProps={{
-          ...attributes,
-          ...listeners,
-        }}
-      />
-    </div>
-  );
+  return <div ref={setNodeRef} style={style}></div>;
 }

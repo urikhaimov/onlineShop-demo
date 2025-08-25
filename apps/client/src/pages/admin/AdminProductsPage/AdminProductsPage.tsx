@@ -1,9 +1,9 @@
-// src/features/admin/products/AdminProductsPage.tsx
 import * as React from 'react';
 import { useEffect, useMemo } from 'react';
 import { Snackbar, Alert, Divider, Box, Button, Stack } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
+// import RestartAltIcon from '@mui/icons-material/RestartAlt'; // removed
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import {
   DndContext,
   type DragEndEvent,
@@ -46,6 +46,7 @@ import {
   useAdminProductFiltersQuerySync,
   clearAdminProductFiltersInSearchParams,
 } from '../../../hooks/useAdminProductFiltersQuerySync';
+import { useTranslation } from 'react-i18next';
 
 const PRICE_MIN = 0;
 const PRICE_MAX = 100_000;
@@ -69,6 +70,8 @@ function toDate(value: unknown): Date | null {
 }
 
 export default function AdminProductsPage() {
+  const { t } = useTranslation();
+
   const {
     products,
     loading,
@@ -271,7 +274,10 @@ export default function AdminProductsPage() {
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
       <PageContainer>
-        <AdminHeaderBar title="Admin Products" onReset={resetAll} />
+        <AdminHeaderBar
+          title={t('adminProductsPage.title')}
+          onReset={resetAll}
+        />
 
         {/* Controls (always visible) */}
         <Box
@@ -284,22 +290,29 @@ export default function AdminProductsPage() {
             mb: 1,
           }}
         >
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} justifyContent="space-between">
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<FilterListIcon />}
+                onClick={() => setFiltersOpen(true)}
+              >
+                {t('filters.open')}
+              </Button>
+              {/* Removed reset button */}
+            </Stack>
+
+            {/* New: Add Product */}
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
-              startIcon={<FilterListIcon />}
-              onClick={() => setFiltersOpen(true)}
+              startIcon={<AddCircleOutlineIcon />}
+              onClick={() => navigate('/admin/products/add')}
             >
-              Filters
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<RestartAltIcon />}
-              onClick={resetAll}
-            >
-              Reset filters
+              {t('adminProductsPage.addProduct', {
+                defaultValue: 'Add Product',
+              })}
             </Button>
           </Stack>
         </Box>
@@ -310,7 +323,7 @@ export default function AdminProductsPage() {
         {loading ? (
           <LoadingProgress />
         ) : filteredProducts.length === 0 ? (
-          <NotFound message="No products found." />
+          <NotFound message={t('empty.noProducts')} />
         ) : (
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
             <SortableContext
@@ -343,7 +356,7 @@ export default function AdminProductsPage() {
 
         {/* Filters drawer (stays open while editing) */}
         <RightFiltersDrawer
-          title="Filters"
+          title={t('filters.open')}
           open={filtersOpen}
           onClose={() => setFiltersOpen(false)}
         >
@@ -360,7 +373,7 @@ export default function AdminProductsPage() {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="success" variant="filled">
-            Product order updated
+            {t('adminProductsPage.snackbarReordered')}
           </Alert>
         </Snackbar>
       </PageContainer>

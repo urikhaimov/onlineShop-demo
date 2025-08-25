@@ -1,3 +1,4 @@
+// src/components/.../MenuContent.tsx
 import * as React from 'react';
 import {
   List,
@@ -22,6 +23,7 @@ import {
   HelpRounded as HelpRoundedIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '../../../hooks/useAuth';
 import { isAdmin } from '../../../context/AuthContext';
@@ -30,55 +32,76 @@ export default function MenuContent() {
   const { role } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const isSelected = (path: string) => {
-    if (path === '/admin') return location.pathname === '/admin'; // Exact match only
+    if (path === '/admin') return location.pathname === '/admin';
     return (
       location.pathname === path || location.pathname.startsWith(path + '/')
     );
   };
-  const handleNavigate = (path: string) => () => {
-    navigate(path);
-  };
+  const handleNavigate = (path: string) => () => navigate(path);
 
-  const mainListItems = [
-    { label: 'Home', icon: <HomeIcon />, path: '/' },
-    { label: 'Products', icon: <InventoryIcon />, path: '/products' },
-    { label: 'My Orders', icon: <ReceiptIcon />, path: '/my-orders' },
-  ];
+  const mainListItems = React.useMemo(
+    () => [
+      { label: t('nav.home'), icon: <HomeIcon />, path: '/' },
+      { label: t('nav.products'), icon: <InventoryIcon />, path: '/products' },
+      { label: t('nav.myOrders'), icon: <ReceiptIcon />, path: '/my-orders' },
+    ],
+    [t],
+  );
 
-  const secondaryListItems = isAdmin(role)
-    ? [
+  const secondaryListItems = React.useMemo(() => {
+    if (isAdmin(role)) {
+      return [
         {
-          label: 'Dashboard Home',
+          label: t('admin.dashboardHome'),
           icon: <AdminPanelSettingsIcon />,
           path: '/admin',
         },
         {
-          label: 'Categories',
+          label: t('admin.categories'),
           icon: <CategoryIcon />,
           path: '/admin/categories',
         },
-        { label: 'Users', icon: <PeopleIcon />, path: '/admin/users' },
-        { label: 'Products', icon: <InventoryIcon />, path: '/admin/products' },
-        { label: 'Orders', icon: <ReceiptIcon />, path: '/admin/orders' },
-        { label: 'Theme', icon: <BrushIcon />, path: '/admin/theme' },
+        { label: t('admin.users'), icon: <PeopleIcon />, path: '/admin/users' },
         {
-          label: 'Landing Page',
+          label: t('admin.products'),
+          icon: <InventoryIcon />,
+          path: '/admin/products',
+        },
+        {
+          label: t('admin.orders'),
+          icon: <ReceiptIcon />,
+          path: '/admin/orders',
+        },
+        // { label: t('admin.theme'), icon: <BrushIcon />, path: '/admin/theme' },
+        {
+          label: t('admin.landingPage'),
           icon: <HomeIcon />,
           path: '/admin/landingPage',
         },
-        {
-          label: 'Security Logs',
-          icon: <SecurityIcon />,
-          path: '/admin/security-logs',
-        },
-      ]
-    : [
-        { label: 'Settings', icon: <SettingsRoundedIcon />, path: '/settings' },
-        { label: 'About', icon: <InfoRoundedIcon />, path: '/about' },
-        { label: 'Feedback', icon: <HelpRoundedIcon />, path: '/feedback' },
+        // {
+        //   label: t('admin.securityLogs'),
+        //   icon: <SecurityIcon />,
+        //   path: '/admin/security-logs',
+        // },
       ];
+    }
+    return [
+      {
+        label: t('settings.settings'),
+        icon: <SettingsRoundedIcon />,
+        path: '/settings',
+      },
+      { label: t('settings.about'), icon: <InfoRoundedIcon />, path: '/about' },
+      {
+        label: t('settings.feedback'),
+        icon: <HelpRoundedIcon />,
+        path: '/feedback',
+      },
+    ];
+  }, [role, t]);
 
   return (
     <Stack sx={{ flexGrow: 1, p: 1, justifyContent: 'space-between' }}>

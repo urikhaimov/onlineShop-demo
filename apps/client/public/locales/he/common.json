@@ -1,0 +1,396 @@
+{
+  "common": {
+    "saving": "שומר…"
+  },
+  "nav": {
+    "home": "דף הבית",
+    "products": "מוצרים",
+    "myOrders": "ההזמנות שלי"
+  },
+  "admin": {
+    "dashboardHome": "בית הניהול",
+    "categories": "קטגוריות",
+    "users": "משתמשים",
+    "products": "מוצרים",
+    "orders": "הזמנות",
+    "theme": "ערכת נושא",
+    "landingPage": "דף נחיתה",
+    "securityLogs": "יומני אבטחה"
+  },
+  "view": {
+    "cards": "כרטיסים",
+    "table": "טבלה"
+  },
+  "menu": {
+    "openAria": "פתח תפריט",
+    "profile": "פרופיל",
+    "account": "חשבון",
+    "logout": "התנתקות"
+  },
+  "actions": {
+    "save": "שמירה",
+    "edit": "עריכה",
+    "delete": "מחיקה",
+    "cancel": "ביטול",
+    "searchPlaceholder": "חיפוש…"
+  },
+  "validation": {
+    "name_required": "יש להזין שם.",
+    "name_minLen": "השם חייב להכיל לפחות 2 תווים.",
+    "price_required": "יש להזין מחיר."
+  },
+  "table": {
+    "image": "תמונה",
+    "name": "שם",
+    "actions": "פעולות",
+    "orderId": "מס׳ הזמנה",
+    "total": "סך הכול",
+    "date": "תאריך",
+    "status": "סטטוס",
+    "category": "קטגוריה",
+    "stock": "מלאי",
+    "price": "מחיר",
+    "created": "נוצר"
+  },
+  "filters": {
+    "open": "מסננים",
+    "reset": "איפוס",
+    "userEmail": "אימייל משתמש",
+    "status": "סטטוס",
+    "all": "הכול",
+    "totalRange": "טווח סכום",
+    "dateFrom": "מתאריך",
+    "dateTo": "עד תאריך",
+    "search": "חיפוש",
+    "category": "קטגוריה",
+    "priceRange": "טווח מחיר",
+    "stockRange": "טווח מלאי",
+    "updatedFrom": "עודכן מ־",
+    "updatedTo": "עודכן עד"
+  },
+  "sort": {
+    "by": "סידור לפי",
+    "newest": "חדש תחילה",
+    "oldest": "ישן תחילה"
+  },
+  "status": {
+    "pending": "ממתין",
+    "confirmed": "אושר",
+    "shipped": "נשלח",
+    "delivered": "נמסר",
+    "cancelled": "בוטל"
+  },
+  "orders": {
+    "status": {
+      "pending": "ממתין",
+      "confirmed": "אושר",
+      "shipped": "נשלח",
+      "delivered": "נמסר",
+      "cancelled": "בוטל",
+      "succeeded": "בוצע בהצלחה"
+    }
+  },
+  "adminUsers": {
+    "columns": {
+      "email": "אימייל",
+      "role": "תפקיד"
+    },
+    "roles": {
+      "user": "משתמש",
+      "admin": "מנהל",
+      "roles": {
+        "user": "משתמש",
+        "admin": "מנהל"
+      }
+    }
+  },
+  "adminCategoriesAddPage": {
+    "title": "הוספת קטגוריה חדשה",
+    "snackbarCreated": "הקטגוריה נוצרה",
+    "failedToCreateFallback": "יצירת הקטגוריה נכשלה."
+  },
+  "adminCategoriesPage": {
+    "title": "ניהול קטגוריות",
+    "add": "הוספת קטגוריה",
+    "snackbarDeleted": "הקטגוריה נמחקה בהצלחה",
+    "failedToDeleteFallback": "מחיקת הקטגוריה נכשלה.",
+    "dialog": {
+      "title": "למחוק קטגוריה?",
+      "warning": "הפעולה תמחק את הקטגוריה לצמיתות ולא ניתנת לביטול.",
+      "confirm": "האם למחוק את הקטגוריה {{name}}?",
+      "cancel": "ביטול",
+      "deleting": "מוחק…",
+      "delete": "מחיקה"
+    }
+  },
+  "adminCategoriesEditPage": {
+    "missingId": "חסר מזהה קטגוריה בכתובת.",
+    "failedToUpdateFallback": "עדכון הקטגוריה נכשל.",
+    "title": "עריכת קטגוריה",
+    "snackbarUpdated": "הקטגוריה עודכנה"
+  },
+  "adminCategories": {
+    "fallbackName": "קטגוריה",
+    "imageAria": "תמונה של {{name}}",
+    "actions": {
+      "tooltipEdit": "עריכת {{name}}"
+    },
+    "confirm": {
+      "title": "למחוק קטגוריה?",
+      "description": "הפעולה תמחק לצמיתות את {{name}}."
+    }
+  },
+  "adminCategoriesForm": {
+    "name": "שם",
+    "description": "תיאור",
+    "update": "עדכון קטגוריה",
+    "create": "יצירת קטגוריה"
+  },
+  "adminLanding": {
+    "failedToLoad": "טעינת נתוני דף הנחיתה נכשלה.",
+    "title": "עריכת דף נחיתה",
+    "form": {
+      "title": "כותרת",
+      "subtitle": "תת־כותרת",
+      "bannerImageUrl": "כתובת תמונת באנר",
+      "ctaText": "טקסט כפתור קריאה לפעולה",
+      "ctaLink": "קישור כפתור קריאה לפעולה",
+      "homepageLayout": "פריסת דף הבית"
+    },
+    "sections": {
+      "title": "מקטעים",
+      "sectionTitle": "כותרת מקטע",
+      "sectionContent": "תוכן מקטע",
+      "remove": "הסרת מקטע",
+      "add": "הוספת מקטע"
+    },
+    "toast": {
+      "updated": "דף הנחיתה עודכן בהצלחה!"
+    }
+  },
+  "layouts": {
+    "Hero": "Hero",
+    "Bento": "Bento",
+    "Split": "Split",
+    "Mosaic": "Mosaic",
+    "Story": "Story"
+  },
+  "adminOrdersPage": {
+    "failedToDeleteFallback": "מחיקת ההזמנה נכשלה.",
+    "failedToLoad": "טעינת הזמנות נכשלה: {{message}}",
+    "notFound": "לא נמצאו הזמנות",
+    "snackbarSuccess": "הפעולה הושלמה בהצלחה",
+    "dialog": {
+      "title": "למחוק הזמנה?",
+      "warning": "הפעולה תמחק את ההזמנה לצמיתות ולא ניתנת לביטול.",
+      "confirm": "האם למחוק את ההזמנה {{id}}?",
+      "cancel": "ביטול",
+      "deleting": "מוחק…",
+      "delete": "מחיקה"
+    }
+  },
+  "adminOrders": {
+    "actions": {
+      "view": "צפייה",
+      "tooltipView": "צפייה בהזמנה {{id}}",
+      "edit": "עריכה",
+      "tooltipEdit": "עריכת הזמנה {{id}}",
+      "delete": "מחיקה",
+      "tooltipDelete": "מחיקת הזמנה {{id}}"
+    }
+  },
+  "orderDetails": {
+    "customer": "לקוח",
+    "shippingAddress": "כתובת משלוח",
+    "items": "פריטים",
+    "line": "{{name}} ×{{qty}} — {{price}}",
+    "total": "סך הכול",
+    "payment": "תשלום",
+    "method": "אופן תשלום",
+    "status": "סטטוס",
+    "transaction": "עסקה",
+    "delivery": "משלוח",
+    "provider": "ספק",
+    "tracking": "מספר מעקב",
+    "eta": "זמן הגעה משוער",
+    "created": "נוצר",
+    "updated": "עודכן",
+    "notes": "הערות"
+  },
+  "orderEdit": {
+    "errorLoading": "שגיאה בטעינת ההזמנה: {{message}}",
+    "title": "עריכת הזמנה #{{id}}",
+    "orderStatus": "סטטוס הזמנה",
+    "status": "סטטוס",
+    "deliveryInfo": "פרטי משלוח",
+    "provider": "ספק",
+    "trackingNumber": "מספר מעקב",
+    "eta": "זמן הגעה משוער (ISO או טקסט)",
+    "adminNotes": "הערות מנהל",
+    "internalNotes": "הערות פנימיות",
+    "saveChanges": "שמירת שינויים",
+    "success": "ההזמנה עודכנה בהצלחה!"
+  },
+  "orderSummary": {
+    "title": "סיכום הזמנה",
+    "subtotal": "סכום ביניים",
+    "customer": "לקוח",
+    "shippingAddress": "כתובת משלוח",
+    "payment": "תשלום",
+    "na": "לא זמין",
+    "paymentStatus": {
+      "paid": "שולם",
+      "unpaid": "לא שולם"
+    },
+    "tx": "עסקה"
+  },
+  "orderItems": {
+    "title": "פריטי ההזמנה",
+    "empty": "אין פריטים בהזמנה זו.",
+    "image": "תמונה",
+    "name": "שם",
+    "qty": "כמות",
+    "price": "מחיר",
+    "subtotal": "סכום ביניים",
+    "noImage": "אין תמונה",
+    "unnamed": "מוצר ללא שם",
+    "total": "סך הכול"
+  },
+  "adminProductForm": {
+    "savedOk": "המוצר נשמר בהצלחה!",
+    "saveFailed": "שמירת המוצר נכשלה. בדוק את הקונסול לפרטים.",
+    "loading": "טוען מוצר או קטגוריות…",
+    "titleAdd": "הוספת מוצר חדש",
+    "titleEdit": "עריכת מוצר",
+    "name": "שם",
+    "description": "תיאור",
+    "price": "מחיר",
+    "stock": "מלאי",
+    "category": "קטגוריה",
+    "invalidCategory": "מזהה קטגוריה שגוי: {{id}}",
+    "images": "תמונות"
+  },
+  "adminProductsPage": {
+    "title": "ניהול מוצרים",
+    "addProduct": "הוסף מוצר",
+    "snackbarReordered": "סדר המוצרים עודכן"
+  },
+  "adminProducts": {
+    "actions": {
+      "tooltipEdit": "עריכת {{name}}",
+      "tooltipDelete": "מחיקת {{name}}"
+    },
+    "confirmDelete": "האם למחוק את {{name}}?"
+  },
+  "productExpanded": {
+    "pricingStock": "תמחור / מלאי",
+    "price": "מחיר",
+    "stock": "מלאי",
+    "sku": "SKU",
+    "brand": "מותג",
+    "description": "תיאור",
+    "attributes": "מאפיינים",
+    "created": "נוצר",
+    "updated": "עודכן"
+  },
+  "productDetails": {
+    "pricingStock": "תמחור / מלאי",
+    "price": "מחיר",
+    "stock": "מלאי",
+    "description": "תיאור",
+    "created": "נוצר",
+    "updated": "עודכן"
+  },
+  "empty": {
+    "noProducts": "לא נמצאו מוצרים",
+    "noOrders": "לא נמצאו הזמנות"
+  },
+  "userProfile": {
+    "title": "הפרופיל שלי",
+    "fields": {
+      "name": "שם",
+      "email": "אימייל",
+      "uid": "UID"
+    },
+    "saveChanges": "שמירת שינויים",
+    "toasts": {
+      "profileUpdated": "הפרופיל עודכן",
+      "avatarDeleted": "התמונה נמחקה"
+    },
+    "errors": {
+      "updateFailed": "עדכון הפרופיל נכשל.",
+      "avatarUploadFailed": "העלאת התמונה נכשלה.",
+      "deleteAvatarFailed": "מחיקת התמונה נכשלה"
+    },
+    "empty": {
+      "noUser": "אין נתוני משתמש."
+    },
+    "dialog": {
+      "resetAvatar": {
+        "title": "איפוס תמונת פרופיל",
+        "confirm": "האם לאפס את תמונת הפרופיל לברירת המחדל?"
+      }
+    },
+    "changePassword": {
+      "title": "החלפת סיסמה",
+      "old": "סיסמה ישנה",
+      "new": "סיסמה חדשה",
+      "confirm": "אישור סיסמה",
+      "submit": "החלפת סיסמה",
+      "success": "הסיסמה עודכנה בהצלחה",
+      "errors": {
+        "mismatch": "הסיסמאות החדשות אינן תואמות",
+        "unauthenticated": "לא מחובר",
+        "updateFailed": "עדכון הסיסמה נכשל"
+      }
+    }
+  },
+  "cart": {
+    "title": "העגלה שלך",
+    "empty": "העגלה שלך ריקה.",
+    "qtyShort": "כמות",
+    "increaseToast": "הוגדלה הכמות עבור {{name}}",
+    "decreaseToast": "הופחתה הכמות עבור {{name}}",
+    "removedToast": "הוסר {{name}}",
+    "remove": "הסרה",
+    "total": "סך הכול",
+    "checkout": "לתשלום",
+    "clear": "ניקוי עגלה",
+    "clearedToast": "העגלה נוקתה",
+    "close": "סגירה"
+  },
+  "checkout": {
+    "title": "תשלום",
+    "subtotal": "סיכום ביניים",
+    "shipping": "משלוח",
+    "tax": "מס ({{rate}}%)",
+    "discount": "הנחה",
+    "total": "סך הכול",
+    "currency": "USD",
+    "failedToLoad": "טעינת טופס התשלום נכשלה. נסה שוב מאוחר יותר."
+  },
+  "checkoutForm": {
+    "paymentDetails": "פרטי תשלום",
+    "ownerName": "שם בעל הכרטיס",
+    "ownerNameRequired": "נדרש שם בעל הכרטיס",
+    "passportId": "מספר דרכון",
+    "passportIdRequired": "נדרש מספר דרכון",
+    "payNow": "שלם עכשיו",
+    "errors": {
+      "stripeNotReady": "Stripe עדיין לא מוכן",
+      "paymentFailed": "התשלום נכשל",
+      "paymentStatus": "סטטוס התשלום: {{status}}",
+      "unexpected": "שגיאה לא צפויה"
+    }
+  },
+  "checkoutSuccess": {
+    "title": "🎉 תודה על ההזמנה!",
+    "subtitle": "קיבלנו את התשלום וההזמנה בתהליך טיפול.",
+    "goHome": "חזרה לדף הבית",
+    "viewOrders": "הצג את ההזמנות שלי",
+    "processing": "מעבד הזמנה...",
+    "errors": {
+      "generic": "משהו השתבש במהלך אישור ההזמנה."
+    }
+  }
+}

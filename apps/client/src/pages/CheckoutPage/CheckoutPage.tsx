@@ -20,10 +20,12 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
+import { useTranslation } from 'react-i18next';
 
 const StripeProvider = React.lazy(() => import('../../stripe/StripeProvider'));
 
 export default function CheckoutPage() {
+  const { t } = useTranslation();
   const { clientSecret, loading, error } = useStripeClientSecret();
 
   const cart = useCartStore((s) => s.items);
@@ -60,17 +62,34 @@ export default function CheckoutPage() {
           >
             <Paper elevation={1} sx={{ p: 3, width: '100%', maxWidth: 480 }}>
               <Typography variant="h6" mb={2}>
-                Checkout
+                {t('checkout.title', { defaultValue: 'Checkout' })}
               </Typography>
 
               <Stack spacing={1} mb={2}>
-                <Typography>Subtotal: ${subtotal.toFixed(2)}</Typography>
-                <Typography>Shipping: ${shipping.toFixed(2)}</Typography>
-                <Typography>Tax (17%): ${tax.toFixed(2)}</Typography>
-                <Typography>Discount: -${discount.toFixed(2)}</Typography>
+                <Typography>
+                  {t('checkout.subtotal', { defaultValue: 'Subtotal' })}: $
+                  {subtotal.toFixed(2)}
+                </Typography>
+                <Typography>
+                  {t('checkout.shipping', { defaultValue: 'Shipping' })}: $
+                  {shipping.toFixed(2)}
+                </Typography>
+                <Typography>
+                  {t('checkout.tax', {
+                    rate: Math.round(taxRate * 100),
+                    defaultValue: 'Tax ({{rate}}%)',
+                  })}{' '}
+                  : ${tax.toFixed(2)}
+                </Typography>
+                <Typography>
+                  {t('checkout.discount', { defaultValue: 'Discount' })}: -$
+                  {discount.toFixed(2)}
+                </Typography>
                 <Divider />
                 <Typography fontWeight="bold">
-                  Total: ${(total / 100).toFixed(2)} USD
+                  {t('checkout.total', { defaultValue: 'Total' })}:{' '}
+                  {(total / 100).toFixed(2)}{' '}
+                  {t('checkout.currency', { defaultValue: 'USD' })}
                 </Typography>
               </Stack>
 
@@ -84,7 +103,10 @@ export default function CheckoutPage() {
                 </Elements>
               ) : (
                 <Typography color="error">
-                  Failed to load payment form. Please try again later.
+                  {t('checkout.failedToLoad', {
+                    defaultValue:
+                      'Failed to load payment form. Please try again later.',
+                  })}
                 </Typography>
               )}
             </Paper>

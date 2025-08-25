@@ -1,4 +1,4 @@
-import React from 'react';
+import * as React from 'react';
 import {
   TextField,
   MenuItem,
@@ -6,12 +6,15 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+// If you're already wrapping with LocalizationProvider+Dayjs adapter in AppProviders,
+// the DatePicker will localize calendar UI automatically.
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
 
 import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
 import FiltersFooterActions from '../../components/FiltersFooterActions';
 import RangeFilterSlider from '../../components/RangeFilterSlider';
+import { useTranslation } from 'react-i18next';
 
 const TOTAL_MIN = 0;
 const TOTAL_MAX = 100_000;
@@ -25,6 +28,7 @@ export default function UserOrderFilters({
   onClose,
   closeOnChange = false,
 }: Props) {
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // show Apply on mobile by default
 
@@ -45,7 +49,11 @@ export default function UserOrderFilters({
   } = useOrderFilterStore();
 
   const currency = (v: number) =>
-    `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
+      style: 'currency',
+      currency: 'USD', // change if your store uses a different currency
+      maximumFractionDigits: 0,
+    }).format(v);
 
   const maybeClose = () => {
     if (closeOnChange && onClose) onClose();
@@ -80,24 +88,25 @@ export default function UserOrderFilters({
     <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, py: 1 }}>
       {/* Search */}
       <TextField
-        label="Search"
+        label={t('filters.search')}
         size="small"
         value={searchTerm ?? ''}
         onChange={(e) => setSearchTerm(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && maybeClose()}
         fullWidth
+        placeholder={t('actions.searchPlaceholder')}
       />
 
       {/* Dates */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
         <DatePicker
-          label="Date From"
+          label={t('filters.dateFrom')}
           value={dateFrom ? dayjs(dateFrom) : null}
           onChange={onFromChange}
           slotProps={{ textField: { fullWidth: true, size: 'small' } }}
         />
         <DatePicker
-          label="Date To"
+          label={t('filters.dateTo')}
           value={dateTo ? dayjs(dateTo) : null}
           onChange={onToChange}
           slotProps={{ textField: { fullWidth: true, size: 'small' } }}
@@ -106,7 +115,7 @@ export default function UserOrderFilters({
 
       {/* Status */}
       <TextField
-        label="Status"
+        label={t('filters.status')}
         select
         size="small"
         value={status ?? ''}
@@ -116,17 +125,17 @@ export default function UserOrderFilters({
         }}
         fullWidth
       >
-        <MenuItem value="">All</MenuItem>
-        <MenuItem value="pending">Pending</MenuItem>
-        <MenuItem value="confirmed">Confirmed</MenuItem>
-        <MenuItem value="shipped">Shipped</MenuItem>
-        <MenuItem value="delivered">Delivered</MenuItem>
-        <MenuItem value="cancelled">Cancelled</MenuItem>
+        <MenuItem value="">{t('filters.all')}</MenuItem>
+        <MenuItem value="pending">{t('orders.status.pending')}</MenuItem>
+        <MenuItem value="confirmed">{t('orders.status.confirmed')}</MenuItem>
+        <MenuItem value="shipped">{t('orders.status.shipped')}</MenuItem>
+        <MenuItem value="delivered">{t('orders.status.delivered')}</MenuItem>
+        <MenuItem value="cancelled">{t('orders.status.cancelled')}</MenuItem>
       </TextField>
 
       {/* Total range */}
       <RangeFilterSlider
-        label="Total range"
+        label={t('filters.totalRange')}
         min={TOTAL_MIN}
         max={TOTAL_MAX}
         step={50}

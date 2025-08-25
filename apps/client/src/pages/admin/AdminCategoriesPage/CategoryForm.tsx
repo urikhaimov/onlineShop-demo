@@ -1,4 +1,3 @@
-// src/pages/admin/CategoryForm.tsx
 import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import {
@@ -13,6 +12,7 @@ import PictureUploaderWithCrop from '../../../components/PictureUploaderWithCrop
 import { useCategoryById } from '../../../hooks/useCategories';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { useTranslation } from 'react-i18next';
 
 export interface CategoryFormValues {
   name: string;
@@ -21,9 +21,9 @@ export interface CategoryFormValues {
 }
 
 interface Props {
-  mode: 'create' | 'edit'; // ✅ use 'create' | 'edit'
-  categoryId?: string; // required when mode==='edit'
-  initial?: Partial<CategoryFormValues>; // optional defaults for create
+  mode: 'create' | 'edit';
+  categoryId?: string;
+  initial?: Partial<CategoryFormValues>;
   onSubmit: (data: CategoryFormValues) => Promise<void> | void;
 }
 
@@ -33,6 +33,7 @@ export default function CategoryForm({
   initial,
   onSubmit,
 }: Props) {
+  const { t } = useTranslation();
   const isEdit = mode === 'edit';
 
   const {
@@ -98,16 +99,20 @@ export default function CategoryForm({
           control={control}
           name="name"
           rules={{
-            required: 'Name is required',
+            required: t('validation.name_required', {
+              defaultValue: 'Name is required.',
+            }) as string,
             minLength: {
               value: 2,
-              message: 'Name must be at least 2 characters',
+              message: t('validation.name_minLen', {
+                defaultValue: 'Name must be at least 2 characters.',
+              }) as string,
             },
           }}
           render={({ field }) => (
             <FormTextField
               {...field}
-              label="Name"
+              label={t('adminCategoriesForm.name', { defaultValue: 'Name' })}
               errorObject={errors.name}
               required
               autoFocus
@@ -122,7 +127,9 @@ export default function CategoryForm({
           render={({ field }) => (
             <Box>
               <Typography variant="subtitle1" mb={1}>
-                Description
+                {t('adminCategoriesForm.description', {
+                  defaultValue: 'Description',
+                })}
               </Typography>
               <Box
                 sx={{
@@ -156,7 +163,7 @@ export default function CategoryForm({
               </Box>
               {errors.description && (
                 <Typography variant="caption" color="error" mt={0.5}>
-                  {errors.description.message}
+                  {String(errors.description.message)}
                 </Typography>
               )}
             </Box>
@@ -165,13 +172,19 @@ export default function CategoryForm({
 
         {/* Image uploader */}
         <PictureUploaderWithCrop
-          avatarUrl={imageUrl} // ✅ avoid control._formValues
+          avatarUrl={imageUrl}
           onCropUpload={handleCropUpload}
           onDeleteAvatar={handleDeleteAvatar}
         />
 
         <Button type="submit" variant="contained" disabled={isSubmitting}>
-          {isEdit ? 'Update Category' : 'Create Category'}
+          {isEdit
+            ? t('adminCategoriesForm.update', {
+                defaultValue: 'Update Category',
+              })
+            : t('adminCategoriesForm.create', {
+                defaultValue: 'Create Category',
+              })}
         </Button>
       </Stack>
     </Box>

@@ -7,6 +7,9 @@ import { getEnv, isProd, logger } from '@common/utils';
 import { setupSwagger } from './swagger';
 import helmet from 'helmet';
 
+// ⬇️ i18n validation pipe
+import { I18nValidationPipe } from 'nestjs-i18n';
+
 dotenv.config();
 
 /**
@@ -23,12 +26,15 @@ async function appBootstrap() {
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
 
+  // ✅ Use I18nValidationPipe instead of plain ValidationPipe
   app.useGlobalPipes(
-    new ValidationPipe({
+    new I18nValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+      // optional: stopAtFirstError: true,
+      // optional: exceptionFactory: (errors) => new BadRequestException(errors),
+    }) as unknown as ValidationPipe, // keep type compatibility if needed
   );
 
   app.use(
@@ -47,12 +53,12 @@ async function appBootstrap() {
     }),
   );
 
-  // ✅ Enable CORS
+  // ✅ Enable CORS (+ language headers)
   app.enableCors({
     origin: 'http://localhost:5173', // 👈 Frontend URL
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type,Authorization',
+    allowedHeaders: 'Content-Type,Authorization,Accept-Language,x-lang',
   });
 
   await app.listen(appPort);
@@ -63,12 +69,6 @@ async function appBootstrap() {
 
 /**
  * Bootstraps the NestJS application and Swagger documentation server.
- *
- * Loads environment variables, sets up global validation, CORS, and API prefix.
- * Starts the main API server and, in non-production environments, initializes Swagger UI
- * for API documentation on a separate port.
- *
- * Logs server status and startup events using the internal logger.
  */
 async function swaggerBootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -77,6 +77,15 @@ async function swaggerBootstrap() {
     env: process.env,
   });
   const globalPrefix = 'api/v1';
+
+  // Use same validation pipe here (useful if you hit any DTO endpoints on this instance)
+  app.useGlobalPipes(
+    new I18nValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }) as unknown as ValidationPipe,
+  );
 
   if (!isProd()) {
     setupSwagger(app, {
