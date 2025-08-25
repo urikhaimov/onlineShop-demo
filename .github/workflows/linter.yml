@@ -1,0 +1,42 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Linter CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  linter:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Lint API
+        run: npx nx run api:lint
+
+      - name: Lint Auth Client
+        run: npx nx run auth-client:lint
+
+      - name: Lint UI Client
+        run: npx nx run client:lint
+
+      - name: Lint Firebase Admin
+        run: npx nx run firebase:eslint:lint
+
+      - name: Lint MS Auth
+        run: npx nx run auth:eslint:lint
+
+      - name: Lint Types
+        run: npx nx run types:eslint:lint
+
+      - name: Lint Utils
+        run: npx nx run utils:eslint:lint

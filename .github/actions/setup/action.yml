@@ -1,0 +1,35 @@
+name: Shared Actions
+description: 'Composite run action'
+inputs:
+  node-version:
+    required: false
+    description: The version of Node to use.
+    default: "24.x"
+runs:
+  using: "composite"
+  steps:
+    - name: Use Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Remove deprecated npm config
+      shell: bash
+      run: |
+        npm config delete always-auth || true
+        echo "NPM user config cleaned (if existed)."
+
+    - name: Check installed versions
+      shell: bash
+      run: |
+        echo "Tool    | Version"
+        echo "--------|-----------------"
+        echo "Node    | $(node -v)"
+        echo "npm     | $(npm -v)"
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        npm install

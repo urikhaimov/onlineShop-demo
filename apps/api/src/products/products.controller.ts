@@ -1,18 +1,17 @@
 import {
+  BadRequestException,
+  Body,
   Controller,
+  Delete,
   Get,
+  Param,
   Post,
   Put,
-  Delete,
-  Param,
-  Body,
-  BadRequestException,
-  ConflictException,
-  Patch,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { ProductsService, ProductWithOrder } from './products.service';
 import { ReorderProductsDto } from './dto/reorder-products.dto';
-import { Req, UseGuards } from '@nestjs/common';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard'; // or wherever your guard is
 @Controller('products')
 export class ProductsController {
@@ -27,7 +26,7 @@ export class ProductsController {
   async create(@Body() body: { name: string; price: number; stock: number }) {
     const { name, price, stock } = body;
 
-    if (!name?.trim() || price == null || stock == null) {
+    if (!name?.trim() || price === null || stock === null) {
       throw new BadRequestException('Name, price, and stock are required');
     }
 

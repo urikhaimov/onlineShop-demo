@@ -1,24 +1,22 @@
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
-import { defineConfig, UserConfig } from 'vite';
+import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import react from '@vitejs/plugin-react';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { csp } from './csp';
 
-export const createBaseViteConfig = (overrides?: UserConfig): UserConfig => {
-  return defineConfig({
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// https://vite.dev/config/
+export default defineConfig(async () => {
+  // @ts-ignore - expected error
+  const { default: react } = await import('@vitejs/plugin-react');
+  return {
     cacheDir: '../../node_modules/.vite/apps/client',
-    test: {
-      watch: false,
-      globals: true,
-      environment: 'jsdom',
-      include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-      reporters: ['default'],
-      coverage: {
-        reportsDirectory: '../../coverage/apps/client',
-        provider: 'v8' as const,
-      },
-    },
+    root: __dirname,
+    publicDir: path.resolve(__dirname, '../../public'),
+
     plugins: [
       tsconfigPaths(),
       react(),
@@ -37,6 +35,13 @@ export const createBaseViteConfig = (overrides?: UserConfig): UserConfig => {
         },
       },
     },
+    css: {
+      preprocessorOptions: {
+        less: {
+          javascriptEnabled: true,
+        },
+      },
+    },
     build: {
       rollupOptions: {
         external: ['motion-dom'], // only if you're not using it directly
@@ -46,15 +51,5 @@ export const createBaseViteConfig = (overrides?: UserConfig): UserConfig => {
       reportCompressedSize: true,
       commonjsOptions: { transformMixedEsModules: true },
     },
-    ...overrides,
-  });
-};
-
-export default createBaseViteConfig({
-  resolve: {
-    alias: {
-      // '@': '/src',
-      // '@client/logger': '../../libs/utils/src/lib/logger/logger.client.ts',
-    },
-  },
+  };
 });

@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import ProductAdminCard from './ProductAdminCard';
 import { IProduct } from '@common/types';
+import React from 'react';
 
 type Props = {
   product: IProduct;
