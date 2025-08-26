@@ -1,3 +1,4 @@
+// src/theme/dto/update-theme-settings.dto.ts
 import {
   CATEGORY_STYLES,
   CategoryStyle,
@@ -7,23 +8,26 @@ import {
 } from '@common/types';
 import {
   IsBoolean,
-  IsEnum,
   IsIn,
   IsNumber,
   IsOptional,
   IsString,
+  IsUrl,
+  IsHexColor,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateThemeSettingsDto {
   @IsOptional()
-  @IsString()
-  primaryColor?: string;
+  @IsHexColor()
+  primaryColor?: string; // e.g. #1976d2
 
   @IsOptional()
-  @IsString()
-  secondaryColor?: string;
+  @IsHexColor()
+  secondaryColor?: string; // e.g. #ff4081
 
   @IsOptional()
+  @Type(() => Boolean)
   @IsBoolean()
   darkMode?: boolean;
 
@@ -31,16 +35,20 @@ export class UpdateThemeSettingsDto {
   @IsString()
   fontFamily?: string;
 
+  // ---- numbers ----
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
-  borderRadius: number;
+  borderRadius?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
-  spacingScale: number;
+  spacingScale?: number;
 
+  // ---- optional extended settings ----
   @IsOptional()
-  @IsString()
+  @IsIn(['xs', 'sm', 'md', 'lg', 'xl', 'xxl'])
   maxWidth?: string;
 
   @IsOptional()
@@ -52,23 +60,26 @@ export class UpdateThemeSettingsDto {
   font?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   fontSize?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   fontWeight?: number;
 
   @IsOptional()
-  @IsString()
+  @IsUrl()
   logoUrl?: string;
 
   @IsOptional()
   @IsIn(Object.values(HOMEPAGE_LAYOUTS))
+  @IsString()
   homepageLayout?: string;
 
   @IsOptional()
-  @IsEnum(PRODUCT_CARD_VARIANTS)
+  @IsIn(Object.values(PRODUCT_CARD_VARIANTS))
   productCardVariant?: ProductCardVariant;
 
   @IsOptional()
@@ -76,10 +87,12 @@ export class UpdateThemeSettingsDto {
   categoryStyle?: CategoryStyle;
 
   @IsOptional()
+  @Type(() => Boolean)
   @IsBoolean()
   showSidebar?: boolean;
 
   @IsOptional()
+  @Type(() => Boolean)
   @IsBoolean()
   stickyHeader?: boolean;
 }

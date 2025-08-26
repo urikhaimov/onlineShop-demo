@@ -44,9 +44,9 @@ export default function Header() {
         {/* 🌐 Language selector */}
         <LanguageSwitcher />
 
-        <MenuButton showBadge aria-label="Open notifications">
+        {/* <MenuButton showBadge aria-label="Open notifications">
           <NotificationsRoundedIcon />
-        </MenuButton>
+        </MenuButton> */}
 
         {/* 🛒 Cart Badge with click to open drawer */}
         <IconButton onClick={openCartDrawer} aria-label="Open cart">

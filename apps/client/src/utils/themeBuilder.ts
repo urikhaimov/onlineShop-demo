@@ -1,48 +1,44 @@
-import type { PaletteMode, ThemeOptions } from '@mui/material';
+import { extendTheme, type PaletteOptions } from '@mui/material/styles';
+import type { ThemeSettings } from '../api/theme';
 
-export function getThemeFromSettings(settings: any): ThemeOptions {
-  const mode: PaletteMode = settings?.darkMode ? 'dark' : 'light';
-  const font = settings?.font || 'Roboto';
-  const fontWeights = '400;500;700'; // preload these weights
+export type AppTheme = ReturnType<typeof extendTheme>;
 
-  // Dynamically load Google Font
-  const linkId = 'dynamic-font-link';
-  const fontName = font.replace(/ /g, '+');
-  const href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@${fontWeights}&display=swap`;
-
-  if (typeof document !== 'undefined' && !document.getElementById(linkId)) {
-    const link = document.createElement('link');
-    link.id = linkId;
-    link.rel = 'stylesheet';
-    link.href = href;
-    document.head.appendChild(link);
-  }
-
-  return {
-    palette: {
-      mode,
-      primary: {
-        main: settings?.primaryColor || '#1976d2',
-      },
-      secondary: {
-        main: settings?.secondaryColor || '#dc004e',
-      },
-      ...(settings?.backgroundColor && {
-        background: {
-          default: settings.backgroundColor,
-        },
-      }),
-      ...(settings?.textColor && {
-        text: {
-          primary: settings.textColor,
-        },
-      }),
-    },
-    typography: {
-      fontFamily: font,
-    },
-    shape: {
-      borderRadius: 12,
-    },
+function makePalette(s: ThemeSettings, mode: 'light' | 'dark'): PaletteOptions {
+  const primary = s.primaryColor || '#1976d2';
+  const secondary = s.secondaryColor || '#ff4081';
+  const p: PaletteOptions = {
+    mode,
+    primary: { main: primary },
+    secondary: { main: secondary },
   };
+  p.background =
+    mode === 'light'
+      ? { default: '#fafafa', paper: '#ffffff' }
+      : { default: '#0b0f19', paper: '#121826' };
+  return p;
+}
+
+export function getThemeFromSettings(s: ThemeSettings): AppTheme {
+  const radius = s.borderRadius ?? 12;
+  const spacingScale = s.spacingScale ?? 1;
+  const fontFamily = (s as any).fontFamily || (s as any).font || 'Roboto';
+  const fontSize = s.fontSize ?? 16;
+  const fontWeight = s.fontWeight ?? 400;
+
+  return extendTheme({
+    cssVarPrefix: 'app',
+    // 👇 ensures manual toggling works; must match provider attribute
+    colorSchemeSelector: '[data-mui-color-scheme="%s"]',
+    colorSchemes: {
+      light: { palette: makePalette(s, 'light') },
+      dark: { palette: makePalette(s, 'dark') },
+    },
+    shape: { borderRadius: radius },
+    spacing: (f: number) => 8 * spacingScale * f,
+    typography: { fontFamily, fontSize, fontWeightRegular: fontWeight },
+    components: {
+      MuiCard: { styleOverrides: { root: { borderRadius: radius } } },
+      MuiButton: { styleOverrides: { root: { borderRadius: radius } } },
+    },
+  });
 }

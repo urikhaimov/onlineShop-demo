@@ -1,14 +1,15 @@
-// src/stores/useThemeStore.ts
 import { create } from 'zustand';
 import axiosInstance from '../api/axiosInstance';
-import { ThemeSettings } from '../api/theme'; // ✅ Correct import
+import { ThemeSettings } from '../api/theme';
 
 interface ThemeState {
   themeSettings: ThemeSettings;
   isLoading: boolean;
   error: string | null;
+
   updateTheme: (newSettings: Partial<ThemeSettings>) => void;
-  toggleDarkMode: () => void;
+  toggleDarkMode: () => Promise<void>;
+  setDarkMode: (dark: boolean) => Promise<void>;
   setTheme: (settings: ThemeSettings) => void;
   loadTheme: () => Promise<void>;
 }
@@ -29,18 +30,15 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     showSidebar: true,
     maxWidth: 'xl',
     stickyHeader: true,
-    spacingScale: 1, // ✅ Added
-    borderRadius: 8, // ✅ Added
+    spacingScale: 1,
+    borderRadius: 8,
   },
   isLoading: true,
   error: null,
 
   updateTheme: (newSettings) => {
     set((state) => ({
-      themeSettings: {
-        ...state.themeSettings,
-        ...newSettings,
-      },
+      themeSettings: { ...state.themeSettings, ...newSettings },
     }));
   },
 
@@ -48,20 +46,23 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({ themeSettings: settings, isLoading: false, error: null });
   },
 
-  toggleDarkMode: async () => {
-    const current = get().themeSettings;
-    const updated = {
-      ...current,
-      darkMode: !current.darkMode,
-    };
+  setDarkMode: async (dark) => {
+    const prev = get().themeSettings;
+    const next = { ...prev, darkMode: dark };
+    set({ themeSettings: next }); // optimistic
 
     try {
-      await axiosInstance.put('/theme/settings', updated);
-      set({ themeSettings: updated });
-    } catch (error) {
-      console.error('❌ Failed to toggle dark mode:', error);
-      set({ error: 'Failed to toggle dark mode' });
+      await axiosInstance.put('/theme/settings', next);
+    } catch (err) {
+      console.error('❌ Failed to update dark mode:', err);
+      // Optional revert; DO NOT set global `error` here
+      set({ themeSettings: prev });
     }
+  },
+
+  toggleDarkMode: async () => {
+    const now = get().themeSettings.darkMode;
+    await get().setDarkMode(!now);
   },
 
   loadTheme: async () => {
@@ -72,7 +73,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       get().setTheme(data);
     } catch (error: any) {
       console.error('❌ Failed to load theme:', error);
-      set({ error: error.message, isLoading: false });
+      set({ error: error?.message || 'Load theme failed', isLoading: false });
     }
   },
 }));

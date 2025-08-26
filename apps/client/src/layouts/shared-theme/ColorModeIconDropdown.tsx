@@ -1,3 +1,4 @@
+// src/components/ColorModeIconDropdown.tsx
 import * as React from 'react';
 import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeIcon from '@mui/icons-material/LightModeRounded';
@@ -6,25 +7,25 @@ import IconButton, { IconButtonOwnProps } from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { useColorScheme } from '@mui/material/styles';
+import { useThemeStore } from '../../stores/useThemeStore';
 
 export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
   const { mode, systemMode, setMode } = useColorScheme();
+  const setDarkMode = useThemeStore((s) => s.setDarkMode);
+
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-  const handleClose = () => {
+
+  const handleMode = (target: 'system' | 'light' | 'dark') => async () => {
+    setMode(target); // immediate visual change
+    if (target === 'light') await setDarkMode(false);
+    if (target === 'dark') await setDarkMode(true);
     setAnchorEl(null);
   };
-  const handleMode = (targetMode: 'system' | 'light' | 'dark') => () => {
-    setMode(targetMode);
-    handleClose();
-  };
+
   if (!mode) {
     return (
       <Box
-        data-screenshot="toggle-mode"
         sx={(theme) => ({
           verticalAlign: 'bottom',
           display: 'inline-flex',
@@ -37,16 +38,14 @@ export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
       />
     );
   }
+
   const resolvedMode = (systemMode || mode) as 'light' | 'dark';
-  const icon = {
-    light: <LightModeIcon />,
-    dark: <DarkModeIcon />,
-  }[resolvedMode];
+  const icon = resolvedMode === 'dark' ? <DarkModeIcon /> : <LightModeIcon />;
+
   return (
-    <React.Fragment>
+    <>
       <IconButton
-        data-screenshot="toggle-mode"
-        onClick={handleClick}
+        onClick={(e) => setAnchorEl(e.currentTarget)}
         disableRipple
         size="small"
         aria-controls={open ? 'color-scheme-menu' : undefined}
@@ -58,18 +57,11 @@ export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
       </IconButton>
       <Menu
         anchorEl={anchorEl}
-        id="account-menu"
+        id="color-scheme-menu"
         open={open}
-        onClose={handleClose}
-        onClick={handleClose}
+        onClose={() => setAnchorEl(null)}
         slotProps={{
-          paper: {
-            variant: 'outlined',
-            elevation: 0,
-            sx: {
-              my: '4px',
-            },
-          },
+          paper: { variant: 'outlined', elevation: 0, sx: { my: '4px' } },
         }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
@@ -84,6 +76,6 @@ export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
           Dark
         </MenuItem>
       </Menu>
-    </React.Fragment>
+    </>
   );
 }

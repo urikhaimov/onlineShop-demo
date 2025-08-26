@@ -4,7 +4,7 @@ import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n from '../i18n/i18n';
 
 import { CacheProvider } from '@emotion/react';
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import { CssBaseline, createTheme } from '@mui/material';
 import { ltrCache, rtlCache } from '../theme/rtlCache';
 
 import { LocalizationProvider } from '@mui/x-date-pickers';
@@ -44,16 +44,14 @@ function InnerProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <CacheProvider value={cache}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        {/* ⬇️ Make MUI X pickers happy + localized */}
-        <LocalizationProvider
-          dateAdapter={AdapterDayjs}
-          adapterLocale={adapterLocale}
-        >
-          {children}
-        </LocalizationProvider>
-      </ThemeProvider>
+      <CssBaseline />
+      {/* ⬇️ Make MUI X pickers happy + localized */}
+      <LocalizationProvider
+        dateAdapter={AdapterDayjs}
+        adapterLocale={adapterLocale}
+      >
+        {children}
+      </LocalizationProvider>
     </CacheProvider>
   );
 }
