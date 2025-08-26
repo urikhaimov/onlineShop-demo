@@ -45,17 +45,13 @@ function getGroupLabelSafe<T extends object>(
   if (!groupById) return 'Group';
   const colId = String(groupById);
 
-  // 1) Try the grouped value
   try {
     const v = row.getValue(colId);
-    if (v !== undefined && v !== null && String(v).length > 0) {
-      return String(v);
-    }
+    if (v !== undefined && v !== null && String(v).length > 0) return String(v);
   } catch {
     /* ignore */
   }
 
-  // 2) Fallback to first child's original value
   const firstChild = row.subRows?.[0];
   const original = firstChild?.original as any;
   if (original && Object.prototype.hasOwnProperty.call(original, colId)) {
@@ -63,7 +59,6 @@ function getGroupLabelSafe<T extends object>(
     if (v !== undefined && v !== null) return String(v);
   }
 
-  // 3) Generic
   return 'Group';
 }
 
@@ -81,6 +76,8 @@ export default function TableBodyRows<T extends object>({
   toggleRowExpand,
 }: Props<T>) {
   const theme = useTheme();
+  const tv = (theme as any).vars || theme; // css-vars aware access
+
   const rowModel = table.getRowModel();
 
   const renderRow = (row: ReactRow<T>) => {
@@ -91,14 +88,15 @@ export default function TableBodyRows<T extends object>({
         <TableRow>
           {row.getVisibleCells().map((cell) => {
             const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
+
+            // precomputed helpers (may return plain objects)
             const stickySx = getStickyStyles(theme, meta);
             const hiddenSx = responsiveVisibility(meta);
 
             return (
               <TableCell
                 key={cell.id}
-                sx={(th) => ({
-                  // merge precomputed style objects (cast to any to satisfy TS when helpers return SxProps)
+                sx={(t) => ({
                   ...(stickySx as any),
                   ...(hiddenSx as any),
 
@@ -106,13 +104,15 @@ export default function TableBodyRows<T extends object>({
                   px: denseMode ? 0.5 : 1,
                   py: denseMode ? 0.25 : 0.5,
 
-                  // responsive white-space without array form
                   whiteSpace: 'nowrap',
-                  [th.breakpoints.down('sm')]: { whiteSpace: 'normal' },
+                  [t.breakpoints.down('sm')]: { whiteSpace: 'normal' },
 
-                  // robust wrapping for long strings/IDs
                   wordBreak: 'break-word',
                   overflowWrap: 'anywhere',
+                  // ensure non-sticky cells also match the surface
+                  backgroundColor: ((t as any).vars || t).palette.background
+                    .paper,
+                  borderColor: ((t as any).vars || t).palette.divider,
                 })}
               >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -122,7 +122,7 @@ export default function TableBodyRows<T extends object>({
 
           {enableRowExpansion && (
             <TableCell
-              sx={{
+              sx={(t) => ({
                 width: EXPAND_COL_WIDTH,
                 minWidth: EXPAND_COL_WIDTH,
                 maxWidth: EXPAND_COL_WIDTH,
@@ -130,9 +130,11 @@ export default function TableBodyRows<T extends object>({
                 position: 'sticky',
                 right: RIGHT_GAP,
                 zIndex: 3,
-                backgroundColor: theme.palette.background.paper,
+                backgroundColor: ((t as any).vars || t).palette.background
+                  .paper,
+                borderLeft: `1px solid ${((t as any).vars || t).palette.divider}`,
                 px: 0,
-              }}
+              })}
             >
               <IconButton
                 size="small"
@@ -150,7 +152,12 @@ export default function TableBodyRows<T extends object>({
           <TableRow>
             <TableCell
               colSpan={columnsLength + 1}
-              sx={{ backgroundColor: theme.palette.grey[50], px: 2, py: 1 }}
+              sx={(t) => ({
+                backgroundColor: ((t as any).vars || t).palette.action.hover,
+                borderTop: `1px solid ${((t as any).vars || t).palette.divider}`,
+                px: 2,
+                py: 1,
+              })}
             >
               {renderExpandedRow ? (
                 renderExpandedRow(row.original)
@@ -167,7 +174,14 @@ export default function TableBodyRows<T extends object>({
   };
 
   return (
-    <TableBody sx={{ '& .MuiTableCell-root': { verticalAlign: 'middle' } }}>
+    <TableBody
+      sx={(t) => ({
+        '& .MuiTableCell-root': {
+          verticalAlign: 'middle',
+          borderColor: ((t as any).vars || t).palette.divider,
+        },
+      })}
+    >
       {rowModel.rows.map((row) => {
         // Group headers
         if (row.depth === 0 && row.subRows.length > 0 && isGrouped) {
@@ -176,7 +190,11 @@ export default function TableBodyRows<T extends object>({
 
           return (
             <React.Fragment key={row.id}>
-              <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
+              <TableRow
+                sx={(t) => ({
+                  backgroundColor: ((t as any).vars || t).palette.action.hover,
+                })}
+              >
                 <TableCell
                   colSpan={columnsLength + (enableRowExpansion ? 1 : 0)}
                 >

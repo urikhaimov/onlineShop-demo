@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+// src/components/sticky-table/StickyTable.tsx
+import * as React from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -12,14 +13,13 @@ import {
   TableContainer,
   TablePagination,
   Box,
-  useTheme,
-  useMediaQuery,
   Stack,
   Typography,
   IconButton,
   Tooltip,
   Switch,
   FormControlLabel,
+  useTheme,
 } from '@mui/material';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 
@@ -28,7 +28,7 @@ import { RIGHT_GAP } from './constants';
 import TableHeadSection from './TableHeadSection';
 import TableBodyRows from './TableBodyRows';
 import { groupAndSortData } from './utils/grouping';
-import { tableFilters } from './tableFilters'; // ✅ add this
+import { tableFilters } from './tableFilters';
 import './sticky-table.css';
 
 export default function StickyTable<T extends object>({
@@ -48,16 +48,18 @@ export default function StickyTable<T extends object>({
   bodyMaxHeight = 480,
 }: StickyTableProps<T>) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  const [groupSortMode, setGroupSortMode] = useState<GroupSortMode>('count');
-  const [denseMode, setDenseMode] = useState(false);
+  const [expandedGroups, setExpandedGroups] = React.useState<
+    Record<string, boolean>
+  >({});
+  const [expandedRows, setExpandedRows] = React.useState<
+    Record<string, boolean>
+  >({});
+  const [groupSortMode, setGroupSortMode] =
+    React.useState<GroupSortMode>('count');
+  const [denseMode, setDenseMode] = React.useState(false);
 
-  const sortedData = useMemo(
+  const sortedData = React.useMemo(
     () => groupAndSortData<T>(data, groupById, groupSortMode),
     [data, groupById, groupSortMode],
   );
@@ -73,18 +75,16 @@ export default function StickyTable<T extends object>({
     getPaginationRowModel: getPaginationRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     manualGrouping: false,
-    initialState: {
-      grouping: groupById ? [String(groupById)] : [],
-    },
+    initialState: { grouping: groupById ? [String(groupById)] : [] },
     enableSorting,
     enableColumnFilters,
-    filterFns: { ...tableFilters }, // ✅ add this
+    filterFns: { ...tableFilters },
   });
 
   const rowModel = table.getRowModel();
   const isGrouped = Boolean(groupById) && table.getState().grouping.length > 0;
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!isGrouped) return;
     const next: Record<string, boolean> = {};
     for (const r of rowModel.rows) {
@@ -115,12 +115,17 @@ export default function StickyTable<T extends object>({
         {isGrouped && (
           <Tooltip title={`Sort groups by ${groupSortMode}`}>
             <IconButton
-              sx={{ width: 'auto' }}
               onClick={() =>
                 setGroupSortMode((prev) =>
                   prev === 'count' ? 'alpha' : 'count',
                 )
               }
+              sx={(t) => ({
+                color: (t.vars || t).palette.text.secondary,
+                '&:hover': {
+                  backgroundColor: (t.vars || t).palette.action.hover,
+                },
+              })}
             >
               <SwapVertIcon fontSize="small" />
               <Typography variant="caption" ml={0.5}>
@@ -134,15 +139,36 @@ export default function StickyTable<T extends object>({
       <TableContainer
         component={Paper}
         className="st-scroll"
-        sx={{
+        elevation={0}
+        sx={(t) => ({
           borderRadius: 2,
-          boxShadow: 1,
           maxHeight: bodyMaxHeight,
           overflow: 'auto',
           pr: `${RIGHT_GAP}px`,
-        }}
+          bgcolor: (t.vars || t).palette.background.paper,
+          border: `1px solid ${(t.vars || t).palette.divider}`,
+        })}
       >
-        <Table stickyHeader size={denseMode ? 'small' : 'medium'}>
+        <Table
+          stickyHeader
+          size={denseMode ? 'small' : 'medium'}
+          sx={(t) => ({
+            // sticky header cells & dividers follow the palette
+            '& .MuiTableCell-stickyHeader': {
+              backgroundColor: (t.vars || t).palette.background.paper,
+              color: (t.vars || t).palette.text.secondary,
+              borderBottom: `1px solid ${(t.vars || t).palette.divider}`,
+              // keep your helper class working if you use it
+              '&.sticky-header': {
+                background: (t.vars || t).palette.background.paper,
+              },
+            },
+            // normal cell borders too
+            '& .MuiTableCell-root': {
+              borderColor: (t.vars || t).palette.divider,
+            },
+          })}
+        >
           <TableHeadSection<T>
             table={table}
             enableColumnFilters={enableColumnFilters}
@@ -173,7 +199,12 @@ export default function StickyTable<T extends object>({
           onPageChange={(_, page) => table.setPageIndex(page)}
           rowsPerPage={rowsPerPage}
           rowsPerPageOptions={[]}
-          sx={{ mt: 1 }}
+          sx={(t) => ({
+            mt: 1,
+            bgcolor: (t.vars || t).palette.background.paper,
+            border: `1px solid ${(t.vars || t).palette.divider}`,
+            borderRadius: 1,
+          })}
         />
       )}
     </Box>

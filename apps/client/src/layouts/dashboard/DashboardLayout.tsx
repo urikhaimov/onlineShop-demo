@@ -1,33 +1,45 @@
+// src/layouts/dashboard/Dashboard.tsx
 import * as React from 'react';
+import { CssBaseline, Box, useTheme, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import Box from '@mui/material/Box';
+import { Outlet } from 'react-router-dom';
+
 import AppNavbar from './components/AppNavbar';
 import Header from './components/Header';
 import SideMenu from './components/SideMenu';
-import AppTheme from '../shared-theme/AppTheme';
-import { Outlet } from 'react-router-dom';
-import theme from '@client/layouts/dashboard/theme';
-import { useMediaQuery } from '@mui/material';
 import CartDrawer from '../../components/CartDrawer';
 import { useSidebarStore } from '../../stores/useSidebarStore';
-const xThemeComponents = {};
 
-export default function Dashboard(props) {
+// No AppTheme wrapper here — your app is already wrapped by CssVarsProvider at the root.
+
+export default function Dashboard(): React.JSX.Element {
+  const theme = useTheme();
   const medium = useMediaQuery(theme.breakpoints.down('md'));
+
   const cartOpen = useSidebarStore((s) => s.cartOpen);
   const closeCartDrawer = useSidebarStore((s) => s.closeCartDrawer);
 
-  return (
-    <AppTheme {...props} themeComponents={xThemeComponents}>
-      <CssBaseline enableColorScheme />
+  // Theme-aware scrollbar colors
+  const thumbColor =
+    theme.palette.mode === 'dark'
+      ? alpha(theme.palette.common.white, 0.24)
+      : alpha(theme.palette.common.black, 0.24);
 
+  const trackColor =
+    theme.palette.mode === 'dark'
+      ? alpha(theme.palette.common.white, 0.06)
+      : alpha(theme.palette.common.black, 0.06);
+
+  return (
+    <>
+      <CssBaseline enableColorScheme />
       <Box
         sx={{
           display: 'flex',
           height: '100vh',
           width: '100vw',
           overflow: 'hidden',
+          bgcolor: 'background.default', // follows light/dark automatically
         }}
       >
         {/* Side Drawer and Top Bar */}
@@ -37,32 +49,31 @@ export default function Dashboard(props) {
         {/* Main Content */}
         <Box
           component="main"
-          sx={(theme) => ({
+          sx={{
             flexGrow: 1,
             height: '100vh',
             overflow: 'hidden',
-            backgroundColor: theme.vars
-              ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
-              : alpha(theme.palette.background.default, 1),
+            bgcolor: 'background.default',
             display: 'flex',
             flexDirection: 'column',
-          })}
+          }}
         >
-          {/* Scrollable content with sticky Header */}
+          {/* Sticky header */}
           <Box
             sx={{
               flexShrink: 0,
               zIndex: 1,
               position: 'sticky',
               top: 0,
-              backgroundColor: 'background.paper',
-              borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+              bgcolor: 'background.paper',
+              borderBottom: 1,
+              borderColor: 'divider',
             }}
           >
             <Header />
           </Box>
 
-          {/* Scrollable Outlet */}
+          {/* Scrollable outlet */}
           <Box
             sx={{
               flexGrow: 1,
@@ -70,22 +81,24 @@ export default function Dashboard(props) {
               px: 0,
               py: 0,
               width: '100%',
-              pt: medium ? 8 : 0, // 👈 Add padding-top to offset sticky Header
+              pt: medium ? 8 : 0, // offset for sticky header on small screens
               scrollbarWidth: 'thin',
-              '&::-webkit-scrollbar': {
-                width: '8px',
-              },
+              '&::-webkit-scrollbar': { width: 8 },
               '&::-webkit-scrollbar-thumb': {
-                backgroundColor: 'rgba(0,0,0,0.2)',
-                borderRadius: '4px',
+                backgroundColor: thumbColor,
+                borderRadius: 4,
+              },
+              '&::-webkit-scrollbar-track': {
+                backgroundColor: trackColor,
               },
             }}
           >
             <Outlet />
           </Box>
         </Box>
+
         <CartDrawer open={cartOpen} onClose={closeCartDrawer} />
       </Box>
-    </AppTheme>
+    </>
   );
 }
