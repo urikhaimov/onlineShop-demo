@@ -4,26 +4,19 @@ import { Box, Typography } from '@mui/material';
 import type { TOrder } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-import {
-  DASH,
-  asDate,
-  getLocale,
-  makeCurrencyFormatter,
-  makeDateTimeFormatter,
-} from '../../utils/columns.util'; // ← adjust path if needed
+import { DASH, asDate } from '../../utils/columns.util'; // ← adjust path if needed
+import { useLocaleFormatters } from '../../hooks/useLocale'; // ← hook-based locale/formatters
 
 type Props = { order: TOrder };
 
 const OrderExpandedRow: React.FC<Props> = ({ order }) => {
   const { t, i18n } = useTranslation();
 
-  // Locale + memoized formatters
-  const lng = getLocale(i18n.resolvedLanguage || i18n.language);
-  const formatCurrency = React.useMemo(
-    () => makeCurrencyFormatter(lng, 'USD'), // change currency if needed
-    [lng],
+  // ✅ Locale-aware memoized formatters via hook
+  const { formatCurrency, formatDateTime } = useLocaleFormatters(
+    i18n.resolvedLanguage || i18n.language,
+    'USD', // change currency if needed
   );
-  const formatDateTime = React.useMemo(() => makeDateTimeFormatter(lng), [lng]);
 
   const addr = order?.shippingAddress;
   const items = order?.items ?? [];

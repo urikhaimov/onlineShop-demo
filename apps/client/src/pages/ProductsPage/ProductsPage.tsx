@@ -1,3 +1,4 @@
+// src/pages/ProductsPage/index.tsx (ProductsPage)
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Divider, Snackbar, Alert } from '@mui/material';
 import { useInView } from 'react-intersection-observer';
@@ -11,7 +12,7 @@ import {
 import type { IProduct } from '@common/types';
 import { db } from '../../firebase';
 import StickyTable from '../../components/StickyTable';
-import { defineProductColumns } from './Columns';
+import { useProductColumns } from './Columns'; // ✅ use the hook-based columns
 import NotFound from '../../components/NotFound';
 import type {
   SortingState,
@@ -188,10 +189,8 @@ export default function ProductsPage() {
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  const columns = useMemo(
-    () => defineProductColumns(categories, setSnackbarOpen),
-    [categories],
-  );
+  // ✅ Hook-based, locale-aware columns (no hooks inside plain functions)
+  const columns = useProductColumns(categories, setSnackbarOpen);
 
   useStickyTableQuerySync({
     sorting,

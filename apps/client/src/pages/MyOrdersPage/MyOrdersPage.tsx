@@ -1,3 +1,4 @@
+// src/pages/MyOrdersPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Divider } from '@mui/material';
 
@@ -7,7 +8,7 @@ import LoadingProgress from '../../components/LoadingProgress';
 import NotFound from '../../components/NotFound';
 import { retryWithBackoff } from '../../utils/retryWithBackoff';
 import { fetchMyOrders } from '../../api/orderApi';
-import { defineOrderColumns } from './Columns';
+import { useOrderColumns } from './Columns';
 import { PageLayout } from '../../layouts/page.layout';
 import {
   EAbilityActions,
@@ -39,6 +40,9 @@ import { useTranslation } from 'react-i18next';
 export default function MyOrdersPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
+
+  // ✅ Build columns via hook (stable hook order, reacts to locale changes)
+  const columns = useOrderColumns();
 
   // Table state (Zustand)
   const {
@@ -201,7 +205,7 @@ export default function MyOrdersPage() {
           </ResponsiveCardsGrid>
         ) : (
           <StickyTable<TOrder>
-            columns={defineOrderColumns()}
+            columns={columns}
             data={filteredOrders}
             sorting={sorting}
             onSortingChange={setSorting}

@@ -1,8 +1,10 @@
+// src/pages/AdminProductsPage/Columns.ts
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import type { NavigateFunction } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import type { IProduct } from '@common/types';
 import RowActions, { type RowAction } from '../../../components/RowActions';
@@ -11,67 +13,22 @@ import {
   betweenDateRange,
 } from '../../../components/StickyTable/tableFilters';
 
-import { t } from 'i18next';
-import i18n from '../../../i18n/i18n';
+import { DASH, asDate } from '../../../utils/columns.util';
+import { useLocaleFormatters } from '../../../hooks/useLocale';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Utils
+// Pure builder (no hooks here)
 // ──────────────────────────────────────────────────────────────────────────────
-const DASH = '—';
+type Formatters = {
+  formatCurrency: (n: number) => string;
+  formatDateTime: (d: Date) => string;
+};
 
-const getLocale = () =>
-  (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0];
-
-const formatCurrency = (v: number, currency = 'USD') =>
-  new Intl.NumberFormat(getLocale(), {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
-  }).format(v);
-
-const formatDate = (d: Date) =>
-  new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium' }).format(d);
-
-function toDate(value: unknown): Date | undefined {
-  if (!value) return undefined;
-  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
-
-  if (typeof value === 'string' || typeof value === 'number') {
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? undefined : d;
-  }
-
-  if (typeof value === 'object' && value !== null) {
-    const rec = value as Record<string, unknown>;
-
-    // Firestore Timestamp-like { seconds, nanoseconds }
-    if (typeof rec.seconds === 'number') {
-      const seconds = rec.seconds as number;
-      const nanos =
-        typeof rec.nanoseconds === 'number' ? (rec.nanoseconds as number) : 0;
-      const d = new Date(seconds * 1000 + Math.floor(nanos / 1_000_000));
-      return isNaN(d.getTime()) ? undefined : d;
-    }
-
-    // Firestore Timestamp with toDate()
-    if (typeof (rec as any).toDate === 'function') {
-      try {
-        const d = (rec as { toDate: () => Date }).toDate();
-        return d instanceof Date && !isNaN(d.getTime()) ? d : undefined;
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
-  return undefined;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-
-export function defineProductColumns(
+function buildProductColumns(
+  t: (key: string, opts?: any) => string,
   categories: { id: string; name: string }[],
   navigate: NavigateFunction,
+  { formatCurrency, formatDateTime }: Formatters,
 ): ColumnDef<IProduct>[] {
   const selectOptions = categories.map((c) => ({ label: c.name, value: c.id }));
 
@@ -137,7 +94,7 @@ export function defineProductColumns(
       },
     },
 
-    // Created At — date range filter (localized date)
+    // Created At — date range filter (localized)
     {
       accessorKey: 'createdAt',
       header: t('table.created'),
@@ -147,8 +104,8 @@ export function defineProductColumns(
       filterFn: betweenDateRange,
       meta: { filterVariant: 'date', hiddenOnMobile: true, align: 'left' },
       cell: ({ getValue }) => {
-        const d = toDate(getValue<unknown>());
-        return d ? formatDate(d) : DASH;
+        const d = asDate(getValue<unknown>() as any);
+        return d ? formatDateTime(d) : DASH;
       },
     },
 
@@ -198,4 +155,27 @@ export function defineProductColumns(
       },
     },
   ];
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Hook wrapper (call this in a component, not conditionally)
+// ──────────────────────────────────────────────────────────────────────────────
+export function useProductColumns(
+  categories: { id: string; name: string }[],
+  navigate: NavigateFunction,
+): ColumnDef<IProduct>[] {
+  const { t, i18n } = useTranslation();
+  const { formatCurrency, formatDateTime } = useLocaleFormatters(
+    i18n.resolvedLanguage || i18n.language,
+    'USD', // change currency if needed
+  );
+
+  return React.useMemo(
+    () =>
+      buildProductColumns(t, categories, navigate, {
+        formatCurrency,
+        formatDateTime,
+      }),
+    [t, categories, navigate, formatCurrency, formatDateTime],
+  );
 }

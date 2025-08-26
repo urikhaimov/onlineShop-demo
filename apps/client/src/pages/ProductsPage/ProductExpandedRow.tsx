@@ -5,13 +5,8 @@ import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-import {
-  DASH,
-  asDate,
-  getLocale,
-  makeCurrencyFormatter,
-  makeDateTimeFormatter,
-} from '../../utils/columns.util';
+import { DASH, asDate } from '../../utils/columns.util'; // ← adjust path if needed
+import { useLocaleFormatters } from '../../hooks/useLocale'; // ← useLocale hook
 
 type Props = {
   product: IProduct;
@@ -20,6 +15,12 @@ type Props = {
 
 const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
   const { t, i18n } = useTranslation();
+
+  // ✅ Locale-aware memoized formatters via hook
+  const { formatCurrency, formatDateTime } = useLocaleFormatters(
+    i18n.resolvedLanguage || i18n.language,
+    'USD', // change currency if needed
+  );
 
   const img =
     Array.isArray(product.images) && product.images.length > 0
@@ -48,13 +49,6 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
         : '',
     [description],
   );
-
-  const lng = getLocale(i18n.resolvedLanguage || i18n.language);
-  const formatCurrency = useMemo(
-    () => makeCurrencyFormatter(lng, 'USD'),
-    [lng],
-  );
-  const formatDateTime = useMemo(() => makeDateTimeFormatter(lng), [lng]);
 
   const priceLabel =
     typeof product.price === 'number' ? formatCurrency(product.price) : DASH;

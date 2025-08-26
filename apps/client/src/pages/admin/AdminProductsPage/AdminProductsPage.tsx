@@ -1,8 +1,8 @@
+// src/pages/AdminProductsPage/index.tsx  (or wherever your AdminProductsPage component lives)
 import * as React from 'react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Snackbar, Alert, Divider, Box, Button, Stack } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
-// import RestartAltIcon from '@mui/icons-material/RestartAlt'; // removed
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import {
   DndContext,
@@ -22,7 +22,7 @@ import StickyTable from '../../../components/StickyTable';
 import LoadingProgress from '../../../components/LoadingProgress';
 import NotFound from '../../../components/NotFound';
 import type { IProduct } from '@common/types';
-import { defineProductColumns } from './Columns';
+import { useProductColumns } from './Columns';
 import { useCategories } from '../../../hooks/useCategories';
 import { useProductMutations } from '../../../hooks/useProductMutations';
 import { fetchAllProducts } from '../../../hooks/useProducts';
@@ -114,6 +114,9 @@ export default function AdminProductsPage() {
   const sensors = useSensors(useSensor(PointerSensor));
   const navigate = useNavigate();
 
+  // ✅ Build columns with locale-aware hook (no hooks inside the builder)
+  const columns = useProductColumns(categories, navigate);
+
   // Table ↔ URL
   useStickyTableQuerySync({
     sorting,
@@ -167,11 +170,6 @@ export default function AdminProductsPage() {
       }
     }
   };
-
-  const columns = useMemo(
-    () => defineProductColumns(categories, navigate),
-    [categories, navigate],
-  );
 
   const getCategoryName = (categoryId?: string | null) =>
     categories.find((c) => c.id === categoryId)?.name ?? '—';
@@ -300,7 +298,6 @@ export default function AdminProductsPage() {
               >
                 {t('filters.open')}
               </Button>
-              {/* Removed reset button */}
             </Stack>
 
             {/* New: Add Product */}
@@ -362,7 +359,7 @@ export default function AdminProductsPage() {
         >
           <AdminProductFilters
             categories={categories}
-            onClose={() => setFiltersOpen(false)} // Apply on mobile closes it
+            onClose={() => setFiltersOpen(false)}
           />
         </RightFiltersDrawer>
 

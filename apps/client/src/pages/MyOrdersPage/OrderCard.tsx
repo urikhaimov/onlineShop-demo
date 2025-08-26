@@ -3,9 +3,9 @@ import React from 'react';
 import { Paper, Typography, Divider, Chip, Link, Box } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import type { TOrder as Order } from '@common/types';
-import { formatCurrency } from '../../utils/formatCurrency';
-import { asDate } from '../../utils/asDate';
-import { format } from 'date-fns';
+import { DASH } from '../../utils/columns.util';
+import { useTranslation } from 'react-i18next';
+import { useLocaleFormatters } from '../../hooks/useLocale';
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -22,10 +22,46 @@ function getStatusColor(status: string) {
   }
 }
 
+// Local, minimal date coercion (handles Date | string | number | Firestore-like)
+function toMaybeDate(value: unknown): Date | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? undefined : d;
+  }
+
+  if (typeof value === 'object') {
+    const v = value as any;
+    if (typeof v?.toDate === 'function') {
+      try {
+        const d = v.toDate();
+        return d instanceof Date && !isNaN(d.getTime()) ? d : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    if (typeof v?.seconds === 'number') {
+      const ns = typeof v?.nanoseconds === 'number' ? v.nanoseconds : 0;
+      const d = new Date(v.seconds * 1000 + Math.floor(ns / 1_000_000));
+      return isNaN(d.getTime()) ? undefined : d;
+    }
+  }
+  return undefined;
+}
+
 type Props = { order: Order };
 
 const OrderCard: React.FC<Props> = ({ order }) => {
-  const created = asDate(order.createdAt) ?? asDate(order.metadata?.createdAt);
+  const { i18n } = useTranslation();
+  const { formatCurrency, formatDateTime } = useLocaleFormatters(
+    i18n.resolvedLanguage || i18n.language,
+    'USD', // change currency if needed
+  );
+
+  const created =
+    toMaybeDate(order.createdAt) ?? toMaybeDate(order.metadata?.createdAt);
 
   return (
     <Paper
@@ -57,11 +93,11 @@ const OrderCard: React.FC<Props> = ({ order }) => {
             component="span"
             title={order.id} // full id on hover
             sx={{
-              minWidth: 0, // allow shrinking
+              minWidth: 0,
               flex: '1 1 auto',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis', // ← ellipsis
+              textOverflow: 'ellipsis',
               fontFamily: 'monospace',
             }}
           >
@@ -78,25 +114,29 @@ const OrderCard: React.FC<Props> = ({ order }) => {
       />
 
       <Typography variant="body2">
-        Date: {created ? format(created, 'PPpp') : '—'}
+        Date: {created ? formatDateTime(created) : DASH}
       </Typography>
 
+      {/* Static placeholders; wire to real payment/shipping when available */}
       <Typography variant="body2">Paid with: Visa ending in 4242</Typography>
       <Typography variant="body2">Shipping: Express Delivery</Typography>
       <Typography variant="body2">Delivery ETA: July 8, 2025</Typography>
 
       <Typography variant="body2" gutterBottom>
-        Total: {formatCurrency(order.amount)}
+        Total:{' '}
+        {typeof order.amount === 'number' ? formatCurrency(order.amount) : DASH}
       </Typography>
 
       <Divider sx={{ my: 1 }} />
 
       <Box component="ul" sx={{ m: 0, p: 0, pl: 2 }}>
-        {order.items.map((item, idx) => (
+        {(order.items ?? []).map((item, idx) => (
           <li key={idx}>
             <Typography variant="body2">
               {item.name} × {item.quantity} — Price:{' '}
-              {formatCurrency(item.price)}
+              {typeof item.price === 'number'
+                ? formatCurrency(item.price)
+                : DASH}
             </Typography>
           </li>
         ))}

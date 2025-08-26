@@ -7,14 +7,10 @@ import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
 import RowActions, { type RowAction } from '../../components/RowActions';
-import { t } from 'i18next';
-import i18n from '../../i18n/i18n';
+import { useTranslation } from 'react-i18next';
 
-import {
-  DASH,
-  getLocale,
-  makeCurrencyFormatter,
-} from '../../utils/columns.util'; // ← adjust path if needed
+import { DASH } from '../../utils/columns.util'; // placeholder symbol
+import { useLocaleFormatters } from '../../hooks/useLocale'; // ✅ useLocale hook
 
 const COLUMN_WIDTHS = {
   image: 80,
@@ -24,24 +20,21 @@ const COLUMN_WIDTHS = {
   name: 220,
 } as const;
 
-export function defineProductColumns(
+// ---------- Pure builder (NO hooks here) ----------
+type Formatters = {
+  formatCurrency: (n: number) => string;
+};
+
+function buildUserProductColumns(
+  t: (key: string, opts?: any) => string,
   categories: { id: string; name: string }[],
+  formatCurrency: (n: number) => string,
+  addToCart: (p: IProduct & { quantity?: number }) => void,
   setSnackbarOpen: (open: boolean) => void,
 ): ColumnDef<IProduct>[] {
-  // Locale-aware currency formatter
-  const lng = getLocale(i18n.resolvedLanguage || i18n.language);
-  const formatCurrency = React.useMemo(
-    () => makeCurrencyFormatter(lng, 'USD'), // change currency if needed
-    [lng],
+  const catMap = Object.fromEntries(
+    categories.map((c) => [c.id, c.name] as const),
   );
-
-  // Precompute category id → name map
-  const catMap = React.useMemo(
-    () => Object.fromEntries(categories.map((c) => [c.id, c.name] as const)),
-    [categories],
-  );
-
-  const addToCart = useCartStore.getState().addToCart;
 
   return [
     // Category — sticky left
@@ -136,4 +129,30 @@ export function defineProductColumns(
       },
     },
   ];
+}
+
+// ---------- Hook wrapper (call inside components) ----------
+export function useProductColumns(
+  categories: { id: string; name: string }[],
+  setSnackbarOpen: (open: boolean) => void,
+): ColumnDef<IProduct>[] {
+  const { t, i18n } = useTranslation();
+  const { formatCurrency } = useLocaleFormatters(
+    i18n.resolvedLanguage || i18n.language,
+    'USD', // change currency if needed
+  );
+
+  const addToCart = useCartStore.getState().addToCart;
+
+  return React.useMemo(
+    () =>
+      buildUserProductColumns(
+        t,
+        categories,
+        formatCurrency,
+        addToCart,
+        setSnackbarOpen,
+      ),
+    [t, categories, formatCurrency, addToCart, setSnackbarOpen],
+  );
 }

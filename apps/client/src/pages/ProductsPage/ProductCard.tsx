@@ -1,3 +1,4 @@
+// src/components/products/ProductCard.tsx
 import React from 'react';
 import {
   Card,
@@ -12,6 +13,9 @@ import { Link } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import type { Props } from './CardReducer';
+import { useTranslation } from 'react-i18next';
+import { useLocaleFormatters } from '../../hooks/useLocale';
+import { DASH } from '../../utils/columns.util';
 
 type ProductCardProps = Props & { onAddToCart?: () => void };
 
@@ -21,6 +25,11 @@ export default function ProductCard({
 }: ProductCardProps) {
   const addToCart = useCartStore((s) => s.addToCart);
   const { themeSettings } = useThemeStore();
+  const { t, i18n } = useTranslation();
+  const { formatCurrency } = useLocaleFormatters(
+    i18n.resolvedLanguage || i18n.language,
+    'USD', // change currency if needed
+  );
 
   const primaryColor = themeSettings?.primaryColor || '#1976d2';
   const borderRadius = themeSettings?.borderRadius ?? 8;
@@ -28,11 +37,22 @@ export default function ProductCard({
 
   const minHeight = { xs: 320, sm: 340, md: 360, lg: 380, xl: 400 };
 
-  const price =
+  // Price (locale-aware)
+  const rawPrice =
     typeof product.price === 'number'
-      ? product.price.toFixed(2)
-      : Number(product.price ?? 0).toFixed(2);
-  const stock = typeof product.stock === 'number' ? product.stock : 0;
+      ? product.price
+      : Number(product.price ?? NaN);
+  const priceLabel = Number.isFinite(rawPrice)
+    ? formatCurrency(rawPrice)
+    : DASH;
+
+  // Stock
+  const stockVal =
+    typeof product.stock === 'number' ? product.stock : undefined;
+  const stockLabel =
+    typeof stockVal === 'number'
+      ? String(stockVal)
+      : t('table.na', { defaultValue: 'N/A' });
 
   const handleAddToCart = () => {
     addToCart(product);
@@ -45,7 +65,7 @@ export default function ProductCard({
       sx={{
         width: '100%',
         maxWidth: '100%',
-        minWidth: 0, // ← prevent overflow in grid cell
+        minWidth: 0,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -122,7 +142,8 @@ export default function ProductCard({
             textOverflow: 'ellipsis',
           }}
         >
-          ${price} • Stock: {Number.isFinite(stock) ? stock : 'N/A'}
+          {priceLabel} • {t('table.stock', { defaultValue: 'Stock' })}:{' '}
+          {stockLabel}
         </Typography>
       </CardContent>
 
@@ -130,7 +151,7 @@ export default function ProductCard({
         <Button
           size="small"
           onClick={handleAddToCart}
-          disabled={stock <= 0}
+          disabled={(stockVal ?? 0) <= 0}
           fullWidth
           disableElevation
           sx={{
@@ -142,7 +163,7 @@ export default function ProductCard({
             borderRadius,
           }}
         >
-          Add to Cart
+          {t('table.addToCart', { defaultValue: 'Add to Cart' })}
         </Button>
       </CardActions>
     </Card>
