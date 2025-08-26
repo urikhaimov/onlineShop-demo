@@ -45,6 +45,7 @@ import RightFiltersDrawer from '../../components/RightFiltersDrawer';
 import InfiniteSentinel from '../../components/InfiniteSentinel';
 import { toJsDate } from '../../utils/toJsDate';
 import { useTranslation } from 'react-i18next';
+import LoadingProgress from '@client/components/LoadingProgress';
 
 export default function ProductsPage() {
   const { t } = useTranslation();
@@ -75,6 +76,7 @@ export default function ProductsPage() {
     setMaxPrice,
     setMinStock,
     setMaxStock,
+    loading,
   } = useProductStore();
 
   const { data: categories = [] } = useCategories();
@@ -230,7 +232,7 @@ export default function ProductsPage() {
       typeof updater === 'function' ? (updater as any)(prev) : updater,
     );
   };
-
+  if (loading) return <LoadingProgress />;
   return (
     <PageLayout
       action={EAbilityActions.MANAGE}
@@ -259,7 +261,7 @@ export default function ProductsPage() {
         <Divider sx={{ mb: 2 }} />
 
         {/* Main content */}
-        {filteredProducts.length === 0 ? (
+        {visibleProducts.length === 0 && !loading ? (
           <NotFound message={t('empty.noProducts')} />
         ) : viewMode === 'table' ? (
           <StickyTable<IProduct>

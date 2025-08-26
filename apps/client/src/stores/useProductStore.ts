@@ -8,6 +8,15 @@ export const STOCK_MIN = 0;
 export const STOCK_MAX = 1_000;
 
 type ProductFilterState = {
+  // loading control
+  loading: boolean;
+  /** internal counter of concurrent async ops */
+  _pending: number;
+  startLoading: () => void;
+  stopLoading: () => void;
+  withLoading: <T>(fn: () => Promise<T>) => Promise<T>;
+
+  // filters
   searchTerm: string;
   selectedCategoryId: string;
   updatedFrom: Dayjs | null;
@@ -17,6 +26,7 @@ type ProductFilterState = {
   minStock: number;
   maxStock: number;
 
+  // setters
   setSearchTerm: (v: string) => void;
   setSelectedCategoryId: (v: string) => void;
   setUpdatedFrom: (v: Dayjs | null) => void;
@@ -26,19 +36,44 @@ type ProductFilterState = {
   setMinStock: (v: number) => void;
   setMaxStock: (v: number) => void;
 
-  // NEW
+  // utils
   resetFilters: () => void;
 };
 
-export const useProductStore = create<ProductFilterState>((set) => ({
+const defaultFilterState = {
   searchTerm: '',
   selectedCategoryId: '',
-  updatedFrom: null,
-  updatedTo: null,
+  updatedFrom: null as Dayjs | null,
+  updatedTo: null as Dayjs | null,
   minPrice: PRICE_MIN,
   maxPrice: PRICE_MAX,
   minStock: STOCK_MIN,
   maxStock: STOCK_MAX,
+};
+
+export const useProductStore = create<ProductFilterState>((set, get) => ({
+  // start as false; toggle explicitly
+  loading: false,
+  _pending: 0,
+
+  startLoading: () => {
+    const p = get()._pending + 1;
+    set({ _pending: p, loading: true });
+  },
+  stopLoading: () => {
+    const p = Math.max(0, get()._pending - 1);
+    set({ _pending: p, loading: p > 0 });
+  },
+  withLoading: async (fn) => {
+    get().startLoading();
+    try {
+      return await fn();
+    } finally {
+      get().stopLoading();
+    }
+  },
+
+  ...defaultFilterState,
 
   setSearchTerm: (v) => set({ searchTerm: v }),
   setSelectedCategoryId: (v) => set({ selectedCategoryId: v }),
@@ -49,15 +84,5 @@ export const useProductStore = create<ProductFilterState>((set) => ({
   setMinStock: (v) => set({ minStock: v }),
   setMaxStock: (v) => set({ maxStock: v }),
 
-  resetFilters: () =>
-    set({
-      searchTerm: '',
-      selectedCategoryId: '',
-      updatedFrom: null,
-      updatedTo: null,
-      minPrice: PRICE_MIN,
-      maxPrice: PRICE_MAX,
-      minStock: STOCK_MIN,
-      maxStock: STOCK_MAX,
-    }),
+  resetFilters: () => set({ ...defaultFilterState }),
 }));
