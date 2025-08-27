@@ -1,4 +1,3 @@
-// src/pages/admin/landing/AdminLandingPage.tsx
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -13,26 +12,44 @@ import {
   Typography,
   MenuItem,
 } from '@mui/material';
-import { useForm, useFieldArray } from 'react-hook-form';
 import { Add, Delete } from '@mui/icons-material';
-import { useTranslation } from 'react-i18next';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
+import { LandingPageData, HOMEPAGE_LAYOUTS } from '@common/types';
+import { footerHeight, headerHeight } from '../../../config/themeConfig';
+import { PageLayout } from '../../../layouts/page.layout';
+import FormTextField from '../../../components/FormTextField';
+import PictureUploaderWithCrop from '../../../components/PictureUploaderWithCrop';
 import {
   useLandingPage,
   useUpdateLandingPage,
 } from '../../../hooks/useLandingPage';
-import { LandingPageData } from '../../../types/landing';
-import { footerHeight, headerHeight } from '../../../config/themeConfig';
-import { HOMEPAGE_LAYOUTS } from '@common/types';
-import FormTextField from '../../../components/FormTextField';
 import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../../services/ability.service';
-import { PageLayout } from '../../../layouts/page.layout';
+import { storage } from '../../../firebase';
+
+const DEFAULT_FORM: LandingPageData = {
+  title: 'Welcome to Bunder Shop',
+  subtitle: 'Your one-stop e-commerce store',
+  bannerImageUrl: '',
+  ctaButtonText: 'Shop Now',
+  ctaButtonLink: '/products',
+  homepageLayout: HOMEPAGE_LAYOUTS.Hero,
+  sections: [
+    {
+      title: 'Featured Deals',
+      content: 'Check out our daily deals on popular products.',
+    },
+  ],
+};
+
+const isLayout = (v: unknown): v is LandingPageData['homepageLayout'] =>
+  (Object.values(HOMEPAGE_LAYOUTS) as string[]).includes(v as string);
 
 export default function AdminLandingPage() {
-  const { t } = useTranslation();
   const { data, isLoading, isError } = useLandingPage();
   const updateMutation = useUpdateLandingPage();
 
@@ -40,36 +57,65 @@ export default function AdminLandingPage() {
     control,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { isDirty, isSubmitting, errors },
   } = useForm<LandingPageData>({
-    defaultValues: {
-      title: '',
-      subtitle: '',
-      bannerImageUrl: '',
-      ctaButtonText: '',
-      ctaButtonLink: '',
-      homepageLayout: HOMEPAGE_LAYOUTS.Hero,
-      sections: [],
-    },
+    defaultValues: DEFAULT_FORM,
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control,
     name: 'sections',
   });
 
   const [toastOpen, setToastOpen] = useState(false);
 
+  // merge server → form defaults; validate layout; sync FieldArray
   useEffect(() => {
-    if (data) reset(data);
-  }, [data, reset]);
+    if (!data) return;
+
+    const merged: LandingPageData = {
+      ...DEFAULT_FORM,
+      ...data,
+      homepageLayout: isLayout((data as any).homepageLayout)
+        ? (data as any).homepageLayout
+        : HOMEPAGE_LAYOUTS.Hero,
+      sections: (data.sections ?? []).map((s) => ({
+        title: s.title ?? '',
+        content: s.content ?? '',
+      })),
+    };
+
+    reset(merged); // sync all non-array fields
+    replace(merged.sections); // ensure FieldArray items render
+  }, [data, reset, replace]);
+
+  const uploadBannerToStorage = async (file: File): Promise<string> => {
+    const objectRef = ref(storage, `landing/banner_${Date.now()}.jpg`);
+    await uploadBytes(objectRef, file, { contentType: file.type });
+    return await getDownloadURL(objectRef);
+  };
+
+  const handleBannerCropUpload = async (file: File) => {
+    const url = await uploadBannerToStorage(file);
+    setValue('bannerImageUrl', url, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleDeleteBanner = () => {
+    setValue('bannerImageUrl', '', { shouldDirty: true, shouldValidate: true });
+  };
 
   const onSubmit = async (formData: LandingPageData) => {
     try {
-      await updateMutation.mutateAsync(formData);
+      const saved = await updateMutation.mutateAsync(formData);
+      reset((saved ?? formData) as LandingPageData);
+      replace((saved ?? formData).sections ?? []);
       setToastOpen(true);
     } catch (error) {
-      // optionally surface an error toast; leaving console for now
       console.error('Failed to update landing page:', error);
     }
   };
@@ -85,14 +131,13 @@ export default function AdminLandingPage() {
   if (isError) {
     return (
       <Typography color="error" sx={{ textAlign: 'center', mt: 6 }}>
-        {t('adminLanding.failedToLoad', {
-          defaultValue: 'Failed to load landing page data.',
-        })}
+        Failed to load landing page data.
       </Typography>
     );
   }
 
   const saving = updateMutation.status === 'pending';
+  const bannerPreview = watch('bannerImageUrl');
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
@@ -106,13 +151,23 @@ export default function AdminLandingPage() {
       >
         <Container maxWidth="md">
           <Typography variant="h4" mb={3}>
-            {t('adminLanding.title', { defaultValue: 'Edit Landing Page' })}
+            Edit Landing Page
           </Typography>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2}>
+              <Stack spacing={1}>
+                <Typography variant="subtitle2">Banner image</Typography>
+                <PictureUploaderWithCrop
+                  avatarUrl={bannerPreview || undefined}
+                  onCropUpload={handleBannerCropUpload}
+                  onDeleteAvatar={handleDeleteBanner}
+                  disabled={saving}
+                />
+              </Stack>
+
               <FormTextField
-                label={t('adminLanding.form.title', { defaultValue: 'Title' })}
+                label="Title"
                 name="title"
                 control={control}
                 errorObject={errors.title}
@@ -120,36 +175,21 @@ export default function AdminLandingPage() {
                 disabled={saving}
               />
               <FormTextField
-                label={t('adminLanding.form.subtitle', {
-                  defaultValue: 'Subtitle',
-                })}
+                label="Subtitle"
                 name="subtitle"
                 control={control}
                 errorObject={errors.subtitle}
                 disabled={saving}
               />
               <FormTextField
-                label={t('adminLanding.form.bannerImageUrl', {
-                  defaultValue: 'Banner Image URL',
-                })}
-                name="bannerImageUrl"
-                control={control}
-                errorObject={errors.bannerImageUrl}
-                disabled={saving}
-              />
-              <FormTextField
-                label={t('adminLanding.form.ctaText', {
-                  defaultValue: 'CTA Button Text',
-                })}
+                label="CTA Button Text"
                 name="ctaButtonText"
                 control={control}
                 errorObject={errors.ctaButtonText}
                 disabled={saving}
               />
               <FormTextField
-                label={t('adminLanding.form.ctaLink', {
-                  defaultValue: 'CTA Button Link',
-                })}
+                label="CTA Button Link"
                 name="ctaButtonLink"
                 control={control}
                 errorObject={errors.ctaButtonLink}
@@ -158,27 +198,22 @@ export default function AdminLandingPage() {
 
               {/* Layout Selector */}
               <FormTextField
-                label={t('adminLanding.form.homepageLayout', {
-                  defaultValue: 'Homepage Layout',
-                })}
+                label="Homepage Layout"
                 name="homepageLayout"
                 control={control}
                 select
-                errorObject={errors.homepageLayout}
+                errorObject={errors.homepageLayout as any}
                 disabled={saving}
               >
-                {Object.values(HOMEPAGE_LAYOUTS).map((layout) => (
+                {(Object.values(HOMEPAGE_LAYOUTS) as string[]).map((layout) => (
                   <MenuItem key={layout} value={layout}>
-                    {t(`layouts.${layout}`, {
-                      defaultValue:
-                        layout.charAt(0).toUpperCase() + layout.slice(1),
-                    })}
+                    {layout.charAt(0).toUpperCase() + layout.slice(1)}
                   </MenuItem>
                 ))}
               </FormTextField>
 
               <Typography variant="h6" mt={4}>
-                {t('adminLanding.sections.title', { defaultValue: 'Sections' })}
+                Sections
               </Typography>
 
               {fields.map((field, index) => (
@@ -194,21 +229,17 @@ export default function AdminLandingPage() {
                 >
                   <Stack spacing={2}>
                     <FormTextField
-                      label={t('adminLanding.sections.sectionTitle', {
-                        defaultValue: 'Section Title',
-                      })}
+                      label="Section Title"
                       name={`sections.${index}.title`}
                       control={control}
-                      errorObject={errors.sections?.[index]?.title}
+                      errorObject={errors.sections?.[index]?.title as any}
                       disabled={saving}
                     />
                     <FormTextField
-                      label={t('adminLanding.sections.sectionContent', {
-                        defaultValue: 'Section Content',
-                      })}
+                      label="Section Content"
                       name={`sections.${index}.content`}
                       control={control}
-                      errorObject={errors.sections?.[index]?.content}
+                      errorObject={errors.sections?.[index]?.content as any}
                       multiline
                       rows={3}
                       disabled={saving}
@@ -219,9 +250,6 @@ export default function AdminLandingPage() {
                         color="error"
                         size="small"
                         disabled={saving}
-                        aria-label={t('adminLanding.sections.remove', {
-                          defaultValue: 'Remove section',
-                        })}
                       >
                         <Delete />
                       </IconButton>
@@ -236,21 +264,18 @@ export default function AdminLandingPage() {
                 variant="outlined"
                 disabled={saving}
               >
-                {t('adminLanding.sections.add', {
-                  defaultValue: 'Add Section',
-                })}
+                Add Section
               </Button>
 
               <Button
                 type="submit"
                 variant="contained"
+                color="primary"
                 disabled={!isDirty || isSubmitting || saving}
                 fullWidth
                 sx={{ mt: 3 }}
               >
-                {saving
-                  ? t('common.saving', { defaultValue: 'Saving…' })
-                  : t('actions.save', { defaultValue: 'Save' })}
+                {saving ? 'Saving...' : 'Save'}
               </Button>
             </Stack>
           </form>
@@ -267,9 +292,7 @@ export default function AdminLandingPage() {
               variant="filled"
               sx={{ width: '100%' }}
             >
-              {t('adminLanding.toast.updated', {
-                defaultValue: 'Landing page updated successfully!',
-              })}
+              Landing page updated successfully!
             </Alert>
           </Snackbar>
         </Container>
