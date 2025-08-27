@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { I18nModule /*, I18nJsonLoader */ } from 'nestjs-i18n';
+import { I18nModule } from 'nestjs-i18n';
 import { join } from 'path';
 
 import { ProductsModule } from '../products/products.module';
@@ -14,6 +14,8 @@ import { LandingPageModule } from '../landing-page/landing-page.module';
 import { SecurityLogsModule } from '../security-logs/security-logs.module';
 import { AuthClientModule } from 'auth-client';
 import { ApiAuthModule } from '../auth/auth.module';
+import { SearchModule } from '../search/search.module';
+import { HealthController } from '../health.controller'; // 👈 add this
 
 @Module({
   imports: [
@@ -21,16 +23,12 @@ import { ApiAuthModule } from '../auth/auth.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-
-    // 🔤 i18n (new API uses loaderOptions)
     I18nModule.forRoot({
       fallbackLanguage: 'en',
-      // loader: I18nJsonLoader, // optional; JSON is default
       loaderOptions: {
         path: join(__dirname, 'i18n'),
         watch: process.env.NODE_ENV !== 'production',
       },
-      // typesOutputPath: join(__dirname, 'i18n.generated.d.ts'), // optional
     }),
 
     AuthClientModule,
@@ -42,7 +40,12 @@ import { ApiAuthModule } from '../auth/auth.module';
     LandingPageModule,
     ThemeSettingsModule,
     SecurityLogsModule,
+    SearchModule,
   ],
-  controllers: [ImageProxyController, StripeController],
+  controllers: [
+    ImageProxyController,
+    StripeController,
+    HealthController, // 👈 add this
+  ],
 })
 export class AppModule {}
