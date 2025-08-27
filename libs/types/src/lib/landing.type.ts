@@ -12,6 +12,8 @@ export interface TSection {
   imageUrl?: string; // for image
   productIds?: string[]; // for productGrid
 }
+
+export type TBentoCard = { title: string; body: string };
 export interface LandingPageData {
   title: string;
   subtitle?: string;
@@ -23,4 +25,6 @@ export interface LandingPageData {
     title: string;
     content: string;
   }[];
+  bentoCards?: TBentoCard[];
+  cards?: TBentoCard[];
 }

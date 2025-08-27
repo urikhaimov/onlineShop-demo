@@ -1,5 +1,5 @@
-// components/landing/layouts/HeroBento.tsx
-import React from 'react';
+// apps/client/src/components/landing/layouts/HeroBento.tsx
+import * as React from 'react';
 import {
   Box,
   Button,
@@ -9,32 +9,37 @@ import {
   Typography,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { type LandingPageData } from '@common/types';
+import type { LandingPageData, TBentoCard } from '@common/types';
 
-export default function HeroBento({ data }: { data: LandingPageData }) {
+type Props = { data: LandingPageData };
+
+export default function HeroBento({ data }: Props) {
   const hasBanner = Boolean(data.bannerImageUrl);
-  const cards = [
-    { title: 'Free shipping', body: 'On orders over $99' },
-    { title: '24/7 support', body: 'We’re here anytime' },
-    { title: 'Eco materials', body: 'Consciously sourced' },
-    { title: '4.9 ★', body: '2,400+ reviews' },
-    { title: 'New drops', body: 'Every Friday 10:00' },
-    { title: 'Secure checkout', body: 'Stripe + 3D Secure' },
-  ];
 
+  // Prefer `cards`, fall back to legacy `bentoCards`
+  const cards: TBentoCard[] = React.useMemo(() => {
+    const fromCards = Array.isArray(data.cards)
+      ? (data.cards as TBentoCard[])
+      : [];
+    const fromLegacy = Array.isArray(data.bentoCards)
+      ? (data.bentoCards as TBentoCard[])
+      : [];
+    return fromCards.length ? fromCards : fromLegacy;
+  }, [data.cards, data.bentoCards]);
+  console.log('data:', data);
+  console.log('cards:', cards);
   return (
     <Box sx={{ position: 'relative', pb: 6 }}>
       {/* Top visual / banner */}
       <Box
-        sx={{
+        sx={(theme) => ({
           height: { xs: 320, md: 440 },
           borderRadius: 3,
           overflow: 'hidden',
           background: hasBanner
             ? `url(${data.bannerImageUrl}) center/cover no-repeat`
-            : (theme) =>
-                `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-        }}
+            : `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+        })}
       />
 
       {/* Overlay content */}
@@ -47,25 +52,22 @@ export default function HeroBento({ data }: { data: LandingPageData }) {
             display: 'grid',
             gap: 2,
             gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-            gridTemplateAreas: {
-              xs: '"lead" "bento"',
-              md: '"lead bento"',
-            },
+            gridTemplateAreas: { xs: '"lead" "bento"', md: '"lead bento"' },
           }}
         >
           {/* Lead (headline + CTA) */}
           <Box sx={{ gridArea: 'lead' }}>
             <Paper
               elevation={8}
-              sx={{
+              sx={(t) => ({
                 p: { xs: 2, md: 3 },
                 borderRadius: 3,
                 backdropFilter: 'blur(10px)',
-                backgroundColor: (t) =>
+                backgroundColor:
                   t.palette.mode === 'dark'
                     ? 'rgba(20,20,20,.55)'
                     : 'rgba(255,255,255,.55)',
-              }}
+              })}
             >
               <Stack spacing={1.5}>
                 <Typography variant="h3">{data.title}</Typography>
@@ -89,7 +91,7 @@ export default function HeroBento({ data }: { data: LandingPageData }) {
             </Paper>
           </Box>
 
-          {/* Bento mini-cards */}
+          {/* Bento mini-cards (from server) */}
           <Box sx={{ gridArea: 'bento' }}>
             <Box
               sx={{
@@ -100,7 +102,7 @@ export default function HeroBento({ data }: { data: LandingPageData }) {
             >
               {cards.map((c, i) => (
                 <Paper
-                  key={i}
+                  key={`${c.title}-${i}`}
                   elevation={3}
                   sx={{
                     p: 2,
@@ -112,7 +114,9 @@ export default function HeroBento({ data }: { data: LandingPageData }) {
                   }}
                 >
                   <Typography fontWeight={700}>{c.title}</Typography>
-                  <Typography color="text.secondary">{c.body}</Typography>
+                  {c.body && (
+                    <Typography color="text.secondary">{c.body}</Typography>
+                  )}
                 </Paper>
               ))}
             </Box>

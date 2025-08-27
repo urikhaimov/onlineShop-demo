@@ -44,6 +44,15 @@ const DEFAULT_FORM: LandingPageData = {
       content: 'Check out our daily deals on popular products.',
     },
   ],
+  // 👇 default Bento cards so the admin has something to edit
+  bentoCards: [
+    { title: 'Free shipping', body: 'On orders over $99' },
+    { title: '24/7 support', body: 'We’re here anytime' },
+    { title: 'Eco materials', body: 'Consciously sourced' },
+    { title: '4.9 ★', body: '2,400+ reviews' },
+    { title: 'New drops', body: 'Every Friday 10:00' },
+    { title: 'Secure checkout', body: 'Stripe + 3D Secure' },
+  ],
 };
 
 const isLayout = (v: unknown): v is LandingPageData['homepageLayout'] =>
@@ -64,14 +73,31 @@ export default function AdminLandingPage() {
     defaultValues: DEFAULT_FORM,
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
+  // FieldArray for "sections"
+  const {
+    fields: sectionFields,
+    append: appendSection,
+    remove: removeSection,
+    replace: replaceSections,
+  } = useFieldArray({
     control,
     name: 'sections',
   });
 
+  // FieldArray for "bentoCards"
+  const {
+    fields: cardFields,
+    append: appendCard,
+    remove: removeCard,
+    replace: replaceCards,
+  } = useFieldArray({
+    control,
+    name: 'bentoCards',
+  });
+
   const [toastOpen, setToastOpen] = useState(false);
 
-  // merge server → form defaults; validate layout; sync FieldArray
+  // merge server → form defaults; validate layout; sync FieldArrays
   useEffect(() => {
     if (!data) return;
 
@@ -85,11 +111,16 @@ export default function AdminLandingPage() {
         title: s.title ?? '',
         content: s.content ?? '',
       })),
+      bentoCards: (data.bentoCards ?? DEFAULT_FORM.bentoCards)!.map((c) => ({
+        title: c.title ?? '',
+        body: c.body ?? '',
+      })),
     };
 
-    reset(merged); // sync all non-array fields
-    replace(merged.sections); // ensure FieldArray items render
-  }, [data, reset, replace]);
+    reset(merged);
+    replaceSections(merged.sections); // ensure FieldArray items render
+    replaceCards(merged.bentoCards!); // sync cards FieldArray
+  }, [data, reset, replaceSections, replaceCards]);
 
   const uploadBannerToStorage = async (file: File): Promise<string> => {
     const objectRef = ref(storage, `landing/banner_${Date.now()}.jpg`);
@@ -112,8 +143,10 @@ export default function AdminLandingPage() {
   const onSubmit = async (formData: LandingPageData) => {
     try {
       const saved = await updateMutation.mutateAsync(formData);
-      reset((saved ?? formData) as LandingPageData);
-      replace((saved ?? formData).sections ?? []);
+      const next = (saved ?? formData) as LandingPageData;
+      reset(next);
+      replaceSections(next.sections ?? []);
+      replaceCards(next.bentoCards ?? []);
       setToastOpen(true);
     } catch (error) {
       console.error('Failed to update landing page:', error);
@@ -212,11 +245,12 @@ export default function AdminLandingPage() {
                 ))}
               </FormTextField>
 
+              {/* Sections (existing) */}
               <Typography variant="h6" mt={4}>
                 Sections
               </Typography>
 
-              {fields.map((field, index) => (
+              {sectionFields.map((field, index) => (
                 <Paper
                   key={field.id}
                   variant="outlined"
@@ -246,7 +280,7 @@ export default function AdminLandingPage() {
                     />
                     <Box display="flex" justifyContent="flex-end">
                       <IconButton
-                        onClick={() => remove(index)}
+                        onClick={() => removeSection(index)}
                         color="error"
                         size="small"
                         disabled={saving}
@@ -260,11 +294,67 @@ export default function AdminLandingPage() {
 
               <Button
                 startIcon={<Add />}
-                onClick={() => append({ title: '', content: '' })}
+                onClick={() => appendSection({ title: '', content: '' })}
                 variant="outlined"
                 disabled={saving}
               >
                 Add Section
+              </Button>
+
+              {/* Bento Cards (new) */}
+              <Typography variant="h6" mt={4}>
+                Feature Cards (Bento)
+              </Typography>
+
+              {cardFields.map((field, index) => (
+                <Paper
+                  key={field.id}
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 2,
+                    backgroundColor: 'background.default',
+                  }}
+                >
+                  <Stack spacing={2}>
+                    <FormTextField
+                      label="Card Title"
+                      name={`bentoCards.${index}.title`}
+                      control={control}
+                      errorObject={(errors as any)?.bentoCards?.[index]?.title}
+                      disabled={saving}
+                    />
+                    <FormTextField
+                      label="Card Body"
+                      name={`bentoCards.${index}.body`}
+                      control={control}
+                      errorObject={(errors as any)?.bentoCards?.[index]?.body}
+                      multiline
+                      rows={2}
+                      disabled={saving}
+                    />
+                    <Box display="flex" justifyContent="flex-end">
+                      <IconButton
+                        onClick={() => removeCard(index)}
+                        color="error"
+                        size="small"
+                        disabled={saving}
+                      >
+                        <Delete />
+                      </IconButton>
+                    </Box>
+                  </Stack>
+                </Paper>
+              ))}
+
+              <Button
+                startIcon={<Add />}
+                onClick={() => appendCard({ title: '', body: '' })}
+                variant="outlined"
+                disabled={saving}
+              >
+                Add Card
               </Button>
 
               <Button

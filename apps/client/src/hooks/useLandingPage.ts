@@ -9,6 +9,7 @@ export function useLandingPage() {
     queryKey: KEY,
     queryFn: async (): Promise<LandingPageData> => {
       const { data } = await axios.get('/landing');
+      console.log('data from server:', data);
       return data;
     },
   });
