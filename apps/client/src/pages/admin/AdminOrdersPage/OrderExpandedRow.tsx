@@ -4,25 +4,22 @@ import { Box, Typography } from '@mui/material';
 import type { TOrder } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-import { DASH as EMPTY, asDate } from '../../../utils/columns.util'; // ← adjust path if needed
+import { asDate, DASH as EMPTY } from '../../../utils/columns.util'; // ← adjust path if needed
 import { useLocaleFormatters } from '../../../hooks/useLocale'; // ← hook-based locale/formatters
 
 type Props = { order: TOrder };
 
 const OrderExpandedRow: React.FC<Props> = ({ order }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   // ✅ locale-aware memoized formatters via hook
-  const { formatCurrency, formatDateTime } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD', // change currency if needed
-  );
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   const toMaybeDate = (v: unknown): Date | undefined => asDate(v as any);
 
   const addr = order.shippingAddress;
   const items = order.items ?? [];
-  const amount = typeof order.amount === 'number' ? order.amount : undefined;
+  const amount = order.amount;
 
   // Prefer top-level createdAt/updatedAt, then metadata fallback
   const created =
@@ -73,8 +70,7 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
             {items.map((it, idx) => {
               const name = it.name ?? EMPTY;
               const qty = it.quantity ?? 0;
-              const price =
-                typeof it.price === 'number' ? formatCurrency(it.price) : EMPTY;
+              const price = formatCurrency(it.price);
               return (
                 <li key={`${it.productId ?? 'item'}:${idx}`}>
                   <Typography variant="body2">

@@ -9,3 +9,4 @@ export * from './order.type';
 export * from './user.type';
 export * from './store.type';
 export * from './landing.type';
+export * from './currency.type';

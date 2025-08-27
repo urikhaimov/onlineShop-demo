@@ -1,11 +1,11 @@
 // src/pages/ProductsPage/ProductExpandedRow.tsx
 import React, { useMemo } from 'react';
-import { Box, Typography, CardMedia, useTheme } from '@mui/material';
+import { Box, CardMedia, Typography, useTheme } from '@mui/material';
 import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-import { DASH, asDate } from '../../utils/columns.util';
+import { asDate, DASH } from '../../utils/columns.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 import { useThemeStore } from '../../stores/useThemeStore';
 
@@ -18,18 +18,16 @@ const clamp = (n: number, min: number, max: number) =>
   Math.min(max, Math.max(min, n));
 
 const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const mui = useTheme();
   const { themeSettings } = useThemeStore();
 
   // Theme-aware controls (same rhythm as OrderExpandedRow)
-  const isDark =
-    themeSettings?.darkMode ?? (mui.palette.mode === 'dark' ? true : false);
+  const isDark = themeSettings?.darkMode ?? mui.palette.mode === 'dark';
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
   const baseRadius =
     (themeSettings?.borderRadius as number | undefined) ??
     (mui.shape.borderRadius as number);
-  const radius = clamp(baseRadius, 6, 16);
 
   // Grid gap
   const unit = Math.max(1, Math.round(2 * spacingScale));
@@ -41,28 +39,25 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
     sm: mui.spacing(1.5 * spacingScale),
   };
   const sectionPadY = {
-    xs: mui.spacing(1 * spacingScale),
+    xs: mui.spacing(spacingScale),
     sm: mui.spacing(1.25 * spacingScale),
   };
 
   // Section outer margin
   const sectionMarginX = {
     xs: mui.spacing(0.75 * spacingScale),
-    sm: mui.spacing(1 * spacingScale),
+    sm: mui.spacing(spacingScale),
   };
   const sectionMarginY = {
     xs: mui.spacing(0.75 * spacingScale),
-    sm: mui.spacing(1 * spacingScale),
+    sm: mui.spacing(spacingScale),
   };
 
   const sectionBorder = `1px solid ${mui.palette.divider}`;
   const sectionShadow = isDark ? mui.shadows[2] : mui.shadows[1];
 
   // Locale-aware formatters
-  const { formatCurrency, formatDateTime } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD',
-  );
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   // Data mapping
   const img =
@@ -92,10 +87,8 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
     [description],
   );
 
-  const priceLabel =
-    typeof product.price === 'number' ? formatCurrency(product.price) : DASH;
-  const stockLabel =
-    typeof product.stock === 'number' ? String(product.stock) : DASH;
+  const priceLabel = formatCurrency(product.price);
+  const stockLabel = String(product.stock);
 
   const hasAttributes = attributes && Object.keys(attributes).length > 0;
 

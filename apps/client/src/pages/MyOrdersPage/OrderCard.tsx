@@ -1,20 +1,19 @@
 // src/components/orders/OrderCard.tsx
 import * as React from 'react';
 import {
+  Box,
+  Chip,
+  type ChipProps,
+  Divider,
+  Link,
   Paper,
   Typography,
-  Divider,
-  Chip,
-  Link,
-  Box,
   useTheme,
-  type ChipProps,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
 import type { TOrder as Order } from '@common/types';
 import { DASH } from '../../utils/columns.util';
-import { useTranslation } from 'react-i18next';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 import { useThemeStore } from '../../stores/useThemeStore';
 
@@ -69,15 +68,10 @@ const OrderCard: React.FC<Props> = ({ order }) => {
   const theme = useTheme();
   const { themeSettings } = useThemeStore();
 
-  const { i18n } = useTranslation();
-  const { formatCurrency, formatDateTime } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD',
-  );
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   // ---- Theme-aware tokens from store + theme
-  const isDark =
-    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const isDark = themeSettings?.darkMode ?? theme.palette.mode === 'dark';
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
   const radius = (themeSettings?.borderRadius ??
     theme.shape.borderRadius) as number;
@@ -182,20 +176,17 @@ const OrderCard: React.FC<Props> = ({ order }) => {
       </Typography>
 
       <Typography variant="body2" fontWeight={600} gutterBottom>
-        Total:{' '}
-        {typeof order.amount === 'number' ? formatCurrency(order.amount) : DASH}
+        Total: {formatCurrency(order.amount)}
       </Typography>
 
-      <Divider sx={{ my: spacingScale * 1 }} />
+      <Divider sx={{ my: spacingScale }} />
 
       <Box component="ul" sx={{ m: 0, p: 0, pl: 2 }}>
         {(order.items ?? []).map((item, idx) => (
           <li key={idx}>
             <Typography variant="body2">
               {item.name} × {item.quantity} — Price:{' '}
-              {typeof item.price === 'number'
-                ? formatCurrency(item.price)
-                : DASH}
+              {formatCurrency(item.price)}
             </Typography>
           </li>
         ))}

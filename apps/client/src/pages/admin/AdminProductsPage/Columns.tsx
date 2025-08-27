@@ -9,11 +9,11 @@ import { useTranslation } from 'react-i18next';
 import type { IProduct } from '@common/types';
 import RowActions, { type RowAction } from '../../../components/RowActions';
 import {
-  betweenNumberRange,
   betweenDateRange,
+  betweenNumberRange,
 } from '../../../components/StickyTable/tableFilters';
 
-import { DASH, asDate } from '../../../utils/columns.util';
+import { asDate, DASH } from '../../../utils/columns.util';
 import { useLocaleFormatters } from '../../../hooks/useLocale';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -164,11 +164,8 @@ export function useProductColumns(
   categories: { id: string; name: string }[],
   navigate: NavigateFunction,
 ): ColumnDef<IProduct>[] {
-  const { t, i18n } = useTranslation();
-  const { formatCurrency, formatDateTime } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD', // change currency if needed
-  );
+  const { t } = useTranslation();
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   return React.useMemo(
     () =>

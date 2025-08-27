@@ -1,11 +1,11 @@
 // src/pages/ProductsPage/ProductExpandedRow.tsx
 import React, { useMemo } from 'react';
-import { Box, Typography, CardMedia } from '@mui/material';
+import { Box, CardMedia, Typography } from '@mui/material';
 import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-import { DASH, asDate } from '../../../utils/columns.util'; // ← adjust path if needed
+import { asDate, DASH } from '../../../utils/columns.util'; // ← adjust path if needed
 import { useLocaleFormatters } from '../../../hooks/useLocale'; // ← hook-based locale/formatters
 
 type Props = {
@@ -14,13 +14,10 @@ type Props = {
 };
 
 const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   // locale-aware memoized formatters via hook
-  const { formatCurrency, formatDateTime } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD', // change currency if needed
-  );
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   const img =
     Array.isArray(product.images) && product.images.length > 0
@@ -50,9 +47,8 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
     [description],
   );
 
-  const priceLabel =
-    typeof product.price === 'number' ? formatCurrency(product.price) : DASH;
-  const stockLabel = typeof product.stock === 'number' ? product.stock : DASH;
+  const priceLabel = formatCurrency(product.price);
+  const stockLabel = product.stock;
 
   const hasAttributes = attributes && Object.keys(attributes).length > 0;
 

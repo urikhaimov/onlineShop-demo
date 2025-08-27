@@ -1,12 +1,12 @@
 // src/components/products/ProductCard.tsx
 import * as React from 'react';
 import {
-  Card,
-  CardContent,
-  CardActions,
-  Typography,
-  Button,
   Box,
+  Button,
+  Card,
+  CardActions,
+  CardContent,
+  Typography,
   useTheme,
 } from '@mui/material';
 import { alpha, darken } from '@mui/material/styles';
@@ -27,15 +27,11 @@ export default function ProductCard({
   const theme = useTheme();
   const { themeSettings } = useThemeStore();
   const addToCart = useCartStore((s) => s.addToCart);
-  const { t, i18n } = useTranslation();
-  const { formatCurrency } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD',
-  );
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocaleFormatters();
 
   // ---- Theme-aware tokens
-  const isDark =
-    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const isDark = themeSettings?.darkMode ?? theme.palette.mode === 'dark';
   const primaryColor =
     themeSettings?.primaryColor || theme.palette.primary.main;
   const radius = (themeSettings?.borderRadius ??
@@ -62,20 +58,13 @@ export default function ProductCard({
   const hoverShadow = isDark ? theme.shadows[6] : theme.shadows[3];
 
   // ---- Product fields
-  const rawPrice =
-    typeof product.price === 'number'
-      ? product.price
-      : Number(product.price ?? NaN);
+  const rawPrice = product.price;
   const priceLabel = Number.isFinite(rawPrice)
     ? formatCurrency(rawPrice)
     : DASH;
 
-  const stockVal =
-    typeof product.stock === 'number' ? product.stock : undefined;
-  const stockLabel =
-    typeof stockVal === 'number'
-      ? String(stockVal)
-      : t('table.na', { defaultValue: 'N/A' });
+  const stockVal = product.stock;
+  const stockLabel = String(stockVal);
 
   const disabled = (stockVal ?? 0) <= 0;
 
