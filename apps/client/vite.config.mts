@@ -24,6 +24,7 @@ export default defineConfig(async () => {
       nxCopyAssetsPlugin(['*.md']),
     ],
     server: {
+      // middlewareMode: true,
       headers: {
         'Content-Security-Policy': csp,
       },
@@ -35,6 +36,7 @@ export default defineConfig(async () => {
         },
       },
     },
+    // assetsInclude: ['**/*.json'],
     css: {
       preprocessorOptions: {
         less: {
