@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { LandingPageService } from './landing-page.service';
-import { LandingPageData } from './types';
+import { LandingPageData } from '@common/types';
 
 @Controller('landing') // <- /api/landing (with global prefix)
 export class LandingPageController {

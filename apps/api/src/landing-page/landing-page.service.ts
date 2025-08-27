@@ -1,8 +1,8 @@
 // apps/api/src/landing-page/landing-page.service.ts
 import { Injectable } from '@nestjs/common';
-import { LandingPageData, LandingPageCard } from './types';
+import { LandingPageData, TBentoCard } from '@common/types';
 
-const DEFAULT_CARDS: LandingPageCard[] = [
+const DEFAULT_CARDS: TBentoCard[] = [
   { title: 'Free shipping', body: 'On orders over $99' },
   { title: '24/7 support', body: 'We’re here anytime' },
   { title: 'Eco materials', body: 'Consciously sourced' },
@@ -38,7 +38,7 @@ export class LandingPageService {
 
   update(updated: LandingPageData): LandingPageData {
     // Prefer updated.bentoCards; accept updated.cards as legacy fallback; else keep existing
-    const nextCards: LandingPageCard[] | undefined = Array.isArray(
+    const nextCards: TBentoCard[] | undefined = Array.isArray(
       updated.bentoCards,
     )
       ? updated.bentoCards
