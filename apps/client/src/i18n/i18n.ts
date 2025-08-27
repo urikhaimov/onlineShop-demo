@@ -8,7 +8,7 @@ import enTranslations from '@client/locales/en/common.json';
 import heTranslations from '@client/locales/he/common.json';
 
 console.log('enTranslations', enTranslations);
-// console.log('heTranslations', heTranslations);
+console.log('heTranslations', heTranslations);
 
 // Optional: a tiny date/number formatter using Intl
 const format = (value: any, format: string | undefined, lng: string) => {
@@ -33,7 +33,7 @@ i18n
   .use(initReactI18next)
   .init({
     fallbackLng: 'en',
-    supportedLngs: ['en'],
+    supportedLngs: ['en', 'he'],
     ns: ['common'],
     defaultNS: 'common',
     debug: true,

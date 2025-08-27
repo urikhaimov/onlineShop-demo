@@ -11,7 +11,8 @@ import {
   type OrderStatus,
 } from '../../../stores/useAdminOrdersStore';
 import { useTranslation } from 'react-i18next';
-import { CURRENCY_SYMBOL } from '@common/types';
+import { ECurrency } from '@common/types';
+import { formatCurrency } from '@common/utils';
 
 const statusOptions = [
   'all',
@@ -34,11 +35,7 @@ export default function AdminOrderFilters({ onClose }: Props) {
   const { filters, updateFilter, resetFilters } = useAdminOrdersStore();
 
   const currency = (v: number) =>
-    new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
-      style: 'currency',
-      currency: CURRENCY_SYMBOL.USD, // change if your store uses another currency
-      maximumFractionDigits: 0,
-    }).format(v);
+    formatCurrency(v, ECurrency.ILS, i18n.language);
 
   const totalMin = Math.max(
     TOTAL_MIN,

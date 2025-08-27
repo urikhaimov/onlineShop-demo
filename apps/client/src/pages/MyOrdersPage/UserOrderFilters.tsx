@@ -15,8 +15,8 @@ import { useThemeStore } from '../../stores/useThemeStore';
 import FiltersFooterActions from '../../components/FiltersFooterActions';
 import RangeFilterSlider from '../../components/RangeFilterSlider';
 import { useTranslation } from 'react-i18next';
-import { CURRENCY_SYMBOL } from '@common/types';
-
+import { ECurrency } from '@common/types';
+import { formatCurrency } from '@common/utils';
 const TOTAL_MIN = 0;
 const TOTAL_MAX = 100_000;
 
@@ -36,9 +36,6 @@ export default function UserOrderFilters({
   // ---- Theme-aware rhythm (spacing/radius/shadows) ----
   const { themeSettings } = useThemeStore();
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
-  const radius =
-    (themeSettings?.borderRadius as number | undefined) ??
-    (mui.shape.borderRadius as number);
 
   const gapUnit = Math.max(1, Math.round(2 * spacingScale));
   const gap = mui.spacing(gapUnit);
@@ -71,11 +68,7 @@ export default function UserOrderFilters({
 
   // ---- Helpers ----
   const currency = (v: number) =>
-    new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
-      style: 'currency',
-      currency: CURRENCY_SYMBOL.USD, // change if your store uses a different currency
-      maximumFractionDigits: 0,
-    }).format(v);
+    formatCurrency(v, ECurrency.ILS, i18n.language);
 
   const maybeClose = () => {
     if (closeOnChange && onClose) onClose();

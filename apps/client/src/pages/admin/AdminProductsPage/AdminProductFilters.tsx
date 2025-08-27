@@ -8,8 +8,8 @@ import RangeFilterSlider from '../../../components/RangeFilterSlider';
 import FiltersFooterActions from '../../../components/FiltersFooterActions';
 import { useProductStore } from '../../../stores/useProductStore';
 import { useTranslation } from 'react-i18next';
-import { CURRENCY_SYMBOL } from '@common/types';
-
+import { ECurrency } from '@common/types';
+import { formatCurrency } from '@common/utils';
 type Props = {
   categories: { id: string; name: string }[];
   onClose?: () => void; // close drawer on Apply (mobile)
@@ -45,11 +45,7 @@ export default function AdminProductFilters({ categories, onClose }: Props) {
   } = useProductStore();
 
   const currency = (v: number) =>
-    new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
-      style: 'currency',
-      currency: CURRENCY_SYMBOL.USD,
-      maximumFractionDigits: 0,
-    }).format(v);
+    formatCurrency(v, ECurrency.ILS, i18n.language);
 
   const reset = () => {
     setSearchTerm('');

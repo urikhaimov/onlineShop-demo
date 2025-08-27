@@ -14,10 +14,10 @@ import { useTranslation } from 'react-i18next';
 
 import { useProductStore } from '../../stores/useProductStore';
 import { useThemeStore } from '../../stores/useThemeStore';
-import { CURRENCY_SYMBOL, type TCategory } from '@common/types';
+import { ECurrency, type TCategory } from '@common/types';
 import FiltersFooterActions from '../../components/FiltersFooterActions';
 import RangeFilterSlider from '../../components/RangeFilterSlider';
-
+import { formatCurrency } from '@common/utils';
 const PRICE_MIN = 0;
 const PRICE_MAX = 100_000;
 const STOCK_MIN = 0;
@@ -80,11 +80,7 @@ export default function UserProductFilters({
   // ---- Helpers ----
 
   const currency = (v: number) =>
-    new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
-      style: 'currency',
-      currency: CURRENCY_SYMBOL.USD,
-      maximumFractionDigits: 0,
-    }).format(v);
+    formatCurrency(v, ECurrency.ILS, i18n.language);
 
   const maybeClose = () => {
     if (closeOnChange && onClose) onClose();
