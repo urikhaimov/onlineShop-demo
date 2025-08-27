@@ -13,7 +13,7 @@ export interface TSection {
   productIds?: string[]; // for productGrid
 }
 
-export type TBentoCard = { title: string; body: string };
+export type TBentoCard = { title: string; body: string; icon?: string };
 export interface LandingPageData {
   title: string;
   subtitle?: string;
