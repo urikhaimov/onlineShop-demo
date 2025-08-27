@@ -31,7 +31,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     maxWidth: 'xl',
     stickyHeader: true,
     spacingScale: 1,
-    borderRadius: 8,
+    borderRadius: 2,
   },
   isLoading: true,
   error: null,

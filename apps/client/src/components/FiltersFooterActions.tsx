@@ -38,7 +38,7 @@ export default function FiltersFooterActions({
   const { t } = useTranslation();
   const { themeSettings } = useThemeStore();
   const primaryColor = themeSettings?.primaryColor || '#1976d2';
-  const borderRadius = themeSettings?.borderRadius ?? 8;
+  const borderRadius = themeSettings?.borderRadius ?? 2;
 
   const resetText = resetLabel ?? t('filters.reset');
   const applyText = applyLabel ?? t('actions.apply');

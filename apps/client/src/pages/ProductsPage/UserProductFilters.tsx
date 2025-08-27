@@ -131,7 +131,6 @@ export default function UserProductFilters({
   return (
     <Box
       sx={{
-        borderRadius: radius,
         bgcolor: 'background.paper',
         boxSizing: 'border-box',
       }}

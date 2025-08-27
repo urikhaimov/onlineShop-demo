@@ -119,7 +119,7 @@ export default function UserOrderFilters({
     <Box
       sx={{
         // Give the drawer content a soft card feel and theme spacing
-        borderRadius: radius,
+
         bgcolor: 'background.paper',
         boxSizing: 'border-box',
       }}

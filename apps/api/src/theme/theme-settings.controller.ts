@@ -30,7 +30,7 @@ const defaultThemeSettings: ThemeSettings = {
   secondaryColor: '#dc004e',
   darkMode: false,
   fontFamily: 'Roboto',
-  borderRadius: 8,
+  borderRadius: 2,
   spacingScale: 1, // ← important (your frontend multiplies 8 * spacingScale * factor)
 };
 
