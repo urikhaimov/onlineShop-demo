@@ -1,4 +1,4 @@
-import { type HomepageLayout } from '@common/types';
+import { HomepageLayout } from './theme-settings.enum';
 
 export type TSectionType = 'text' | 'image' | 'productGrid' | 'testimonial';
 

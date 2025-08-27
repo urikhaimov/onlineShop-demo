@@ -1,33 +1,28 @@
-// useLandingPage.ts (React Query v5)
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axiosInstance from '../api/axiosInstance';
-import type { LandingPageData } from '../types/landing';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from '../api/axiosInstance';
+import type { LandingPageData } from '@common/types';
 
-const LANDING_PAGE_QUERY_KEY = { queryKey: ['landingPage'] };
+const KEY = ['landing'];
 
 export function useLandingPage() {
-  return useQuery<LandingPageData, Error>({
-    queryKey: LANDING_PAGE_QUERY_KEY.queryKey,
-    queryFn: async () => {
-      const response = await axiosInstance.get('/landing-page');
-      return response.data;
+  return useQuery({
+    queryKey: KEY,
+    queryFn: async (): Promise<LandingPageData> => {
+      const { data } = await axios.get('/landing');
+      return data;
     },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
   });
 }
 
 export function useUpdateLandingPage() {
-  const queryClient = useQueryClient();
-
-  return useMutation<void, Error, LandingPageData>({
-    mutationFn: async (updatedData) => {
-      await axiosInstance.post('/landing-page', updatedData);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: LandingPageData) => {
+      const { data } = await axios.put('/landing', payload);
+      return data as LandingPageData;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: LANDING_PAGE_QUERY_KEY.queryKey,
-      });
+    onSuccess: (data) => {
+      qc.setQueryData(KEY, data);
     },
   });
 }

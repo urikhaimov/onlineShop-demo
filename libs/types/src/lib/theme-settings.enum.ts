@@ -1,9 +1,9 @@
 export const HOMEPAGE_LAYOUTS = {
-  Grid: 'grid',
   Hero: 'hero',
-  Minimal: 'minimal',
-  Promo: 'promo',
-  List: 'list', // ✅ Add this
+  Bento: 'bento',
+  Split: 'split',
+  Mosaic: 'mosaic',
+  Story: 'story',
 } as const;
 
 export type HomepageLayout =

@@ -1,134 +1,138 @@
-import React from 'react';
+// components/FormTextField.tsx
+import * as React from 'react';
+import { TextField, type TextFieldProps } from '@mui/material';
 import {
-  FormControl,
-  FormHelperText,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-} from '@mui/material';
-import type { TextFieldProps } from '@mui/material/TextField';
-import {
-  type Control,
   Controller,
+  type Control,
   type FieldError,
   type FieldErrorsImpl,
+  type FieldValues,
   type Merge,
+  type Path,
+  type RegisterOptions,
   type UseFormRegisterReturn,
 } from 'react-hook-form';
 
 type FormChangeEvent = React.SyntheticEvent | React.ChangeEvent<any>;
 
-interface Props extends Omit<TextFieldProps, 'defaultValue'> {
+type BaseProps<T extends FieldValues> = Omit<
+  TextFieldProps,
+  'defaultValue' | 'name' | 'value' | 'onChange'
+> & {
   label: string;
+
+  /** Controlled mode (recommended): provide both control + name */
+  control?: Control<T>;
+  name?: Path<T>;
+  rules?: RegisterOptions<T>;
+
+  /** Optional transforms (e.g., string -> number, csv -> string[]) */
+  parseValue?: (raw: any) => any;
+  formatValue?: (value: any) => any;
+
+  /** Legacy / fallback for uncontrolled mode */
   register?: UseFormRegisterReturn;
   errorObject?: FieldError | Merge<FieldError, FieldErrorsImpl<any>>;
-  control?: Control<any>; // Prefer Control<ThemeSettings> where possible
-  name?: string;
-  isSelect?: boolean;
-  selectOptions?: ReadonlyArray<{ label: string; value: string }>;
-  required?: boolean;
+
+  /** Optional hook before passing to RHF onChange */
   onChangeCustom?: (
     e: FormChangeEvent,
     onChange: (value: unknown) => void,
   ) => void;
-}
 
-const FormTextField = React.forwardRef<HTMLInputElement, Props>(
-  (
-    {
-      label,
-      register,
-      errorObject,
-      control,
-      name,
-      isSelect = false,
-      selectOptions = [],
-      required,
-      onChangeCustom,
-      ...rest
-    },
-    ref,
-  ) => {
-    // Controlled <Select>
-    if (isSelect && control && name) {
-      return (
-        <FormControl fullWidth error={!!errorObject}>
-          <InputLabel shrink>{label}</InputLabel>
-          <Controller
-            control={control}
-            name={name}
-            rules={{ required: required ? `${label} is required` : false }}
-            render={({ field, fieldState }) => (
-              <>
-                <Select
-                  {...field}
-                  value={field.value ?? ''}
-                  onChange={(e) => {
-                    const value = (e.target as HTMLInputElement).value;
+  children?: React.ReactNode; // for select MenuItems
+};
 
-                    if (onChangeCustom) {
-                      onChangeCustom(e as FormChangeEvent, field.onChange);
-                    } else {
-                      field.onChange(value);
-                    }
-                  }}
-                  displayEmpty
-                  disabled={selectOptions.length === 0}
-                  sx={{
-                    bgcolor: 'background.paper',
-                    color: 'text.primary',
-                    '.MuiSvgIcon-root': {
-                      color: 'text.primary',
-                    },
-                  }}
-                >
-                  <MenuItem value="">
-                    <em>Select {label.toLowerCase()}</em>
-                  </MenuItem>
-                  {selectOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-                <FormHelperText>
-                  {typeof fieldState.error?.message === 'string'
-                    ? fieldState.error.message
-                    : ''}
-                </FormHelperText>
-              </>
-            )}
-          />
-        </FormControl>
-      );
-    }
-
-    // Uncontrolled or registered input
+function InnerFormTextField<T extends FieldValues>(
+  {
+    label,
+    control,
+    name,
+    rules,
+    parseValue,
+    formatValue,
+    register,
+    errorObject,
+    onChangeCustom,
+    children,
+    ...rest
+  }: BaseProps<T>,
+  ref: React.Ref<HTMLInputElement>,
+) {
+  // Controlled path whenever control + name are present
+  if (control && name) {
     return (
-      <TextField
-        {...register}
-        fullWidth
-        label={label}
-        variant="outlined"
-        error={!!errorObject}
-        helperText={
-          typeof errorObject?.message === 'string' ? errorObject.message : ''
-        }
-        InputLabelProps={{ shrink: true }}
-        inputRef={ref}
-        sx={{
-          '& .MuiInputBase-root': {
-            color: 'text.primary',
-          },
-          '& .MuiInputLabel-root': {
-            color: 'text.primary',
-          },
+      <Controller
+        name={name}
+        control={control}
+        rules={rules}
+        render={({ field, fieldState }) => {
+          const value = formatValue
+            ? formatValue(field.value)
+            : (field.value ?? (rest.select ? '' : ''));
+          const helper =
+            fieldState.error?.message ??
+            (typeof rest.helperText === 'string' ? rest.helperText : undefined);
+
+          return (
+            <TextField
+              {...rest}
+              label={label}
+              value={value}
+              error={!!fieldState.error}
+              helperText={helper}
+              onChange={(e) => {
+                if (onChangeCustom)
+                  return onChangeCustom(e as FormChangeEvent, field.onChange);
+                const raw = (e.target as HTMLInputElement).value;
+                const parsed = parseValue ? parseValue(raw) : raw;
+                field.onChange(parsed);
+              }}
+              onBlur={field.onBlur}
+              inputRef={(node) => {
+                field.ref(node);
+                if (typeof ref === 'function') ref(node as any);
+                else if (ref)
+                  (
+                    ref as React.MutableRefObject<HTMLInputElement | null>
+                  ).current = node;
+              }}
+              InputLabelProps={{ shrink: true }}
+              fullWidth={rest.fullWidth ?? true}
+            >
+              {rest.select ? children : undefined}
+            </TextField>
+          );
         }}
-        {...rest}
       />
     );
-  },
-);
+  }
+
+  // Fallback: uncontrolled/registered (rarely needed now)
+  return (
+    <TextField
+      {...rest}
+      {...register}
+      label={label}
+      error={!!errorObject}
+      helperText={
+        typeof errorObject?.message === 'string'
+          ? errorObject.message
+          : rest.helperText
+      }
+      InputLabelProps={{ shrink: true }}
+      inputRef={ref}
+      fullWidth={rest.fullWidth ?? true}
+    >
+      {rest.select ? children : undefined}
+    </TextField>
+  );
+}
+
+const FormTextField = React.forwardRef(InnerFormTextField) as <
+  T extends FieldValues,
+>(
+  p: BaseProps<T> & { ref?: React.Ref<HTMLInputElement> },
+) => React.JSX.Element;
 
 export default FormTextField;
