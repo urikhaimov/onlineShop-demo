@@ -67,8 +67,7 @@ export default function OrderDetailPage() {
 
   // 🧩 Theme store — theme-aware values
   const { themeSettings } = useThemeStore();
-  const isDark =
-    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const isDark = themeSettings?.darkMode ?? theme.palette.mode === 'dark';
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
   const radius = (themeSettings?.borderRadius ??
     theme.shape.borderRadius) as number;
@@ -84,11 +83,8 @@ export default function OrderDetailPage() {
     alpha(theme.palette.text.primary, isDark ? 0.2 : 0.12);
   const outlinedHoverBg = alpha(primaryMain, isDark ? 0.12 : 0.08);
 
-  const { t, i18n } = useTranslation();
-  const { formatCurrency, formatDateTime } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD',
-  );
+  const { t } = useTranslation();
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   const { order, loading, error, downloading, downloadInvoice } =
     useOrderDetails(id, Boolean(user));
@@ -199,7 +195,7 @@ export default function OrderDetailPage() {
 
             <Typography>
               <strong>{t('order.total', { defaultValue: 'Total' })}:</strong>{' '}
-              {typeof total === 'number' ? formatCurrency(total) : 'N/A'}
+              {formatCurrency(total)}
             </Typography>
 
             <Typography>

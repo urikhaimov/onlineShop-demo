@@ -136,11 +136,8 @@ export function useProductColumns(
   categories: { id: string; name: string }[],
   setSnackbarOpen: (open: boolean) => void,
 ): ColumnDef<IProduct>[] {
-  const { t, i18n } = useTranslation();
-  const { formatCurrency } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD', // change currency if needed
-  );
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocaleFormatters();
 
   const addToCart = useCartStore.getState().addToCart;
 

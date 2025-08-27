@@ -3,7 +3,7 @@ import * as React from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
 import type { TOrder } from '@common/types';
 import { useTranslation } from 'react-i18next';
-import { DASH, asDate } from '../../utils/columns.util';
+import { asDate, DASH } from '../../utils/columns.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 import { useThemeStore } from '../../stores/useThemeStore';
 
@@ -13,18 +13,16 @@ const clamp = (n: number, min: number, max: number) =>
   Math.min(max, Math.max(min, n));
 
 const OrderExpandedRow: React.FC<Props> = ({ order }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const mui = useTheme();
   const { themeSettings } = useThemeStore();
 
   // Theme-aware controls
-  const isDark =
-    themeSettings?.darkMode ?? (mui.palette.mode === 'dark' ? true : false);
+  const isDark = themeSettings?.darkMode ?? mui.palette.mode === 'dark';
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
   const baseRadius =
     (themeSettings?.borderRadius as number | undefined) ??
     (mui.shape.borderRadius as number);
-  const radius = clamp(baseRadius, 6, 16);
 
   // Grid gap derived from spacing scale
   const unit = Math.max(1, Math.round(2 * spacingScale));
@@ -36,19 +34,19 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
     sm: mui.spacing(1.5 * spacingScale),
   };
   const sectionPadY = {
-    xs: mui.spacing(1 * spacingScale),
+    xs: mui.spacing(spacingScale),
     sm: mui.spacing(1.25 * spacingScale),
   };
 
   // Per-section outer margins (around each section)
   const sectionMarginX = {
     xs: mui.spacing(0.75 * spacingScale),
-    sm: mui.spacing(1 * spacingScale),
+    sm: mui.spacing(spacingScale),
   };
 
   const sectionMarginY = {
     xs: mui.spacing(0.75 * spacingScale),
-    sm: mui.spacing(1 * spacingScale),
+    sm: mui.spacing(spacingScale),
   };
   console.log('spacingScale', spacingScale);
   console.log('sectionMarginX', sectionMarginX);
@@ -57,10 +55,7 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
   const sectionShadow = isDark ? mui.shadows[2] : mui.shadows[1];
 
   // Locale-aware formatters
-  const { formatCurrency, formatDateTime } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD',
-  );
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   // Data
   const addr = order?.shippingAddress;

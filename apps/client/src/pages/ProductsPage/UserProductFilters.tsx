@@ -1,12 +1,12 @@
 // src/pages/user/UserProductFilters.tsx
 import * as React from 'react';
 import {
-  TextField,
+  Box,
   MenuItem,
   Stack,
+  TextField,
   useMediaQuery,
   useTheme,
-  Box,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import type { Dayjs } from 'dayjs';
@@ -53,7 +53,7 @@ export default function UserProductFilters({
     sm: mui.spacing(2 * spacingScale),
   };
   const padY = {
-    xs: mui.spacing(1 * spacingScale),
+    xs: mui.spacing(spacingScale),
     sm: mui.spacing(1.25 * spacingScale),
   };
 
@@ -146,9 +146,11 @@ export default function UserProductFilters({
           onKeyDown={(e) => e.key === 'Enter' && maybeClose()}
           fullWidth
           placeholder={t('actions.searchPlaceholder')}
-          inputProps={{
-            inputMode: 'search',
-            'aria-label': t('filters.search') as string,
+          slotProps={{
+            htmlInput: {
+              inputMode: 'search',
+              'aria-label': t('filters.search') as string,
+            },
           }}
           autoComplete="off"
         />

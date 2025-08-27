@@ -6,7 +6,7 @@ import { Typography } from '@mui/material';
 import { StatusTag } from '../../components/StatusTag';
 import { useTranslation } from 'react-i18next';
 
-import { DASH, asDate } from '../../utils/columns.util';
+import { asDate, DASH } from '../../utils/columns.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 
 // ---- Pure builder (NO HOOKS HERE) -----------------------------------------
@@ -56,7 +56,7 @@ export function buildOrderColumns(
       meta: { hiddenOnMobile: true, align: 'right' },
       cell: ({ getValue }) => {
         const v = getValue<number>();
-        return typeof v === 'number' ? formatCurrency(v) : DASH;
+        return formatCurrency(v);
       },
     },
     {
@@ -71,11 +71,8 @@ export function buildOrderColumns(
 
 // ---- Hook wrapper (call this in your page, always at top-level) ------------
 export function useOrderColumns(): ColumnDef<TOrder>[] {
-  const { t, i18n } = useTranslation();
-  const { formatCurrency, formatDateTime } = useLocaleFormatters(
-    i18n.resolvedLanguage || i18n.language,
-    'USD',
-  );
+  const { t } = useTranslation();
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   return React.useMemo(
     () => buildOrderColumns(t, { formatCurrency, formatDateTime }),
