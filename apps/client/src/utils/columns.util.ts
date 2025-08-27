@@ -1,5 +1,7 @@
 // src/utils/columns.util.ts
 
+import { CURRENCY_SYMBOL } from '@common/types';
+
 /** Common dash placeholder for missing values */
 export const DASH = '—';
 
@@ -37,7 +39,10 @@ export function getLocale(i18nLang?: string): string {
 }
 
 /** Create a memoizable currency formatter for a given locale & currency. */
-export function makeCurrencyFormatter(lng: string, currency = 'USD') {
+export function makeCurrencyFormatter(
+  lng: string,
+  currency = CURRENCY_SYMBOL.USD,
+) {
   const nf = new Intl.NumberFormat(lng, {
     style: 'currency',
     currency,

@@ -8,6 +8,7 @@ import RangeFilterSlider from '../../../components/RangeFilterSlider';
 import FiltersFooterActions from '../../../components/FiltersFooterActions';
 import { useProductStore } from '../../../stores/useProductStore';
 import { useTranslation } from 'react-i18next';
+import { CURRENCY_SYMBOL } from '@common/types';
 
 type Props = {
   categories: { id: string; name: string }[];
@@ -46,7 +47,7 @@ export default function AdminProductFilters({ categories, onClose }: Props) {
   const currency = (v: number) =>
     new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
       style: 'currency',
-      currency: 'USD', // change if your store uses a different currency
+      currency: CURRENCY_SYMBOL.USD,
       maximumFractionDigits: 0,
     }).format(v);
 

@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { adminDb } from '@common/firebase';
+import { CURRENCY_SYMBOL } from '@common/types';
 
 @Injectable()
 export class OrdersService {
@@ -127,7 +128,7 @@ export class OrdersService {
     try {
       const paymentIntent = await this.stripe.paymentIntents.create({
         amount,
-        currency: 'usd',
+        currency: CURRENCY_SYMBOL.USD,
         automatic_payment_methods: { enabled: true },
         metadata: {
           uid,

@@ -11,6 +11,7 @@ import {
   type OrderStatus,
 } from '../../../stores/useAdminOrdersStore';
 import { useTranslation } from 'react-i18next';
+import { CURRENCY_SYMBOL } from '@common/types';
 
 const statusOptions = [
   'all',
@@ -35,7 +36,7 @@ export default function AdminOrderFilters({ onClose }: Props) {
   const currency = (v: number) =>
     new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
       style: 'currency',
-      currency: 'USD', // change if your store uses another currency
+      currency: CURRENCY_SYMBOL.USD, // change if your store uses another currency
       maximumFractionDigits: 0,
     }).format(v);
 

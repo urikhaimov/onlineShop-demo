@@ -366,7 +366,7 @@
     "tax": "מס ({{rate}}%)",
     "discount": "הנחה",
     "total": "סך הכול",
-    "currency": "USD",
+    "currency": "₪",
     "failedToLoad": "טעינת טופס התשלום נכשלה. נסה שוב מאוחר יותר."
   },
   "checkoutForm": {

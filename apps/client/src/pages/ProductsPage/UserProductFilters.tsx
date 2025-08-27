@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useProductStore } from '../../stores/useProductStore';
 import { useThemeStore } from '../../stores/useThemeStore';
-import type { TCategory } from '@common/types';
+import { CURRENCY_SYMBOL, type TCategory } from '@common/types';
 import FiltersFooterActions from '../../components/FiltersFooterActions';
 import RangeFilterSlider from '../../components/RangeFilterSlider';
 
@@ -78,14 +78,11 @@ export default function UserProductFilters({
   } = useProductStore();
 
   // ---- Helpers ----
-  const currencyCode =
-    (themeSettings as any)?.currency ??
-    (i18n.language?.toUpperCase().startsWith('HE') ? 'ILS' : 'USD');
 
   const currency = (v: number) =>
     new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
       style: 'currency',
-      currency: currencyCode,
+      currency: CURRENCY_SYMBOL.USD,
       maximumFractionDigits: 0,
     }).format(v);
 

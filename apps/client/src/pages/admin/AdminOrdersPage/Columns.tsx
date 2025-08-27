@@ -2,7 +2,7 @@ import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { NavigateFunction } from 'react-router-dom';
 import RowActions, { type RowAction } from '../../../components/RowActions';
-import { TOrder } from '@common/types';
+import { CURRENCY_SYMBOL, TOrder } from '@common/types';
 import { StatusTag } from '../../../components/StatusTag';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -25,7 +25,7 @@ export function defineAdminOrderColumns(
 ): ColumnDef<TOrder>[] {
   // Compute once per invocation and reuse
   const lng = getLocale(i18n.resolvedLanguage || i18n.language);
-  const currencyFmt = makeCurrencyFormatter(lng, 'USD'); // change currency if needed
+  const currencyFmt = makeCurrencyFormatter(lng, CURRENCY_SYMBOL.USD); // change currency if needed
   const dateTimeFmt = makeDateTimeFormatter(lng);
 
   return [
@@ -56,7 +56,7 @@ export function defineAdminOrderColumns(
       meta: { hiddenOnMobile: true, align: 'left' },
       cell: (info) => {
         const v = info.getValue<number | undefined>();
-        return typeof v === 'number' ? currencyFmt.format(v) : DASH;
+        return typeof v === 'number' ? currencyFmt(v) : DASH;
       },
     },
     {
