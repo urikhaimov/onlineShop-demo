@@ -1,5 +1,5 @@
 // src/components/products/ProductCard.tsx
-import React from 'react';
+import * as React from 'react';
 import {
   Card,
   CardContent,
@@ -7,8 +7,9 @@ import {
   Typography,
   Button,
   Box,
+  useTheme,
 } from '@mui/material';
-import { darken } from '@mui/material/styles';
+import { alpha, darken } from '@mui/material/styles';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
 import { useThemeStore } from '../../stores/useThemeStore';
@@ -23,21 +24,44 @@ export default function ProductCard({
   product,
   onAddToCart,
 }: ProductCardProps) {
-  const addToCart = useCartStore((s) => s.addToCart);
+  const theme = useTheme();
   const { themeSettings } = useThemeStore();
+  const addToCart = useCartStore((s) => s.addToCart);
   const { t, i18n } = useTranslation();
   const { formatCurrency } = useLocaleFormatters(
     i18n.resolvedLanguage || i18n.language,
-    'USD', // change currency if needed
+    'USD',
   );
 
-  const primaryColor = themeSettings?.primaryColor || '#1976d2';
-  const borderRadius = themeSettings?.borderRadius ?? 8;
-  const spacingScale = themeSettings?.spacingScale ?? 1;
+  // ---- Theme-aware tokens
+  const isDark =
+    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const primaryColor =
+    themeSettings?.primaryColor || theme.palette.primary.main;
+  const radius = (themeSettings?.borderRadius ??
+    theme.shape.borderRadius) as number;
+  const spacingScale = Number(themeSettings?.spacingScale ?? 1);
 
-  const minHeight = { xs: 320, sm: 340, md: 360, lg: 380, xl: 400 };
+  // Safe, scalar spacing
+  const pad = 1.25 * spacingScale;
+  const gapY = 0.75 * spacingScale;
 
-  // Price (locale-aware)
+  // Card surface + outline that work with CSS vars and non-vars
+  const paperBg = theme.vars?.palette?.background?.paperChannel
+    ? `rgba(${theme.vars.palette.background.paperChannel} / 1)`
+    : theme.palette.background.paper;
+
+  const outline =
+    theme.vars?.palette?.divider ??
+    alpha(theme.palette.text.primary, isDark ? 0.22 : 0.12);
+
+  const hoverOutline =
+    theme.vars?.palette?.divider ?? alpha(primaryColor, isDark ? 0.35 : 0.25);
+
+  const baseShadow = isDark ? theme.shadows[3] : theme.shadows[1];
+  const hoverShadow = isDark ? theme.shadows[6] : theme.shadows[3];
+
+  // ---- Product fields
   const rawPrice =
     typeof product.price === 'number'
       ? product.price
@@ -46,13 +70,14 @@ export default function ProductCard({
     ? formatCurrency(rawPrice)
     : DASH;
 
-  // Stock
   const stockVal =
     typeof product.stock === 'number' ? product.stock : undefined;
   const stockLabel =
     typeof stockVal === 'number'
       ? String(stockVal)
       : t('table.na', { defaultValue: 'N/A' });
+
+  const disabled = (stockVal ?? 0) <= 0;
 
   const handleAddToCart = () => {
     addToCart(product);
@@ -66,19 +91,28 @@ export default function ProductCard({
         width: '100%',
         maxWidth: '100%',
         minWidth: 0,
-        overflow: 'hidden',
+        height: '100%',
+        minHeight: { xs: 320, sm: 340, md: 360, lg: 380, xl: 400 },
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        p: 1.25 * spacingScale,
-        borderRadius,
-        boxShadow: 1,
-        height: '100%',
-        minHeight,
         textAlign: 'center',
+        overflow: 'hidden',
+        borderRadius: radius,
+        p: pad,
+        bgcolor: paperBg,
+        borderColor: outline,
+        boxShadow: baseShadow,
+        transition:
+          'box-shadow .25s ease, border-color .25s ease, transform .2s ease',
+        '&:hover': {
+          boxShadow: hoverShadow,
+          borderColor: hoverOutline,
+          transform: 'translateY(-2px)',
+        },
       }}
     >
-      {/* Square image */}
+      {/* Media (square) */}
       <Box
         component={Link}
         to={`/product/${product.id}`}
@@ -87,11 +121,12 @@ export default function ProductCard({
           width: '100%',
           maxWidth: { xs: 220, sm: 240, md: 260, lg: 280, xl: 300 },
           mx: 'auto',
-          mb: 1.25 * spacingScale,
-          borderRadius: 2,
+          mb: gapY,
+          borderRadius: Math.max(8, radius - 2),
           overflow: 'hidden',
           aspectRatio: '1 / 1',
         }}
+        aria-label={product.name}
       >
         <Box
           component="img"
@@ -106,28 +141,36 @@ export default function ProductCard({
             height: '100%',
             objectFit: 'cover',
             display: 'block',
+            backgroundColor: theme.palette.action.hover,
           }}
         />
       </Box>
 
+      {/* Content */}
       <CardContent
-        sx={{ flex: '1 1 auto', width: '100%', px: 1, py: 0.5, minWidth: 0 }}
+        sx={{
+          flex: '1 1 auto',
+          width: '100%',
+          px: 1,
+          py: gapY * 0.66,
+          minWidth: 0,
+        }}
       >
         <Typography
           variant="subtitle1"
           fontWeight={700}
           component={Link}
           to={`/product/${product.id}`}
+          style={{ textDecoration: 'none', color: 'inherit' }}
           sx={{
             display: '-webkit-box',
             WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
+            WebkitBoxOrient: 'vertical' as const,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            textDecoration: 'none',
-            color: 'inherit',
             minHeight: 44,
           }}
+          title={product.name}
         >
           {product.name}
         </Typography>
@@ -136,7 +179,7 @@ export default function ProductCard({
           variant="body2"
           color="text.secondary"
           sx={{
-            mt: 0.5,
+            mt: 0.5 * spacingScale,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -147,23 +190,35 @@ export default function ProductCard({
         </Typography>
       </CardContent>
 
-      <CardActions sx={{ width: '100%', pb: 1 }}>
+      {/* Actions */}
+      <CardActions sx={{ width: '100%', pb: gapY * 0.8 }}>
         <Button
           size="small"
           onClick={handleAddToCart}
-          disabled={(stockVal ?? 0) <= 0}
+          disabled={disabled}
           fullWidth
           disableElevation
           sx={{
             height: 38,
-            backgroundColor: primaryColor,
-            color: '#fff',
-            '&:hover': { backgroundColor: darken(primaryColor, 0.12) },
-            '&.Mui-disabled': { backgroundColor: 'action.disabledBackground' },
-            borderRadius,
+            borderRadius: Math.max(8, radius - 2),
+            backgroundColor: disabled
+              ? theme.palette.action.disabledBackground
+              : primaryColor,
+            color: disabled ? theme.palette.action.disabled : '#fff',
+            boxShadow: 'none',
+            backgroundImage: 'none',
+            '&:hover': {
+              backgroundColor: disabled
+                ? theme.palette.action.disabledBackground
+                : darken(primaryColor, 0.12),
+              boxShadow: 'none',
+              backgroundImage: 'none',
+            },
           }}
         >
-          {t('table.addToCart', { defaultValue: 'Add to Cart' })}
+          {disabled
+            ? t('table.outOfStock', { defaultValue: 'Out of stock' })
+            : t('table.addToCart', { defaultValue: 'Add to Cart' })}
         </Button>
       </CardActions>
     </Card>

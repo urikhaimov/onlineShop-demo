@@ -1,6 +1,15 @@
-// src/pages/ProductsPage/index.tsx (ProductsPage)
-import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Divider, Snackbar, Alert } from '@mui/material';
+// src/pages/ProductsPage/index.tsx
+import * as React from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Divider,
+  Snackbar,
+  Alert,
+  useMediaQuery,
+  useTheme,
+} from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { useInView } from 'react-intersection-observer';
 import { debounce } from 'lodash';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
@@ -12,7 +21,7 @@ import {
 import type { IProduct } from '@common/types';
 import { db } from '../../firebase';
 import StickyTable from '../../components/StickyTable';
-import { useProductColumns } from './Columns'; // ✅ use the hook-based columns
+import { useProductColumns } from './Columns';
 import NotFound from '../../components/NotFound';
 import type {
   SortingState,
@@ -46,9 +55,36 @@ import InfiniteSentinel from '../../components/InfiniteSentinel';
 import { toJsDate } from '../../utils/toJsDate';
 import { useTranslation } from 'react-i18next';
 import LoadingProgress from '@client/components/LoadingProgress';
+import { useThemeStore } from '../../stores/useThemeStore';
 
 export default function ProductsPage() {
   const { t } = useTranslation();
+
+  // 🧩 Theme + Theme Store
+  const theme = useTheme();
+  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
+  const { themeSettings } = useThemeStore();
+
+  const isDark =
+    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const spacingScale = Number(themeSettings?.spacingScale ?? 1);
+  const radius = (themeSettings?.borderRadius ??
+    theme.shape.borderRadius) as number;
+  const brand = themeSettings?.primaryColor || theme.palette.primary.main;
+
+  // Derived tokens (scalar-friendly for sx)
+  const unit = Math.max(1, Math.round(2 * spacingScale));
+  const stickyShadow = isDark ? theme.shadows[3] : theme.shadows[1];
+  const stickyBg = theme.vars?.palette?.background?.paperChannel
+    ? `rgba(${theme.vars.palette.background.paperChannel} / 0.9)`
+    : alpha(theme.palette.background.paper, 0.92);
+  const stickyBorder =
+    theme.vars?.palette?.divider ?? alpha(brand, isDark ? 0.25 : 0.18);
+  const dividerColor =
+    theme.vars?.palette?.divider ??
+    alpha(theme.palette.text.primary, isDark ? 0.2 : 0.12);
+
+  // Data & state
   const [products, setProducts] = useState<IProduct[]>([]);
   const [visibleCount, setVisibleCount] = useState(20);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -84,6 +120,7 @@ export default function ProductsPage() {
 
   useProductFiltersQuerySync(viewMode, setViewMode);
 
+  // Firestore subscription
   useEffect(() => {
     const q = query(collection(db, 'products'), orderBy('order'));
     const debouncedSet = debounce(
@@ -105,6 +142,7 @@ export default function ProductsPage() {
     };
   }, []);
 
+  // Filtering
   const filteredProducts = useMemo(() => {
     const from = (updatedFrom as Dayjs | null)?.startOf('day')?.toDate();
     const to = (updatedTo as Dayjs | null)?.endOf('day')?.toDate();
@@ -182,6 +220,7 @@ export default function ProductsPage() {
     viewMode,
   ]);
 
+  // Infinite load window
   useEffect(() => {
     if (inView && visibleCount < filteredProducts.length) {
       const tmo = setTimeout(() => setVisibleCount((prev) => prev + 12), 200);
@@ -191,9 +230,10 @@ export default function ProductsPage() {
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  // ✅ Hook-based, locale-aware columns (no hooks inside plain functions)
+  // Locale-aware columns
   const columns = useProductColumns(categories, setSnackbarOpen);
 
+  // URL sync for table state
   useStickyTableQuerySync({
     sorting,
     setSorting,
@@ -201,6 +241,7 @@ export default function ProductsPage() {
     setColumnFilters,
   });
 
+  // Reset helpers
   const resetStoreFilters = () => {
     setSearchTerm('');
     setSelectedCategoryId('');
@@ -232,22 +273,29 @@ export default function ProductsPage() {
       typeof updater === 'function' ? (updater as any)(prev) : updater,
     );
   };
+
   if (loading) return <LoadingProgress />;
+
   return (
     <PageLayout
       action={EAbilityActions.MANAGE}
       subject={EAbilitySubjects.PRODUCTS}
     >
       <PageContainer>
-        {/* Sticky header controls */}
+        {/* Sticky header controls — theme-aware */}
         <Box
           sx={{
             position: 'sticky',
             top: 0,
             zIndex: 5,
-            bgcolor: 'background.paper',
-            py: 1,
+            bgcolor: stickyBg,
+            backdropFilter: 'saturate(140%) blur(8px)',
+            borderBottom: `1px solid ${stickyBorder}`,
+            py: Math.max(1, unit * 0.5),
+            px: { xs: 1, sm: 2 },
             mb: 1,
+            borderRadius: { xs: 0, sm: radius },
+            boxShadow: stickyShadow,
           }}
         >
           <TopActionBar
@@ -255,10 +303,11 @@ export default function ProductsPage() {
             onChangeView={(m) => setViewMode(m as ViewMode)}
             onOpenFilters={() => setFiltersOpen(true)}
             onResetFilters={resetAllFilters}
+            buttonWidth={isSmDown ? 'auto' : 120 + 8 * (unit - 2)} // scale with spacing
           />
         </Box>
 
-        <Divider sx={{ mb: 2 }} />
+        <Divider sx={{ mb: 2, borderColor: dividerColor }} />
 
         {/* Main content */}
         {visibleProducts.length === 0 && !loading ? (
@@ -316,6 +365,7 @@ export default function ProductsPage() {
           />
         </RightFiltersDrawer>
 
+        {/* Add-to-cart toast */}
         <Snackbar
           open={snackbarOpen}
           autoHideDuration={3000}

@@ -1,5 +1,5 @@
 // src/pages/OrderDetailPage.tsx
-import React from 'react';
+import * as React from 'react';
 import {
   Box,
   Button,
@@ -13,7 +13,9 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { useParams } from 'react-router-dom';
+
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { footerHeight, headerHeight } from '../../config/themeConfig';
 import { useAuth } from '../../hooks/useAuth';
@@ -25,6 +27,7 @@ import {
 } from '../../services/ability.service';
 import { useTranslation } from 'react-i18next';
 import { useLocaleFormatters } from '../../hooks/useLocale';
+import { useThemeStore } from '../../stores/useThemeStore';
 
 // Coerce various date-like inputs (Date | string | number | Firestore-like) to Date
 function toMaybeDate(value: unknown): Date | undefined {
@@ -58,13 +61,33 @@ function toMaybeDate(value: unknown): Date | undefined {
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // 🧩 Theme store — theme-aware values
+  const { themeSettings } = useThemeStore();
+  const isDark =
+    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const spacingScale = Number(themeSettings?.spacingScale ?? 1);
+  const radius = (themeSettings?.borderRadius ??
+    theme.shape.borderRadius) as number;
+  const primaryMain = themeSettings?.primaryColor || theme.palette.primary.main;
+
+  // Derived UI tokens
+  const outerPx = { xs: 2, md: Math.max(3, Math.round(3 * spacingScale)) };
+  const outerPy = { xs: 2, md: Math.max(2, Math.round(2 * spacingScale)) };
+  const cardPadding = { xs: 2 * spacingScale, md: 3 * spacingScale };
+  const cardShadow = isDark ? theme.shadows[4] : theme.shadows[2];
+  const dividerColor =
+    theme.vars?.palette?.divider ??
+    alpha(theme.palette.text.primary, isDark ? 0.2 : 0.12);
+  const outlinedHoverBg = alpha(primaryMain, isDark ? 0.12 : 0.08);
 
   const { t, i18n } = useTranslation();
   const { formatCurrency, formatDateTime } = useLocaleFormatters(
     i18n.resolvedLanguage || i18n.language,
-    'USD', // change currency if needed
+    'USD',
   );
 
   const { order, loading, error, downloading, downloadInvoice } =
@@ -128,8 +151,9 @@ export default function OrderDetailPage() {
           overflowY: 'auto',
           mt: `${headerHeight}px`,
           mb: `${footerHeight}px`,
-          px: { xs: 2, md: 4 },
-          py: { xs: 2, md: 3 },
+          px: outerPx,
+          py: outerPy,
+          backgroundColor: theme.palette.background.default,
         }}
       >
         <Box
@@ -146,7 +170,16 @@ export default function OrderDetailPage() {
             {orderId}
           </Typography>
 
-          <Paper elevation={3} sx={{ p: isMobile ? 2 : 3, borderRadius: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: cardPadding,
+              borderRadius: radius,
+              boxShadow: cardShadow,
+              backgroundColor: theme.palette.background.paper,
+              border: `1px solid ${dividerColor}`,
+            }}
+          >
             <Typography variant="subtitle1" gutterBottom>
               <strong>{t('order.status', { defaultValue: 'Status' })}:</strong>{' '}
               {status}
@@ -213,14 +246,14 @@ export default function OrderDetailPage() {
               </Typography>
             )}
 
-            <Divider sx={{ my: 2 }} />
+            <Divider sx={{ my: 2, borderColor: dividerColor }} />
 
             <Typography variant="h6" gutterBottom>
               {t('order.items', { defaultValue: 'Items' })}
             </Typography>
             <List dense disablePadding>
               {items.map((item, idx) => (
-                <ListItem key={idx} disablePadding sx={{ py: 1 }}>
+                <ListItem key={idx} disablePadding sx={{ py: spacingScale }}>
                   <ListItemText
                     primary={`${item.name} × ${item.quantity}`}
                     secondary={`${t('order.price', {
@@ -230,13 +263,13 @@ export default function OrderDetailPage() {
                         ? formatCurrency(item.price)
                         : 'N/A'
                     }`}
-                    sx={{ pl: 1 }}
+                    sx={{ pl: spacingScale }}
                   />
                 </ListItem>
               ))}
             </List>
 
-            <Divider sx={{ my: 2 }} />
+            <Divider sx={{ my: 2, borderColor: dividerColor }} />
 
             <Typography variant="h6" gutterBottom>
               {t('order.timeline', { defaultValue: 'Order Timeline' })}
@@ -259,7 +292,7 @@ export default function OrderDetailPage() {
               </Typography>
             )}
 
-            <Divider sx={{ my: 2 }} />
+            <Divider sx={{ my: 2, borderColor: dividerColor }} />
 
             <Box mt={2} textAlign="center">
               <Button
@@ -267,6 +300,15 @@ export default function OrderDetailPage() {
                 variant="outlined"
                 fullWidth
                 disabled={downloading}
+                sx={{
+                  borderRadius: radius,
+                  color: primaryMain,
+                  borderColor: primaryMain,
+                  '&:hover': {
+                    backgroundColor: outlinedHoverBg,
+                    borderColor: primaryMain,
+                  },
+                }}
               >
                 {downloading ? (
                   <CircularProgress size={20} sx={{ color: 'inherit' }} />

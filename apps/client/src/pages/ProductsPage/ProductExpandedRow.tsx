@@ -1,27 +1,70 @@
 // src/pages/ProductsPage/ProductExpandedRow.tsx
 import React, { useMemo } from 'react';
-import { Box, Typography, CardMedia } from '@mui/material';
+import { Box, Typography, CardMedia, useTheme } from '@mui/material';
 import DOMPurify from 'dompurify';
 import type { IProduct } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-import { DASH, asDate } from '../../utils/columns.util'; // ← adjust path if needed
-import { useLocaleFormatters } from '../../hooks/useLocale'; // ← useLocale hook
+import { DASH, asDate } from '../../utils/columns.util';
+import { useLocaleFormatters } from '../../hooks/useLocale';
+import { useThemeStore } from '../../stores/useThemeStore';
 
 type Props = {
   product: IProduct;
   categoryName?: string;
 };
 
+const clamp = (n: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, n));
+
 const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
   const { t, i18n } = useTranslation();
+  const mui = useTheme();
+  const { themeSettings } = useThemeStore();
 
-  // ✅ Locale-aware memoized formatters via hook
+  // Theme-aware controls (same rhythm as OrderExpandedRow)
+  const isDark =
+    themeSettings?.darkMode ?? (mui.palette.mode === 'dark' ? true : false);
+  const spacingScale = Number(themeSettings?.spacingScale ?? 1);
+  const baseRadius =
+    (themeSettings?.borderRadius as number | undefined) ??
+    (mui.shape.borderRadius as number);
+  const radius = clamp(baseRadius, 6, 16);
+
+  // Grid gap
+  const unit = Math.max(1, Math.round(2 * spacingScale));
+  const gap = mui.spacing(unit);
+
+  // Section inner padding
+  const sectionPadX = {
+    xs: mui.spacing(1.25 * spacingScale),
+    sm: mui.spacing(1.5 * spacingScale),
+  };
+  const sectionPadY = {
+    xs: mui.spacing(1 * spacingScale),
+    sm: mui.spacing(1.25 * spacingScale),
+  };
+
+  // Section outer margin
+  const sectionMarginX = {
+    xs: mui.spacing(0.75 * spacingScale),
+    sm: mui.spacing(1 * spacingScale),
+  };
+  const sectionMarginY = {
+    xs: mui.spacing(0.75 * spacingScale),
+    sm: mui.spacing(1 * spacingScale),
+  };
+
+  const sectionBorder = `1px solid ${mui.palette.divider}`;
+  const sectionShadow = isDark ? mui.shadows[2] : mui.shadows[1];
+
+  // Locale-aware formatters
   const { formatCurrency, formatDateTime } = useLocaleFormatters(
     i18n.resolvedLanguage || i18n.language,
-    'USD', // change currency if needed
+    'USD',
   );
 
+  // Data mapping
   const img =
     Array.isArray(product.images) && product.images.length > 0
       ? product.images[0]
@@ -34,7 +77,6 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
     asDate((product as any)?.updatedAt) ??
     asDate((product as any)?.metadata?.updatedAt);
 
-  // Optional fields from schema/editor
   const sku = (product as any)?.sku as string | undefined;
   const brand = (product as any)?.brand as string | undefined;
   const description = (product as any)?.description as string | undefined; // HTML
@@ -52,62 +94,124 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
 
   const priceLabel =
     typeof product.price === 'number' ? formatCurrency(product.price) : DASH;
-  const stockLabel = typeof product.stock === 'number' ? product.stock : DASH;
+  const stockLabel =
+    typeof product.stock === 'number' ? String(product.stock) : DASH;
 
   const hasAttributes = attributes && Object.keys(attributes).length > 0;
 
+  // Reusable Section (inner padding + outer margins)
+  const Section: React.FC<
+    React.PropsWithChildren<{ title: React.ReactNode; gridSpan?: any }>
+  > = ({ title, gridSpan, children }) => (
+    <Box
+      sx={{
+        gridColumn: gridSpan,
+        // outer
+        mx: sectionMarginX,
+        my: sectionMarginY,
+        // inner
+        px: sectionPadX,
+        py: sectionPadY,
+
+        bgcolor: 'background.paper',
+        border: sectionBorder,
+        boxShadow: sectionShadow,
+
+        minWidth: 0,
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        wordBreak: 'break-word',
+        '& *': { minWidth: 0 },
+      }}
+    >
+      <Typography variant="subtitle2">{title}</Typography>
+      <Box sx={{ mt: 1 }}>{children}</Box>
+    </Box>
+  );
+
   return (
     <Box
-      display="grid"
-      gap={1.5}
-      gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }}
+      sx={{
+        display: 'grid',
+        gap,
+        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+      }}
     >
-      <Box display="flex" gap={1.5} alignItems="flex-start">
-        {img && (
-          <CardMedia
-            component="img"
-            image={img}
-            alt={product.name}
-            sx={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 1 }}
-          />
-        )}
-        <Box>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            {product.name}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {categoryName ?? DASH}
-          </Typography>
+      {/* Overview */}
+      <Section
+        title={t('productDetails.overview', { defaultValue: 'Overview' })}
+      >
+        <Box display="flex" gap={1.5} alignItems="flex-start">
+          {img && (
+            <CardMedia
+              component="img"
+              image={img}
+              alt={product.name}
+              sx={{
+                width: 72,
+                height: 72,
+                objectFit: 'cover',
+                borderRadius: 1.5,
+                flexShrink: 0,
+              }}
+            />
+          )}
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              {product.name}
+            </Typography>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                display: 'block',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%',
+              }}
+            >
+              {categoryName ?? DASH}
+            </Typography>
+          </Box>
         </Box>
-      </Box>
+      </Section>
 
-      <Box>
-        <Typography variant="subtitle2">
-          {t('productDetails.pricingStock')}
+      {/* Pricing & Stock */}
+      <Section
+        title={t('productDetails.pricingStock', {
+          defaultValue: 'Pricing & Stock',
+        })}
+      >
+        <Typography variant="body2">
+          {t('productDetails.price', { defaultValue: 'Price' })}: {priceLabel}
         </Typography>
         <Typography variant="body2">
-          {t('productDetails.price')}: {priceLabel}
-        </Typography>
-        <Typography variant="body2">
-          {t('productDetails.stock')}: {stockLabel}
+          {t('productDetails.stock', { defaultValue: 'Stock' })}: {stockLabel}
         </Typography>
         {sku && (
           <Typography variant="body2">
-            {t('productDetails.sku')}: {sku}
+            {t('productDetails.sku', { defaultValue: 'SKU' })}: {sku}
           </Typography>
         )}
         {brand && (
           <Typography variant="body2">
-            {t('productDetails.brand')}: {brand}
+            {t('productDetails.brand', { defaultValue: 'Brand' })}: {brand}
           </Typography>
         )}
-      </Box>
+      </Section>
 
-      <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-          {t('productDetails.description')}
-        </Typography>
-
+      {/* Description (spans two) */}
+      <Section
+        title={t('productDetails.description', {
+          defaultValue: 'Description',
+        })}
+        gridSpan={{ xs: 'auto', sm: '1 / span 2' }}
+      >
         {sanitizedDescription ? (
           <Box
             dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
@@ -128,13 +232,16 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
         ) : (
           <Typography variant="body2">{DASH}</Typography>
         )}
-      </Box>
+      </Section>
 
+      {/* Attributes (optional, spans two) */}
       {hasAttributes && (
-        <Box gridColumn={{ xs: '1', sm: '1 / span 2' }}>
-          <Typography variant="subtitle2">
-            {t('productDetails.attributes')}
-          </Typography>
+        <Section
+          title={t('productDetails.attributes', {
+            defaultValue: 'Attributes',
+          })}
+          gridSpan={{ xs: 'auto', sm: '1 / span 2' }}
+        >
           <Box component="ul" sx={{ pl: 3, my: 0 }}>
             {Object.entries(attributes!).map(([k, v]) => (
               <li key={k}>
@@ -147,26 +254,21 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
               </li>
             ))}
           </Box>
-        </Box>
+        </Section>
       )}
 
-      <Box>
-        <Typography variant="subtitle2">
-          {t('productDetails.created')}
-        </Typography>
+      {/* Created / Updated */}
+      <Section title={t('productDetails.created', { defaultValue: 'Created' })}>
         <Typography variant="body2">
           {created ? formatDateTime(created) : DASH}
         </Typography>
-      </Box>
+      </Section>
 
-      <Box>
-        <Typography variant="subtitle2">
-          {t('productDetails.updated')}
-        </Typography>
+      <Section title={t('productDetails.updated', { defaultValue: 'Updated' })}>
         <Typography variant="body2">
           {updated ? formatDateTime(updated) : DASH}
         </Typography>
-      </Box>
+      </Section>
     </Box>
   );
 };

@@ -1,16 +1,19 @@
+// src/pages/user/UserProductFilters.tsx
 import * as React from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   TextField,
   MenuItem,
   Stack,
-  useTheme,
   useMediaQuery,
+  useTheme,
+  Box,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import type { Dayjs } from 'dayjs';
+import { useTranslation } from 'react-i18next';
 
 import { useProductStore } from '../../stores/useProductStore';
+import { useThemeStore } from '../../stores/useThemeStore';
 import type { TCategory } from '@common/types';
 import FiltersFooterActions from '../../components/FiltersFooterActions';
 import RangeFilterSlider from '../../components/RangeFilterSlider';
@@ -22,8 +25,8 @@ const STOCK_MAX = 1_000;
 
 type Props = {
   categories: TCategory[];
-  onClose?: () => void; // for "Apply"
-  closeOnChange?: boolean; // auto-close on each change
+  onClose?: () => void; // drawer closer (used by Apply)
+  closeOnChange?: boolean; // optional: auto-close after each change
 };
 
 export default function UserProductFilters({
@@ -31,12 +34,31 @@ export default function UserProductFilters({
   onClose,
   closeOnChange = false,
 }: Props) {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // show Apply on mobile
+  const { t, i18n } = useTranslation();
+  const mui = useTheme();
+  const isMobile = useMediaQuery(mui.breakpoints.down('sm'));
 
+  // ---- Theme-aware rhythm (spacing/radius) ----
+  const { themeSettings } = useThemeStore();
+  const spacingScale = Number(themeSettings?.spacingScale ?? 1);
+  const radius =
+    (themeSettings?.borderRadius as number | undefined) ??
+    (mui.shape.borderRadius as number);
+
+  const gapUnit = Math.max(1, Math.round(2 * spacingScale));
+  const gap = mui.spacing(gapUnit);
+
+  const padX = {
+    xs: mui.spacing(1.5 * spacingScale),
+    sm: mui.spacing(2 * spacingScale),
+  };
+  const padY = {
+    xs: mui.spacing(1 * spacingScale),
+    sm: mui.spacing(1.25 * spacingScale),
+  };
+
+  // ---- Store state ----
   const {
-    // state
     searchTerm,
     selectedCategoryId,
     updatedFrom,
@@ -45,7 +67,6 @@ export default function UserProductFilters({
     maxPrice,
     minStock,
     maxStock,
-    // setters
     setSearchTerm,
     setSelectedCategoryId,
     setUpdatedFrom,
@@ -56,19 +77,28 @@ export default function UserProductFilters({
     setMaxStock,
   } = useProductStore();
 
+  // ---- Helpers ----
+  const currencyCode =
+    (themeSettings as any)?.currency ??
+    (i18n.language?.toUpperCase().startsWith('HE') ? 'ILS' : 'USD');
+
   const currency = (v: number) =>
-    `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    new Intl.NumberFormat((i18n.language || 'en').split('-')[0], {
+      style: 'currency',
+      currency: currencyCode,
+      maximumFractionDigits: 0,
+    }).format(v);
 
   const maybeClose = () => {
     if (closeOnChange && onClose) onClose();
   };
 
-  // Dates
   const onUpdatedFromChange = (d: Dayjs | null) => {
     if (d && updatedTo && d.isAfter(updatedTo)) setUpdatedTo(d);
     setUpdatedFrom(d);
     maybeClose();
   };
+
   const onUpdatedToChange = (d: Dayjs | null) => {
     if (d && updatedFrom && d.isBefore(updatedFrom)) setUpdatedFrom(d);
     setUpdatedTo(d);
@@ -81,111 +111,133 @@ export default function UserProductFilters({
     onClose?.();
   }, [onClose]);
 
+  // Clamp slider values safely
+  const priceMinClamped = Math.max(PRICE_MIN, Math.min(minPrice, PRICE_MAX));
+  const priceMaxClamped = Math.max(PRICE_MIN, Math.min(maxPrice, PRICE_MAX));
+  const stockMinClamped = Math.max(STOCK_MIN, Math.min(minStock, STOCK_MAX));
+  const stockMaxClamped = Math.max(STOCK_MIN, Math.min(maxStock, STOCK_MAX));
+
+  const handleReset = () => {
+    setSearchTerm('');
+    setSelectedCategoryId('');
+    setUpdatedFrom(null);
+    setUpdatedTo(null);
+    setMinPrice(PRICE_MIN);
+    setMaxPrice(PRICE_MAX);
+    setMinStock(STOCK_MIN);
+    setMaxStock(STOCK_MAX);
+  };
+
   return (
-    <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, py: 1 }}>
-      {/* Search */}
-      <TextField
-        label={t('actions.searchPlaceholder', { defaultValue: 'Search…' })}
-        placeholder={t('actions.searchPlaceholder', {
-          defaultValue: 'Search…',
-        })}
-        size="small"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && maybeClose()}
-        fullWidth
-      />
-
-      {/* Category */}
-      <TextField
-        label={t('table.category', { defaultValue: 'Category' })}
-        select
-        size="small"
-        value={selectedCategoryId}
-        onChange={(e) => {
-          setSelectedCategoryId(e.target.value);
-          maybeClose();
-        }}
-        fullWidth
-      >
-        <MenuItem value="">{t('common.all', { defaultValue: 'All' })}</MenuItem>
-        {categories.map((c) => (
-          <MenuItem key={c.id} value={c.id}>
-            {c.name}
-          </MenuItem>
-        ))}
-      </TextField>
-
-      {/* Updated From / To */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-        <DatePicker
-          label={t('filters.updatedFrom', { defaultValue: 'Updated From' })}
-          value={updatedFrom ?? null}
-          onChange={onUpdatedFromChange}
-          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+    <Box
+      sx={{
+        borderRadius: radius,
+        bgcolor: 'background.paper',
+        boxSizing: 'border-box',
+      }}
+    >
+      <Stack spacing={gap} sx={{ px: padX, py: padY }}>
+        {/* Search */}
+        <TextField
+          label={t('filters.search')}
+          size="small"
+          type="search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && maybeClose()}
+          fullWidth
+          placeholder={t('actions.searchPlaceholder')}
+          inputProps={{
+            inputMode: 'search',
+            'aria-label': t('filters.search') as string,
+          }}
+          autoComplete="off"
         />
-        <DatePicker
-          label={t('filters.updatedTo', { defaultValue: 'Updated To' })}
-          value={updatedTo ?? null}
-          onChange={onUpdatedToChange}
-          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+
+        {/* Category */}
+        <TextField
+          label={t('table.category')}
+          select
+          size="small"
+          value={selectedCategoryId}
+          onChange={(e) => {
+            setSelectedCategoryId(e.target.value);
+            maybeClose();
+          }}
+          fullWidth
+        >
+          <MenuItem value="">{t('filters.all')}</MenuItem>
+          {categories.map((c) => (
+            <MenuItem key={c.id} value={c.id}>
+              {c.name}
+            </MenuItem>
+          ))}
+        </TextField>
+
+        {/* Updated From / To */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={gap}>
+          <DatePicker
+            label={t('filters.updatedFrom')}
+            value={updatedFrom ?? null}
+            onChange={onUpdatedFromChange}
+            reduceAnimations={isMobile}
+            slotProps={{
+              textField: { fullWidth: true, size: 'small' },
+              openPickerButton: { size: 'small' },
+            }}
+          />
+          <DatePicker
+            label={t('filters.updatedTo')}
+            value={updatedTo ?? null}
+            onChange={onUpdatedToChange}
+            reduceAnimations={isMobile}
+            slotProps={{
+              textField: { fullWidth: true, size: 'small' },
+              openPickerButton: { size: 'small' },
+            }}
+          />
+        </Stack>
+
+        {/* Price range */}
+        <RangeFilterSlider
+          label={t('filters.priceRange')}
+          min={PRICE_MIN}
+          max={PRICE_MAX}
+          step={50}
+          value={[priceMinClamped, priceMaxClamped]}
+          formatValue={currency}
+          onChange={(min, max) => {
+            setMinPrice(min);
+            setMaxPrice(max);
+          }}
+          onCommit={maybeClose}
+        />
+
+        {/* Stock range */}
+        <RangeFilterSlider
+          label={t('filters.stockRange')}
+          min={STOCK_MIN}
+          max={STOCK_MAX}
+          step={1}
+          value={[stockMinClamped, stockMaxClamped]}
+          onChange={(min, max) => {
+            setMinStock(min);
+            setMaxStock(max);
+          }}
+          onCommit={maybeClose}
         />
       </Stack>
 
-      {/* Price range */}
-      <RangeFilterSlider
-        label={t('filters.priceRange', { defaultValue: 'Price range' })}
-        min={PRICE_MIN}
-        max={PRICE_MAX}
-        step={50}
-        value={[
-          Math.max(PRICE_MIN, Math.min(minPrice, PRICE_MAX)),
-          Math.max(PRICE_MIN, Math.min(maxPrice, PRICE_MAX)),
-        ]}
-        formatValue={currency}
-        onChange={(min, max) => {
-          setMinPrice(min);
-          setMaxPrice(max);
-        }}
-        onCommit={maybeClose}
-      />
-
-      {/* Stock range */}
-      <RangeFilterSlider
-        label={t('filters.stockRange', { defaultValue: 'Stock range' })}
-        min={STOCK_MIN}
-        max={STOCK_MAX}
-        step={1}
-        value={[
-          Math.max(STOCK_MIN, Math.min(minStock, STOCK_MAX)),
-          Math.max(STOCK_MIN, Math.min(maxStock, STOCK_MAX)),
-        ]}
-        onChange={(min, max) => {
-          setMinStock(min);
-          setMaxStock(max);
-        }}
-        onCommit={maybeClose}
-      />
-
-      {/* Footer actions */}
-      <FiltersFooterActions
-        onReset={() => {
-          setSearchTerm('');
-          setSelectedCategoryId('');
-          setUpdatedFrom(null);
-          setUpdatedTo(null);
-          setMinPrice(PRICE_MIN);
-          setMaxPrice(PRICE_MAX);
-          setMinStock(STOCK_MIN);
-          setMaxStock(STOCK_MAX);
-        }}
-        onApply={handleApply}
-        showApply={isMobile}
-        size="small"
-        minButtonWidth={120}
-        resetLabel={t('filters.reset', { defaultValue: 'Reset filters' })}
-        applyLabel={t('common.apply', { defaultValue: 'Apply' })}
-      />
-    </Stack>
+      {/* Footer actions (sticky within drawer, consistent spacing) */}
+      <Box sx={{ px: padX, pb: padY }}>
+        <FiltersFooterActions
+          onReset={handleReset}
+          onApply={handleApply}
+          showApply={isMobile}
+          size="small"
+          minButtonWidth={120}
+        />
+      </Box>
+    </Box>
   );
 }

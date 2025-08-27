@@ -1,13 +1,25 @@
 // src/components/orders/OrderCard.tsx
-import React from 'react';
-import { Paper, Typography, Divider, Chip, Link, Box } from '@mui/material';
+import * as React from 'react';
+import {
+  Paper,
+  Typography,
+  Divider,
+  Chip,
+  Link,
+  Box,
+  useTheme,
+  type ChipProps,
+} from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
 import type { TOrder as Order } from '@common/types';
 import { DASH } from '../../utils/columns.util';
 import { useTranslation } from 'react-i18next';
 import { useLocaleFormatters } from '../../hooks/useLocale';
+import { useThemeStore } from '../../stores/useThemeStore';
 
-function getStatusColor(status: string) {
+// Map order status → Chip color (typed)
+function getStatusColor(status: string): ChipProps['color'] {
   switch (status) {
     case 'processing':
       return 'warning';
@@ -22,7 +34,7 @@ function getStatusColor(status: string) {
   }
 }
 
-// Local, minimal date coercion (handles Date | string | number | Firestore-like)
+// Coerce Date | string | number | Firestore-like to Date
 function toMaybeDate(value: unknown): Date | undefined {
   if (!value) return undefined;
   if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
@@ -54,27 +66,68 @@ function toMaybeDate(value: unknown): Date | undefined {
 type Props = { order: Order };
 
 const OrderCard: React.FC<Props> = ({ order }) => {
+  const theme = useTheme();
+  const { themeSettings } = useThemeStore();
+
   const { i18n } = useTranslation();
   const { formatCurrency, formatDateTime } = useLocaleFormatters(
     i18n.resolvedLanguage || i18n.language,
-    'USD', // change currency if needed
+    'USD',
   );
+
+  // ---- Theme-aware tokens from store + theme
+  const isDark =
+    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const spacingScale = Number(themeSettings?.spacingScale ?? 1);
+  const radius = (themeSettings?.borderRadius ??
+    theme.shape.borderRadius) as number;
+
+  // Scalars that respect spacing scale
+  const pad = 2 * spacingScale;
+
+  // Background that respects CSS vars when available
+  const paperBg = theme.vars?.palette?.background?.paperChannel
+    ? `rgba(${theme.vars.palette.background.paperChannel} / 1)`
+    : theme.palette.background.paper;
+
+  // Outlines & shadows tuned for light/dark
+  const outline =
+    theme.vars?.palette?.divider ??
+    alpha(theme.palette.text.primary, isDark ? 0.22 : 0.12);
+
+  const hoverOutline =
+    theme.vars?.palette?.divider ??
+    alpha(theme.palette.primary.main, isDark ? 0.35 : 0.22);
+
+  const baseShadow = isDark ? theme.shadows[3] : theme.shadows[1];
+  const hoverShadow = isDark ? theme.shadows[6] : theme.shadows[3];
 
   const created =
     toMaybeDate(order.createdAt) ?? toMaybeDate(order.metadata?.createdAt);
 
   return (
     <Paper
-      elevation={3}
+      elevation={0}
       sx={{
-        p: 3,
-        borderRadius: 3,
+        p: pad,
+        borderRadius: radius,
         width: '100%',
         maxWidth: '100%',
         minWidth: 0,
+        bgcolor: paperBg,
+        border: '1px solid',
+        borderColor: outline,
+        boxShadow: baseShadow,
+        transition:
+          'box-shadow .2s ease, border-color .2s ease, transform .15s ease',
+        '&:hover': {
+          boxShadow: hoverShadow,
+          borderColor: hoverOutline,
+          transform: 'translateY(-1px)',
+        },
       }}
     >
-      <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 0.5 }}>
+      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
         <Link
           component={RouterLink}
           to={`/order/${order.id}`}
@@ -91,7 +144,7 @@ const OrderCard: React.FC<Props> = ({ order }) => {
           <Box component="span">Order #</Box>
           <Box
             component="span"
-            title={order.id} // full id on hover
+            title={order.id}
             sx={{
               minWidth: 0,
               flex: '1 1 auto',
@@ -110,24 +163,30 @@ const OrderCard: React.FC<Props> = ({ order }) => {
         label={order.status}
         color={getStatusColor(order.status)}
         size="small"
-        sx={{ my: 1 }}
+        sx={{ my: spacingScale * 0.5 }}
       />
 
-      <Typography variant="body2">
+      <Typography variant="body2" sx={{ mb: 0.25 }}>
         Date: {created ? formatDateTime(created) : DASH}
       </Typography>
 
-      {/* Static placeholders; wire to real payment/shipping when available */}
-      <Typography variant="body2">Paid with: Visa ending in 4242</Typography>
-      <Typography variant="body2">Shipping: Express Delivery</Typography>
-      <Typography variant="body2">Delivery ETA: July 8, 2025</Typography>
+      {/* Placeholders for now; style as secondary to de-emphasize */}
+      <Typography variant="body2" color="text.secondary">
+        Paid with: Visa ending in 4242
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        Shipping: Express Delivery
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+        Delivery ETA: July 8, 2025
+      </Typography>
 
-      <Typography variant="body2" gutterBottom>
+      <Typography variant="body2" fontWeight={600} gutterBottom>
         Total:{' '}
         {typeof order.amount === 'number' ? formatCurrency(order.amount) : DASH}
       </Typography>
 
-      <Divider sx={{ my: 1 }} />
+      <Divider sx={{ my: spacingScale * 1 }} />
 
       <Box component="ul" sx={{ m: 0, p: 0, pl: 2 }}>
         {(order.items ?? []).map((item, idx) => (

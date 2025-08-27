@@ -1,6 +1,7 @@
 // src/pages/MyOrdersPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Divider } from '@mui/material';
+import * as React from 'react';
+import { Box, Divider, useMediaQuery, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
@@ -36,12 +37,37 @@ import PageContainer from '../../components/PageContainer';
 import ResponsiveCardsGrid from '../../components/ResponsiveCardsGrid';
 import RightFiltersDrawer from '../../components/RightFiltersDrawer';
 import { useTranslation } from 'react-i18next';
+import { useThemeStore } from '../../stores/useThemeStore';
 
 export default function MyOrdersPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // ✅ Build columns via hook (stable hook order, reacts to locale changes)
+  // 🧩 Theme store → theme-aware tokens
+  const { themeSettings } = useThemeStore();
+  const isDark =
+    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const spacingScale = Number(themeSettings?.spacingScale ?? 1);
+  const radius = (themeSettings?.borderRadius ??
+    theme.shape.borderRadius) as number;
+  const brand = themeSettings?.primaryColor || theme.palette.primary.main;
+
+  // Derived design values (keep sx scalar-friendly)
+  const unit = Math.max(1, Math.round(2 * spacingScale));
+  const gapY = Math.max(2, unit); // vertical rhythm
+  const stickyShadow = isDark ? theme.shadows[3] : theme.shadows[1];
+  const dividerColor =
+    theme.vars?.palette?.divider ??
+    alpha(theme.palette.text.primary, isDark ? 0.2 : 0.12);
+  const stickyBg = theme.vars?.palette?.background?.paperChannel
+    ? `rgba(${theme.vars.palette.background.paperChannel} / 0.9)`
+    : alpha(theme.palette.background.paper, 0.92);
+  const stickyBorder =
+    theme.vars?.palette?.divider ?? alpha(brand, isDark ? 0.25 : 0.18);
+
+  // ✅ Build columns via hook (reacts to locale changes)
   const columns = useOrderColumns();
 
   // Table state (Zustand)
@@ -75,10 +101,10 @@ export default function MyOrdersPage() {
     resetFilters,
   } = useOrderFilterStore();
 
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
 
   // Fetch orders
-  useEffect(() => {
+  React.useEffect(() => {
     if (!user) return;
 
     const loadOrders = async () => {
@@ -98,7 +124,7 @@ export default function MyOrdersPage() {
   }, [user, setOrders, setLoading]);
 
   // Apply page-level filters
-  const filteredOrders = useMemo(() => {
+  const filteredOrders = React.useMemo(() => {
     const q = (searchTerm ?? '').toLowerCase();
 
     return orders.filter((order) => {
@@ -139,7 +165,7 @@ export default function MyOrdersPage() {
     setViewMode(v as ViewMode),
   );
 
-  useEffect(() => {
+  React.useEffect(() => {
     return () => {
       resetFilters();
     };
@@ -172,15 +198,20 @@ export default function MyOrdersPage() {
       subject={EAbilitySubjects.ORDERS}
     >
       <PageContainer>
-        {/* Sticky header controls */}
+        {/* Sticky header controls (theme-aware) */}
         <Box
           sx={{
             position: 'sticky',
             top: 0,
             zIndex: 5,
-            bgcolor: 'background.paper',
-            py: 1,
+            bgcolor: stickyBg,
+            backdropFilter: 'saturate(140%) blur(8px)',
+            borderBottom: `1px solid ${stickyBorder}`,
+            py: gapY * 0.5,
+            px: { xs: 1, sm: 2 },
             mb: 1,
+            borderRadius: { xs: 0, sm: radius },
+            boxShadow: stickyShadow,
           }}
         >
           <TopActionBar
@@ -188,10 +219,12 @@ export default function MyOrdersPage() {
             onChangeView={(m) => setViewMode(m as ViewMode)}
             onOpenFilters={() => setFiltersOpen(true)}
             onResetFilters={resetAllFilters}
+            // Give buttons a consistent width scaled by spacing
+            buttonWidth={isSmDown ? 'auto' : 120 + 8 * (unit - 2)}
           />
         </Box>
 
-        <Divider sx={{ mb: 2 }} />
+        <Divider sx={{ mb: 2, borderColor: dividerColor }} />
 
         {filteredOrders.length === 0 ? (
           <NotFound message={t('empty.noOrders')} />

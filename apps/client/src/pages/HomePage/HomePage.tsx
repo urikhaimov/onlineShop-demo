@@ -17,7 +17,6 @@ export default function HomePage() {
   if (error || !data) return null;
 
   // This must be the *raw* server object:
-  console.log('data from server:', data); // should show cards & bentoCards
 
   return <LandingLayoutRenderer data={data} />;
 }

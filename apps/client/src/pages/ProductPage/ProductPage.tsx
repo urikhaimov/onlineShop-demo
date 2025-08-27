@@ -1,4 +1,5 @@
 // src/pages/ProductPage/index.tsx
+import * as React from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
@@ -10,10 +11,11 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { darken } from '@mui/material/styles';
+import DOMPurify from 'dompurify';
+
+import ImageGallery from '../../components/ImageGallery';
 import { useCartStore } from '../../stores/useCartStore';
 import { useThemeStore } from '../../stores/useThemeStore';
-import DOMPurify from 'dompurify';
-import ImageGallery from '../../components/ImageGallery';
 import { useProductById } from '../../hooks/useProductById';
 import { headerHeight, footerHeight } from '../../config/themeConfig';
 import LoadingProgress from '../../components/LoadingProgress';
@@ -25,14 +27,22 @@ import {
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
-  const addToCart = useCartStore((state) => state.addToCart);
-
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
+  // 🧩 Theme store (brand + shape + scale)
   const { themeSettings } = useThemeStore();
-  const primaryColor = themeSettings?.primaryColor || '#1976d2';
-  const borderRadius = themeSettings?.borderRadius ?? 8;
+  const isDark =
+    themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
+  const spacingScale = Number(themeSettings?.spacingScale ?? 1);
+  const radius = (themeSettings?.borderRadius ??
+    theme.shape.borderRadius) as number;
+  const primaryMain = themeSettings?.primaryColor || theme.palette.primary.main;
+
+  // Derive spacing units once (kept simple to avoid Sx array types)
+  const unit = Math.max(1, Math.round(2 * spacingScale));
+
+  const addToCart = useCartStore((s) => s.addToCart);
 
   const {
     data: product,
@@ -57,6 +67,11 @@ export default function ProductPage() {
       ? product.stock
       : Number(product.stock ?? 0);
 
+  const price = Number(product.price || 0);
+
+  // Dark/light tuned shadow
+  const cardShadow = isDark ? theme.shadows[4] : theme.shadows[2];
+
   return (
     <PageLayout
       action={EAbilityActions.READ}
@@ -66,67 +81,102 @@ export default function ProductPage() {
         sx={{
           height: `calc(100vh - ${headerHeight + footerHeight}px)`,
           overflowY: 'auto',
-          px: { xs: 2, md: 6 },
-          py: { xs: 2, md: 4 },
+          px: { xs: 2, md: 3 * unit }, // scales with spacing
+          py: { xs: 2, md: 2 * unit },
           mt: `${headerHeight}px`,
           mb: `${footerHeight}px`,
+          backgroundColor: theme.palette.background.default,
         }}
       >
         <Stack
           direction={{ xs: 'column', md: 'row' }}
-          spacing={4}
+          spacing={2 * unit}
           alignItems="flex-start"
         >
-          {/* Left - Images */}
+          {/* Left — Images */}
           <Box flex={1} minWidth={0}>
             <ImageGallery images={product.images || []} />
           </Box>
 
-          {/* Right - Product info */}
+          {/* Right — Details */}
           <Box flex={1} minWidth={0}>
-            <Paper elevation={3} sx={{ p: 3, borderRadius }}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: { xs: 2 * spacingScale, md: 3 * spacingScale },
+                borderRadius: radius,
+                boxShadow: cardShadow,
+                backgroundColor: theme.palette.background.paper,
+              }}
+            >
               <Typography variant="h4" gutterBottom>
                 {product.name}
               </Typography>
 
               <Typography variant="h6" color="text.secondary" gutterBottom>
-                ${Number(product.price || 0).toFixed(2)}
+                ${price.toFixed(2)}
               </Typography>
 
+              {/* Description (sanitized) */}
               <Box
-                sx={{ mb: 2 }}
+                sx={{ mb: 2 * spacingScale }}
                 dangerouslySetInnerHTML={{
                   __html: DOMPurify.sanitize(product.description || ''),
                 }}
               />
 
-              <Typography sx={{ mb: 1 }}>
-                Stock: {stockCount > 0 ? stockCount : 'Out of stock'}
+              {/* Stock */}
+              <Typography sx={{ mb: spacingScale }}>
+                Stock:{' '}
+                {stockCount > 0 ? (
+                  stockCount < 5 ? (
+                    <Box
+                      component="span"
+                      sx={{ color: 'warning.main', fontWeight: 600 }}
+                    >
+                      {stockCount} left
+                    </Box>
+                  ) : (
+                    <Box
+                      component="span"
+                      sx={{ color: 'success.main', fontWeight: 600 }}
+                    >
+                      {stockCount}
+                    </Box>
+                  )
+                ) : (
+                  <Box
+                    component="span"
+                    sx={{ color: 'error.main', fontWeight: 600 }}
+                  >
+                    Out of stock
+                  </Box>
+                )}
               </Typography>
 
+              {/* CTA */}
               <Button
                 variant="contained"
                 fullWidth={isMobile}
                 disableElevation
                 disabled={stockCount <= 0}
-                onClick={() => addToCart(product)} // ✅ just pass the product
+                onClick={() => addToCart(product)}
                 sx={{
                   height: 44,
-                  borderRadius,
-                  background: `${primaryColor} !important`,
-                  backgroundImage: 'none !important',
+                  borderRadius: radius,
+                  // brand color from store; keep hover cohesive
+                  backgroundColor: primaryMain,
                   color: '#fff',
                   boxShadow: 'none',
                   '&:hover': {
-                    background: `${darken(primaryColor, 0.12)} !important`,
-                    backgroundImage: 'none !important',
+                    backgroundColor: darken(primaryMain, 0.12),
                     boxShadow: 'none',
                   },
                   '&.Mui-disabled': {
-                    background: (t) =>
-                      `${t.palette.action.disabledBackground} !important`,
+                    backgroundColor: (t) => t.palette.action.disabledBackground,
                     color: (t) => t.palette.action.disabled,
                   },
+                  mt: spacingScale,
                 }}
               >
                 Add to Cart
