@@ -60,7 +60,7 @@ export function makeNumberColumn<T extends object>(
     },
   };
 }
-export const createdAtColumn: ColumnDef<IProduct> = {
+export const makeDateColumn: ColumnDef<IProduct> = {
   accessorKey: 'createdAt',
   header: 'Created At',
   enableColumnFilter: true,

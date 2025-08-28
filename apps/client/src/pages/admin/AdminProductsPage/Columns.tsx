@@ -20,7 +20,7 @@ import { useLocaleFormatters } from '../../../hooks/useLocale';
 // ⬇️ Reusable presets/factories
 import {
   makeNumberColumn,
-  createdAtColumn,
+  makeDateColumn,
   makeCurrencyColumn,
 } from '../../../utils/columnPresets'; // <-- adjust path if needed
 
@@ -60,11 +60,11 @@ function buildProductColumns(
 
   // Created At — reuse preset, override filter + localized cell
   const createdCol: ColumnDef<IProduct> = {
-    ...createdAtColumn,
+    ...makeDateColumn,
     size: 160,
     filterFn: betweenDateRange,
     meta: {
-      ...(createdAtColumn.meta ?? {}),
+      ...(makeDateColumn.meta ?? {}),
       filterVariant: 'date',
       hiddenOnMobile: true,
       align: 'left',
