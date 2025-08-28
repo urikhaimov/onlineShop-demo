@@ -55,7 +55,10 @@ export function defineAdminOrderColumns(
     cell: ({ row }) => {
       const d =
         asDate(row.original.createdAt) ??
-        asDate((row.original as any)?.metadata?.createdAt);
+        asDate(
+          (row.original as { metadata?: { createdAt?: string | Date } })
+            ?.metadata?.createdAt,
+        );
       return d ? dateTimeFmt(d) : DASH;
     },
   };

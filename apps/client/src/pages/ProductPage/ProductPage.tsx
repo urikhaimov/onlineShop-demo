@@ -27,6 +27,7 @@ import {
 
 // ✅ Reusable container utils
 import { contentBoxSx, getLayoutTokens } from '../../utils/uiLayout';
+import { CDefaultCurrencySymbol } from '@common/types';
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
@@ -138,7 +139,7 @@ export default function ProductPage() {
                   <Typography variant="h4">{product.name}</Typography>
 
                   <Typography variant="h6" color="text.secondary">
-                    ${price.toFixed(2)}
+                    {CDefaultCurrencySymbol} {price.toFixed(2)}
                   </Typography>
 
                   {/* Description (sanitized) */}

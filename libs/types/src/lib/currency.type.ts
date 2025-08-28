@@ -13,3 +13,4 @@ export const CURRENCY_SYMBOL: Record<ECurrency, string> = {
   GBP: '£',
   ILS: '₪',
 };
+export const CDefaultCurrencySymbol = CURRENCY_SYMBOL.ILS;
