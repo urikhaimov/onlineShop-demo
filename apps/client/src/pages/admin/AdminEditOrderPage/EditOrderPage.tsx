@@ -21,28 +21,19 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { useOrder, useUpdateOrder, Order } from '../../../hooks/useOrder';
-import LoadingProgress from '../../../components/LoadingProgress';
-import FormTextField from '../../../components/FormTextField';
+import LoadingProgress from '@client/components/LoadingProgress';
+import FormTextField from '@client/components/FormTextField';
 import OrderSummaryCard from './components/OrderSummaryCard';
 import OrderItemsTable from './components/OrderItemsTable';
 import OrderStatusBadge from './components/OrderStatusBadge';
-import { useForm } from 'react-hook-form';
-import type { SubmitHandler } from 'react-hook-form';
-
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { ESTATUS_OPTIONS } from '@common/types';
 // ✅ Reusable page card layout
-import PageCard from '../../../layouts/PageCard';
+import PageCard from '@client/layouts/PageCard';
 
 // For inner paper radius
 import { useThemeStore } from '../../../stores/useThemeStore';
 import { getLayoutTokens } from '../../../utils/uiLayout';
-
-const STATUS_OPTIONS = [
-  'pending',
-  'confirmed',
-  'shipped',
-  'delivered',
-  'cancelled',
-] as const;
 
 export default function EditOrderPage() {
   const { t } = useTranslation();
@@ -125,7 +116,7 @@ export default function EditOrderPage() {
                   required
                   fullWidth
                 >
-                  {STATUS_OPTIONS.map((value) => (
+                  {Object.values(ESTATUS_OPTIONS).map((value) => (
                     <MenuItem key={value} value={value}>
                       {t(`status.${value}`, { defaultValue: value })}
                     </MenuItem>

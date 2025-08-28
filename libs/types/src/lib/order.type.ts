@@ -59,3 +59,11 @@ export type TOrder = {
     updatedAt?: FirestoreDate;
   };
 };
+
+export enum ESTATUS_OPTIONS {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  SHIPPED = 'shipped',
+  DELIVERED = 'delivered',
+  CANCELLED = 'cancelled',
+}

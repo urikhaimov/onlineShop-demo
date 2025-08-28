@@ -13,7 +13,6 @@ function useOrder(id?: string) {
   return useQuery<Order, Error>({
     queryKey: ['order', id],
     queryFn: async () => {
-      if (!id) throw new Error('Order ID is required');
       const { data } = await fetchOrderById(id);
       return data;
     },
