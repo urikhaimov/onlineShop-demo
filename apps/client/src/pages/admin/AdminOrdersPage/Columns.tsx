@@ -28,7 +28,7 @@ export function defineAdminOrderColumns(
 ): ColumnDef<TOrder>[] {
   // Compute once per invocation and reuse
   const lng = getLocale(i18n.resolvedLanguage || i18n.language);
-  const currencyFmt = makeCurrencyFormatter(lng, ECurrency.USD); // change currency if needed
+  const currencyFmt = makeCurrencyFormatter(lng); // change currency if needed
   const dateTimeFmt = makeDateTimeFormatter(lng);
 
   // Amount column via reusable factory

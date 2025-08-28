@@ -1,4 +1,4 @@
-import { CURRENCY_SYMBOL, IStoreConfig as StoreConfig } from '@common/types';
+import { CDefaultCurrency, IStoreConfig as StoreConfig } from '@common/types';
 export const storesConfig: Record<string, StoreConfig> = {
   'tech-store': {
     storeId: 'tech-store',
@@ -7,7 +7,7 @@ export const storesConfig: Record<string, StoreConfig> = {
     logoUrl: '/assets/tech-logo.svg',
     font: 'Roboto',
     layout: 'grid',
-    currency: CURRENCY_SYMBOL.USD,
+    currency: CDefaultCurrency,
     stripeKey: 'pk_test_tech_1234',
     mode: 'light',
   },
@@ -18,7 +18,7 @@ export const storesConfig: Record<string, StoreConfig> = {
     logoUrl: '/assets/fashion-logo.svg',
     font: 'Playfair Display',
     layout: 'list',
-    currency: CURRENCY_SYMBOL.EUR,
+    currency: CDefaultCurrency,
     stripeKey: 'pk_test_fashion_5678',
     mode: 'dark',
   },

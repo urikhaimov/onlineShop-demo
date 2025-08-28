@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import { IStoreConfig as StoreConfig, CURRENCY_SYMBOL } from '@common/types';
+import { IStoreConfig as StoreConfig, CDefaultCurrency } from '@common/types';
 
 // A safe fallback config that satisfies all required fields
 export const defaultConfig: StoreConfig = {
@@ -9,7 +9,7 @@ export const defaultConfig: StoreConfig = {
   logoUrl: '/assets/default-logo.svg',
   font: 'Arial',
   layout: 'grid',
-  currency: CURRENCY_SYMBOL.USD,
+  currency: CDefaultCurrency,
   stripeKey: 'pk_test_default_123456',
   mode: 'light',
 };

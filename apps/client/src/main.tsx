@@ -16,7 +16,6 @@ import { RedirectProvider } from './context/RedirectContext';
 import { AuthProvider } from './context/AuthContext';
 import { AbilityContext } from './context/AbilityContext';
 import { defineAbilityFor } from './services/ability.service';
-import { loadStoreConfig } from './utils/loadStoreConfig';
 
 // IMPORTANT: AppProviders must NOT wrap ThemeProvider/CssVarsProvider
 import AppProviders from './providers/AppProviders';
@@ -25,7 +24,6 @@ import 'react-quill/dist/quill.snow.css';
 import './styles.less';
 
 const storeId = localStorage.getItem('storeId') || 'store1';
-const storeConfig = loadStoreConfig(storeId) ?? defaultConfig;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -34,21 +32,19 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <ErrorBoundary
           fallback={<p>⚠ Something went wrong. Our team has been notified!</p>}
         >
-          <StoreConfigContext.Provider value={storeConfig}>
-            <QueryClientProvider client={queryClient}>
-              <AuthProvider>
-                <AbilityContext.Provider
-                  value={defineAbilityFor({ user: null, role: null })}
-                >
-                  <RedirectProvider>
-                    <AppProviders>
-                      <App />
-                    </AppProviders>
-                  </RedirectProvider>
-                </AbilityContext.Provider>
-              </AuthProvider>
-            </QueryClientProvider>
-          </StoreConfigContext.Provider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <AbilityContext.Provider
+                value={defineAbilityFor({ user: null, role: null })}
+              >
+                <RedirectProvider>
+                  <AppProviders>
+                    <App />
+                  </AppProviders>
+                </RedirectProvider>
+              </AbilityContext.Provider>
+            </AuthProvider>
+          </QueryClientProvider>
         </ErrorBoundary>
       </BrowserRouter>
     </StoreBoundThemeProvider>

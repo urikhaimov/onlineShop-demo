@@ -29,7 +29,7 @@ import {
   EAbilitySubjects,
 } from '../../services/ability.service';
 import { useTranslation } from 'react-i18next';
-import { CURRENCY_SYMBOL } from '@common/types';
+import { CDefaultCurrency } from '@common/types';
 
 const StripeProvider = React.lazy(() => import('../../stripe/StripeProvider'));
 
@@ -149,7 +149,7 @@ export default function CheckoutPage() {
                   {t('checkout.total', { defaultValue: 'Total' })}:{' '}
                   {(total / 100).toFixed(2)}{' '}
                   {t('checkout.currency', {
-                    defaultValue: CURRENCY_SYMBOL.USD,
+                    defaultValue: CDefaultCurrency,
                   })}
                 </Typography>
               </Stack>

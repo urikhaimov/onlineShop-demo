@@ -5,7 +5,7 @@ export enum ECurrency {
   ILS = 'ILS', // Israeli New Shekel
 }
 
-export const CDefaultCurrency = ECurrency.USD;
+export const CDefaultCurrency = ECurrency.ILS;
 
 export const CURRENCY_SYMBOL: Record<ECurrency, string> = {
   USD: '$',
