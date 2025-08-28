@@ -50,7 +50,8 @@
     "category": "Category",
     "stock": "Stock",
     "price": "Price",
-    "created": "Created"
+    "created": "Created",
+    "addToCart": "add to cart"
   },
   "filters": {
     "open": "Filters",
@@ -382,5 +383,11 @@
     "errors": {
       "generic": "Something went wrong during order confirmation."
     }
+  },
+
+  "accessDenied": {
+    "title": "Access Denied",
+    "message": "You don't have permission to view this page.",
+    "cta": "Go home"
   }
 }

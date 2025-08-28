@@ -88,19 +88,7 @@ export default function MenuContent() {
         // },
       ];
     }
-    return [
-      {
-        label: t('settings.settings'),
-        icon: <SettingsRoundedIcon />,
-        path: '/settings',
-      },
-      { label: t('settings.about'), icon: <InfoRoundedIcon />, path: '/about' },
-      {
-        label: t('settings.feedback'),
-        icon: <HelpRoundedIcon />,
-        path: '/feedback',
-      },
-    ];
+    return [];
   }, [role, t]);
 
   return (
