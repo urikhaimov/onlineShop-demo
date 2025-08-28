@@ -18,7 +18,7 @@ export function useLocale() {
 export function useLocaleFormatters(currency = CDefaultCurrency) {
   const lng = useLocale();
   const formatCurrency = useMemo(
-    () => makeCurrencyFormatter(lng, currency),
+    () => makeCurrencyFormatter(),
     [lng, currency],
   );
   const formatDateTime = useMemo(() => makeDateTimeFormatter(lng), [lng]);
