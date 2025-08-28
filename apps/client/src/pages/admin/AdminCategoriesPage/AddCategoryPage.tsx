@@ -1,7 +1,7 @@
 // src/pages/admin/categories/AddCategoryPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Snackbar, Alert, Paper, Stack } from '@mui/material';
+import { Typography, Snackbar, Alert, Stack } from '@mui/material';
 import CategoryForm, { CategoryFormValues } from './CategoryForm';
 import { PageLayout } from '../../../layouts/page.layout';
 import {
@@ -13,20 +13,12 @@ import { useTranslation } from 'react-i18next';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 
-import { headerHeight, footerHeight } from '../../../config/themeConfig';
-import { useThemeStore } from '../../../stores/useThemeStore';
-import {
-  contentBoxSx,
-  contentPaperSx,
-  getLayoutTokens,
-} from '../../../utils/uiLayout';
+// ✅ Reusable centered card with inner padding
+import PageCard from '../../../layouts/PageCard';
 
 export default function AddCategoryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-
-  const { themeSettings } = useThemeStore();
-  const { radius, contentMax } = getLayoutTokens(themeSettings, 'form');
 
   const [okOpen, setOkOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -56,33 +48,31 @@ export default function AddCategoryPage() {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      <Box sx={contentBoxSx(headerHeight, footerHeight)}>
-        <Paper elevation={2} sx={contentPaperSx({ contentMax, radius })}>
-          <Stack>
-            <Typography variant="h5" fontWeight={600} sx={{ mb: 4 }}>
-              {t('adminCategoriesAddPage.title', {
-                defaultValue: 'Add New Category',
-              })}
-            </Typography>
+      <PageCard variant="form" pad={{ xs: 3, sm: 3.5, md: 4 }}>
+        <Stack spacing={2.5}>
+          <Typography variant="h5" fontWeight={600} sx={{ mb: 1 }}>
+            {t('adminCategoriesAddPage.title', {
+              defaultValue: 'Add New Category',
+            })}
+          </Typography>
 
-            <CategoryForm
-              mode="create"
-              initial={{ name: '', description: '', imageUrl: '' }}
-              onSubmit={handleSubmit}
-            />
+          <CategoryForm
+            mode="create"
+            initial={{ name: '', description: '', imageUrl: '' }}
+            onSubmit={handleSubmit}
+          />
 
-            {err && (
-              <Alert
-                severity="error"
-                variant="filled"
-                onClose={() => setErr(null)}
-              >
-                {err}
-              </Alert>
-            )}
-          </Stack>
-        </Paper>
-      </Box>
+          {err && (
+            <Alert
+              severity="error"
+              variant="filled"
+              onClose={() => setErr(null)}
+            >
+              {err}
+            </Alert>
+          )}
+        </Stack>
+      </PageCard>
 
       <Snackbar
         open={okOpen}
