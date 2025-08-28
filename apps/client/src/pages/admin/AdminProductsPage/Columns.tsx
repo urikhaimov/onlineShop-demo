@@ -5,6 +5,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import type { NavigateFunction } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 import type { IProduct } from '@common/types';
 import RowActions, { type RowAction } from '../../../components/RowActions';
@@ -16,8 +17,15 @@ import {
 import { asDate, DASH } from '../../../utils/columns.util';
 import { useLocaleFormatters } from '../../../hooks/useLocale';
 
+// ⬇️ Reusable presets/factories
+import {
+  stockColumn,
+  createdAtColumn,
+  makeCurrencyColumn,
+} from '../../../utils/columnPresets'; // <-- adjust path if needed
+
 // ──────────────────────────────────────────────────────────────────────────────
-// Pure builder (no hooks here)
+// Pure builder
 // ──────────────────────────────────────────────────────────────────────────────
 type Formatters = {
   formatCurrency: (n: number) => string;
@@ -25,12 +33,57 @@ type Formatters = {
 };
 
 function buildProductColumns(
-  t: (key: string, opts?: any) => string,
+  t: TFunction,
   categories: { id: string; name: string }[],
   navigate: NavigateFunction,
   { formatCurrency, formatDateTime }: Formatters,
 ): ColumnDef<IProduct>[] {
   const selectOptions = categories.map((c) => ({ label: c.name, value: c.id }));
+
+  // Stock — reuse preset, override filter and meta/cell for this page
+  const stockCol: ColumnDef<IProduct> = {
+    ...stockColumn,
+    size: 120,
+    filterFn: betweenNumberRange,
+    meta: {
+      ...(stockColumn.meta ?? {}),
+      filterVariant: 'number',
+      hiddenOnMobile: true,
+      align: 'left',
+    },
+    cell: ({ getValue }) => {
+      const v = getValue<number | undefined>();
+      return typeof v === 'number' ? v : DASH;
+    },
+  };
+
+  // Price — use currency factory, then override filterFn to the actual function impl
+  const priceCol: ColumnDef<IProduct> = {
+    ...makeCurrencyColumn<IProduct>('price', t('table.price'), formatCurrency, {
+      enableFilter: true,
+      size: 120,
+      align: 'left',
+      hiddenOnMobile: true,
+    }),
+    filterFn: betweenNumberRange,
+  };
+
+  // Created At — reuse preset, override filter + localized cell
+  const createdCol: ColumnDef<IProduct> = {
+    ...createdAtColumn,
+    size: 160,
+    filterFn: betweenDateRange,
+    meta: {
+      ...(createdAtColumn.meta ?? {}),
+      filterVariant: 'date',
+      hiddenOnMobile: true,
+      align: 'left',
+    },
+    cell: ({ getValue }) => {
+      const d = asDate(getValue<unknown>());
+      return d ? formatDateTime(d) : DASH;
+    },
+  };
 
   return [
     // Name — hidden on mobile
@@ -64,50 +117,14 @@ function buildProductColumns(
       },
     },
 
-    // Stock — number range filter
-    {
-      accessorKey: 'stock',
-      header: t('table.stock'),
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 120,
-      filterFn: betweenNumberRange,
-      meta: { filterVariant: 'number', hiddenOnMobile: true, align: 'left' },
-      cell: ({ getValue }) => {
-        const v = getValue<number | undefined>();
-        return typeof v === 'number' ? v : DASH;
-      },
-    },
+    // Stock — number range (reused)
+    stockCol,
 
-    // Price — number range filter (localized currency)
-    {
-      accessorKey: 'price',
-      header: t('table.price'),
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 120,
-      filterFn: betweenNumberRange,
-      meta: { filterVariant: 'number', hiddenOnMobile: true, align: 'left' },
-      cell: ({ getValue }) => {
-        const v = getValue<number | undefined>();
-        return typeof v === 'number' ? formatCurrency(v) : DASH;
-      },
-    },
+    // Price — number range (reused + localized)
+    priceCol,
 
-    // Created At — date range filter (localized)
-    {
-      accessorKey: 'createdAt',
-      header: t('table.created'),
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 160,
-      filterFn: betweenDateRange,
-      meta: { filterVariant: 'date', hiddenOnMobile: true, align: 'left' },
-      cell: ({ getValue }) => {
-        const d = asDate(getValue<unknown>());
-        return d ? formatDateTime(d) : DASH;
-      },
-    },
+    // Created At — date range (reused + localized)
+    createdCol,
 
     // Actions — sticky right
     {
@@ -147,7 +164,7 @@ function buildProductColumns(
           <RowActions<IProduct>
             context={ctx}
             actions={actions}
-            renderMode="auto" // buttons on desktop; menu on mobile
+            renderMode="auto"
             menuBelow="sm"
             size="small"
           />
@@ -157,8 +174,6 @@ function buildProductColumns(
   ];
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Hook wrapper (call this in a component, not conditionally)
 // ──────────────────────────────────────────────────────────────────────────────
 export function useProductColumns(
   categories: { id: string; name: string }[],

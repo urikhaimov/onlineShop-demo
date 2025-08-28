@@ -5,9 +5,11 @@ import type { TOrder } from '@common/types';
 import { Typography } from '@mui/material';
 import { StatusTag } from '../../components/StatusTag';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 import { asDate, DASH } from '../../utils/columns.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
+import { makeCurrencyColumn } from '../../utils/columnPresets';
 
 // ---- Pure builder (NO HOOKS HERE) -----------------------------------------
 type Formatters = {
@@ -16,15 +18,44 @@ type Formatters = {
 };
 
 export function buildOrderColumns(
-  t: (key: string, opts?: any) => string,
+  t: TFunction,
   { formatCurrency, formatDateTime }: Formatters,
 ): ColumnDef<TOrder>[] {
+  // Reused currency column for "amount"
+  const amountCol: ColumnDef<TOrder> = makeCurrencyColumn<TOrder>(
+    'amount',
+    t('table.total'),
+    formatCurrency,
+    {
+      enableFilter: false,
+      align: 'right',
+      hiddenOnMobile: true,
+    },
+  );
+
+  // CreatedAt with metadata fallback
+  const createdAtCol: ColumnDef<TOrder> = {
+    id: 'createdAt',
+    accessorFn: (row) => row.metadata?.createdAt ?? row.createdAt ?? null,
+    header: t('table.date'),
+    enableColumnFilter: false,
+    meta: { hiddenOnMobile: true, align: 'left' },
+    cell: (info) => {
+      const d = asDate(info.getValue<Date | string | number | null>());
+      return (
+        <Typography variant="body2" color="text.secondary">
+          {d ? formatDateTime(d) : DASH}
+        </Typography>
+      );
+    },
+  };
+
   return [
     {
       accessorKey: 'id',
       header: t('table.orderId'),
       enableColumnFilter: false,
-      meta: { sticky: 'left' },
+      meta: { sticky: 'left' as const },
       cell: (info) => (
         <Typography
           variant="body2"
@@ -34,36 +65,15 @@ export function buildOrderColumns(
         </Typography>
       ),
     },
-    {
-      id: 'createdAt',
-      accessorFn: (row) => row.metadata?.createdAt ?? row.createdAt ?? null,
-      header: t('table.date'),
-      enableColumnFilter: false,
-      meta: { hiddenOnMobile: true, align: 'left' },
-      cell: (info) => {
-        const d = asDate(info.getValue<Date | string | number | null>());
-        return (
-          <Typography variant="body2" color="text.secondary">
-            {d ? formatDateTime(d) : DASH}
-          </Typography>
-        );
-      },
-    },
-    {
-      accessorKey: 'amount',
-      header: t('table.total'),
-      enableColumnFilter: false,
-      meta: { hiddenOnMobile: true, align: 'right' },
-      cell: ({ getValue }) => {
-        const v = getValue<number>();
-        return formatCurrency(v);
-      },
-    },
+
+    createdAtCol,
+    amountCol,
+
     {
       accessorKey: 'status',
       header: t('table.status'),
       enableColumnFilter: false,
-      meta: { align: 'left' },
+      meta: { align: 'left' as const },
       cell: ({ row }) => <StatusTag value={row.getValue<string>('status')} />,
     },
   ];
@@ -80,10 +90,9 @@ export function useOrderColumns(): ColumnDef<TOrder>[] {
   );
 }
 
-// (Optional) If some legacy site needs a pure factory, export one that
-// requires the caller to pass t + formatters (no hooks here).
+// Optional pure factory variant
 export function defineOrderColumnsPure(
-  tFn: (key: string, opts?: any) => string,
+  tFn: TFunction,
   formatCurrency: (n: number) => string,
   formatDateTime: (d: Date) => string,
 ): ColumnDef<TOrder>[] {

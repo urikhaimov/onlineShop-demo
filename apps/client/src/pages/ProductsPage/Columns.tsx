@@ -8,9 +8,13 @@ import { Link } from 'react-router-dom';
 import { useCartStore } from '../../stores/useCartStore';
 import RowActions, { type RowAction } from '../../components/RowActions';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
-import { DASH } from '../../utils/columns.util'; // placeholder symbol
-import { useLocaleFormatters } from '../../hooks/useLocale'; // ✅ useLocale hook
+import { DASH } from '../../utils/columns.util';
+import { useLocaleFormatters } from '../../hooks/useLocale';
+
+// Reusable presets/factories
+import { stockColumn, makeCurrencyColumn } from '../../utils/columnPresets'; // <-- adjust path if needed
 
 const COLUMN_WIDTHS = {
   image: 80,
@@ -21,12 +25,8 @@ const COLUMN_WIDTHS = {
 } as const;
 
 // ---------- Pure builder (NO hooks here) ----------
-type Formatters = {
-  formatCurrency: (n: number) => string;
-};
-
 function buildUserProductColumns(
-  t: (key: string, opts?: any) => string,
+  t: TFunction,
   categories: { id: string; name: string }[],
   formatCurrency: (n: number) => string,
   addToCart: (p: IProduct & { quantity?: number }) => void,
@@ -34,6 +34,32 @@ function buildUserProductColumns(
 ): ColumnDef<IProduct>[] {
   const catMap = Object.fromEntries(
     categories.map((c) => [c.id, c.name] as const),
+  );
+
+  // Reuse base stock column and tailor for this page
+  const stockCol: ColumnDef<IProduct> = {
+    ...stockColumn,
+    header: t('table.stock'),
+    enableColumnFilter: false,
+    size: COLUMN_WIDTHS.number,
+    meta: { ...(stockColumn.meta ?? {}), align: 'left', hiddenOnMobile: true },
+    cell: ({ getValue }) => {
+      const v = getValue<number | undefined>();
+      return typeof v === 'number' ? v : DASH;
+    },
+  };
+
+  // Price — use currency factory (localized), no filter on this page
+  const priceCol: ColumnDef<IProduct> = makeCurrencyColumn<IProduct>(
+    'price',
+    t('table.price'),
+    formatCurrency,
+    {
+      enableFilter: false,
+      size: COLUMN_WIDTHS.number,
+      align: 'left',
+      hiddenOnMobile: true,
+    },
   );
 
   return [
@@ -71,31 +97,11 @@ function buildUserProductColumns(
       },
     },
 
-    // Stock — numeric
-    {
-      accessorKey: 'stock',
-      header: t('table.stock'),
-      enableColumnFilter: false,
-      size: COLUMN_WIDTHS.number,
-      meta: { align: 'left', hiddenOnMobile: true },
-      cell: ({ getValue }) => {
-        const v = getValue<number | undefined>();
-        return typeof v === 'number' ? v : DASH;
-      },
-    },
+    // Stock — reused
+    stockCol,
 
-    // Price — numeric + localized currency
-    {
-      accessorKey: 'price',
-      header: t('table.price'),
-      enableColumnFilter: false,
-      size: COLUMN_WIDTHS.number,
-      meta: { align: 'left', hiddenOnMobile: true },
-      cell: ({ getValue }) => {
-        const v = getValue<number | undefined>();
-        return typeof v === 'number' ? formatCurrency(v) : DASH;
-      },
-    },
+    // Price — reused via factory + localized
+    priceCol,
 
     // Actions — sticky RIGHT
     {
@@ -138,7 +144,6 @@ export function useProductColumns(
 ): ColumnDef<IProduct>[] {
   const { t } = useTranslation();
   const { formatCurrency } = useLocaleFormatters();
-
   const addToCart = useCartStore.getState().addToCart;
 
   return React.useMemo(

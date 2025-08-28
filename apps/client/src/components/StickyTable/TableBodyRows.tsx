@@ -126,7 +126,7 @@ export default function TableBodyRows<T extends object>({
                 sx={[
                   ...stickySx,
                   ...hiddenSx,
-                  (t) => ({
+                  () => ({
                     textAlign: 'left',
 
                     // spacing aware of your store's spacingScale

@@ -1,3 +1,4 @@
+// src/pages/AdminOrdersPage/Columns.ts
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { NavigateFunction } from 'react-router-dom';
@@ -8,7 +9,6 @@ import { StatusTag } from '../../../components/StatusTag';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import { t } from 'i18next';
 import i18n from '../../../i18n/i18n';
 
 import {
@@ -17,7 +17,10 @@ import {
   getLocale,
   makeCurrencyFormatter,
   makeDateTimeFormatter,
-} from '../../../utils/columns.util'; // adjust path if needed
+} from '../../../utils/columns.util';
+
+// Reusable factories
+import { makeCurrencyColumn } from '../../../utils/columnPresets';
 
 export function defineAdminOrderColumns(
   navigate: NavigateFunction,
@@ -28,10 +31,39 @@ export function defineAdminOrderColumns(
   const currencyFmt = makeCurrencyFormatter(lng, ECurrency.USD); // change currency if needed
   const dateTimeFmt = makeDateTimeFormatter(lng);
 
+  // Amount column via reusable factory
+  const amountCol: ColumnDef<TOrder> = makeCurrencyColumn<TOrder>(
+    'amount',
+    i18n.t('table.total'),
+    currencyFmt,
+    {
+      enableFilter: false,
+      size: 120,
+      align: 'right',
+      hiddenOnMobile: true,
+    },
+  );
+
+  // Created At — order-specific (typed for TOrder, supports metadata fallback)
+  const createdAtCol: ColumnDef<TOrder> = {
+    accessorKey: 'createdAt',
+    header: i18n.t('table.date'),
+    enableSorting: true,
+    enableColumnFilter: false,
+    size: 180,
+    meta: { hiddenOnMobile: true, align: 'left' },
+    cell: ({ row }) => {
+      const d =
+        asDate(row.original.createdAt) ??
+        asDate((row.original as any)?.metadata?.createdAt);
+      return d ? dateTimeFmt(d) : DASH;
+    },
+  };
+
   return [
     {
       accessorKey: 'id',
-      header: t('table.orderId'),
+      header: i18n.t('table.orderId'),
       enableSorting: true,
       enableColumnFilter: false,
       size: 220,
@@ -40,42 +72,20 @@ export function defineAdminOrderColumns(
     },
     {
       accessorKey: 'email',
-      header: t('adminUsers.columns.email'),
+      header: i18n.t('adminUsers.columns.email'),
       enableSorting: true,
       enableColumnFilter: false,
       size: 220,
       meta: { hiddenOnMobile: true, align: 'left' },
       cell: (info) => info.getValue<string>() ?? DASH,
     },
-    {
-      accessorKey: 'amount',
-      header: t('table.total'),
-      enableSorting: true,
-      enableColumnFilter: false,
-      size: 120,
-      meta: { hiddenOnMobile: true, align: 'left' },
-      cell: (info) => {
-        const v = info.getValue<number | undefined>();
-        return typeof v === 'number' ? currencyFmt(v) : DASH;
-      },
-    },
-    {
-      accessorKey: 'createdAt',
-      header: t('table.date'),
-      enableSorting: true,
-      enableColumnFilter: false,
-      size: 180,
-      meta: { hiddenOnMobile: true, align: 'left' },
-      cell: ({ row }) => {
-        const d =
-          asDate(row.original.createdAt) ??
-          asDate(row.original.metadata?.createdAt);
-        return d ? dateTimeFmt(d) : DASH;
-      },
-    },
+
+    amountCol,
+    createdAtCol,
+
     {
       accessorKey: 'status',
-      header: t('table.status'),
+      header: i18n.t('table.status'),
       enableSorting: true,
       enableColumnFilter: false,
       size: 160,
@@ -84,7 +94,7 @@ export function defineAdminOrderColumns(
     },
     {
       id: 'actions',
-      header: t('table.actions'),
+      header: i18n.t('table.actions'),
       enableSorting: false,
       enableColumnFilter: false,
       size: 180,
@@ -94,18 +104,19 @@ export function defineAdminOrderColumns(
         const actions: RowAction<TOrder>[] = [
           {
             id: 'edit',
-            label: t('adminOrders.actions.edit'),
+            label: i18n.t('adminOrders.actions.edit'),
             icon: <EditIcon fontSize="small" />,
             onClick: (o) => navigate(`/admin/orders/${o.id}?edit=1`),
-            tooltip: (o) => t('adminOrders.actions.tooltipEdit', { id: o.id }),
+            tooltip: (o) =>
+              i18n.t('adminOrders.actions.tooltipEdit', { id: o.id }),
           },
           {
             id: 'delete',
-            label: t('adminOrders.actions.delete'),
+            label: i18n.t('adminOrders.actions.delete'),
             icon: <DeleteIcon fontSize="small" />,
             onClick: async (o) => onDelete?.(o),
             tooltip: (o) =>
-              t('adminOrders.actions.tooltipDelete', { id: o.id }),
+              i18n.t('adminOrders.actions.tooltipDelete', { id: o.id }),
           },
         ];
         return (

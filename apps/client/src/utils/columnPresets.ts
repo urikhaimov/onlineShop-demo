@@ -1,6 +1,36 @@
-import { ColumnDef, FilterFnOption } from '@tanstack/react-table';
+import { type ColumnDef, type FilterFnOption } from '@tanstack/react-table';
 import { IProduct } from '@common/types';
 
+// src/components/columns/productColumns.ts
+
+export function makeCurrencyColumn<T extends object>(
+  key: keyof T,
+  header: string,
+  formatCurrency: (n: number) => string,
+  opts?: {
+    enableFilter?: boolean;
+    size?: number;
+    align?: 'left' | 'center' | 'right';
+    hiddenOnMobile?: boolean;
+  },
+): ColumnDef<T> {
+  return {
+    accessorKey: String(key),
+    header,
+    enableColumnFilter: opts?.enableFilter ?? true,
+    size: opts?.size,
+    filterFn: 'betweenNumberRange' as FilterFnOption<T>,
+    meta: {
+      filterVariant: 'number',
+      align: opts?.align ?? 'right',
+      hiddenOnMobile: opts?.hiddenOnMobile ?? false,
+    },
+    cell: ({ getValue }) => {
+      const v = getValue<number | undefined>();
+      return typeof v === 'number' ? formatCurrency(v) : '—';
+    },
+  };
+}
 export const stockColumn: ColumnDef<IProduct> = {
   accessorKey: 'stock',
   header: 'Stock',
@@ -8,16 +38,6 @@ export const stockColumn: ColumnDef<IProduct> = {
   filterFn: 'betweenNumberRange' as FilterFnOption<IProduct>,
   meta: { filterVariant: 'number' },
 };
-
-export const priceColumn: ColumnDef<IProduct> = {
-  accessorKey: 'price',
-  header: 'Price',
-  enableColumnFilter: true,
-  filterFn: 'betweenNumberRange' as FilterFnOption<IProduct>,
-  meta: { filterVariant: 'number' },
-  cell: ({ getValue }) => `$${getValue<number>().toFixed(2)}`,
-};
-
 export const createdAtColumn: ColumnDef<IProduct> = {
   accessorKey: 'createdAt',
   header: 'Created At',
