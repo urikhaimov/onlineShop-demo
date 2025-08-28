@@ -9,6 +9,7 @@ import {
   IconButton,
   useTheme,
 } from '@mui/material';
+import type { SxProps, Theme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import type {
@@ -20,6 +21,7 @@ import { flexRender } from '@tanstack/react-table';
 import { EXPAND_COL_WIDTH, RIGHT_GAP } from './constants';
 import { getStickyStyles, responsiveVisibility } from './utils/styles';
 import type { ColumnMeta } from './utils/columnMeta';
+import { useThemeStore } from '../../stores/useThemeStore';
 
 type Props<T extends object> = {
   table: ReactTable<T>;
@@ -53,13 +55,37 @@ function getGroupLabelSafe<T extends object>(
   }
 
   const firstChild = row.subRows?.[0];
-  const original = firstChild?.original as any;
+  const original = firstChild?.original as T | undefined;
   if (original && Object.prototype.hasOwnProperty.call(original, colId)) {
-    const v = original[colId];
-    if (v !== undefined && v !== null) return String(v);
+    const value = (original as Record<string, unknown>)[colId];
+    if (value !== undefined && value !== null) return String(value);
   }
 
   return 'Group';
+}
+
+/** Normalize any SxProps to a flat array of items (no nested arrays). */
+function toSxArray(
+  sx: SxProps<Theme> | undefined,
+): ReadonlyArray<
+  ((theme: Theme) => Record<string, unknown>) | Record<string, unknown>
+> {
+  if (!sx) return [];
+  if (Array.isArray(sx)) {
+    const flat: Array<
+      ((theme: Theme) => Record<string, unknown>) | Record<string, unknown>
+    > = [];
+    for (const item of sx) {
+      if (!item) continue; // skip false
+      if (typeof item === 'function')
+        flat.push(item as (t: Theme) => Record<string, unknown>);
+      else flat.push(item as Record<string, unknown>);
+    }
+    return flat;
+  }
+  if (typeof sx === 'function')
+    return [sx as (t: Theme) => Record<string, unknown>];
+  return [sx as Record<string, unknown>];
 }
 
 export default function TableBodyRows<T extends object>({
@@ -76,7 +102,8 @@ export default function TableBodyRows<T extends object>({
   toggleRowExpand,
 }: Props<T>) {
   const theme = useTheme();
-  const tv = (theme as any).vars || theme; // css-vars aware access
+  const { themeSettings } = useThemeStore();
+  const spacingScale = themeSettings?.spacingScale ?? 1;
 
   const rowModel = table.getRowModel();
 
@@ -89,31 +116,33 @@ export default function TableBodyRows<T extends object>({
           {row.getVisibleCells().map((cell) => {
             const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
 
-            // precomputed helpers (may return plain objects)
-            const stickySx = getStickyStyles(theme, meta);
-            const hiddenSx = responsiveVisibility(meta);
+            // Helpers may return object, function, or array → normalize to flat arrays
+            const stickySx = toSxArray(getStickyStyles(theme, meta));
+            const hiddenSx = toSxArray(responsiveVisibility(meta));
 
             return (
               <TableCell
                 key={cell.id}
-                sx={(t) => ({
-                  ...(stickySx as any),
-                  ...(hiddenSx as any),
+                sx={[
+                  ...stickySx,
+                  ...hiddenSx,
+                  (t) => ({
+                    textAlign: 'left',
 
-                  textAlign: 'left',
-                  px: denseMode ? 0.5 : 1,
-                  py: denseMode ? 0.25 : 0.5,
+                    // spacing aware of your store's spacingScale
+                    px: (denseMode ? 0.5 : 1) * spacingScale,
+                    py: (denseMode ? 0.25 : 0.5) * spacingScale,
 
-                  whiteSpace: 'nowrap',
-                  [t.breakpoints.down('sm')]: { whiteSpace: 'normal' },
+                    // Responsive whiteSpace without casts
+                    whiteSpace: { xs: 'normal', sm: 'nowrap' },
 
-                  wordBreak: 'break-word',
-                  overflowWrap: 'anywhere',
-                  // ensure non-sticky cells also match the surface
-                  backgroundColor: ((t as any).vars || t).palette.background
-                    .paper,
-                  borderColor: ((t as any).vars || t).palette.divider,
-                })}
+                    wordBreak: 'break-word',
+                    overflowWrap: 'anywhere',
+
+                    backgroundColor: 'background.paper',
+                    borderColor: 'divider',
+                  }),
+                ]}
               >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </TableCell>
@@ -122,19 +151,21 @@ export default function TableBodyRows<T extends object>({
 
           {enableRowExpansion && (
             <TableCell
-              sx={(t) => ({
-                width: EXPAND_COL_WIDTH,
-                minWidth: EXPAND_COL_WIDTH,
-                maxWidth: EXPAND_COL_WIDTH,
-                textAlign: 'center',
-                position: 'sticky',
-                right: RIGHT_GAP,
-                zIndex: 3,
-                backgroundColor: ((t as any).vars || t).palette.background
-                  .paper,
-                borderLeft: `1px solid ${((t as any).vars || t).palette.divider}`,
-                px: 0,
-              })}
+              sx={[
+                {
+                  width: EXPAND_COL_WIDTH,
+                  minWidth: EXPAND_COL_WIDTH,
+                  maxWidth: EXPAND_COL_WIDTH,
+                  textAlign: 'center',
+                  position: 'sticky',
+                  right: RIGHT_GAP,
+                  zIndex: 3,
+                  backgroundColor: 'background.paper',
+                  borderLeft: 1,
+                  borderColor: 'divider',
+                  px: 0,
+                },
+              ]}
             >
               <IconButton
                 size="small"
@@ -151,13 +182,15 @@ export default function TableBodyRows<T extends object>({
         {enableRowExpansion && isExpanded && (
           <TableRow>
             <TableCell
-              colSpan={columnsLength + 1}
-              sx={(t) => ({
-                backgroundColor: ((t as any).vars || t).palette.action.hover,
-                borderTop: `1px solid ${((t as any).vars || t).palette.divider}`,
-                px: 2,
-                py: 1,
-              })}
+              colSpan={columnsLength + (enableRowExpansion ? 1 : 0)}
+              sx={[
+                {
+                  backgroundColor: 'action.hover',
+                  borderTop: 1,
+                  borderColor: 'divider',
+                },
+                { px: 2 * spacingScale, py: 1 * spacingScale },
+              ]}
             >
               {renderExpandedRow ? (
                 renderExpandedRow(row.original)
@@ -175,12 +208,14 @@ export default function TableBodyRows<T extends object>({
 
   return (
     <TableBody
-      sx={(t) => ({
-        '& .MuiTableCell-root': {
-          verticalAlign: 'middle',
-          borderColor: ((t as any).vars || t).palette.divider,
+      sx={[
+        {
+          '& .MuiTableCell-root': {
+            verticalAlign: 'middle',
+            borderColor: 'divider',
+          },
         },
-      })}
+      ]}
     >
       {rowModel.rows.map((row) => {
         // Group headers
@@ -190,11 +225,7 @@ export default function TableBodyRows<T extends object>({
 
           return (
             <React.Fragment key={row.id}>
-              <TableRow
-                sx={(t) => ({
-                  backgroundColor: ((t as any).vars || t).palette.action.hover,
-                })}
-              >
+              <TableRow sx={{ backgroundColor: 'action.hover' }}>
                 <TableCell
                   colSpan={columnsLength + (enableRowExpansion ? 1 : 0)}
                 >
