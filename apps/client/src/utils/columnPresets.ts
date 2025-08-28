@@ -31,13 +31,35 @@ export function makeCurrencyColumn<T extends object>(
     },
   };
 }
-export const stockColumn: ColumnDef<IProduct> = {
-  accessorKey: 'stock',
-  header: 'Stock',
-  enableColumnFilter: true,
-  filterFn: 'betweenNumberRange' as FilterFnOption<IProduct>,
-  meta: { filterVariant: 'number' },
-};
+export function makeNumberColumn<T extends object>(
+  key: keyof T,
+  header: string,
+  opts?: {
+    enableFilter?: boolean;
+    size?: number;
+    align?: 'left' | 'center' | 'right';
+    hiddenOnMobile?: boolean;
+    format?: (n: number) => string; // optional custom formatter
+  },
+): ColumnDef<T> {
+  return {
+    accessorKey: String(key),
+    header,
+    enableColumnFilter: opts?.enableFilter ?? true,
+    size: opts?.size,
+    filterFn: 'betweenNumberRange' as FilterFnOption<T>,
+    meta: {
+      filterVariant: 'number',
+      align: opts?.align ?? 'left',
+      hiddenOnMobile: opts?.hiddenOnMobile ?? false,
+    },
+    cell: ({ getValue }) => {
+      const v = getValue<number | undefined>();
+      if (typeof v !== 'number') return '—';
+      return opts?.format ? opts.format(v) : new Intl.NumberFormat().format(v);
+    },
+  };
+}
 export const createdAtColumn: ColumnDef<IProduct> = {
   accessorKey: 'createdAt',
   header: 'Created At',

@@ -19,7 +19,7 @@ import { useLocaleFormatters } from '../../../hooks/useLocale';
 
 // ⬇️ Reusable presets/factories
 import {
-  stockColumn,
+  makeNumberColumn,
   createdAtColumn,
   makeCurrencyColumn,
 } from '../../../utils/columnPresets'; // <-- adjust path if needed
@@ -41,21 +41,11 @@ function buildProductColumns(
   const selectOptions = categories.map((c) => ({ label: c.name, value: c.id }));
 
   // Stock — reuse preset, override filter and meta/cell for this page
-  const stockCol: ColumnDef<IProduct> = {
-    ...stockColumn,
-    size: 120,
-    filterFn: betweenNumberRange,
-    meta: {
-      ...(stockColumn.meta ?? {}),
-      filterVariant: 'number',
-      hiddenOnMobile: true,
-      align: 'left',
-    },
-    cell: ({ getValue }) => {
-      const v = getValue<number | undefined>();
-      return typeof v === 'number' ? v : DASH;
-    },
-  };
+  const stockCol = makeNumberColumn<IProduct>('stock', t('table.stock'), {
+    enableFilter: false,
+    align: 'left',
+    hiddenOnMobile: true,
+  });
 
   // Price — use currency factory, then override filterFn to the actual function impl
   const priceCol: ColumnDef<IProduct> = {

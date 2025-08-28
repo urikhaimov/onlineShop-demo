@@ -14,7 +14,10 @@ import { DASH } from '../../utils/columns.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 
 // Reusable presets/factories
-import { stockColumn, makeCurrencyColumn } from '../../utils/columnPresets'; // <-- adjust path if needed
+import {
+  makeNumberColumn,
+  makeCurrencyColumn,
+} from '../../utils/columnPresets'; // <-- adjust path if needed
 
 const COLUMN_WIDTHS = {
   image: 80,
@@ -37,17 +40,12 @@ function buildUserProductColumns(
   );
 
   // Reuse base stock column and tailor for this page
-  const stockCol: ColumnDef<IProduct> = {
-    ...stockColumn,
-    header: t('table.stock'),
-    enableColumnFilter: false,
+  const stockCol = makeNumberColumn<IProduct>('stock', t('table.stock'), {
+    enableFilter: false,
     size: COLUMN_WIDTHS.number,
-    meta: { ...(stockColumn.meta ?? {}), align: 'left', hiddenOnMobile: true },
-    cell: ({ getValue }) => {
-      const v = getValue<number | undefined>();
-      return typeof v === 'number' ? v : DASH;
-    },
-  };
+    align: 'left',
+    hiddenOnMobile: true,
+  });
 
   // Price — use currency factory (localized), no filter on this page
   const priceCol: ColumnDef<IProduct> = makeCurrencyColumn<IProduct>(
