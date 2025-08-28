@@ -106,7 +106,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
           categoryId: '',
         });
         setCombinedImages([]);
-        setProduct(undefined as any);
+        setProduct(undefined);
         setReady(true);
         bootstrappedForIdRef.current = 'add';
       }

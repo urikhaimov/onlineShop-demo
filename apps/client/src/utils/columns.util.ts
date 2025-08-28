@@ -21,7 +21,7 @@ export function asDate(value: unknown): Date | undefined {
   if (
     typeof value === 'object' &&
     value !== null &&
-    'seconds' in (value as any)
+    'seconds' in (value as Record<string, unknown>)
   ) {
     const v = value as { seconds: number; nanoseconds?: number };
     const d = new Date(

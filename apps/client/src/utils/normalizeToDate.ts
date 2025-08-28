@@ -12,8 +12,8 @@ export function normalizeToDate(value: unknown): Date | null {
   if (
     typeof value === 'object' &&
     value !== null &&
-    'seconds' in (value as any) &&
-    'nanoseconds' in (value as any)
+    'seconds' in (value as Partial<FirestoreTsLike>) &&
+    'nanoseconds' in (value as Partial<FirestoreTsLike>)
   ) {
     const v = value as FirestoreTsLike;
     return new Date(v.seconds * 1000 + Math.floor(v.nanoseconds / 1_000_000));

@@ -199,20 +199,26 @@ export default function AdminProductsPage() {
       if (cat && p.categoryId !== cat) return false;
 
       const price =
-        typeof p.price === 'number' ? p.price : ((p as any)?.price ?? null);
+        typeof p.price === 'number'
+          ? p.price
+          : ((p as ProductLike)?.price ?? null);
       if (price !== null) {
         if (price < (minPrice ?? PRICE_MIN)) return false;
         if (price > (maxPrice ?? PRICE_MAX)) return false;
       }
 
       const stock =
-        typeof p.stock === 'number' ? p.stock : ((p as any)?.stock ?? null);
+        typeof p.stock === 'number'
+          ? p.stock
+          : ((p as ProductLike)?.stock ?? null);
       if (stock !== null) {
         if (stock < (minStock ?? STOCK_MIN)) return false;
         if (stock > (maxStock ?? STOCK_MAX)) return false;
       }
 
-      const d = toDate((p as any).updatedAt) ?? toDate((p as any).createdAt);
+      const d =
+        toDate((p as ProductLike).updatedAt) ??
+        toDate((p as ProductLike).createdAt);
       if (from && d && d < from) return false;
       if (to && d && d > to) return false;
 

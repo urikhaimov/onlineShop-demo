@@ -60,7 +60,7 @@ function Block({
         transition: {
           xs: 'opacity .6s ease, transform .6s ease',
           '@media (prefers-reduced-motion: reduce)': 'none',
-        } as any,
+        } as unknown as React.CSSProperties['transition'],
       }}
     >
       {/* Responsive CSS Grid (no MUI Grid) */}
@@ -117,7 +117,7 @@ function Block({
               transition: {
                 xs: 'box-shadow .3s ease, transform .3s ease',
                 '@media (prefers-reduced-motion: reduce)': 'none',
-              } as any,
+              } as unknown as React.CSSProperties['transition'],
               '&:hover': {
                 boxShadow: isDark ? theme.shadows[6] : theme.shadows[3],
                 transform: 'translateY(-2px)',

@@ -160,7 +160,8 @@ export default function ProductsPage() {
         !selectedCategoryId || p.categoryId === selectedCategoryId;
 
       const updated = toJsDate(
-        (p as any)?.updatedAt ?? (p as any)?.metadata?.updatedAt,
+        (p as { updatedAt?: Date; metadata?: { updatedAt?: Date } })?.metadata
+          ?.updatedAt,
       );
       const matchesUpdated =
         !updated || ((!from || updated >= from) && (!to || updated <= to));
@@ -270,7 +271,9 @@ export default function ProductsPage() {
 
   const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
     setColumnFilters((prev) =>
-      typeof updater === 'function' ? (updater as any)(prev) : updater,
+      typeof updater === 'function'
+        ? (updater as (old: ColumnFiltersState) => ColumnFiltersState)(prev)
+        : updater,
     );
   };
 

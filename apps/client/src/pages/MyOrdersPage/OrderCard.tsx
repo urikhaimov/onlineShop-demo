@@ -44,7 +44,11 @@ function toMaybeDate(value: unknown): Date | undefined {
   }
 
   if (typeof value === 'object') {
-    const v = value as any;
+    const v = value as {
+      toDate?: () => Date;
+      seconds?: number;
+      nanoseconds?: number;
+    };
     if (typeof v?.toDate === 'function') {
       try {
         const d = v.toDate();

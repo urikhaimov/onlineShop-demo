@@ -1,5 +1,5 @@
 // src/api/axiosInstance.ts
-import axios, { InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios';
 import { getFirebaseToken } from '../utils/getFirebaseToken';
 import i18n from '../i18n/i18n';
 
@@ -19,7 +19,7 @@ axiosInstance.interceptors.request.use(
       config.headers = {} as import('axios').AxiosRequestHeaders;
 
     // Axios v1: headers can be AxiosHeaders (with .set) or a plain object
-    const h = config.headers as any;
+    const h = config.headers as AxiosHeaders | Record<string, string>;
 
     if (typeof h.set === 'function') {
       h.set('Accept-Language', lng);

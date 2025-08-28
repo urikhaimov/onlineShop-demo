@@ -62,15 +62,15 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
   const items = order?.items ?? [];
   const amount = typeof order?.amount === 'number' ? order.amount : undefined;
 
-  const created =
-    asDate(order?.createdAt as any) ??
-    asDate(order?.metadata?.createdAt as any);
-  const updated =
-    asDate(order?.updatedAt as any) ??
-    asDate(order?.metadata?.updatedAt as any);
+  const created = asDate(
+    order?.metadata?.createdAt as string | number | Date | undefined,
+  );
+  const updated = asDate(
+    order?.metadata?.updatedAt as string | number | Date | undefined,
+  );
 
   const etaRaw = order?.delivery?.eta as unknown;
-  const etaDate = asDate(etaRaw as any);
+  const etaDate = asDate(etaRaw as string | number | Date | undefined);
   const etaLabel = etaDate
     ? formatDateTime(etaDate)
     : typeof etaRaw === 'string' || typeof etaRaw === 'number'

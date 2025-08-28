@@ -36,7 +36,7 @@ export function useOptimisticMutation<TVariables, TItem = any>({
 
       queryClient.setQueryData<TItem[]>(queryKey, (old = []) =>
         old.map((item) =>
-          getItemId(item) === getItemId(variables as any)
+          getItemId(item) === getItemId(variables as unknown as TItem)
             ? getOptimisticUpdate(item, variables)
             : item,
         ),

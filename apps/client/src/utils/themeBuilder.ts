@@ -21,7 +21,10 @@ function makePalette(s: ThemeSettings, mode: 'light' | 'dark'): PaletteOptions {
 export function getThemeFromSettings(s: ThemeSettings): AppTheme {
   const radius = s.borderRadius ?? 12;
   const spacingScale = s.spacingScale ?? 1;
-  const fontFamily = (s as any).fontFamily || (s as any).font || 'Roboto';
+  const fontFamily =
+    (s as ThemeSettings).fontFamily ||
+    (s as ThemeSettings & { font?: string }).font ||
+    'Roboto';
   const fontSize = s.fontSize ?? 16;
   const fontWeight = s.fontWeight ?? 400;
 

@@ -30,6 +30,7 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { storage } from '../../../firebase';
+import type { FieldErrors } from 'react-hook-form';
 
 const DEFAULT_FORM: LandingPageData = {
   title: 'Welcome to Bunder Shop',
@@ -73,6 +74,9 @@ export default function AdminLandingPage() {
     defaultValues: DEFAULT_FORM,
   });
 
+  // Explicitly type errors for use in the component
+  const typedErrors = errors as FieldErrors<LandingPageData>;
+
   // FieldArray for "sections"
   const {
     fields: sectionFields,
@@ -104,17 +108,19 @@ export default function AdminLandingPage() {
     const merged: LandingPageData = {
       ...DEFAULT_FORM,
       ...data,
-      homepageLayout: isLayout((data as any).homepageLayout)
-        ? (data as any).homepageLayout
+      homepageLayout: isLayout(data.homepageLayout)
+        ? data.homepageLayout
         : HOMEPAGE_LAYOUTS.Hero,
       sections: (data.sections ?? []).map((s) => ({
         title: s.title ?? '',
         content: s.content ?? '',
       })),
-      bentoCards: (data.bentoCards ?? DEFAULT_FORM.bentoCards)!.map((c) => ({
-        title: c.title ?? '',
-        body: c.body ?? '',
-      })),
+      bentoCards: ((data.bentoCards ?? DEFAULT_FORM.bentoCards) || []).map(
+        (c) => ({
+          title: c.title ?? '',
+          body: c.body ?? '',
+        }),
+      ),
     };
 
     reset(merged);
@@ -235,7 +241,7 @@ export default function AdminLandingPage() {
                 name="homepageLayout"
                 control={control}
                 select
-                errorObject={errors.homepageLayout as any}
+                errorObject={errors.homepageLayout}
                 disabled={saving}
               >
                 {(Object.values(HOMEPAGE_LAYOUTS) as string[]).map((layout) => (
@@ -266,14 +272,14 @@ export default function AdminLandingPage() {
                       label="Section Title"
                       name={`sections.${index}.title`}
                       control={control}
-                      errorObject={errors.sections?.[index]?.title as any}
+                      errorObject={errors.sections?.[index]?.title}
                       disabled={saving}
                     />
                     <FormTextField
                       label="Section Content"
                       name={`sections.${index}.content`}
                       control={control}
-                      errorObject={errors.sections?.[index]?.content as any}
+                      errorObject={errors.sections?.[index]?.content}
                       multiline
                       rows={3}
                       disabled={saving}
@@ -322,14 +328,14 @@ export default function AdminLandingPage() {
                       label="Card Title"
                       name={`bentoCards.${index}.title`}
                       control={control}
-                      errorObject={(errors as any)?.bentoCards?.[index]?.title}
+                      errorObject={errors.bentoCards?.[index]?.title}
                       disabled={saving}
                     />
                     <FormTextField
                       label="Card Body"
                       name={`bentoCards.${index}.body`}
                       control={control}
-                      errorObject={(errors as any)?.bentoCards?.[index]?.body}
+                      errorObject={errors.bentoCards?.[index]?.body}
                       multiline
                       rows={2}
                       disabled={saving}

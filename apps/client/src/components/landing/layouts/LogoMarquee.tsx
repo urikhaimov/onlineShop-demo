@@ -97,7 +97,7 @@ export default function LogoMarquee({
           animation: {
             '@media (prefers-reduced-motion: reduce)': 'none',
             all: `${seconds}s linear infinite marquee`,
-          } as any,
+          } as Record<string, string>,
           '@keyframes marquee': {
             from: { transform: 'translateX(0)' },
             to: { transform: 'translateX(-50%)' },

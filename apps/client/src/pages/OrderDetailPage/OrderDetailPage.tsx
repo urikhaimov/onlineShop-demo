@@ -40,7 +40,12 @@ function toMaybeDate(value: unknown): Date | undefined {
   }
 
   if (typeof value === 'object') {
-    const v = value as any;
+    type FirestoreLike = {
+      toDate?: () => Date;
+      seconds?: number;
+      nanoseconds?: number;
+    };
+    const v = value as FirestoreLike;
     if (typeof v?.toDate === 'function') {
       try {
         const d = v.toDate();
@@ -134,7 +139,13 @@ export default function OrderDetailPage() {
   const createdDate = toMaybeDate(createdAt);
   const createdLabel = createdDate ? formatDateTime(createdDate) : 'N/A';
 
-  const etaDate = toMaybeDate(delivery.eta as any);
+  const etaDate = toMaybeDate(
+    delivery.eta as
+      | string
+      | number
+      | Date
+      | { toDate?: () => Date; seconds?: number; nanoseconds?: number },
+  );
   const etaLabel = etaDate
     ? formatDateTime(etaDate)
     : (delivery.eta as string) || '';
@@ -272,7 +283,7 @@ export default function OrderDetailPage() {
             </Typography>
             {statusHistory.length > 0 ? (
               statusHistory.map((entry, idx) => {
-                const ts = toMaybeDate(entry.timestamp as any);
+                const ts = toMaybeDate(entry.timestamp as unknown);
                 const tsLabel = ts ? formatDateTime(ts) : 'N/A';
                 return (
                   <Typography variant="body2" color="text.secondary" key={idx}>

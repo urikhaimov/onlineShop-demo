@@ -65,19 +65,23 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
       ? product.images[0]
       : undefined;
 
-  const created =
-    asDate((product as any)?.createdAt) ??
-    asDate((product as any)?.metadata?.createdAt);
-  const updated =
-    asDate((product as any)?.updatedAt) ??
-    asDate((product as any)?.metadata?.updatedAt);
+  type ProductMetadata = {
+    createdAt?: string | number | Date;
+    updatedAt?: string | number | Date;
+  };
 
-  const sku = (product as any)?.sku as string | undefined;
-  const brand = (product as any)?.brand as string | undefined;
-  const description = (product as any)?.description as string | undefined; // HTML
-  const attributes = (product as any)?.attributes as
-    | Record<string, unknown>
-    | undefined;
+  const metadata: ProductMetadata | undefined = (
+    product as { metadata?: ProductMetadata }
+  ).metadata;
+
+  const created = asDate(metadata?.createdAt);
+  const updated = asDate(metadata?.updatedAt);
+
+  const sku = (product as { sku?: string }).sku;
+  const brand = (product as { brand?: string }).brand;
+  const description = (product as { description?: string }).description; // HTML
+  const attributes = (product as { attributes?: Record<string, unknown> })
+    .attributes;
 
   const sanitizedDescription = useMemo(
     () =>
@@ -94,7 +98,10 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
 
   // Reusable Section (inner padding + outer margins)
   const Section: React.FC<
-    React.PropsWithChildren<{ title: React.ReactNode; gridSpan?: any }>
+    React.PropsWithChildren<{
+      title: React.ReactNode;
+      gridSpan?: string | number | Record<string, string | number>;
+    }>
   > = ({ title, gridSpan, children }) => (
     <Box
       sx={{

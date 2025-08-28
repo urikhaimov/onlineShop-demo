@@ -4,16 +4,21 @@ export function toJsDate(val: unknown): Date | undefined {
   if (val instanceof Date) return isNaN(val.getTime()) ? undefined : val;
 
   if (typeof val === 'object' && val !== null) {
-    const anyVal = val as any;
-    if (typeof anyVal.seconds === 'number') {
+    type TimestampLike = {
+      seconds?: number;
+      nanoseconds?: number;
+      toDate?: () => Date;
+    };
+    const objVal = val as TimestampLike;
+    if (typeof objVal.seconds === 'number') {
       const ms =
-        anyVal.seconds * 1000 +
-        Math.floor((anyVal.nanoseconds ?? 0) / 1_000_000);
+        objVal.seconds * 1000 +
+        Math.floor((objVal.nanoseconds ?? 0) / 1_000_000);
       const d = new Date(ms);
       return isNaN(d.getTime()) ? undefined : d;
     }
-    if (typeof anyVal.toDate === 'function') {
-      const d = anyVal.toDate();
+    if (typeof objVal.toDate === 'function') {
+      const d = objVal.toDate();
       return d instanceof Date && !isNaN(d.getTime()) ? d : undefined;
     }
   }

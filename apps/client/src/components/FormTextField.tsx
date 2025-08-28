@@ -13,7 +13,9 @@ import {
   type UseFormRegisterReturn,
 } from 'react-hook-form';
 
-type FormChangeEvent = React.SyntheticEvent | React.ChangeEvent<any>;
+type FormChangeEvent =
+  | React.SyntheticEvent
+  | React.ChangeEvent<HTMLInputElement>;
 
 type BaseProps<T extends FieldValues> = Omit<
   TextFieldProps,
@@ -27,8 +29,8 @@ type BaseProps<T extends FieldValues> = Omit<
   rules?: RegisterOptions<T>;
 
   /** Optional transforms (e.g., string -> number, csv -> string[]) */
-  parseValue?: (raw: any) => any;
-  formatValue?: (value: any) => any;
+  parseValue?: (raw: unknown) => unknown;
+  formatValue?: (value: unknown) => unknown;
 
   /** Legacy / fallback for uncontrolled mode */
   register?: UseFormRegisterReturn;
@@ -91,7 +93,8 @@ function InnerFormTextField<T extends FieldValues>(
               onBlur={field.onBlur}
               inputRef={(node) => {
                 field.ref(node);
-                if (typeof ref === 'function') ref(node as any);
+                if (typeof ref === 'function')
+                  ref(node as HTMLInputElement | null);
                 else if (ref)
                   (
                     ref as React.MutableRefObject<HTMLInputElement | null>

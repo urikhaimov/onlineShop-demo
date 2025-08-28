@@ -24,20 +24,17 @@ const ProductExpandedRow: React.FC<Props> = ({ product, categoryName }) => {
       ? product.images[0]
       : undefined;
 
-  const created =
-    asDate((product as any)?.createdAt) ??
-    asDate((product as any)?.metadata?.createdAt);
-  const updated =
-    asDate((product as any)?.updatedAt) ??
-    asDate((product as any)?.metadata?.updatedAt);
+  const created = asDate(product.metadata?.createdAt);
+  const updated = asDate(product.metadata?.updatedAt);
 
   // Optional fields from editor/schema
-  const sku = (product as any)?.sku as string | undefined;
-  const brand = (product as any)?.brand as string | undefined;
-  const description = (product as any)?.description as string | undefined; // HTML
-  const attributes = (product as any)?.attributes as
-    | Record<string, unknown>
-    | undefined;
+  const sku = (product as { sku?: string })?.sku;
+  const brand = (product as { brand?: string })?.brand;
+  const description = (product as Partial<IProduct>)?.description as
+    | string
+    | undefined; // HTML
+  const attributes = (product as { attributes?: Record<string, unknown> })
+    ?.attributes;
 
   const sanitizedDescription = useMemo(
     () =>

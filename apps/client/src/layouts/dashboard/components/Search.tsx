@@ -99,18 +99,18 @@ export default function Search(): React.JSX.Element {
           }}
         />
       )}
-      sx={(t) => ({
+      sx={(t: import('@mui/material/styles').Theme) => ({
         width: { xs: '100%', md: 320 },
         '& .MuiAutocomplete-paper': {
-          bgcolor: ((t as any).vars || t).palette.background.paper,
-          border: `1px solid ${((t as any).vars || t).palette.divider}`,
+          bgcolor: (t.vars || t).palette.background.paper,
+          border: `1px solid ${(t.vars || t).palette.divider}`,
         },
         '& .MuiAutocomplete-option': {
           '&[aria-selected="true"]': {
-            backgroundColor: ((t as any).vars || t).palette.action.selected,
+            backgroundColor: (t.vars || t).palette.action.selected,
           },
           '&.Mui-focused': {
-            backgroundColor: ((t as any).vars || t).palette.action.hover,
+            backgroundColor: (t.vars || t).palette.action.hover,
           },
         },
       })}

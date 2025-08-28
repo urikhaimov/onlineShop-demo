@@ -27,8 +27,8 @@ function collectImages(
 ): { url: string; title?: string; blurb?: string }[] {
   const fromSections =
     data.sections
-      ?.map((s: any) => ({
-        url: s.imageUrl || '',
+      ?.map((s: LandingPageData['sections'][number] & { image?: string }) => ({
+        url: (s as { image?: string }).image || '',
         title: s.title,
         blurb: s.content,
       }))
@@ -174,7 +174,7 @@ export default function ProductMosaic({ data }: { data: LandingPageData }) {
                 transition: {
                   xs: 'transform .28s ease, box-shadow .28s ease',
                   '@media (prefers-reduced-motion: reduce)': 'none',
-                } as any,
+                } as Record<string, string>,
                 '&:hover': {
                   transform: {
                     xs: 'translateY(-4px)',
@@ -197,7 +197,7 @@ export default function ProductMosaic({ data }: { data: LandingPageData }) {
                   transition: {
                     xs: 'opacity .28s ease',
                     '@media (prefers-reduced-motion: reduce)': 'none',
-                  } as any,
+                  } as Record<string, string>,
                   pointerEvents: 'none',
                   borderRadius: 'inherit',
                   '&:hover': { opacity: Math.min(overlayStrength + 0.1, 0.9) },

@@ -1,5 +1,5 @@
 import { TOrder as Order } from '@common/types';
-import api from '../api/axiosInstance'; // ✅ With auth interceptors
+import api from './axiosInstance'; // ✅ With auth interceptors
 
 export function fetchMyOrders() {
   return api.get<Order[]>('/orders/mine');

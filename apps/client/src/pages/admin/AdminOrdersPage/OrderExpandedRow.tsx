@@ -15,7 +15,7 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
   // ✅ locale-aware memoized formatters via hook
   const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
-  const toMaybeDate = (v: unknown): Date | undefined => asDate(v as any);
+  const toMaybeDate = (v: unknown): Date | undefined => asDate(v as unknown);
 
   const addr = order.shippingAddress;
   const items = order.items ?? [];
@@ -28,7 +28,9 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
     toMaybeDate(order.updatedAt) ?? toMaybeDate(order.metadata?.updatedAt);
 
   // Try to format ETA if it's date-like; otherwise show as plain text or EMPTY
-  const etaDate = toMaybeDate(order.delivery?.eta as any);
+  const etaDate = toMaybeDate(
+    order.delivery?.eta as string | number | Date | undefined,
+  );
   const etaLabel = etaDate
     ? formatDateTime(etaDate)
     : ((order.delivery?.eta as unknown as string) ?? EMPTY);

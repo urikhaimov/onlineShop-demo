@@ -104,7 +104,7 @@ function buildProductColumns(
       filterFn: betweenDateRange,
       meta: { filterVariant: 'date', hiddenOnMobile: true, align: 'left' },
       cell: ({ getValue }) => {
-        const d = asDate(getValue<unknown>() as any);
+        const d = asDate(getValue<unknown>());
         return d ? formatDateTime(d) : DASH;
       },
     },

@@ -93,7 +93,11 @@ export class SearchService {
 
       const out: SuggestionDTO[] = [
         ...products.docs.map((d) => {
-          const v = d.data() as any;
+          interface ProductDoc {
+            title?: string;
+            slug?: string;
+          }
+          const v = d.data() as ProductDoc;
           return {
             type: 'product' as const,
             id: d.id,
@@ -102,7 +106,11 @@ export class SearchService {
           };
         }),
         ...categories.docs.map((d) => {
-          const v = d.data() as any;
+          interface CategoryDoc {
+            name?: string;
+            slug?: string;
+          }
+          const v = d.data() as CategoryDoc;
           return {
             type: 'category' as const,
             id: d.id,

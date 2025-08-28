@@ -265,7 +265,7 @@ export default function AdminOrdersPage() {
         ) : error ? (
           <Typography color="error" sx={{ p: 2 }}>
             {t('adminOrdersPage.failedToLoad', {
-              message: (error as any)?.message ?? '',
+              message: (error as Error)?.message ?? '',
             })}
           </Typography>
         ) : filteredData.length === 0 ? (

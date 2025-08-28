@@ -9,12 +9,12 @@ import {
   Box,
   useTheme,
 } from '@mui/material';
-import type { Table as ReactTable } from '@tanstack/react-table';
-import { flexRender } from '@tanstack/react-table';
+import { flexRender, type Table as ReactTable } from '@tanstack/react-table';
 import { EXPAND_COL_WIDTH, RIGHT_GAP } from './constants';
 import { getStickyStyles, responsiveVisibility } from './utils/styles';
 import type { ColumnMeta } from './utils/columnMeta';
 import { renderColumnFilter } from './renderColumnFilter';
+import type { SxProps, Theme } from '@mui/material/styles';
 
 type Props<T extends object> = {
   table: ReactTable<T>;
@@ -39,16 +39,17 @@ export default function TableHeadSection<T extends object>({
             const meta = header.column.columnDef.meta as ColumnMeta | undefined;
 
             // precompute helper outputs
-            const stickySx = getStickyStyles(theme, meta);
-            const hiddenSx = responsiveVisibility(meta);
+
+            const stickySx: SxProps<Theme> = getStickyStyles(theme, meta);
+            const hiddenSx: SxProps<Theme> = responsiveVisibility(meta);
 
             return (
               <TableCell
                 key={header.id}
                 sx={(th) => ({
-                  // merge helper styles (cast avoids union issues if helpers return SxProps)
-                  ...(stickySx as any),
-                  ...(hiddenSx as any),
+                  // merge helper styles
+                  ...stickySx,
+                  ...hiddenSx,
 
                   top: 0,
                   zIndex: 10,

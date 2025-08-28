@@ -41,7 +41,7 @@ export function buildOrderColumns(
       enableColumnFilter: false,
       meta: { hiddenOnMobile: true, align: 'left' },
       cell: (info) => {
-        const d = asDate(info.getValue<unknown>() as any);
+        const d = asDate(info.getValue<Date | string | number | null>());
         return (
           <Typography variant="body2" color="text.secondary">
             {d ? formatDateTime(d) : DASH}
