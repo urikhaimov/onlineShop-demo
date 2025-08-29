@@ -3,6 +3,7 @@ import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { Typography } from '@mui/material';
 import type { NavigateFunction } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -14,25 +15,25 @@ import {
   betweenNumberRange,
 } from '../../../components/StickyTable/tableFilters';
 
-import { asDate, DASH } from '../../../utils/columns.util';
+import { DASH } from '../../../utils/columns.util';
+import { asDateLoose } from '../../../utils/date.util';
 import { useLocaleFormatters } from '../../../hooks/useLocale';
 
-// ⬇️ Reusable presets/factories
+// Reusable presets/factories
 import {
   makeNumberColumn,
-  makeDateColumn,
   makeCurrencyColumn,
-} from '../../../utils/columnPresets'; // <-- adjust path if needed
+} from '../../../utils/columnPresets'; // adjust path if needed
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Pure builder
+// Pure builder (NO hooks)
 // ──────────────────────────────────────────────────────────────────────────────
 type Formatters = {
-  formatCurrency: (n: number) => string;
+  formatCurrency: (n: number) => string; // MAJOR units
   formatDateTime: (d: Date) => string;
 };
 
-function buildProductColumns(
+export function buildAdminProductColumns(
   t: TFunction,
   categories: { id: string; name: string }[],
   navigate: NavigateFunction,
@@ -40,130 +41,154 @@ function buildProductColumns(
 ): ColumnDef<IProduct>[] {
   const selectOptions = categories.map((c) => ({ label: c.name, value: c.id }));
 
-  // Stock — reuse preset, override filter and meta/cell for this page
-  const stockCol = makeNumberColumn<IProduct>('stock', t('table.stock'), {
-    enableFilter: false,
-    align: 'left',
-    hiddenOnMobile: true,
-  });
+  // Name — sticky left
+  const nameCol: ColumnDef<IProduct> = {
+    accessorKey: 'name',
+    header: t('table.name', { defaultValue: 'Name' }),
+    enableColumnFilter: true,
+    enableSorting: true,
+    size: 260,
+    meta: {
+      filterVariant: 'text',
+      align: 'left' as const,
+      sticky: 'left' as const,
+    },
+    cell: ({ getValue }) => getValue<string>() ?? DASH,
+  };
 
-  // Price — use currency factory, then override filterFn to the actual function impl
-  const priceCol: ColumnDef<IProduct> = {
-    ...makeCurrencyColumn<IProduct>('price', t('table.price'), formatCurrency, {
-      enableFilter: true,
-      size: 120,
-      align: 'left',
-      hiddenOnMobile: true,
-    }),
+  // Category — select filter, show human name
+  const categoryCol: ColumnDef<IProduct> = {
+    accessorKey: 'categoryId',
+    header: t('table.category', { defaultValue: 'Category' }),
+    enableColumnFilter: true,
+    enableSorting: true,
+    size: 180,
+    filterFn: 'equals',
+    meta: {
+      filterVariant: 'select',
+      align: 'left' as const,
+      selectOptions,
+    },
+    cell: ({ getValue }) => {
+      const id = getValue<string>();
+      return categories.find((c) => c.id === id)?.name ?? DASH;
+    },
+  };
+
+  // Stock — number range
+  const stockCol: ColumnDef<IProduct> = {
+    ...makeNumberColumn<IProduct>(
+      'stock',
+      t('table.stock', { defaultValue: 'Stock' }),
+      {
+        align: 'right',
+        enableFilter: true,
+        size: 110,
+        hiddenOnMobile: true,
+      },
+    ),
+    meta: { filterVariant: 'number' },
     filterFn: betweenNumberRange,
   };
 
-  // Created At — reuse preset, override filter + localized cell
+  // Price — currency + number range
+  const priceCol: ColumnDef<IProduct> = {
+    ...makeCurrencyColumn<IProduct>(
+      'price',
+      t('table.price', { defaultValue: 'Price' }),
+      formatCurrency,
+      {
+        align: 'right',
+        enableFilter: true,
+        size: 120,
+        hiddenOnMobile: true,
+      },
+    ),
+    filterFn: betweenNumberRange,
+    meta: { filterVariant: 'number' },
+  };
+
+  // Created At — date range; robust parsing with metadata fallback
   const createdCol: ColumnDef<IProduct> = {
-    ...makeDateColumn,
-    size: 160,
+    accessorKey: 'createdAt',
+    header: t('table.createdAt', { defaultValue: 'Created At' }),
+    size: 180,
+    enableColumnFilter: true,
+    enableSorting: true,
     filterFn: betweenDateRange,
     meta: {
-      ...(makeDateColumn.meta ?? {}),
       filterVariant: 'date',
       hiddenOnMobile: true,
-      align: 'left',
+      align: 'left' as const,
     },
-    cell: ({ getValue }) => {
-      const d = asDate(getValue<unknown>());
-      return d ? formatDateTime(d) : DASH;
+    cell: ({ row }) => {
+      const d =
+        asDateLoose((row.original as any).createdAt) ??
+        asDateLoose(row.original?.metadata?.updatedAt as any) ??
+        asDateLoose(row.original?.metadata?.createdAt as any);
+      return (
+        <Typography variant="body2" color="text.secondary">
+          {d ? formatDateTime(d) : DASH}
+        </Typography>
+      );
     },
   };
 
-  return [
-    // Name — hidden on mobile
-    {
-      accessorKey: 'name',
-      header: t('table.name'),
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 240,
-      meta: { filterVariant: 'text', align: 'left' },
-      cell: ({ getValue }) => getValue<string>() ?? DASH,
+  // Actions — sticky right (NOTE: use mutable array type to avoid TS readonly error)
+  const actionsCol: ColumnDef<IProduct> = {
+    id: 'actions',
+    header: t('table.actions', { defaultValue: 'Actions' }),
+    enableColumnFilter: false,
+    enableSorting: false,
+    size: 140,
+    meta: {
+      sticky: 'right' as const,
+      hiddenOnMobile: false,
+      align: 'left' as const,
     },
-
-    // Category — select filter, show human name
-    {
-      accessorKey: 'categoryId',
-      header: t('table.category'),
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 180,
-      filterFn: 'equals',
-      meta: {
-        filterVariant: 'select',
-        align: 'left',
-        selectOptions,
-      },
-      cell: ({ getValue }) => {
-        const catId = getValue<string>();
-        const cat = categories.find((c) => c.id === catId);
-        return cat?.name ?? DASH;
-      },
-    },
-
-    // Stock — number range (reused)
-    stockCol,
-
-    // Price — number range (reused + localized)
-    priceCol,
-
-    // Created At — date range (reused + localized)
-    createdCol,
-
-    // Actions — sticky right
-    {
-      id: 'actions',
-      header: t('table.actions'),
-      enableColumnFilter: false,
-      enableSorting: false,
-      size: 140,
-      meta: { sticky: 'right', hiddenOnMobile: false, align: 'left' },
-      cell: ({ row }) => {
-        const ctx = row.original;
-        const actions: ReadonlyArray<RowAction<IProduct>> = [
-          {
-            id: 'edit',
-            label: t('actions.edit'),
-            icon: <EditIcon fontSize="small" />,
-            onClick: (p) => navigate(`/admin/products/edit/${p.id}`),
-            tooltip: (p) =>
-              t('adminProducts.actions.tooltipEdit', { name: p.name }),
+    cell: ({ row }) => {
+      const ctx = row.original;
+      const actions: RowAction<IProduct>[] = [
+        {
+          id: 'edit',
+          label: t('actions.edit', { defaultValue: 'Edit' }),
+          icon: <EditIcon fontSize="small" />,
+          onClick: (p) => navigate(`/admin/products/edit/${p.id}`),
+          tooltip: (p) =>
+            t('adminProducts.actions.tooltipEdit', { name: p.name }),
+        },
+        {
+          id: 'delete',
+          label: t('actions.delete', { defaultValue: 'Delete' }),
+          icon: <DeleteIcon fontSize="small" />,
+          onClick: (p) => {
+            const ok = window.confirm(
+              t('adminProducts.confirmDelete', { name: p.name }),
+            );
+            if (ok) navigate(`/admin/products/delete/${p.id}`);
           },
-          {
-            id: 'delete',
-            label: t('actions.delete'),
-            icon: <DeleteIcon fontSize="small" />,
-            onClick: (p) => {
-              const ok = window.confirm(
-                t('adminProducts.confirmDelete', { name: p.name }),
-              );
-              if (ok) navigate(`/admin/products/delete/${p.id}`);
-            },
-            tooltip: (p) =>
-              t('adminProducts.actions.tooltipDelete', { name: p.name }),
-          },
-        ];
+          tooltip: (p) =>
+            t('adminProducts.actions.tooltipDelete', { name: p.name }),
+        },
+      ];
 
-        return (
-          <RowActions<IProduct>
-            context={ctx}
-            actions={actions}
-            renderMode="auto"
-            menuBelow="sm"
-            size="small"
-          />
-        );
-      },
+      return (
+        <RowActions<IProduct>
+          context={ctx}
+          actions={actions}
+          renderMode="auto"
+          menuBelow="sm"
+          size="small"
+        />
+      );
     },
-  ];
+  };
+
+  return [nameCol, categoryCol, stockCol, priceCol, createdCol, actionsCol];
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Hook wrapper (use this in the page)
 // ──────────────────────────────────────────────────────────────────────────────
 export function useProductColumns(
   categories: { id: string; name: string }[],
@@ -174,10 +199,24 @@ export function useProductColumns(
 
   return React.useMemo(
     () =>
-      buildProductColumns(t, categories, navigate, {
+      buildAdminProductColumns(t, categories, navigate, {
         formatCurrency,
         formatDateTime,
       }),
     [t, categories, navigate, formatCurrency, formatDateTime],
   );
+}
+
+// Optional pure factory (no hooks) — if you ever need it
+export function defineAdminProductColumnsPure(
+  tFn: TFunction,
+  categories: { id: string; name: string }[],
+  navigate: NavigateFunction,
+  formatCurrency: (n: number) => string,
+  formatDateTime: (d: Date) => string,
+): ColumnDef<IProduct>[] {
+  return buildAdminProductColumns(tFn, categories, navigate, {
+    formatCurrency,
+    formatDateTime,
+  });
 }

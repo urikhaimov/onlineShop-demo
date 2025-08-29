@@ -1,18 +1,12 @@
-import {
-  collection,
-  doc,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  getDoc,
-} from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { db, storage } from '../firebase';
-import { CombinedImage } from '../components/ImageUploader';
+// src/hooks/useSaveProductMutation.ts
+import { useMutation } from '@tanstack/react-query';
+import api from '../api/axiosInstance';
+import { auth } from '../firebase';
+import type { IProduct } from '@common/types';
 
-export interface SaveProductPayload {
+export type SaveProductArgs = {
   productId?: string;
+  mode: 'add' | 'edit';
   data: {
     name: string;
     description: string;
@@ -20,80 +14,42 @@ export interface SaveProductPayload {
     stock: number;
     categoryId: string;
   };
-  images: CombinedImage[];
+  images: { id: string; url: string; type: 'existing' | 'new' }[];
   deletedImageIds: string[];
-  mode: 'add' | 'edit';
-}
+};
 
 export function useSaveProductMutation() {
-  const queryClient = useQueryClient();
+  return useMutation<IProduct, Error, SaveProductArgs>({
+    mutationKey: ['saveProduct'],
+    mutationFn: async (args) => {
+      const user = auth.currentUser;
+      const token = await user?.getIdToken?.();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-  return useMutation({
-    mutationFn: async ({
-      productId,
-      data,
-      images,
-      deletedImageIds,
-      mode,
-    }: SaveProductPayload) => {
-      let productDocId = productId ?? '';
-      if (mode === 'add' && !productDocId) {
-        const newDocRef = doc(collection(db, 'products'));
-        productDocId = newDocRef.id;
-      }
+      // You likely upload new images elsewhere; here we just pass URLs.
+      const images = args.images.map((i) => i.url);
 
-      // Upload new images
-      const newImages = images.filter((img) => img.type === 'new');
-      const uploadedUrls = await Promise.all(
-        newImages.map((img) => {
-          if (!img.file) throw new Error('Missing file');
-          const storageRef = ref(
-            storage,
-            `products/${productDocId}/${img.file.name}`,
-          );
-          const uploadTask = uploadBytesResumable(storageRef, img.file);
-          return new Promise<string>((resolve, reject) => {
-            uploadTask.on('state_changed', null, reject, async () => {
-              const url = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(url);
-            });
-          });
-        }),
-      );
-
-      const existingUrls = images
-        .filter(
-          (img) =>
-            img.type === 'existing' &&
-            !deletedImageIds.includes(img.id.replace('existing-', '')),
-        )
-        .map((img) => img.url);
-
-      const allImageUrls = [...existingUrls, ...uploadedUrls];
-
-      const productData = {
-        ...data,
-        images: allImageUrls,
-        price: Number(data.price),
-        stock: Number(data.stock),
-        updatedAt: serverTimestamp(),
+      const payload = {
+        ...args.data,
+        images,
+        imageUrl: images[0] ?? null,
       };
 
-      if (mode === 'edit' && productId) {
-        await updateDoc(doc(db, 'products', productId), productData);
-      } else {
-        await setDoc(doc(db, 'products', productDocId), {
-          ...productData,
-          createdAt: serverTimestamp(),
+      if (args.mode === 'add') {
+        const { data } = await api.post<IProduct>('/products', payload, {
+          headers,
         });
+        return data;
       }
 
-      return productDocId;
-    },
+      if (!args.productId) throw new Error('Missing productId for edit');
 
-    onSuccess: (productId) => {
-      queryClient.invalidateQueries({ queryKey: ['product', productId] });
-      queryClient.invalidateQueries({ queryKey: ['products'] }); // optional
+      const { data } = await api.put<IProduct>(
+        `/products/${args.productId}`,
+        payload,
+        { headers },
+      );
+      return data;
     },
   });
 }

@@ -1,158 +1,199 @@
-// src/pages/YourList/defineProductColumns.ts
+// src/pages/ProductsPage/Columns.tsx
 import * as React from 'react';
-import { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef } from '@tanstack/react-table';
 import type { IProduct } from '@common/types';
-import { Link as MuiLink } from '@mui/material';
+import { Typography, IconButton, Tooltip } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
-import { Link } from 'react-router-dom';
-import { useCartStore } from '../../stores/useCartStore';
-import RowActions, { type RowAction } from '../../components/RowActions';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
+import { makeCurrencyColumn } from '../../utils/columnPresets';
 import { DASH } from '../../utils/columns.util';
+import { asDateLoose } from '../../utils/date.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
+import { useCartStore } from '../../stores/useCartStore';
 
-// Reusable presets/factories
-import {
-  makeNumberColumn,
-  makeCurrencyColumn,
-} from '../../utils/columnPresets'; // <-- adjust path if needed
+type Category = { id: string; name: string };
 
-const COLUMN_WIDTHS = {
-  image: 80,
-  actions: 80,
-  number: 90,
-  category: 140,
-  name: 220,
-} as const;
+type Formatters = {
+  formatCurrency: (n: number) => string; // expects MAJOR units
+  formatDateTime: (d: Date) => string;
+};
 
-// ---------- Pure builder (NO hooks here) ----------
-function buildUserProductColumns(
+/**
+ * PURE builder (no hooks). Name as requested: buildUserProductColumns
+ */
+export function buildUserProductColumns(
   t: TFunction,
-  categories: { id: string; name: string }[],
-  formatCurrency: (n: number) => string,
-  addToCart: (p: IProduct & { quantity?: number }) => void,
-  setSnackbarOpen: (open: boolean) => void,
+  { formatCurrency, formatDateTime }: Formatters,
+  categories: Category[],
+  onAddedToCart?: () => void,
 ): ColumnDef<IProduct>[] {
-  const catMap = Object.fromEntries(
-    categories.map((c) => [c.id, c.name] as const),
-  );
+  const categoryName = (id?: string | null) =>
+    categories.find((c) => c.id === id)?.name ?? DASH;
 
-  // Reuse base stock column and tailor for this page
-  const stockCol = makeNumberColumn<IProduct>('stock', t('table.stock'), {
-    enableFilter: false,
-    size: COLUMN_WIDTHS.number,
-    align: 'left',
-    hiddenOnMobile: true,
-  });
-
-  // Price — use currency factory (localized), no filter on this page
   const priceCol: ColumnDef<IProduct> = makeCurrencyColumn<IProduct>(
     'price',
-    t('table.price'),
+    t('table.price', { defaultValue: 'Price' }),
     formatCurrency,
     {
+      align: 'right',
       enableFilter: false,
-      size: COLUMN_WIDTHS.number,
-      align: 'left',
       hiddenOnMobile: true,
     },
   );
 
+  const createdCol: ColumnDef<IProduct> = {
+    accessorKey: 'createdAt',
+    header: t('table.createdAt', { defaultValue: 'Created At' }),
+    size: 180,
+    enableColumnFilter: false,
+    enableSorting: true,
+    meta: { hiddenOnMobile: true, align: 'left' as const },
+    cell: ({ row }) => {
+      const d =
+        asDateLoose((row.original as any).createdAt) ??
+        asDateLoose(row.original?.metadata?.updatedAt as any) ??
+        asDateLoose(row.original?.metadata?.createdAt as any);
+      return (
+        <Typography variant="body2" color="text.secondary">
+          {d ? formatDateTime(d) : DASH}
+        </Typography>
+      );
+    },
+  };
+
   return [
-    // Category — sticky left
+    // Category (for grouping; shows the readable name)
     {
       accessorKey: 'categoryId',
-      header: t('table.category'),
-      size: COLUMN_WIDTHS.category,
+      header: t('table.category', { defaultValue: 'Category' }),
+      size: 160,
       enableColumnFilter: false,
-      meta: { align: 'left', sticky: 'left', hiddenOnMobile: true },
-      cell: ({ row }) => catMap[row.original.categoryId] ?? DASH,
+      meta: {
+        sticky: 'left' as const,
+        align: 'left' as const,
+        hiddenOnMobile: true,
+      },
+      cell: ({ getValue }) => (
+        <Typography variant="body2">
+          {categoryName(getValue<string>())}
+        </Typography>
+      ),
     },
 
     // Name
     {
       accessorKey: 'name',
-      header: t('table.name'),
+      header: t('table.name', { defaultValue: 'Name' }),
       enableColumnFilter: false,
-      size: COLUMN_WIDTHS.name,
-      meta: {},
-      cell: ({ row, getValue }) => {
-        const id = row.original.id;
-        const name = getValue<string>() ?? DASH;
-        return (
-          <MuiLink
-            component={Link}
-            to={`/product/${id}`}
-            underline="hover"
-            color="primary"
-            sx={{ fontWeight: 500 }}
-          >
-            {name}
-          </MuiLink>
-        );
-      },
+      enableSorting: true,
+      meta: { align: 'left' as const },
+      size: 260,
+      cell: (info) => (
+        <Typography
+          variant="body2"
+          sx={{ maxWidth: 240, wordBreak: 'break-word' }}
+        >
+          {info.getValue<string>() ?? DASH}
+        </Typography>
+      ),
     },
 
-    // Stock — reused
-    stockCol,
+    // Stock
+    {
+      accessorKey: 'stock',
+      header: t('table.stock', { defaultValue: 'Stock' }),
+      enableColumnFilter: false,
+      enableSorting: true,
+      meta: { align: 'left' as const },
+      size: 100,
+      cell: ({ getValue }) => (
+        <Typography variant="body2" textAlign="right">
+          {getValue<number>() ?? 0}
+        </Typography>
+      ),
+    },
 
-    // Price — reused via factory + localized
     priceCol,
+    createdCol,
 
-    // Actions — sticky RIGHT
+    // Actions (Add to cart)
     {
       id: 'actions',
-      header: t('table.actions'),
+      header: t('table.actions', { defaultValue: 'Actions' }),
+      size: 80,
       enableColumnFilter: false,
       enableSorting: false,
-      size: COLUMN_WIDTHS.actions,
-      meta: { sticky: 'right', align: 'left', alwaysVisible: true },
+      meta: { align: 'right' as const, sticky: 'right' as const },
       cell: ({ row }) => {
         const product = row.original;
-
-        const actions: RowAction<IProduct>[] = [
-          {
-            id: 'add',
-            label: t('table.addToCart'),
-            icon: <AddShoppingCartIcon />,
-            onClick: (p) => {
-              addToCart({ ...p, quantity: 1 });
-              setSnackbarOpen(true);
-            },
-            disabled: (p) => (p?.stock ?? 0) <= 0,
-            tooltip: (p) =>
-              (p?.stock ?? 0) <= 0
-                ? t('table.outOfStock')
-                : t('table.addToCart'),
-          },
-        ];
-
-        return <RowActions context={product} actions={actions} />;
+        return (
+          <Tooltip
+            title={t('actions.addToCart', { defaultValue: 'Add to cart' })}
+          >
+            <IconButton
+              size="small"
+              onClick={() => {
+                // add minimal required fields for your cart item
+                useCartStore.getState().addToCart({
+                  id: product.id!,
+                  name: product.name,
+                  price: Number(product.price ?? 0),
+                  image:
+                    (product.images?.[0] as any)?.url ?? product.imageUrl ?? '',
+                  quantity: 1,
+                  productId: product.id!,
+                } as any);
+                onAddedToCart?.();
+              }}
+            >
+              <AddShoppingCartIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        );
       },
     },
   ];
 }
 
-// ---------- Hook wrapper (call inside components) ----------
+/**
+ * Hook wrapper used by your page:
+ *   const columns = useProductColumns(categories, setSnackbarOpen);
+ */
 export function useProductColumns(
-  categories: { id: string; name: string }[],
-  setSnackbarOpen: (open: boolean) => void,
+  categories: Category[],
+  onAddedToCart?: () => void,
 ): ColumnDef<IProduct>[] {
   const { t } = useTranslation();
-  const { formatCurrency } = useLocaleFormatters();
-  const addToCart = useCartStore.getState().addToCart;
+  const { formatCurrency, formatDateTime } = useLocaleFormatters();
 
   return React.useMemo(
     () =>
       buildUserProductColumns(
         t,
+        { formatCurrency, formatDateTime },
         categories,
-        formatCurrency,
-        addToCart,
-        setSnackbarOpen,
+        onAddedToCart,
       ),
-    [t, categories, formatCurrency, addToCart, setSnackbarOpen],
+    [t, formatCurrency, formatDateTime, categories, onAddedToCart],
+  );
+}
+
+/**
+ * Optional pure factory (no hooks), if you ever need it.
+ */
+export function defineUserProductColumnsPure(
+  tFn: TFunction,
+  formatCurrency: (n: number) => string,
+  formatDateTime: (d: Date) => string,
+  categories: Category[],
+  onAddedToCart?: () => void,
+): ColumnDef<IProduct>[] {
+  return buildUserProductColumns(
+    tFn,
+    { formatCurrency, formatDateTime },
+    categories,
+    onAddedToCart,
   );
 }
