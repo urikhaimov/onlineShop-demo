@@ -3,54 +3,38 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
-import { CreateOrderDto } from './dto/create-order.dto';
+
 import { adminDb } from '@common/firebase';
 import { CDefaultCurrency } from '@common/types';
+import { CreateOrderDto } from './dto/create-order.dto';
 
 type PlainItem = {
   productId: string;
   name: string;
-  price: number;
+  price: number; // MAJOR units (e.g., ₪)
   image?: string;
   quantity: number;
 };
 
-// Stripe minimums in minor units (cents). Adjust if you support more currencies.
-function getStripeMinMinor(currency: string): number {
-  switch (currency) {
-    case 'ils':
-      return 200; // ₪2.00
-    case 'usd':
-    case 'eur':
-    case 'cad':
-    case 'aud':
-    case 'nzd':
-      return 50; // $/€/C$/A$/NZ$ 0.50
-    case 'gbp':
-      return 30; // £0.30
-    case 'jpy':
-      return 50; // ¥50 (JPY has 0 decimals; Stripe expects integer yen)
-    default:
-      return 50; // sensible default
-  }
-}
-
 @Injectable()
 export class OrdersService {
   private readonly stripe: Stripe;
+  private readonly logger = new Logger(OrdersService.name);
 
   constructor(private readonly config: ConfigService) {
     const secretKey = this.config.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) throw new Error('Missing STRIPE_SECRET_KEY in environment');
-    // Let SDK use its bundled api version to avoid literal type mismatch
+    // Use SDK default API version
     this.stripe = new Stripe(secretKey);
   }
 
-  // === helpers ==============================================================
+  // ======================== helpers ========================
+
   private nowTs() {
     return admin.firestore.Timestamp.now();
   }
@@ -62,12 +46,12 @@ export class OrdersService {
   }
 
   private toPlainItems(items: CreateOrderDto['items']): PlainItem[] {
-    return items.map((item) => ({
-      productId: item.productId,
-      name: item.name,
-      price: item.price,
-      image: item.image,
-      quantity: item.quantity,
+    return items.map((it) => ({
+      productId: it.productId,
+      name: it.name,
+      price: it.price,
+      image: it.image,
+      quantity: it.quantity,
     }));
   }
 
@@ -76,32 +60,90 @@ export class OrdersService {
   ) {
     const batch = adminDb.batch();
     for (const { productId, quantity } of items) {
-      const productRef = adminDb.collection('products').doc(productId);
-      batch.update(productRef, {
+      const ref = adminDb.collection('products').doc(productId);
+      batch.update(ref, {
         stock: admin.firestore.FieldValue.increment(-Math.abs(quantity)),
       });
     }
     await batch.commit();
   }
 
-  // === create from client ===================================================
+  /** Stripe minimums in MINOR units (cents/agorot). */
+  private readonly minByCurrencyMinor: Record<string, number> = {
+    usd: 50,
+    eur: 50,
+    gbp: 30,
+    ils: 200, // ≈ $0.50 → ₪2.00
+    aud: 50,
+    cad: 50,
+    chf: 50,
+    sek: 50,
+    dkk: 50,
+    nok: 50,
+    // zero-decimal examples:
+    jpy: 50,
+    huf: 175,
+    idr: 10000,
+    krw: 500,
+    vnd: 12000,
+  };
+
+  private normalizeAmountMinor(amountMinor: number, currency: string): number {
+    const cur = (currency || 'usd').toLowerCase();
+    const inputMinor = Math.max(0, Math.round(Number(amountMinor) || 0));
+    const minMinor = this.minByCurrencyMinor[cur] ?? 50;
+    if (inputMinor < minMinor) {
+      this.logger.warn(
+        `Amount too small for ${cur}: ${inputMinor}. Bumping to minimum ${minMinor}.`,
+      );
+      return minMinor;
+    }
+    return inputMinor;
+  }
+
+  /** Conservative server recompute in MINOR units.
+   * Assumes `price` is MAJOR units (₪) so we *100.
+   */
+  private computeCartTotalMinor(
+    cart: PlainItem[],
+    shippingMajor: number,
+    taxRate: number, // e.g., 0.17
+    discountMinor: number, // already minor units
+  ): number {
+    const itemsMinor = (cart || []).reduce((sum, i) => {
+      const priceMajor = Number(i.price) || 0;
+      const qty = Number(i.quantity) || 0;
+      return sum + Math.round(priceMajor * 100) * qty;
+    }, 0);
+
+    const shippingMinor = Math.round((Number(shippingMajor) || 0) * 100);
+    const taxMinor = Math.round(itemsMinor * (Number(taxRate) || 0));
+    const discount = Math.max(0, Math.round(Number(discountMinor) || 0));
+
+    return Math.max(0, itemsMinor + shippingMinor + taxMinor - discount);
+  }
+
+  // ======================== mutations ========================
+
+  /** Direct order creation (non-Stripe flow). */
   async createOrder(dto: CreateOrderDto) {
     const plainItems = this.toPlainItems(dto.items);
     const now = this.nowTs();
     const uidNum = this.numericUid(dto.userId);
 
-    const order = {
+    const orderDoc = {
       userId: dto.userId,
       email: dto.email ?? null,
       items: plainItems,
-      totalAmount: dto.totalAmount,
+      totalAmount: dto.totalAmount, // MINOR units
       paymentIntentId: dto.paymentIntentId ?? null,
-      payment: dto.payment ?? {
-        method: 'manual',
-        status: 'paid',
-        transactionId: dto.paymentIntentId || `manual-${Date.now()}`,
-      },
-      // conforms to your DTO union: 'pending' | 'paid' | 'failed'
+      payment:
+        dto.payment ??
+        ({
+          method: 'manual',
+          status: 'paid',
+          transactionId: dto.paymentIntentId || `manual-${Date.now()}`,
+        } as const),
       status: dto.status ?? 'pending',
       ownerName: dto.ownerName ?? null,
       passportId: dto.passportId ?? null,
@@ -125,53 +167,25 @@ export class OrdersService {
     };
 
     const ref = adminDb.collection('orders').doc();
-    await ref.set({ id: ref.id, ...order });
+    await ref.set({ id: ref.id, ...orderDoc });
 
     await this.decrementStock(
       plainItems.map(({ productId, quantity }) => ({ productId, quantity })),
     );
 
-    return { id: ref.id, ...order };
+    return { id: ref.id, ...orderDoc };
   }
 
-  // === queries ==============================================================
-  async getOrdersByUserId(uid: string) {
-    const snapshot = await adminDb
-      .collection('orders')
-      .where('userId', '==', uid)
-      .orderBy('createdAt', 'desc')
-      .get();
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  }
-
-  async getOrderById(uid: string, id: string, role: string) {
-    const snap = await adminDb.collection('orders').doc(id).get();
-    const data = snap.data();
-    if (!snap.exists || !data) throw new NotFoundException('Order not found');
-    if (role === 'admin' || role === 'superadmin' || data.userId === uid) {
-      return { id: snap.id, ...data };
-    }
-    throw new NotFoundException('Unauthorized');
-  }
-
-  async getAllOrders() {
-    const snapshot = await adminDb
-      .collection('orders')
-      .orderBy('createdAt', 'desc')
-      .get();
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  }
-
-  // === Stripe: create PI from frontend =====================================
+  /** Create a Stripe PaymentIntent (expects amount in MINOR units). */
   async createPaymentIntent(
-    amount: number, // minor units (cents)
+    amountMinorFromClient: number,
     ownerName: string,
     passportId: string,
     uid: string,
     cart: PlainItem[],
-    shipping: number,
+    shippingMajor: number,
     taxRate: number,
-    discount: number,
+    discountMinor: number,
     shippingAddress?: {
       fullName: string;
       phone: string;
@@ -181,41 +195,55 @@ export class OrdersService {
       country: string;
     },
   ) {
+    const currency = (CDefaultCurrency || 'ILS').toLowerCase();
+
+    // 1) Log input
+    this.logger.log(
+      `PI request: currency=${currency}, clientMinor=${amountMinorFromClient}, cartItems=${cart?.length ?? 0}, shippingMajor=${shippingMajor}, taxRate=${taxRate}, discountMinor=${discountMinor}, uid=${uid}`,
+    );
+
+    // 2) Server recompute
+    const serverMinor = this.computeCartTotalMinor(
+      cart || [],
+      shippingMajor,
+      taxRate,
+      discountMinor,
+    );
+
+    // 3) Choose amount (prefer server if > 0)
+    const chosenMinor = serverMinor > 0 ? serverMinor : amountMinorFromClient;
+
+    // 4) Enforce Stripe minimum
+    const normalizedMinor = this.normalizeAmountMinor(chosenMinor, currency);
+
+    this.logger.log(
+      `PI amounts: serverMinor=${serverMinor}, clientMinor=${amountMinorFromClient}, chosenMinor=${chosenMinor}, normalizedMinor=${normalizedMinor}`,
+    );
+
     try {
-      const currency = (CDefaultCurrency || 'ils').toLowerCase();
-
-      // ✅ Enforce Stripe minimums & integer minor units
-      const safeAmount = Math.max(0, Math.floor(amount || 0));
-      const minMinor = getStripeMinMinor(currency);
-      const normalizedAmount = Math.max(safeAmount, minMinor);
-      if (normalizedAmount !== safeAmount) {
-        // You can throw a 400 instead; for dev we clamp to avoid test failures.
-        // console.warn(...) is fine for visibility during testing.
-
-        console.warn(
-          `Amount ${safeAmount} too small for ${currency}; normalized to ${normalizedAmount}`,
-        );
-      }
-
       const paymentIntent = await this.stripe.paymentIntents.create({
-        amount: normalizedAmount,
+        amount: normalizedMinor,
         currency,
         automatic_payment_methods: { enabled: true },
         metadata: {
           uid,
           ownerName,
           passportId,
-          shipping: String(shipping),
+          currency,
+          serverMinor: String(serverMinor),
+          clientMinor: String(amountMinorFromClient),
+          chosenMinor: String(chosenMinor),
+          normalizedMinor: String(normalizedMinor),
+          shippingMajor: String(shippingMajor),
           taxRate: String(taxRate),
-          discount: String(discount),
-          normalizedAmount: String(normalizedAmount),
+          discountMinor: String(discountMinor),
           items: JSON.stringify(
-            cart.map((i) => ({
+            (cart || []).map((i) => ({
               productId: i.productId,
               name: i.name,
-              price: i.price,
-              image: i.image,
+              priceMajor: i.price, // for transparency
               quantity: i.quantity,
+              image: i.image,
             })),
           ),
           shippingAddress: shippingAddress
@@ -224,18 +252,21 @@ export class OrdersService {
         },
       });
 
-      // Return normalized amount so the client can reconcile if desired
-      return {
-        clientSecret: paymentIntent.client_secret,
-        amount: normalizedAmount,
-      };
-    } catch (e) {
-      console.error('❌ Stripe error:', e);
+      this.logger.log(
+        `Created PaymentIntent ${paymentIntent.id} with amount=${paymentIntent.amount} ${currency}`,
+      );
+
+      return { clientSecret: paymentIntent.client_secret };
+    } catch (e: any) {
+      this.logger.error(
+        `Stripe PI creation failed: currency=${currency}, serverMinor=${serverMinor}, clientMinor=${amountMinorFromClient}, chosenMinor=${chosenMinor}, normalizedMinor=${normalizedMinor}`,
+        e?.stack || String(e),
+      );
       throw new InternalServerErrorException('Failed to create payment intent');
     }
   }
 
-  // === Stripe webhook =======================================================
+  /** Stripe webhook entry point. */
   async handleStripeWebhook(rawBody: Buffer, signature: string) {
     try {
       const webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET');
@@ -254,33 +285,37 @@ export class OrdersService {
 
       return { received: true };
     } catch (err) {
-      console.error('❌ Stripe webhook error:', err);
+      this.logger.error('Stripe webhook error', err as Error);
       throw new InternalServerErrorException('Webhook handling failed');
     }
   }
 
-  // === Build order document from a successful PI ============================
-  async createOrderFromIntent(intent: Stripe.PaymentIntent) {
+  /** Build & store an order from a successful PaymentIntent. */
+  private async createOrderFromIntent(intent: Stripe.PaymentIntent) {
     const uid = intent.metadata?.uid;
     if (!uid) throw new Error('Missing uid in Stripe metadata');
 
+    // Items from metadata
     let items: PlainItem[] = [];
     try {
       const raw = intent.metadata?.items || '[]';
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) throw new Error('items not array');
-      items = parsed.map((i: any) => ({
-        productId: String(i.productId),
-        name: String(i.name),
-        price: Number(i.price),
-        image: i.image ? String(i.image) : undefined,
-        quantity: Number(i.quantity),
-      }));
+      items = parsed.map((i: unknown) => {
+        const it = i as Record<string, unknown>;
+        return {
+          productId: String(it.productId ?? ''),
+          name: String(it.name ?? ''),
+          price: Number(it.price ?? 0), // MAJOR (kept for consistency)
+          image: typeof it.image === 'string' ? it.image : undefined,
+          quantity: Number(it.quantity ?? 0),
+        };
+      });
     } catch {
-      console.warn('⚠️ Invalid items metadata in PaymentIntent');
+      this.logger.warn('Invalid items metadata in PaymentIntent');
     }
 
-    // Shipping address: prefer metadata, fallback to intent.shipping
+    // Shipping address: metadata -> intent.shipping fallback
     let shippingAddress: {
       fullName: string;
       phone: string;
@@ -311,18 +346,18 @@ export class OrdersService {
     const now = this.nowTs();
     const uidNum = this.numericUid(uid);
 
-    const order = {
+    const orderDoc = {
       userId: uid,
-      email: null as string | null, // fill from metadata if you add it
+      email: null as string | null,
       items,
-      totalAmount: intent.amount,
+      totalAmount: intent.amount, // MINOR units from Stripe
       paymentIntentId: intent.id,
       payment: {
-        method: 'card',
-        status: 'paid',
+        method: 'card' as const,
+        status: 'paid' as const,
         transactionId: intent.id,
       },
-      status: 'paid',
+      status: 'paid' as const,
       ownerName: intent.metadata?.ownerName ?? null,
       passportId: intent.metadata?.passportId ?? null,
       shippingAddress,
@@ -344,13 +379,46 @@ export class OrdersService {
     };
 
     const ref = adminDb.collection('orders').doc();
-    await ref.set({ id: ref.id, ...order });
+    await ref.set({ id: ref.id, ...orderDoc });
 
     await this.decrementStock(
       items.map(({ productId, quantity }) => ({ productId, quantity })),
     );
 
-    console.log('✅ Order created from Stripe intent:', ref.id);
-    return { id: ref.id, ...order };
+    this.logger.log(`Order created from Stripe intent: ${ref.id}`);
+    return { id: ref.id, ...orderDoc };
+  }
+
+  // ======================== queries ========================
+
+  async getOrdersByUserId(uid: string) {
+    const snapshot = await adminDb
+      .collection('orders')
+      .where('userId', '==', uid)
+      .orderBy('createdAt', 'desc')
+      .get();
+
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  }
+
+  async getOrderById(uid: string, id: string, role: string) {
+    const snap = await adminDb.collection('orders').doc(id).get();
+    const data = snap.data();
+
+    if (!snap.exists || !data) throw new NotFoundException('Order not found');
+
+    if (role === 'admin' || role === 'superadmin' || data.userId === uid) {
+      return { id: snap.id, ...data };
+    }
+
+    throw new NotFoundException('Unauthorized');
+  }
+
+  async getAllOrders() {
+    const snapshot = await adminDb
+      .collection('orders')
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   }
 }

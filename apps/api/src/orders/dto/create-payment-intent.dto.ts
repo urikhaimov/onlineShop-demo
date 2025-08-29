@@ -1,53 +1,92 @@
 // src/orders/dto/create-payment-intent.dto.ts
 import {
   IsArray,
+  IsInt,
   IsNumber,
+  IsOptional,
   IsString,
   Min,
+  Max,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class OrderItemDto {
+class CartItemDto {
   @IsString()
-  productId: string;
+  productId!: string;
 
   @IsString()
-  name: string;
+  name!: string;
 
   @IsNumber()
-  price: number;
+  price!: number; // MAJOR units (e.g., ₪)
+
+  @IsOptional()
+  @IsString()
+  image?: string;
+
+  @IsInt()
+  @Min(0)
+  quantity!: number;
+}
+
+class ShippingAddressDto {
+  @IsString()
+  fullName!: string;
 
   @IsString()
-  image: string;
+  phone!: string;
 
-  @IsNumber()
-  @Min(1)
-  quantity: number;
+  @IsString()
+  street!: string;
+
+  @IsString()
+  city!: string;
+
+  @IsString()
+  postalCode!: string;
+
+  @IsString()
+  country!: string;
 }
 
 export class CreatePaymentIntentDto {
-  @IsNumber()
-  @Min(1)
-  amount: number; // in cents
+  // Amount in MINOR units (agorot/cents)
+  @IsInt()
+  @Min(0)
+  amount!: number;
+
+  @IsOptional()
+  @IsString()
+  ownerName?: string;
+
+  @IsOptional()
+  @IsString()
+  passportId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => OrderItemDto)
-  cart: OrderItemDto[];
+  @Type(() => CartItemDto)
+  cart!: CartItemDto[];
 
-  @IsString()
-  ownerName: string;
-
-  @IsString()
-  passportId: string;
-
+  // Shipping in MAJOR units (₪)
   @IsNumber()
-  shipping: number;
+  @Min(0)
+  shipping!: number;
 
+  // e.g., 0.17 for 17%
   @IsNumber()
-  taxRate: number;
+  @Min(0)
+  @Max(1)
+  taxRate!: number;
 
-  @IsNumber()
-  discount: number;
+  // Discount in MINOR units
+  @IsInt()
+  @Min(0)
+  discount!: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ShippingAddressDto)
+  shippingAddress?: ShippingAddressDto;
 }
