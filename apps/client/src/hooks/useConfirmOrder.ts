@@ -1,18 +1,16 @@
-// src/hooks/useConfirmOrder.ts
 import { useEffect, useState } from 'react';
 import { useCartStore } from '../stores/useCartStore';
 import { useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import api from '../api/axiosInstance';
-import { Timestamp } from 'firebase/firestore';
 
 type OrderDraft = {
-  items: Array<{
+  items?: Array<{
     id?: string;
     productId?: string;
     name: string;
     quantity: number;
-    price: number;
+    price: number; // major
     image?: string;
     imageUrl?: string;
     images?: string[];
@@ -50,26 +48,14 @@ export function useConfirmOrder() {
 
         const user = auth.currentUser;
         if (!user) throw new Error('Not authenticated');
-
         const token = await user.getIdToken();
 
-        // Prefer the orderDraft saved by the checkout form (contains shipping & payer)
         const raw = localStorage.getItem('orderDraft');
         const draft: OrderDraft | null = raw ? JSON.parse(raw) : null;
 
-        // Amount (cents)
+        // amount (minor)
         let amount = draft?.pricing?.totalCents;
-        if (!amount && paymentIntentId) {
-          const res = await api.get(
-            `/stripe/payment-intent/${paymentIntentId}`,
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            },
-          );
-          amount = res.data?.amount;
-        }
         if (!amount) {
-          // fallback from cart
           amount = Math.round(
             cartItems.reduce(
               (s, it) => s + Number(it.price || 0) * (it.quantity ?? 0),
@@ -78,8 +64,8 @@ export function useConfirmOrder() {
           );
         }
 
-        // Items
-        const baseItems = draft?.items?.length ? draft.items : cartItems;
+        // items
+        const baseItems = draft?.items?.length ? draft.items! : cartItems;
         if (!baseItems || !baseItems.length) throw new Error('Cart is empty');
 
         const items = baseItems.map((it, idx) => {
@@ -91,66 +77,58 @@ export function useConfirmOrder() {
             productId: it.productId ?? it.id ?? `unknown-${idx}`,
             name: it.name,
             quantity: it.quantity,
-            price: Number(it.price),
-            image: img,
+            price: Number(it.price), // major
+            image: img || undefined,
           };
         });
 
         const paid =
           draft?.payment?.status === 'succeeded' || Boolean(paymentIntentId);
 
-        // Required metadata (server will override timestamps again for integrity)
-        const now = Timestamp.now();
-        const name = user.displayName?.trim() || user.email || 'User';
-        const metadata = {
-          createdBy: {
-            uid: Math.abs(
-              [...user.uid].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0),
-            ),
-            name,
-          },
-          updatedBy: {
-            uid: Math.abs(
-              [...user.uid].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0),
-            ),
-            name,
-          },
-          createdAt: now,
-          updatedAt: now,
-        };
-
-        // ✅ Full payload including owner/passport/shipping
         const payload = {
           userId: user.uid,
           email: user.email ?? undefined,
-          totalAmount: amount,
+          totalAmount: amount, // minor
           items,
-          status: paid ? 'paid' : 'pending',
+          status: paid ? ('confirmed' as const) : ('pending' as const),
           paymentIntentId,
           payment: {
             method: draft?.payment?.method ?? 'card',
-            status: paid ? 'paid' : 'unpaid',
+            status: paid ? ('paid' as const) : ('unpaid' as const),
             transactionId: draft?.payment?.transactionId ?? paymentIntentId,
           },
           ownerName: draft?.payer?.ownerName,
           passportId: draft?.payer?.passportId,
-          shippingAddress: draft?.shippingAddress, // <<<<<<<<<<<<<<<<<
+          shippingAddress: draft?.shippingAddress,
           notes: draft?.notes,
-          metadata, // <<<<<<<<<<<<<<<<<
         };
 
+        // Primary path: create the order document directly
         const orderRes = await api.post('/orders', payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!orderRes.data?.id) throw new Error('Order creation failed');
+
+        // Fallback: if backend asks you to finalize via PI id (e.g. using webhook-only mode)
+        if (!orderRes.data?.id && paymentIntentId) {
+          await api.post(
+            `/orders/create-from-intent/${paymentIntentId}`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+        }
 
         clearCart();
         localStorage.removeItem('cart');
         localStorage.removeItem('orderDraft');
         if (!cancelled) setToastOpen(true);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Error confirming order';
-        if (!cancelled) setError(msg);
+      } catch (e: any) {
+        const msg =
+          e?.response?.data?.message ??
+          (e as Error)?.message ??
+          'Error confirming order';
+        if (!cancelled)
+          setError(Array.isArray(msg) ? msg.join(', ') : String(msg));
+        console.error('useConfirmOrder error:', e);
       } finally {
         if (!cancelled) setLoading(false);
       }

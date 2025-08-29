@@ -1,4 +1,3 @@
-// src/orders/orders.controller.ts
 import {
   Controller,
   Get,
@@ -18,11 +17,10 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 
+type AuthedRequest = Request & { user: { uid: string; role?: string } };
 interface RawBodyRequest extends Request {
   rawBody: Buffer;
 }
-
-type AuthedRequest = Request & { user: { uid: string; role?: string } };
 
 const MIN_MINOR_ILS = 200; // ₪2.00
 
@@ -30,17 +28,18 @@ const MIN_MINOR_ILS = 200; // ₪2.00
 @UseGuards(FirebaseAuthGuard)
 export class OrdersController {
   private readonly logger = new Logger(OrdersController.name);
-
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get('mine')
   getMyOrders(@Req() req: AuthedRequest) {
+    this.logger.log(`GET /orders/mine by uid=${req.user.uid}`);
     return this.ordersService.getOrdersByUserId(req.user.uid);
   }
 
   @Get()
   @Roles('admin', 'superadmin')
   getAllOrders() {
+    this.logger.log('GET /orders');
     return this.ordersService.getAllOrders();
   }
 
@@ -48,6 +47,7 @@ export class OrdersController {
   @UseGuards(RolesGuard)
   @Roles('user', 'admin', 'superadmin')
   getOrderById(@Req() req: AuthedRequest, @Param('id') id: string) {
+    this.logger.log(`GET /orders/${id} by uid=${req.user.uid}`);
     return this.ordersService.getOrderById(
       req.user.uid,
       id,
@@ -57,6 +57,7 @@ export class OrdersController {
 
   @Post()
   async createOrder(@Req() req: AuthedRequest, @Body() dto: CreateOrderDto) {
+    this.logger.log(`POST /orders by uid=${req.user.uid}`);
     const completeDto = { ...dto, userId: req.user.uid };
     return this.ordersService.createOrder(completeDto);
   }
@@ -77,12 +78,10 @@ export class OrdersController {
       shippingAddress,
     } = body;
 
-    // Log everything we got
     this.logger.log(
-      `Controller PI in: clientMinor=${amount}, cart=${cart?.length ?? 0}, shippingMajor=${shipping}, taxRate=${taxRate}, discountMinor=${discount}, uid=${req.user.uid}`,
+      `POST /orders/create-payment-intent uid=${req.user.uid} minor=${amount} cart=${cart?.length ?? 0}`,
     );
 
-    // Hard clamp at controller (extra safety)
     const safeClientMinor =
       Math.max(0, Math.round(Number(amount) || 0)) < MIN_MINOR_ILS
         ? MIN_MINOR_ILS
@@ -90,29 +89,46 @@ export class OrdersController {
 
     if (safeClientMinor !== amount) {
       this.logger.warn(
-        `Controller bumped client amount from ${amount} to minimum ${safeClientMinor} (minor ILS).`,
+        `Bumped client amount from ${amount} → ${safeClientMinor} (minor ILS).`,
       );
     }
 
-    // Forward to service (which also recomputes + enforces minimum)
     return this.ordersService.createPaymentIntent(
       safeClientMinor,
       ownerName,
       passportId,
       req.user.uid,
       cart,
-      shipping, // major units
-      taxRate, // e.g., 0.17
-      discount, // minor units
-      shippingAddress, // optional
+      shipping,
+      taxRate,
+      discount,
+      shippingAddress,
     );
   }
 
+  // Fallback finalize endpoint if webhooks don’t hit locally
+  @Post('create-from-intent/:id')
+  async createFromIntent(@Req() req: AuthedRequest, @Param('id') id: string) {
+    this.logger.log(
+      `POST /orders/create-from-intent/${id} by uid=${req.user.uid}`,
+    );
+    return this.ordersService.createOrderFromIntentById(id, req.user.uid);
+  }
+
+  // Stripe webhook — requires rawBody: true in main.ts
   @Post('webhook')
   async handleStripeWebhook(
     @Req() req: RawBodyRequest,
     @Headers('stripe-signature') signature: string,
   ) {
+    this.logger.log('POST /orders/webhook (Stripe)');
     return this.ordersService.handleStripeWebhook(req.rawBody, signature);
+  }
+
+  // Simple liveness check
+  @Get('debug/ping')
+  debugPing() {
+    this.logger.log('GET /orders/debug/ping');
+    return { ok: true, ts: new Date().toISOString() };
   }
 }

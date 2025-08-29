@@ -1,69 +1,66 @@
-// src/orders/dto/create-order.dto.ts
-import { Type } from 'class-transformer';
 import {
   IsArray,
-  ValidateNested,
-  IsString,
   IsNumber,
   IsOptional,
-  IsEmail,
-  Min,
+  IsString,
+  ValidateNested,
   IsIn,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 class OrderItemDto {
   @IsString() productId!: string;
   @IsString() name!: string;
-  @IsNumber() price!: number;
-  @IsNumber() @Min(1) quantity!: number;
-  @IsString() @IsOptional() image?: string;
+  @IsNumber() price!: number; // MAJOR units
+  @IsNumber() quantity!: number;
+  @IsOptional() @IsString() image?: string;
 }
 
-class ShippingAddressDto {
+class PaymentDto {
+  @IsString() method!: string;
+  @IsIn(['paid', 'unpaid']) status!: 'paid' | 'unpaid';
+  @IsOptional() @IsString() transactionId?: string | null;
+}
+
+class AddressDto {
   @IsString() fullName!: string;
   @IsString() phone!: string;
   @IsString() street!: string;
   @IsString() city!: string;
   @IsString() postalCode!: string;
-  @IsString() country!: string; // Prefer ISO-2 (e.g., IL, US)
-}
-
-class PaymentSummaryDto {
-  @IsString() method!: string; // 'card' etc.
-  @IsIn(['paid', 'unpaid']) status!: 'paid' | 'unpaid';
-  @IsString() @IsOptional() transactionId?: string;
+  @IsString() country!: string;
 }
 
 export class CreateOrderDto {
   @IsString() userId!: string;
 
-  @IsEmail() @IsOptional() email?: string;
-
-  /** total amount in cents */
-  @IsNumber() totalAmount!: number;
+  @IsOptional() @IsString() email?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items!: OrderItemDto[];
 
-  @IsString() @IsOptional() paymentIntentId?: string;
+  @IsNumber() totalAmount!: number; // MINOR units
 
-  @ValidateNested()
-  @Type(() => PaymentSummaryDto)
+  @IsOptional() @IsString() paymentIntentId?: string | null;
+
   @IsOptional()
-  payment?: PaymentSummaryDto;
-
-  @IsString() @IsOptional() ownerName?: string;
-  @IsString() @IsOptional() passportId?: string;
-
   @ValidateNested()
-  @Type(() => ShippingAddressDto)
+  @Type(() => PaymentDto)
+  payment?: PaymentDto;
+
   @IsOptional()
-  shippingAddress?: ShippingAddressDto;
+  @IsIn(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'])
+  status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
-  @IsString() @IsOptional() notes?: string;
+  @IsOptional() @IsString() ownerName?: string | null;
+  @IsOptional() @IsString() passportId?: string | null;
 
-  @IsIn(['pending', 'paid', 'failed'])
-  status!: 'pending' | 'paid' | 'failed';
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AddressDto)
+  shippingAddress?: AddressDto | null;
+
+  @IsOptional() @IsString() notes?: string;
 }

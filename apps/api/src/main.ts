@@ -7,13 +7,16 @@ import { getEnv, isProd, logger } from '@common/utils';
 import { setupSwagger } from './swagger';
 import helmet from 'helmet';
 import { I18nValidationPipe } from 'nestjs-i18n';
+import * as bodyParser from 'body-parser';
 
 dotenv.config();
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Keep rawBody so req.rawBody is available if you ever need it
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
 
-  // ✅ types: number for port, string for prefix/origin
   const appPort = Number(
     getEnv('APP_PORT', { defaultValue: 3000, env: process.env }),
   );
@@ -27,7 +30,15 @@ async function bootstrap() {
     }),
   );
 
-  app.setGlobalPrefix(apiPrefix); // <- needs string
+  // Global prefix (e.g. /api)
+  app.setGlobalPrefix(apiPrefix);
+
+  // 🔒 Stripe webhook must receive the raw request body.
+  // Route-scoped raw parser wins over the default JSON parser for this path.
+  app.use(
+    `/${apiPrefix}/orders/webhook`,
+    bodyParser.raw({ type: 'application/json' }),
+  );
 
   app.useGlobalPipes(
     new I18nValidationPipe({
@@ -74,7 +85,6 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ origin expects StaticOrigin | CustomOrigin — a string is fine
   app.enableCors({
     origin: frontendOrigin,
     credentials: true,
@@ -84,6 +94,7 @@ async function bootstrap() {
       'Authorization',
       'Accept-Language',
       'x-lang',
+      'Stripe-Signature',
     ],
   });
 

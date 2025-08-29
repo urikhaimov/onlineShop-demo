@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
-import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [ConfigModule], // ✅ Needed for environment variable access
+  imports: [ConfigModule],
   controllers: [OrdersController],
   providers: [OrdersService],
-  exports: [OrdersService], // ✅ Exported in case used elsewhere (e.g., AppModule or WebhookModule)
+  exports: [OrdersService],
 })
 export class OrdersModule {}
