@@ -1,62 +1,61 @@
-// src/hooks/useStripeClientSecret.ts
-import { useEffect, useState } from 'react';
+// src/hooks/useStripeClientSecret.ts  (ADD refresh() and export it)
+import { useEffect, useState, useCallback } from 'react';
 import api from '../api/axiosInstance';
 import { useCartStore } from '../stores/useCartStore';
-import { cLogger } from '@client/logger';
+import { auth } from '../firebase';
 
-export const useStripeClientSecret = () => {
+export function useStripeClientSecret() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const items = useCartStore((s) => s.items);
 
-  const cart = useCartStore((s) => s.items);
+  const createIntent = useCallback(async () => {
+    const user = auth.currentUser;
+    const token = await user?.getIdToken?.();
+    // Build whatever body your backend expects (amount, items etc.)
+    const body = { items: items.map((i) => ({ id: i.id, qty: i.quantity })) };
+    const res = await api.post('/stripe/payment-intent', body, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!res.data?.clientSecret) throw new Error('Missing clientSecret');
+    return res.data.clientSecret as string;
+  }, [items]);
 
-  const shipping = 5.99;
-  const taxRate = 0.17;
-  const discount = 3.0;
-  const total = useCartStore.getState().getCartTotal({
-    shipping,
-    taxRate,
-    discount: discount * 100,
-  });
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const secret = await createIntent();
+      setClientSecret(secret);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Failed to refresh payment intent',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [createIntent]);
 
   useEffect(() => {
-    const fetchSecret = async () => {
+    let cancelled = false;
+    (async () => {
       try {
-        const sanitizedCart = cart.map((item) => ({
-          productId: item.id,
-          name: item.name,
-          price: Number(item.price),
-          quantity: item.quantity,
-          image:
-            typeof item.imageUrl === 'string'
-              ? item.imageUrl
-              : (item.imageUrl ?? ''),
-        }));
-
-        const safeAmount = Math.max(50, total);
-        const res = await api.post('/orders/create-payment-intent', {
-          amount: safeAmount,
-          cart: sanitizedCart,
-          ownerName: 'John Doe',
-          passportId: 'AB1234567',
-          shipping,
-          taxRate,
-          discount,
-        });
-
-        if (!res.data.clientSecret) throw new Error('Missing clientSecret');
-        setClientSecret(res.data.clientSecret);
-      } catch (err: any) {
-        cLogger.error('[Stripe] Failed to fetch clientSecret:', err);
-        setError(err.message || 'Something went wrong');
+        const secret = await createIntent();
+        if (!cancelled) setClientSecret(secret);
+      } catch (e) {
+        if (!cancelled)
+          setError(
+            e instanceof Error ? e.message : 'Failed to create payment intent',
+          );
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
+    })();
+    return () => {
+      cancelled = true;
     };
+  }, [createIntent]);
 
-    fetchSecret();
-  }, [cart, total]);
-
-  return { clientSecret, loading, error };
-};
+  return { clientSecret, loading, error, refresh };
+}

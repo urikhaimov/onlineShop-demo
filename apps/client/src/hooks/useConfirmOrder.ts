@@ -1,9 +1,35 @@
+// src/hooks/useConfirmOrder.ts
 import { useEffect, useState } from 'react';
 import { useCartStore } from '../stores/useCartStore';
 import { useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import api from '../api/axiosInstance';
-import { cLogger } from '@client/logger';
+import { Timestamp } from 'firebase/firestore';
+
+type OrderDraft = {
+  items: Array<{
+    id?: string;
+    productId?: string;
+    name: string;
+    quantity: number;
+    price: number;
+    image?: string;
+    imageUrl?: string;
+    images?: string[];
+  }>;
+  pricing?: { totalCents?: number };
+  payer?: { ownerName?: string; passportId?: string };
+  shippingAddress?: {
+    fullName: string;
+    phone: string;
+    street: string;
+    city: string;
+    postalCode: string;
+    country: string;
+  };
+  payment?: { transactionId?: string; status?: string; method?: string };
+  notes?: string;
+};
 
 export function useConfirmOrder() {
   const [loading, setLoading] = useState(true);
@@ -12,80 +38,129 @@ export function useConfirmOrder() {
   const location = useLocation();
 
   const clearCart = useCartStore((s) => s.clearCart);
-  const items = useCartStore((s) => s.items);
+  const cartItems = useCartStore((s) => s.items);
 
   useEffect(() => {
-    const confirmAndSaveOrder = async () => {
+    let cancelled = false;
+
+    const run = async () => {
       try {
         const params = new URLSearchParams(location.search);
-        const paymentIntentId = params.get('payment_intent');
-        if (!paymentIntentId) throw new Error('Missing payment intent ID');
+        const paymentIntentId = params.get('payment_intent') ?? undefined;
 
         const user = auth.currentUser;
         if (!user) throw new Error('Not authenticated');
 
         const token = await user.getIdToken();
-        if (!items || items.length === 0) throw new Error('Cart is empty');
 
-        console.log('🛒 Submitting order with items:', items);
+        // Prefer the orderDraft saved by the checkout form (contains shipping & payer)
+        const raw = localStorage.getItem('orderDraft');
+        const draft: OrderDraft | null = raw ? JSON.parse(raw) : null;
 
-        const paymentRes = await api.get(
-          `/stripe/payment-intent/${paymentIntentId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
+        // Amount (cents)
+        let amount = draft?.pricing?.totalCents;
+        if (!amount && paymentIntentId) {
+          const res = await api.get(
+            `/stripe/payment-intent/${paymentIntentId}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          amount = res.data?.amount;
+        }
+        if (!amount) {
+          // fallback from cart
+          amount = Math.round(
+            cartItems.reduce(
+              (s, it) => s + Number(it.price || 0) * (it.quantity ?? 0),
+              0,
+            ) * 100,
+          );
+        }
+
+        // Items
+        const baseItems = draft?.items?.length ? draft.items : cartItems;
+        if (!baseItems || !baseItems.length) throw new Error('Cart is empty');
+
+        const items = baseItems.map((it, idx) => {
+          const img =
+            it.image ??
+            it.imageUrl ??
+            (Array.isArray(it.images) && it.images.length ? it.images[0] : '');
+          return {
+            productId: it.productId ?? it.id ?? `unknown-${idx}`,
+            name: it.name,
+            quantity: it.quantity,
+            price: Number(it.price),
+            image: img,
+          };
+        });
+
+        const paid =
+          draft?.payment?.status === 'succeeded' || Boolean(paymentIntentId);
+
+        // Required metadata (server will override timestamps again for integrity)
+        const now = Timestamp.now();
+        const name = user.displayName?.trim() || user.email || 'User';
+        const metadata = {
+          createdBy: {
+            uid: Math.abs(
+              [...user.uid].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0),
+            ),
+            name,
           },
-        );
+          updatedBy: {
+            uid: Math.abs(
+              [...user.uid].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0),
+            ),
+            name,
+          },
+          createdAt: now,
+          updatedAt: now,
+        };
 
-        const paymentIntent = paymentRes.data;
-        if (!paymentIntent?.id) throw new Error('Payment intent not found');
-
+        // ✅ Full payload including owner/passport/shipping
         const payload = {
           userId: user.uid,
-          paymentIntentId: paymentIntent.id,
-          totalAmount: paymentIntent.amount,
-          items: items.map((item) => ({
-            productId: item.id,
-            name: item.name,
-            price: Number(item.price),
-            image: item.imageUrl,
-            quantity: item.quantity,
-          })),
+          email: user.email ?? undefined,
+          totalAmount: amount,
+          items,
+          status: paid ? 'paid' : 'pending',
+          paymentIntentId,
+          payment: {
+            method: draft?.payment?.method ?? 'card',
+            status: paid ? 'paid' : 'unpaid',
+            transactionId: draft?.payment?.transactionId ?? paymentIntentId,
+          },
+          ownerName: draft?.payer?.ownerName,
+          passportId: draft?.payer?.passportId,
+          shippingAddress: draft?.shippingAddress, // <<<<<<<<<<<<<<<<<
+          notes: draft?.notes,
+          metadata, // <<<<<<<<<<<<<<<<<
         };
 
         const orderRes = await api.post('/orders', payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        debugger;
         if (!orderRes.data?.id) throw new Error('Order creation failed');
 
-        alert('🧹 About to clear cart after order success');
-        console.log('✅ About to call clearCart()...');
         clearCart();
-        console.log('✅ Called clearCart()');
         localStorage.removeItem('cart');
-        console.log('✅ Removed localStorage.cart');
-
-        setToastOpen(true);
-      } catch (err: any) {
-        cLogger.error('❌ useConfirmOrder error:', err);
-        setError(err.message || 'Error confirming order');
+        localStorage.removeItem('orderDraft');
+        if (!cancelled) setToastOpen(true);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Error confirming order';
+        if (!cancelled) setError(msg);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    console.log('🚀 useConfirmOrder initialized');
-    confirmAndSaveOrder();
-
+    void run();
     return () => {
-      console.log('👋 useConfirmOrder unmounted');
+      cancelled = true;
     };
-  }, [location.search, clearCart, items]);
+  }, [location.search, clearCart, cartItems]);
 
-  return {
-    loading,
-    toastOpen,
-    setToastOpen,
-    error,
-  };
+  return { loading, toastOpen, setToastOpen, error };
 }

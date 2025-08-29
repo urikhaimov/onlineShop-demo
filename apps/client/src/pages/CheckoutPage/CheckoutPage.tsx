@@ -1,8 +1,5 @@
 // src/pages/checkout/CheckoutPage.tsx
-import * as React from 'react';
-import ReactDOM from 'react-dom';
-import ReactDOMClient from 'react-dom/client';
-import ReactDefault, { Suspense } from 'react';
+import React, { Suspense } from 'react';
 import {
   Alert,
   Box,
@@ -33,6 +30,20 @@ import { CDefaultCurrency } from '@common/types';
 
 const StripeProvider = React.lazy(() => import('../../stripe/StripeProvider'));
 
+// small helpers to avoid `any`
+type WithImage = { image?: string };
+type WithImages = { images?: string[] };
+function pickImage(it: unknown): string {
+  if (typeof it === 'object' && it !== null) {
+    const a = it as WithImage;
+    if (typeof a.image === 'string') return a.image;
+    const b = it as WithImages;
+    if (Array.isArray(b.images) && typeof b.images[0] === 'string')
+      return b.images[0];
+  }
+  return '';
+}
+
 export default function CheckoutPage() {
   const theme = useTheme();
   const { themeSettings } = useThemeStore();
@@ -60,7 +71,7 @@ export default function CheckoutPage() {
   const baseShadow = isDark ? theme.shadows[3] : theme.shadows[1];
 
   // ---- Data
-  const { clientSecret, loading, error } = useStripeClientSecret();
+  const { clientSecret, loading, error, refresh } = useStripeClientSecret();
   const cart = useCartStore((s) => s.items);
 
   const shipping = 5.99;
@@ -68,7 +79,7 @@ export default function CheckoutPage() {
   const discount = 3.0;
 
   const subtotal = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+    (sum, item) => sum + (Number(item.price) || 0) * (item.quantity ?? 0),
     0,
   );
   const tax = subtotal * taxRate;
@@ -122,6 +133,119 @@ export default function CheckoutPage() {
                 {t('checkout.title', { defaultValue: 'Checkout' })}
               </Typography>
 
+              {/* --- Items List --- */}
+              {cart.length > 0 ? (
+                <>
+                  <Typography variant="subtitle2" mb={0.5 * spacingScale}>
+                    {t('checkout.items', { defaultValue: 'Items' })} (
+                    {cart.length})
+                  </Typography>
+
+                  <Box
+                    sx={{
+                      border: '1px solid',
+                      borderColor: outline,
+                      borderRadius: radius,
+                      p: pad,
+                      mb: 1.5 * spacingScale,
+                      maxHeight: 260,
+                      overflow: 'auto',
+                      bgcolor: theme.vars?.palette?.background?.defaultChannel
+                        ? `rgba(${theme.vars.palette.background.defaultChannel} / 0.5)`
+                        : theme.palette.action.hover,
+                    }}
+                  >
+                    <Stack spacing={0.75 * spacingScale}>
+                      {cart.map((item) => {
+                        const img = pickImage(item);
+                        const qty = item.quantity ?? 0;
+                        const price = Number(item.price) || 0;
+                        const lineTotal = price * qty;
+
+                        return (
+                          <Stack
+                            key={item.id}
+                            direction="row"
+                            alignItems="center"
+                            spacing={1.25 * spacingScale}
+                            sx={{
+                              '&:not(:last-of-type)': {
+                                pb: 0.75 * spacingScale,
+                                borderBottom: '1px solid',
+                                borderColor: outline,
+                              },
+                            }}
+                          >
+                            {img ? (
+                              <Box
+                                component="img"
+                                src={img}
+                                alt={item.name}
+                                sx={{
+                                  width: 56,
+                                  height: 56,
+                                  objectFit: 'cover',
+                                  borderRadius: 1,
+                                  border: '1px solid',
+                                  borderColor: outline,
+                                  flexShrink: 0,
+                                }}
+                              />
+                            ) : (
+                              <Box
+                                sx={{
+                                  width: 56,
+                                  height: 56,
+                                  borderRadius: 1,
+                                  bgcolor: 'action.hover',
+                                  border: '1px dashed',
+                                  borderColor: outline,
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
+
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography
+                                variant="body2"
+                                noWrap
+                                title={item.name}
+                              >
+                                {item.name}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {t('checkout.qty', { defaultValue: 'Qty' })}:{' '}
+                                {qty} × {price.toFixed(2)}{' '}
+                                {t('checkout.currency', {
+                                  defaultValue: CDefaultCurrency,
+                                })}
+                              </Typography>
+                            </Box>
+
+                            <Typography variant="body2" fontWeight={600}>
+                              {lineTotal.toFixed(2)}{' '}
+                              {t('checkout.currency', {
+                                defaultValue: CDefaultCurrency,
+                              })}
+                            </Typography>
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                </>
+              ) : (
+                <Alert severity="info" sx={{ mb: 1.5 * spacingScale }}>
+                  {t('checkout.emptyCart', {
+                    defaultValue: 'Your cart is empty',
+                  })}
+                </Alert>
+              )}
+
+              {/* --- Totals --- */}
               <Stack spacing={0.75 * spacingScale} mb={1.5 * spacingScale}>
                 <Typography>
                   {t('checkout.subtotal', { defaultValue: 'Subtotal' })}: $
@@ -154,13 +278,18 @@ export default function CheckoutPage() {
                 </Typography>
               </Stack>
 
+              {/* --- Stripe --- */}
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
                   <CircularProgress />
                 </Box>
               ) : clientSecret ? (
-                <Elements stripe={stripePromise} options={{ clientSecret }}>
-                  <StripeCheckoutForm />
+                <Elements
+                  key={clientSecret} // ✅ remount Payment Element on fresh intents
+                  stripe={stripePromise}
+                  options={{ clientSecret }}
+                >
+                  <StripeCheckoutForm onRefreshIntent={refresh} />
                 </Elements>
               ) : (
                 <Typography color="error">
@@ -176,8 +305,7 @@ export default function CheckoutPage() {
               open={!!error}
               autoHideDuration={5000}
               onClose={() => {
-                // optional: clear error state in your hook/store
-                // console.log('Stripe error closed');
+                /* optional: clear error state in your hook/store */
               }}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >

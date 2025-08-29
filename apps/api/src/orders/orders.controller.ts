@@ -1,3 +1,4 @@
+// src/orders/orders.controller.ts
 import {
   Controller,
   Get,
@@ -16,17 +17,22 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 
-interface RawBodyRequest extends Request {
+interface AuthedRequest extends Request {
+  user: { uid: string; role?: string };
+}
+
+// If you need raw body for Stripe webhook:
+interface RawBodyRequest extends AuthedRequest {
   rawBody: Buffer;
 }
 
 @Controller('orders')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard) // ✅ apply both guards here
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get('mine')
-  getMyOrders(@Req() req) {
+  getMyOrders(@Req() req: AuthedRequest) {
     return this.ordersService.getOrdersByUserId(req.user.uid);
   }
 
@@ -37,27 +43,24 @@ export class OrdersController {
   }
 
   @Get(':id')
-  @UseGuards(RolesGuard)
   @Roles('user', 'admin', 'superadmin')
-  getOrderById(@Req() req, @Param('id') id: string) {
+  getOrderById(@Req() req: AuthedRequest, @Param('id') id: string) {
     return this.ordersService.getOrderById(req.user.uid, id, req.user.role);
   }
 
   @Post()
-  async createOrder(@Req() req, @Body() dto: CreateOrderDto) {
-    const completeDto = {
-      ...dto,
-      userId: req.user.uid,
-    };
-
-    console.log('Received createOrder DTO:', completeDto);
-
-    // ✅ Handles stock deduction and order creation
+  async createOrder(@Req() req: AuthedRequest, @Body() dto: CreateOrderDto) {
+    const completeDto = { ...dto, userId: req.user.uid };
+    // Tip: use a proper logger; console.log is ok for local debugging
+    // console.log('Received createOrder DTO:', completeDto);
     return this.ordersService.createOrder(completeDto);
   }
 
   @Post('create-payment-intent')
-  createPaymentIntent(@Req() req, @Body() body: CreatePaymentIntentDto) {
+  createPaymentIntent(
+    @Req() req: AuthedRequest,
+    @Body() body: CreatePaymentIntentDto,
+  ) {
     return this.ordersService.createPaymentIntent(
       body.amount,
       body.ownerName,

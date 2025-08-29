@@ -1,20 +1,26 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import Stripe from 'stripe';
-import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { StripeService } from './stripe.service';
+
+type CreateIntentBody = {
+  items: Array<{ id: string; qty: number }>;
+  currency?: string;
+};
 
 @Controller('stripe')
-@UseGuards(FirebaseAuthGuard)
 export class StripeController {
-  private stripe: Stripe;
+  constructor(private readonly stripeSvc: StripeService) {}
 
-  constructor() {
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2025-07-30.basil',
-    });
+  @Post('payment-intent')
+  async createPaymentIntent(@Body() body: CreateIntentBody) {
+    const items = Array.isArray(body.items) ? body.items : [];
+    const currency = (body.currency || 'ils').toLowerCase();
+    const pi = await this.stripeSvc.createPaymentIntent(items, currency);
+    return { clientSecret: pi.client_secret };
   }
 
   @Get('payment-intent/:id')
   async getPaymentIntent(@Param('id') id: string) {
-    return await this.stripe.paymentIntents.retrieve(id);
+    const pi = await this.stripeSvc.retrievePaymentIntent(id);
+    return { id: pi.id, amount: pi.amount, status: pi.status };
   }
 }

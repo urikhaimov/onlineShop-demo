@@ -1,45 +1,69 @@
+// src/orders/dto/create-order.dto.ts
+import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsNotEmpty,
-  IsNumber,
-  IsString,
   ValidateNested,
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsEmail,
   Min,
+  IsIn,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
 class OrderItemDto {
-  @IsString()
-  productId: string;
+  @IsString() productId!: string;
+  @IsString() name!: string;
+  @IsNumber() price!: number;
+  @IsNumber() @Min(1) quantity!: number;
+  @IsString() @IsOptional() image?: string;
+}
 
-  @IsString()
-  name: string;
+class ShippingAddressDto {
+  @IsString() fullName!: string;
+  @IsString() phone!: string;
+  @IsString() street!: string;
+  @IsString() city!: string;
+  @IsString() postalCode!: string;
+  @IsString() country!: string; // Prefer ISO-2 (e.g., IL, US)
+}
 
-  @IsNumber()
-  price: number;
-
-  @IsString()
-  image: string;
-
-  @IsNumber()
-  @Min(1)
-  quantity: number;
+class PaymentSummaryDto {
+  @IsString() method!: string; // 'card' etc.
+  @IsIn(['paid', 'unpaid']) status!: 'paid' | 'unpaid';
+  @IsString() @IsOptional() transactionId?: string;
 }
 
 export class CreateOrderDto {
-  @IsString()
-  @IsNotEmpty()
-  userId: string;
+  @IsString() userId!: string;
+
+  @IsEmail() @IsOptional() email?: string;
+
+  /** total amount in cents */
+  @IsNumber() totalAmount!: number;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
-  items: OrderItemDto[];
+  items!: OrderItemDto[];
 
-  @IsNumber()
-  totalAmount: number;
+  @IsString() @IsOptional() paymentIntentId?: string;
 
-  @IsString()
-  @IsNotEmpty()
-  paymentIntentId: string;
+  @ValidateNested()
+  @Type(() => PaymentSummaryDto)
+  @IsOptional()
+  payment?: PaymentSummaryDto;
+
+  @IsString() @IsOptional() ownerName?: string;
+  @IsString() @IsOptional() passportId?: string;
+
+  @ValidateNested()
+  @Type(() => ShippingAddressDto)
+  @IsOptional()
+  shippingAddress?: ShippingAddressDto;
+
+  @IsString() @IsOptional() notes?: string;
+
+  @IsIn(['pending', 'paid', 'failed'])
+  status!: 'pending' | 'paid' | 'failed';
 }

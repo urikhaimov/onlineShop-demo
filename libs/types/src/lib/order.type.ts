@@ -1,5 +1,6 @@
 // src/types/order.ts
 import { IMetadata } from './common.type';
+import { Timestamp } from 'firebase/firestore';
 export type FirestoreDate =
   | Date
   | string
@@ -13,10 +14,17 @@ export type TOrderStatus =
   | 'delivered'
   | 'cancelled';
 
+export type OrderMetadata = IMetadata & {
+  createdBy: { uid: number; name: string };
+  updatedBy: { uid: number; name: string };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
 export type TOrder = {
   id: string;
   userId: string;
-  ownerName?: string;
+
   email?: string; // ✅ Add this
   total?: number; // ✅ Add this
   items: Array<{
@@ -26,13 +34,15 @@ export type TOrder = {
     price: number;
     image: string;
   }>;
-  amount: number; // ✅ Add this
+  totalAmount: number; // ✅ Add this
   status: TOrderStatus;
   payment: {
     method: string;
     status: 'paid' | 'unpaid';
     transactionId?: string;
   };
+  ownerName?: string;
+  passportId?: string;
   shippingAddress: {
     fullName: string;
     phone: string;
@@ -52,12 +62,7 @@ export type TOrder = {
     timestamp: string;
     changedBy: string;
   }>;
-  createdAt?: FirestoreDate; // 👈 add
-  updatedAt?: FirestoreDate; // 👈 add
-  metadata?: IMetadata & {
-    createdAt?: FirestoreDate;
-    updatedAt?: FirestoreDate;
-  };
+  metadata: OrderMetadata;
 };
 
 export enum ESTATUS_OPTIONS {

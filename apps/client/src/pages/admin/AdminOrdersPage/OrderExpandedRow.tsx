@@ -4,36 +4,38 @@ import { Box, Typography } from '@mui/material';
 import type { TOrder } from '@common/types';
 import { useTranslation } from 'react-i18next';
 
-import { asDate, DASH as EMPTY } from '../../../utils/columns.util'; // ← adjust path if needed
-import { useLocaleFormatters } from '../../../hooks/useLocale'; // ← hook-based locale/formatters
+import { DASH as EMPTY } from '../../../utils/columns.util';
+import { useLocaleFormatters } from '../../../hooks/useLocale';
+import { asDateLoose } from '../../../utils/date.util'; // ← use the shared parser
+// If you placed asDateLoose in columns.util instead, import from there.
 
 type Props = { order: TOrder };
 
 const OrderExpandedRow: React.FC<Props> = ({ order }) => {
   const { t } = useTranslation();
-
-  // ✅ locale-aware memoized formatters via hook
   const { formatCurrency, formatDateTime } = useLocaleFormatters();
-
-  const toMaybeDate = (v: unknown): Date | undefined => asDate(v as unknown);
 
   const addr = order.shippingAddress;
   const items = order.items ?? [];
-  const amount = order.amount;
 
-  // Prefer top-level createdAt/updatedAt, then metadata fallback
-  const created =
-    toMaybeDate(order.createdAt) ?? toMaybeDate(order.metadata?.createdAt);
-  const updated =
-    toMaybeDate(order.updatedAt) ?? toMaybeDate(order.metadata?.updatedAt);
+  // Prefer top-level createdAt/updatedAt; fallback to metadata.*
+  const createdDate =
+    asDateLoose((order as any).createdAt) ??
+    asDateLoose(order.metadata?.createdAt);
+  const updatedDate =
+    asDateLoose((order as any).updatedAt) ??
+    asDateLoose(order.metadata?.updatedAt);
 
-  // Try to format ETA if it's date-like; otherwise show as plain text or EMPTY
-  const etaDate = toMaybeDate(
-    order.delivery?.eta as string | number | Date | undefined,
-  );
+  // ETA
+  const etaDate = asDateLoose(order.delivery?.eta as any);
   const etaLabel = etaDate
     ? formatDateTime(etaDate)
     : ((order.delivery?.eta as unknown as string) ?? EMPTY);
+
+  // Totals in minor units (e.g., agorot/cents)
+  const totalMinor = (order as any).totalAmount;
+  const totalLabel =
+    typeof totalMinor === 'number' ? formatCurrency(totalMinor / 100) : EMPTY;
 
   return (
     <Box
@@ -72,7 +74,9 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
             {items.map((it, idx) => {
               const name = it.name ?? EMPTY;
               const qty = it.quantity ?? 0;
-              const price = formatCurrency(it.price);
+              const price = formatCurrency(
+                typeof it.price === 'number' ? it.price : 0,
+              );
               return (
                 <li key={`${it.productId ?? 'item'}:${idx}`}>
                   <Typography variant="body2">
@@ -86,8 +90,7 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
           <Typography variant="body2">{EMPTY}</Typography>
         )}
         <Typography variant="body2" sx={{ mt: 0.5 }}>
-          <strong>{t('orderDetails.total')}:</strong>{' '}
-          {amount !== undefined ? formatCurrency(amount) : EMPTY}
+          <strong>{t('orderDetails.total')}:</strong> {totalLabel}
         </Typography>
       </Box>
 
@@ -124,14 +127,14 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
       <Box>
         <Typography variant="subtitle2">{t('orderDetails.created')}</Typography>
         <Typography variant="body2">
-          {created ? formatDateTime(created) : EMPTY}
+          {createdDate ? formatDateTime(createdDate) : EMPTY}
         </Typography>
       </Box>
 
       <Box>
         <Typography variant="subtitle2">{t('orderDetails.updated')}</Typography>
         <Typography variant="body2">
-          {updated ? formatDateTime(updated) : EMPTY}
+          {updatedDate ? formatDateTime(updatedDate) : EMPTY}
         </Typography>
       </Box>
 

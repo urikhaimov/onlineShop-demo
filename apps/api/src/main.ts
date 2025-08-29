@@ -1,105 +1,105 @@
+// src/main.ts
 import * as dotenv from 'dotenv';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
-import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { getEnv, isProd, logger } from '@common/utils';
 import { setupSwagger } from './swagger';
 import helmet from 'helmet';
-
-// ⬇️ i18n validation pipe
 import { I18nValidationPipe } from 'nestjs-i18n';
 
 dotenv.config();
 
-/**
- * Bootstraps the NestJS application with the main AppModule.
- * Sets up global prefix, validation pipes, and enables CORS for the frontend.
- * Retrieves the application port from environment variables (default: 3000).
- * Starts the server and logs the running URL.
- */
-async function appBootstrap() {
+async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  const appPort = getEnv('APP_PORT', { defaultValue: 3000, env: process.env });
-
-  const globalPrefix = 'api';
-  app.setGlobalPrefix(globalPrefix);
-
-  // ✅ Use I18nValidationPipe instead of plain ValidationPipe
-  app.useGlobalPipes(
-    new I18nValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      // optional: stopAtFirstError: true,
-      // optional: exceptionFactory: (errors) => new BadRequestException(errors),
-    }) as unknown as ValidationPipe, // keep type compatibility if needed
+  // ✅ types: number for port, string for prefix/origin
+  const appPort = Number(
+    getEnv('APP_PORT', { defaultValue: 3000, env: process.env }),
   );
-
-  app.use(
-    helmet.contentSecurityPolicy({
-      directives: {
-        defaultSrc: ["'self'"],
-        imgSrc: [
-          "'self'",
-          'data:',
-          'blob:',
-          'https://firebasestorage.googleapis.com',
-          'https://storage.googleapis.com',
-          'https://picsum.photos',
-        ],
-      },
+  const apiPrefix = String(
+    getEnv('API_PREFIX', { defaultValue: 'api', env: process.env }),
+  );
+  const frontendOrigin = String(
+    getEnv('FRONTEND_ORIGIN', {
+      defaultValue: 'http://localhost:5173',
+      env: process.env,
     }),
   );
 
-  // ✅ Enable CORS (+ language headers)
-  app.enableCors({
-    origin: 'http://localhost:5173', // 👈 Frontend URL
-    credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type,Authorization,Accept-Language,x-lang',
-  });
+  app.setGlobalPrefix(apiPrefix); // <- needs string
 
-  await app.listen(appPort);
-  logger.info(
-    `🚀 Server running at http://localhost:${appPort}/${globalPrefix}`,
-  );
-}
-
-/**
- * Bootstraps the NestJS application and Swagger documentation server.
- */
-async function swaggerBootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  const swaggerPort = getEnv('SWAGGER_PORT', {
-    defaultValue: 3001,
-    env: process.env,
-  });
-  const globalPrefix = 'api/v1';
-
-  // Use same validation pipe here (useful if you hit any DTO endpoints on this instance)
   app.useGlobalPipes(
     new I18nValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }) as unknown as ValidationPipe,
+    }),
   );
+
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: isProd()
+        ? {
+            useDefaults: true,
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", 'https://js.stripe.com'],
+              connectSrc: [
+                "'self'",
+                'https://api.stripe.com',
+                'https://m.stripe.network',
+                'https://q.stripe.com',
+              ],
+              frameSrc: ["'self'", 'https://js.stripe.com'],
+              imgSrc: [
+                "'self'",
+                'data:',
+                'blob:',
+                'https://*.stripe.com',
+                'https://firebasestorage.googleapis.com',
+                'https://storage.googleapis.com',
+                'https://picsum.photos',
+              ],
+              styleSrc: [
+                "'self'",
+                "'unsafe-inline'",
+                'https://fonts.googleapis.com',
+              ],
+              fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+            },
+          }
+        : false,
+    }),
+  );
+
+  // ✅ origin expects StaticOrigin | CustomOrigin — a string is fine
+  app.enableCors({
+    origin: frontendOrigin,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept-Language',
+      'x-lang',
+    ],
+  });
 
   if (!isProd()) {
     setupSwagger(app, {
-      serverUrl: `http://localhost:${swaggerPort}/${globalPrefix}`,
+      serverUrl: `http://localhost:${appPort}/${apiPrefix}`,
     });
   }
 
-  await app.listen(swaggerPort);
+  await app.listen(appPort);
+  logger.info(`🚀 Server running:  http://localhost:${appPort}/${apiPrefix}`);
+  if (!isProd())
+    logger.info(`📚 Swagger:         http://localhost:${appPort}/docs`);
 }
 
-appBootstrap().then(() => {
-  logger.info('API Bootstrap completed successfully');
-});
-
-swaggerBootstrap().then(() => {
-  logger.info('API Swagger bootstrap completed successfully');
+bootstrap().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });

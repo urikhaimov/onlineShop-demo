@@ -1,40 +1,47 @@
-// src/pages/AdminOrdersPage/Columns.ts
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { NavigateFunction } from 'react-router-dom';
-import RowActions, { type RowAction } from '../../../components/RowActions';
-import { ECurrency, TOrder, CDefaultCurrencySymbol } from '@common/types';
-import { StatusTag } from '../../../components/StatusTag';
 
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { StatusTag } from '../../../components/StatusTag';
+import RowActions, { type RowAction } from '../../../components/RowActions';
 
 import i18n from '../../../i18n/i18n';
-
 import {
   DASH,
   asDate,
   getLocale,
   makeDateTimeFormatter,
 } from '../../../utils/columns.util';
-
-// Reusable factories
 import { makeCurrencyColumn } from '../../../utils/columnPresets';
 
+import type { TOrder } from '@common/types';
+import { CDefaultCurrency } from '@common/types';
+
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { asDateLoose } from '../../../utils/date.util';
 export function defineAdminOrderColumns(
   navigate: NavigateFunction,
   onDelete?: (order: TOrder) => Promise<void> | void,
 ): ColumnDef<TOrder>[] {
-  // Compute once per invocation and reuse
-  const lng = getLocale(i18n.resolvedLanguage || i18n.language);
-  const currencyFmt = CDefaultCurrencySymbol; // change currency if needed
-  const dateTimeFmt = makeDateTimeFormatter(lng);
+  // locale + formatters
+  const locale = getLocale(i18n.resolvedLanguage || i18n.language);
+  const formatDateTime = makeDateTimeFormatter(locale);
 
-  // Amount column via reusable factory
+  // Build a currency formatter function (expects MINOR units: cents/agorot)
+  const formatCurrencyMinor = (minor: number): string =>
+    new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: CDefaultCurrency, // e.g. "ILS"
+      currencyDisplay: 'narrowSymbol',
+      maximumFractionDigits: 2,
+    }).format((minor ?? 0) / 100);
+
+  // Total Amount column
   const amountCol: ColumnDef<TOrder> = makeCurrencyColumn<TOrder>(
-    'amount',
+    'totalAmount',
     i18n.t('table.total'),
-    currencyFmt,
+    formatCurrencyMinor, // 👈 pass a FUNCTION, not a string
     {
       enableFilter: false,
       size: 120,
@@ -43,7 +50,7 @@ export function defineAdminOrderColumns(
     },
   );
 
-  // Created At — order-specific (typed for TOrder, supports metadata fallback)
+  // Created At column (supports metadata fallback)
   const createdAtCol: ColumnDef<TOrder> = {
     accessorKey: 'createdAt',
     header: i18n.t('table.date'),
@@ -53,12 +60,9 @@ export function defineAdminOrderColumns(
     meta: { hiddenOnMobile: true, align: 'left' },
     cell: ({ row }) => {
       const d =
-        asDate(row.original.createdAt) ??
-        asDate(
-          (row.original as { metadata?: { createdAt?: string | Date } })
-            ?.metadata?.createdAt,
-        );
-      return d ? dateTimeFmt(d) : DASH;
+        asDateLoose((row.original as any).createdAt) ??
+        asDateLoose(row.original.metadata?.createdAt as any);
+      return d ? formatDateTime(d) : DASH;
     },
   };
 
