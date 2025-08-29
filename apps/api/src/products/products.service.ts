@@ -1,9 +1,16 @@
-// src/products/products.service.ts
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { ConfigService } from '@nestjs/config';
 import { adminDb } from '@common/firebase';
 import type { SaveProductDto } from './dto/save-product.dto';
+
+type TS = admin.firestore.Timestamp | admin.firestore.FieldValue;
+
+type UserRef = {
+  uid: string; // string UID for frontend/types
+  uidNum: number; // numeric hash (optional, useful for analytics)
+  name: string;
+};
 
 type ProductDoc = {
   name: string;
@@ -12,12 +19,12 @@ type ProductDoc = {
   stock: number;
   categoryId: string;
   images: string[];
-  imageUrl?: string;
+  imageUrl?: string | null;
   metadata: {
-    createdBy: { uid: number; name: string };
-    updatedBy: { uid: number; name: string };
-    createdAt: admin.firestore.Timestamp;
-    updatedAt: admin.firestore.Timestamp;
+    createdBy: UserRef;
+    updatedBy: UserRef;
+    createdAt: TS;
+    updatedAt: TS;
   };
 };
 
@@ -26,8 +33,8 @@ export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
   constructor(private readonly _config: ConfigService) {}
 
-  private now() {
-    return admin.firestore.Timestamp.now();
+  private st() {
+    return admin.firestore.FieldValue.serverTimestamp();
   }
 
   private numericUid(uid: string): number {
@@ -36,13 +43,25 @@ export class ProductsService {
     return Math.abs(h);
   }
 
+  private actor(uid: string, name?: string): UserRef {
+    return { uid, uidNum: this.numericUid(uid), name: name ?? '' };
+  }
+
+  private pickDefined<T extends Record<string, any>>(obj: T) {
+    return Object.fromEntries(
+      Object.entries(obj).filter(([, v]) => v !== undefined),
+    ) as Partial<T>;
+  }
+
+  // ---------------- create ----------------
   async create(
     uid: string,
     actorName: string | undefined,
     dto: SaveProductDto,
   ) {
-    const now = this.now();
-    const uidNum = this.numericUid(uid);
+    const ref = adminDb.collection('products').doc();
+    const actor = this.actor(uid, actorName);
+
     const doc: ProductDoc = {
       name: dto.name,
       description: dto.description,
@@ -50,21 +69,24 @@ export class ProductsService {
       stock: dto.stock,
       categoryId: dto.categoryId,
       images: dto.images ?? [],
-      imageUrl: dto.imageUrl,
+      imageUrl: dto.imageUrl ?? null,
       metadata: {
-        createdBy: { uid: uidNum, name: actorName ?? '' },
-        updatedBy: { uid: uidNum, name: actorName ?? '' },
-        createdAt: now,
-        updatedAt: now,
+        createdBy: actor,
+        updatedBy: actor,
+        createdAt: this.st(),
+        updatedAt: this.st(),
       },
     };
 
-    const ref = adminDb.collection('products').doc();
     await ref.set({ id: ref.id, ...doc });
+
+    // Re-read so serverTimestamp() resolves to a concrete Timestamp
+    const snap = await ref.get();
     this.logger.log(`Created product ${ref.id}`);
-    return { id: ref.id, ...doc };
+    return { id: ref.id, ...snap.data() };
   }
 
+  // ---------------- update ----------------
   async update(
     uid: string,
     actorName: string | undefined,
@@ -75,36 +97,38 @@ export class ProductsService {
     const snap = await ref.get();
     if (!snap.exists) throw new NotFoundException('Product not found');
 
-    const prev = snap.data() as any;
-    const now = this.now();
-    const uidNum = this.numericUid(uid);
+    const prev = snap.data() as ProductDoc | undefined;
+    const actor = this.actor(uid, actorName);
 
-    const patch = {
+    // Build a full metadata object (avoid dotted keys)
+    const metadata: ProductDoc['metadata'] = {
+      createdBy: prev?.metadata?.createdBy ?? actor,
+      createdAt: prev?.metadata?.createdAt ?? this.st(),
+      updatedBy: actor,
+      updatedAt: this.st(),
+    };
+
+    // Only include defined fields so we don't wipe others
+    const patch = this.pickDefined<ProductDoc>({
       name: dto.name,
       description: dto.description,
       price: dto.price,
       stock: dto.stock,
       categoryId: dto.categoryId,
-      images: dto.images ?? [],
-      imageUrl: dto.imageUrl ?? null,
-      'metadata.updatedAt': now,
-      'metadata.updatedBy': { uid: uidNum, name: actorName ?? '' },
-    };
+      images: dto.images, // send only if provided
+      imageUrl: dto.imageUrl ?? null, // allow explicit null to clear
+      metadata, // replace metadata atomically
+    });
 
-    // if doc somehow had no metadata (legacy), seed it
-    if (!prev?.metadata?.createdAt) {
-      Object.assign(patch, {
-        'metadata.createdAt': prev?.createdAt ?? now,
-        'metadata.createdBy': { uid: uidNum, name: actorName ?? '' },
-      });
-    }
+    // Type the update for Firestore
+    await ref.update(patch as admin.firestore.UpdateData<ProductDoc>);
 
-    await ref.update(patch);
     this.logger.log(`Updated product ${id}`);
     const after = (await ref.get()).data();
     return { id, ...after };
   }
 
+  // ---------------- queries ----------------
   async getAll() {
     const ss = await adminDb.collection('products').orderBy('name').get();
     return ss.docs.map((d) => ({ id: d.id, ...d.data() }));

@@ -1,5 +1,4 @@
 import { IMetadata } from './common.type';
-import { Timestamp } from 'firebase/firestore';
 
 export type TCategory = {
   id: string;
@@ -9,12 +8,7 @@ export type TCategory = {
   imageUrl?: string; // ✅ Add this line
 };
 
-export type ProductMetadata = IMetadata & {
-  createdBy: { uid: number; name: string };
-  updatedBy: { uid: number; name: string };
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-};
+export type ProductMetadata = IMetadata;
 
 export interface IProduct {
   id: string;
