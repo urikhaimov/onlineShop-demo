@@ -7,13 +7,14 @@ import { StatusTag } from '../../components/StatusTag';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
-import { asDate, DASH } from '../../utils/columns.util';
+import { DASH } from '../../utils/columns.util';
+import { asDateLoose } from '../../utils/date.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 import { makeCurrencyColumn } from '../../utils/columnPresets';
 
 // ---- Pure builder (NO HOOKS HERE) -----------------------------------------
 type Formatters = {
-  formatCurrency: (n: number) => string;
+  formatCurrency: (n: number) => string; // expects MAJOR units
   formatDateTime: (d: Date) => string;
 };
 
@@ -21,11 +22,15 @@ export function buildOrderColumns(
   t: TFunction,
   { formatCurrency, formatDateTime }: Formatters,
 ): ColumnDef<TOrder>[] {
-  // Reused currency column for "amount"
+  // Convert MINOR → MAJOR before formatting
+  const formatCurrencyFromMinor = (minor: number): string =>
+    formatCurrency((minor ?? 0) / 100);
+
+  // Total Amount (stored as MINOR units)
   const amountCol: ColumnDef<TOrder> = makeCurrencyColumn<TOrder>(
-    'amount',
+    'totalAmount',
     t('table.total'),
-    formatCurrency,
+    formatCurrencyFromMinor,
     {
       enableFilter: false,
       align: 'right',
@@ -33,18 +38,22 @@ export function buildOrderColumns(
     },
   );
 
-  // CreatedAt with metadata fallback
+  // CreatedAt with metadata fallback + robust parsing
   const createdAtCol: ColumnDef<TOrder> = {
-    id: 'createdAt',
-    accessorFn: (row) => row.metadata?.createdAt ?? row.createdAt ?? null,
+    accessorKey: 'createdAt',
     header: t('table.date'),
     enableColumnFilter: false,
+    enableSorting: true,
     meta: { hiddenOnMobile: true, align: 'left' },
-    cell: (info) => {
-      const d = asDate(info.getValue<Date | string | number | null>());
+    size: 180,
+    cell: ({ row }) => {
+      const created =
+        asDateLoose(
+          (row.original as unknown as { createdAt?: unknown }).createdAt,
+        ) ?? asDateLoose(row.original.metadata?.createdAt as unknown);
       return (
         <Typography variant="body2" color="text.secondary">
-          {d ? formatDateTime(d) : DASH}
+          {created ? formatDateTime(created) : DASH}
         </Typography>
       );
     },
@@ -55,7 +64,9 @@ export function buildOrderColumns(
       accessorKey: 'id',
       header: t('table.orderId'),
       enableColumnFilter: false,
-      meta: { sticky: 'left' as const },
+      enableSorting: true,
+      meta: { sticky: 'left' as const, align: 'left' as const },
+      size: 220,
       cell: (info) => (
         <Typography
           variant="body2"
@@ -73,7 +84,9 @@ export function buildOrderColumns(
       accessorKey: 'status',
       header: t('table.status'),
       enableColumnFilter: false,
+      enableSorting: true,
       meta: { align: 'left' as const },
+      size: 160,
       cell: ({ row }) => <StatusTag value={row.getValue<string>('status')} />,
     },
   ];
