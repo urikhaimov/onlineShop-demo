@@ -1,10 +1,7 @@
+// src/hooks/useProductMutations.ts
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  createProduct,
-  deleteProduct,
-  reorderProducts,
-  updateProduct,
-} from './useProducts';
+import { createProduct, deleteProduct, updateProduct } from './useProducts';
+import axios from 'axios';
 
 import { cLogger } from '@client/logger';
 import { IProduct, TUpdateProduct } from '@common/types';
@@ -13,6 +10,8 @@ interface ReorderPayload {
   orderList: { id: string; order: number }[];
   token: string;
 }
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 export const useProductMutations = () => {
   const queryClient = useQueryClient();
@@ -23,7 +22,7 @@ export const useProductMutations = () => {
       await queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error) => {
-      console.error('Create product failed:', error);
+      console.error('❌ Create product failed:', error);
     },
   });
 
@@ -39,7 +38,7 @@ export const useProductMutations = () => {
       await queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error) => {
-      console.error('Update product failed:', error);
+      console.error('❌ Update product failed:', error);
     },
   });
 
@@ -49,20 +48,41 @@ export const useProductMutations = () => {
       await queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error) => {
-      cLogger.error('Delete product failed:', error);
+      cLogger.error('❌ Delete product failed:', error);
     },
   });
 
   const reorder = useMutation({
     mutationFn: async ({ orderList, token }: ReorderPayload) => {
-      return reorderProducts(orderList);
+      try {
+        const url = `${API_BASE}/api/products/reorder`;
+        const body = { orderList };
+
+        const res = await axios.put(url, body, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        return res.data;
+      } catch (err: any) {
+        cLogger.error('❌ Reorder products failed:', err);
+        // dump debug info
+        cLogger.error('❌ Reorder debug info:', {
+          apiBase: API_BASE || '(empty)',
+          url: `${API_BASE}/api/products/reorder`,
+          method: 'PUT',
+          body: JSON.stringify({ orderList }),
+          status: err?.response?.status,
+          data: err?.response?.data,
+        });
+        throw err;
+      }
     },
-    // ❌ remove this for now to prevent snapping back
-    // onSuccess: () => {
-    //   queryClient.invalidateQueries({ queryKey: ['products'] });
-    // },
+    // Do not invalidate immediately to avoid snap-back,
+    // you’re already optimistically updating in AdminProductsPage
     onError: (error) => {
-      cLogger.error('Reorder products failed:', error);
+      cLogger.error('❌ Reorder mutation failed:', error);
     },
   });
 

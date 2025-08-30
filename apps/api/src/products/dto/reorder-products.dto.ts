@@ -1,17 +1,20 @@
-import { IsArray, ValidateNested, IsString, IsInt } from 'class-validator';
+// src/products/dto/reorder-products.dto.ts
+import { IsArray, ValidateNested, IsString, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class ReorderItemDto {
+export class ReorderItemDto {
   @IsString()
-  id: string;
+  id!: string;
 
+  @Type(() => Number) // ← coerce string -> number if needed
   @IsInt()
-  order: number;
+  @Min(0)
+  order!: number;
 }
 
 export class ReorderProductsDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReorderItemDto)
-  orderList: ReorderItemDto[];
+  orderList!: ReorderItemDto[];
 }

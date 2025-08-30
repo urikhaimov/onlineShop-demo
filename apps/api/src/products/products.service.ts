@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+// src/products/products.service.ts
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { ConfigService } from '@nestjs/config';
 import { adminDb } from '@common/firebase';
@@ -7,8 +13,8 @@ import type { SaveProductDto } from './dto/save-product.dto';
 type TS = admin.firestore.Timestamp | admin.firestore.FieldValue;
 
 type UserRef = {
-  uid: string; // string UID for frontend/types
-  uidNum: number; // numeric hash (optional, useful for analytics)
+  uid: string;
+  uidNum: number;
   name: string;
 };
 
@@ -20,6 +26,8 @@ type ProductDoc = {
   categoryId: string;
   images: string[];
   imageUrl?: string | null;
+  /** persisted sort position */
+  order: number;
   metadata: {
     createdBy: UserRef;
     updatedBy: UserRef;
@@ -47,10 +55,24 @@ export class ProductsService {
     return { uid, uidNum: this.numericUid(uid), name: name ?? '' };
   }
 
-  private pickDefined<T extends Record<string, any>>(obj: T) {
+  private pickDefined<T extends object>(obj: Partial<T>) {
     return Object.fromEntries(
-      Object.entries(obj).filter(([, v]) => v !== undefined),
+      Object.entries(obj as Record<string, unknown>).filter(
+        ([, v]) => v !== undefined,
+      ),
     ) as Partial<T>;
+  }
+
+  /** Compute next order value (max + 1). */
+  private async getNextOrder(): Promise<number> {
+    const snap = await adminDb
+      .collection('products')
+      .orderBy('order', 'desc')
+      .limit(1)
+      .get();
+    const top = snap.docs[0]?.data() as Partial<ProductDoc> | undefined;
+    const currentMax = typeof top?.order === 'number' ? top.order : -1;
+    return currentMax + 1;
   }
 
   // ---------------- create ----------------
@@ -62,6 +84,8 @@ export class ProductsService {
     const ref = adminDb.collection('products').doc();
     const actor = this.actor(uid, actorName);
 
+    const nextOrder = await this.getNextOrder();
+
     const doc: ProductDoc = {
       name: dto.name,
       description: dto.description,
@@ -70,6 +94,7 @@ export class ProductsService {
       categoryId: dto.categoryId,
       images: dto.images ?? [],
       imageUrl: dto.imageUrl ?? null,
+      order: nextOrder,
       metadata: {
         createdBy: actor,
         updatedBy: actor,
@@ -80,7 +105,6 @@ export class ProductsService {
 
     await ref.set({ id: ref.id, ...doc });
 
-    // Re-read so serverTimestamp() resolves to a concrete Timestamp
     const snap = await ref.get();
     this.logger.log(`Created product ${ref.id}`);
     return { id: ref.id, ...snap.data() };
@@ -100,7 +124,6 @@ export class ProductsService {
     const prev = snap.data() as ProductDoc | undefined;
     const actor = this.actor(uid, actorName);
 
-    // Build a full metadata object (avoid dotted keys)
     const metadata: ProductDoc['metadata'] = {
       createdBy: prev?.metadata?.createdBy ?? actor,
       createdAt: prev?.metadata?.createdAt ?? this.st(),
@@ -108,19 +131,18 @@ export class ProductsService {
       updatedAt: this.st(),
     };
 
-    // Only include defined fields so we don't wipe others
     const patch = this.pickDefined<ProductDoc>({
       name: dto.name,
       description: dto.description,
       price: dto.price,
       stock: dto.stock,
       categoryId: dto.categoryId,
-      images: dto.images, // send only if provided
-      imageUrl: dto.imageUrl ?? null, // allow explicit null to clear
-      metadata, // replace metadata atomically
+      images: dto.images,
+      imageUrl: dto.imageUrl ?? null,
+      metadata,
+      // NOTE: we do not accept "order" via update() — use reorder()
     });
 
-    // Type the update for Firestore
     await ref.update(patch as admin.firestore.UpdateData<ProductDoc>);
 
     this.logger.log(`Updated product ${id}`);
@@ -129,9 +151,30 @@ export class ProductsService {
   }
 
   // ---------------- queries ----------------
+
+  // src/products/products.service.ts — replace ONLY getAll()
   async getAll() {
-    const ss = await adminDb.collection('products').orderBy('name').get();
-    return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
+    try {
+      // Primary: sort by persisted 'order'
+      const ss = await adminDb
+        .collection('products')
+        .orderBy('order', 'asc')
+        .get();
+
+      return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (e: any) {
+      // If order field/index isn't available yet, fall back to name
+      this.logger.warn(
+        `getAll() falling back to name ordering: ${e?.code || e?.message}`,
+      );
+
+      const ss = await adminDb
+        .collection('products')
+        .orderBy('name', 'asc')
+        .get();
+
+      return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
   }
 
   async getById(id: string) {
@@ -143,5 +186,42 @@ export class ProductsService {
   async remove(id: string) {
     await adminDb.collection('products').doc(id).delete();
     return { ok: true };
+  }
+
+  // ---------------- reorder ----------------
+  async reorder(
+    uid: string,
+    actorName: string | undefined,
+    orderList: Array<{ id: string; order: number }>,
+  ) {
+    if (!Array.isArray(orderList) || orderList.length === 0) {
+      throw new BadRequestException('orderList must be a non-empty array');
+    }
+
+    const ids = new Set(orderList.map((i) => i.id));
+    if (ids.size !== orderList.length) {
+      throw new BadRequestException('orderList contains duplicate ids');
+    }
+
+    const actor = this.actor(uid, actorName);
+    const batch = adminDb.batch();
+
+    for (const item of orderList) {
+      const ref = adminDb.collection('products').doc(item.id);
+      batch.update(ref, {
+        order: item.order,
+        'metadata.updatedBy': actor,
+        'metadata.updatedAt': this.st(),
+      } as admin.firestore.UpdateData<ProductDoc>);
+    }
+
+    await batch.commit();
+    this.logger.log(`Reordered ${orderList.length} products`);
+
+    const ss = await adminDb
+      .collection('products')
+      .orderBy('order', 'asc')
+      .get();
+    return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
   }
 }

@@ -1,21 +1,9 @@
-// src/pages/AdminProductsPage/index.tsx  (or wherever your AdminProductsPage component lives)
+// src/pages/AdminProductsPage/index.tsx
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Snackbar, Alert, Divider, Box, Button, Stack } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import {
-  DndContext,
-  type DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-} from '@dnd-kit/sortable';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import StickyTable from '../../../components/StickyTable';
@@ -111,7 +99,7 @@ export default function AdminProductsPage() {
 
   const { data: categories = [] } = useCategories();
   const { reorder } = useProductMutations();
-  const sensors = useSensors(useSensor(PointerSensor));
+  const isReordering = reorder.isPending;
   const navigate = useNavigate();
 
   // ✅ Build columns with locale-aware hook (no hooks inside the builder)
@@ -148,28 +136,36 @@ export default function AdminProductsPage() {
     void loadProducts();
   }, [setLoading, setProducts, setProductsSorted]);
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  // ---- Reorder wiring (called by StickyTable with visible ordered IDs)
+  const byId = React.useMemo(() => {
+    const m = new Map<string, IProduct>();
+    for (const p of products) m.set(p.id, p);
+    return m;
+  }, [products]);
 
-    const oldIndex = products.findIndex((p) => p.id === active.id);
-    const newIndex = products.findIndex((p) => p.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
+  const handleReorder = async (orderedIds: string[]) => {
+    // reorder only the visible slice first, then keep the rest as-is
+    const visibleSet = new Set(orderedIds);
+    const nextVisible = orderedIds.map((id) => byId.get(id)!).filter(Boolean);
+    const rest = products.filter((p) => !visibleSet.has(p.id));
 
-    const reordered = arrayMove(products, oldIndex, newIndex);
-    setProducts(reordered);
+    const nextAll = [...nextVisible, ...rest];
+    setProducts(nextAll); // optimistic
 
-    const orderList = reordered.map((p, i) => ({ id: p.id, order: i }));
+    const orderList = nextAll.map((p, i) => ({ id: p.id, order: i }));
     const token = await auth.currentUser?.getIdToken();
-    if (token) {
-      try {
-        await reorder.mutateAsync({ orderList, token });
-        setSnackbarOpen(true);
-      } catch (error) {
-        console.error('❌ Reorder failed', error);
-      }
+    if (!token) return;
+
+    try {
+      await reorder.mutateAsync({ orderList, token });
+      setSnackbarOpen(true);
+    } catch (err) {
+      console.error('❌ Reorder failed', err);
+      // Optional: rollback
+      // setProducts(products);
     }
   };
+  // ---------------------------------------------
 
   const getCategoryName = (categoryId?: string | null) =>
     categories.find((c) => c.id === categoryId)?.name ?? '—';
@@ -328,33 +324,35 @@ export default function AdminProductsPage() {
         ) : filteredProducts.length === 0 ? (
           <NotFound message={t('empty.noProducts')} />
         ) : (
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <SortableContext
-              items={filteredProducts.map((p) => p.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <StickyTable<IProduct>
-                columns={columns}
-                data={filteredProducts}
-                sorting={sorting}
-                onSortingChange={setSorting}
-                columnFilters={columnFilters}
-                onColumnFiltersChange={setColumnFilters}
-                enablePagination
-                enableSorting
-                enableColumnFilters={false} // filters live in the drawer
-                groupById="categoryId"
-                enableRowExpansion
-                renderExpandedRow={(product) => (
-                  <ProductExpandedRow
-                    product={product}
-                    categoryName={getCategoryName(product.categoryId)}
-                  />
-                )}
-                bodyMaxHeight="60vh"
+          <StickyTable<IProduct>
+            columns={columns}
+            data={filteredProducts}
+            sorting={sorting}
+            onSortingChange={setSorting}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={setColumnFilters}
+            enablePagination
+            enableSorting
+            enableColumnFilters={false} // drawer holds filters
+            groupById="categoryId"
+            enableRowExpansion
+            renderExpandedRow={(product) => (
+              <ProductExpandedRow
+                product={product}
+                categoryName={getCategoryName(product.categoryId)}
               />
-            </SortableContext>
-          </DndContext>
+            )}
+            bodyMaxHeight="60vh"
+            // Reorder hooks inside StickyTable
+            onReorder={handleReorder}
+            getRowId={(p) => p.id}
+            // Block drag while persisting or while view is derived
+            disableDrag={
+              isReordering ||
+              (sorting?.length ?? 0) > 0 ||
+              (columnFilters?.length ?? 0) > 0
+            }
+          />
         )}
 
         {/* Filters drawer (stays open while editing) */}
