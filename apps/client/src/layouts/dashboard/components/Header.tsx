@@ -17,7 +17,6 @@ import { useSidebarStore } from '../../../stores/useSidebarStore';
 export default function Header() {
   const cartCount = useCartCount();
   const openCartDrawer = useSidebarStore((s) => s.openCartDrawer);
-  console.log('Header rendered with cartCount:', cartCount);
 
   return (
     <Stack

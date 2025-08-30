@@ -28,11 +28,16 @@
     "logout": "התנתקות"
   },
   "actions": {
-    "save": "שמירה",
     "edit": "עריכה",
     "delete": "מחיקה",
+    "searchPlaceholder": "חיפוש…",
+    "apply": "החל",
+    "reset": "איפוס",
     "cancel": "ביטול",
-    "searchPlaceholder": "חיפוש…"
+    "save": "שמירה",
+    "clear": "נקה",
+    "close": "סגור",
+    "openFilters": "פתח מסננים"
   },
   "validation": {
     "name_required": "יש להזין שם.",
@@ -51,7 +56,9 @@
     "stock": "מלאי",
     "price": "מחיר",
     "created": "נוצר",
-    "addToCart": "הוסף לעגלה "
+    "addToCart": "הוסף לעגלה ",
+    "createdAt": "נוצר בתאריך",
+    "updatedAt": "עודכן בתאריך"
   },
   "filters": {
     "open": "מסננים",
@@ -368,7 +375,9 @@
     "discount": "הנחה",
     "total": "סך הכול",
     "currency": "₪",
-    "failedToLoad": "טעינת טופס התשלום נכשלה. נסה שוב מאוחר יותר."
+    "failedToLoad": "טעינת טופס התשלום נכשלה. נסה שוב מאוחר יותר.",
+    "items": "פריטים",
+    "qty": "כמות"
   },
   "checkoutForm": {
     "paymentDetails": "פרטי תשלום",
@@ -382,7 +391,21 @@
       "paymentFailed": "התשלום נכשל",
       "paymentStatus": "סטטוס התשלום: {{status}}",
       "unexpected": "שגיאה לא צפויה"
-    }
+    },
+    "shippingAddress": "כתובת משלוח",
+    "fullName": "שם מלא",
+    "fullNameRequired": "יש להזין שם מלא",
+    "phone": "טלפון",
+    "phoneRequired": "יש להזין מספר טלפון",
+    "street": "רחוב",
+    "streetRequired": "יש להזין רחוב",
+    "city": "עיר",
+    "cityRequired": "יש להזין עיר",
+    "postalCode": "מיקוד",
+    "postalCodeRequired": "יש להזין מיקוד",
+    "country": "מדינה",
+    "countryRequired": "יש להזין מדינה",
+    "countryHint": "השתמש בקוד ISO אם אפשר (לדוגמה IL, US)"
   },
   "checkoutSuccess": {
     "title": "🎉 תודה על ההזמנה!",
@@ -398,5 +421,15 @@
     "title": "גישה נדחתה",
     "message": "אין לך הרשאה לצפות בדף זה.",
     "cta": "חזרה לדף הבית"
+  },
+  "product": {
+    "details": {
+      "pricing": "מחיר / מלאי",
+      "category": "קטגוריה",
+      "price": "מחיר",
+      "stock": "מלאי",
+      "created": "נוצר",
+      "updated": "עודכן"
+    }
   }
 }

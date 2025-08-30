@@ -3,13 +3,13 @@
   "compilerOptions": {
     "outDir": "../../dist/apps/api",
     "module": "commonjs",
+    "moduleResolution": "node",
     "types": ["node"],
     "emitDecoratorMetadata": true,
-    "target": "es2021"
+    "target": "es2021",
+    "ignoreDeprecations": "6.0"
   },
-  "files": [
-    "src/main.ts"
-  ],
+  "files": ["src/main.ts"],
   "exclude": ["jest.config.ts", "src/**/*.spec.ts", "src/**/*.test.ts"],
   "include": ["src/**/*"]
 }
