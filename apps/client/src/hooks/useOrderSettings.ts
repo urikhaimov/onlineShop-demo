@@ -1,7 +1,8 @@
+// apps/client/src/hooks/useOrderSettings.ts
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchOrderSettings, saveOrderSettings } from '../api/orderSettings';
 import type { TOrderSettings } from '@common/types';
-import { useAuth } from './useAuth'; // adjust to your auth hook
+import { useAuth } from './useAuth';
 
 const QUERY_KEY = ['orderSettings'];
 
@@ -15,7 +16,7 @@ export function useOrderSettings() {
 
 export function useUpdateOrderSettingsMutation() {
   const qc = useQueryClient();
-  const { user } = useAuth(); // expects { uid, displayName } etc.
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: (

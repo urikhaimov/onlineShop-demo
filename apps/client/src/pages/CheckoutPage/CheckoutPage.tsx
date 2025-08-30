@@ -82,7 +82,7 @@ export default function CheckoutPage() {
     isError: settingsError,
     error: settingsErr,
   } = useOrderSettings();
-
+  console.log('settings', settings);
   // Only block while actually loading
   if (settingsLoading) return <LoadingProgress />;
 
