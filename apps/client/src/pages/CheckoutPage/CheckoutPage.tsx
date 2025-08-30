@@ -76,8 +76,17 @@ export default function CheckoutPage() {
   const { clientSecret, loading, error, refresh } = useStripeClientSecret();
   const cart = useCartStore((s) => s.items);
 
-  const { data: settings, isLoading: settingsLoading } = useOrderSettings();
+  const {
+    data: settings,
+    isLoading: settingsLoading,
+    isError: settingsError,
+    error: settingsErr,
+  } = useOrderSettings();
 
+  // Only block while actually loading
+  if (settingsLoading) return <LoadingProgress />;
+
+  // Graceful fallbacks if settings failed to load
   const shipping = settings?.shipping ?? 0;
   const taxRate = settings?.taxRate ?? 0;
   const discount = settings?.discount ?? 0;
@@ -91,7 +100,7 @@ export default function CheckoutPage() {
   const total = useCartStore.getState().getCartTotal({
     shipping,
     taxRate,
-    discount: discount * 100,
+    discount: discount * 100, // store expects cents
   });
 
   return (
@@ -136,6 +145,16 @@ export default function CheckoutPage() {
               <Typography variant="h6" mb={1.5 * spacingScale}>
                 {t('checkout.title', { defaultValue: 'Checkout' })}
               </Typography>
+
+              {settingsError && (
+                <Alert severity="warning" sx={{ mb: 1.5 * spacingScale }}>
+                  {t('checkout.settingsFallback', {
+                    defaultValue:
+                      'Order settings failed to load. Using defaults (0).',
+                  })}{' '}
+                  {settingsErr ? String(settingsErr) : ''}
+                </Alert>
+              )}
 
               {/* --- Items List --- */}
               {cart.length > 0 ? (
@@ -276,9 +295,7 @@ export default function CheckoutPage() {
                 <Typography fontWeight={700}>
                   {t('checkout.total', { defaultValue: 'Total' })}:{' '}
                   {(total / 100).toFixed(2)}{' '}
-                  {t('checkout.currency', {
-                    defaultValue: CDefaultCurrency,
-                  })}
+                  {t('checkout.currency', { defaultValue: CDefaultCurrency })}
                 </Typography>
               </Stack>
 
@@ -289,7 +306,7 @@ export default function CheckoutPage() {
                 </Box>
               ) : clientSecret ? (
                 <Elements
-                  key={clientSecret} // ✅ remount Payment Element on fresh intents
+                  key={clientSecret} // remount Payment Element on fresh intents
                   stripe={stripePromise}
                   options={{ clientSecret }}
                 >
