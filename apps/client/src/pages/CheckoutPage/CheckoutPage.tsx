@@ -18,6 +18,7 @@ import { useThemeStore } from '../../stores/useThemeStore';
 
 import StripeCheckoutForm from './StripeCheckoutForm';
 import { useStripeClientSecret } from '../../hooks/useStripeClientSecret';
+import { useOrderSettings } from '../../hooks/useOrderSettings';
 import { stripePromise } from '../../stripe/StripeProvider';
 
 import { PageLayout } from '../../layouts/page.layout';
@@ -27,6 +28,7 @@ import {
 } from '../../services/ability.service';
 import { useTranslation } from 'react-i18next';
 import { CDefaultCurrency } from '@common/types';
+import LoadingProgress from '@client/components/LoadingProgress';
 
 const StripeProvider = React.lazy(() => import('../../stripe/StripeProvider'));
 
@@ -74,9 +76,11 @@ export default function CheckoutPage() {
   const { clientSecret, loading, error, refresh } = useStripeClientSecret();
   const cart = useCartStore((s) => s.items);
 
-  const shipping = 5.99;
-  const taxRate = 0.17;
-  const discount = 3.0;
+  const { data: settings, isLoading: settingsLoading } = useOrderSettings();
+
+  const shipping = settings?.shipping ?? 0;
+  const taxRate = settings?.taxRate ?? 0;
+  const discount = settings?.discount ?? 0;
 
   const subtotal = cart.reduce(
     (sum, item) => sum + (Number(item.price) || 0) * (item.quantity ?? 0),

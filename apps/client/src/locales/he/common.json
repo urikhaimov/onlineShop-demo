@@ -15,7 +15,8 @@
     "orders": "הזמנות",
     "theme": "ערכת נושא",
     "landingPage": "דף נחיתה",
-    "securityLogs": "יומני אבטחה"
+    "securityLogs": "יומני אבטחה",
+    "ordersSettings": "הגדרות הזמנה"
   },
   "view": {
     "cards": "כרטיסים",
@@ -431,5 +432,14 @@
       "created": "נוצר",
       "updated": "עודכן"
     }
-  }
+  },
+  "orderSettings": {
+    "title": "הגדרות הזמנה",
+    "shipping": "משלוח",
+    "taxRate": "מס (Tax Rate)",
+    "taxRateHint": "0.17 = 17%",
+    "discount": "הנחה",
+    "saved": "הגדרות הזמנה נשמרו"
+  },
+  "currency": { "symbol": "₪" }
 }

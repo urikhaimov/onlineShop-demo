@@ -81,11 +81,11 @@ export default function MenuContent() {
           icon: <HomeIcon />,
           path: '/admin/landingPage',
         },
-        // {
-        //   label: t('admin.securityLogs'),
-        //   icon: <SecurityIcon />,
-        //   path: '/admin/security-logs',
-        // },
+        {
+          label: t('admin.ordersSettings'),
+          icon: <SecurityIcon />,
+          path: '/admin/orders/settings',
+        },
       ];
     }
     return [];

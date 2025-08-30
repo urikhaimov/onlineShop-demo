@@ -15,7 +15,8 @@
     "orders": "Orders",
     "theme": "Theme",
     "landingPage": "Landing Page",
-    "securityLogs": "Security Logs"
+    "securityLogs": "Security Logs",
+    "ordersSettings": "Order Settings"
   },
   "view": {
     "cards": "Cards",
@@ -424,5 +425,14 @@
       "created": "Created",
       "updated": "Updated"
     }
-  }
+  },
+  "orderSettings": {
+    "title": "Order Settings",
+    "shipping": "Shipping",
+    "taxRate": "Tax Rate",
+    "taxRateHint": "0.17 = 17%",
+    "discount": "Discount",
+    "saved": "Order settings saved"
+  },
+  "currency": { "symbol": "₪" }
 }

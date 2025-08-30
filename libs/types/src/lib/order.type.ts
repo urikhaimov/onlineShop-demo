@@ -72,3 +72,10 @@ export enum ESTATUS_OPTIONS {
   DELIVERED = 'delivered',
   CANCELLED = 'cancelled',
 }
+export type TOrderSettings = {
+  shipping: number;
+  taxRate: number;
+  discount: number;
+  updatedAt?: Timestamp;
+  updatedBy?: { uid: string; name?: string };
+};
