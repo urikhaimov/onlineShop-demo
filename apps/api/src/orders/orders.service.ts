@@ -329,26 +329,32 @@ export class OrdersService {
   }
 
   /** Called by webhook */
+  /** Create (idempotent) order from a Stripe PaymentIntent */
   private async createOrderFromIntent(intent: Stripe.PaymentIntent) {
     const uid = intent.metadata?.uid;
     if (!uid) throw new Error('Missing uid in Stripe metadata');
 
+    // --- items from PI metadata (priceMajor fallback) ---
     let items: PlainItem[] = [];
     try {
-      const raw = intent.metadata?.items || '[]';
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) throw new Error('items not array');
-      items = parsed.map((i: any) => ({
-        productId: String(i.productId ?? ''),
-        name: String(i.name ?? ''),
-        price: Number(i.priceMajor ?? i.price ?? 0),
-        image: typeof i.image === 'string' ? i.image : null,
-        quantity: Number(i.quantity ?? 0),
-      }));
-    } catch {
-      this.logger.warn('Invalid items metadata in PaymentIntent');
+      const raw = intent.metadata?.items ?? '[]';
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        items = arr.map((i: any) => ({
+          productId: String(i.productId ?? ''),
+          name: String(i.name ?? ''),
+          price: Number(i.priceMajor ?? i.price ?? 0),
+          image: typeof i.image === 'string' ? i.image : null,
+          quantity: Number(i.quantity ?? 0),
+        }));
+      } else {
+        this.logger.warn('PaymentIntent.metadata.items is not an array');
+      }
+    } catch (err) {
+      this.logger.warn(`Invalid items in PI metadata: ${String(err)}`);
     }
 
+    // --- shipping address from metadata OR PI.shipping ---
     let shippingAddress: {
       fullName: string;
       phone: string;
@@ -379,11 +385,16 @@ export class OrdersService {
     const now = this.nowTs();
     const uidNum = this.numericUid(uid);
 
+    const amountMinor =
+      typeof intent.amount_received === 'number' && intent.amount_received > 0
+        ? intent.amount_received
+        : (intent.amount ?? 0);
+
     const orderDoc = {
       userId: uid,
       email: null as string | null,
       items,
-      totalAmount: intent.amount, // MINOR
+      totalAmount: amountMinor, // MINOR units
       paymentIntentId: intent.id,
       payment: {
         method: 'card' as const,
@@ -411,12 +422,21 @@ export class OrdersService {
       },
     };
 
-    const ref = adminDb.collection('orders').doc();
-    await ref.set({ id: ref.id, ...orderDoc });
+    // ✅ Idempotent: use PaymentIntent id as the order doc id
+    const ref = adminDb.collection('orders').doc(intent.id);
+    const exists = await ref.get();
+    if (exists.exists) {
+      this.logger.log(`Order already exists for PI ${intent.id}`);
+      return { id: exists.id, ...exists.data() };
+    }
 
-    await this.decrementStock(
-      items.map(({ productId, quantity }) => ({ productId, quantity })),
-    );
+    await ref.set({ id: ref.id, ...orderDoc }, { merge: false });
+
+    if (items.length) {
+      await this.decrementStock(
+        items.map(({ productId, quantity }) => ({ productId, quantity })),
+      );
+    }
 
     this.logger.log(`Order created from Stripe intent: ${ref.id}`);
     return { id: ref.id, ...orderDoc };

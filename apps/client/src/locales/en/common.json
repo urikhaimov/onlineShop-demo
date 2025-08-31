@@ -38,7 +38,11 @@
     "save": "Save",
     "clear": "Clear",
     "close": "Close",
-    "openFilters": "Open Filters"
+    "openFilters": "Open Filters",
+    "addToCart": "Add to cart"
+  },
+  "toasts": {
+    "addedToCart": "Added to cart"
   },
   "validation": {
     "name_required": "Name is required.",
@@ -369,8 +373,18 @@
     "close": "Close"
   },
   "checkout": {
-    "items": "Items",
-    "qty": "Qty"
+    "title": "Checkout",
+    "emptyCart": "Your cart is empty",
+    "subtotal": "Subtotal",
+    "shipping": "Shipping",
+    "tax": "Tax ({{rate}}%)",
+    "discount": "Discount",
+    "total": "Total",
+    "currency": "{{currency}}",
+    "thankYouTitle": "Thank You for Your Order!",
+    "thankYouBody": "We’ve received your payment and your order is being processed.",
+    "goHome": "Go to Home",
+    "viewOrders": "View My Orders"
   },
   "checkoutForm": {
     "paymentDetails": "Payment Details",

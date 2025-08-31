@@ -1,144 +1,93 @@
-import { useEffect, useState } from 'react';
-import { useCartStore } from '../stores/useCartStore';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { auth } from '../firebase';
-import api from '../api/axiosInstance';
+import axiosInstance from '../api/axiosInstance';
+import { useCartStore } from '../stores/useCartStore';
 
-type OrderDraft = {
-  items?: Array<{
-    id?: string;
-    productId?: string;
-    name: string;
-    quantity: number;
-    price: number; // major
-    image?: string;
-    imageUrl?: string;
-    images?: string[];
-  }>;
-  pricing?: { totalCents?: number };
-  payer?: { ownerName?: string; passportId?: string };
-  shippingAddress?: {
-    fullName: string;
-    phone: string;
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
-  payment?: { transactionId?: string; status?: string; method?: string };
-  notes?: string;
-};
+type ConfirmResponse = { orderId: string; alreadyConfirmed?: boolean };
 
+function extractPaymentIntentId(search: string): string | null {
+  const qs = new URLSearchParams(search);
+  const pi = qs.get('payment_intent');
+  if (pi) return pi;
+  const secret = qs.get('payment_intent_client_secret');
+  return secret ? secret.split('_secret')[0] : null;
+}
+
+/**
+ * Idempotent order confirmation:
+ * - Confirms by payment_intent from the URL (preferred).
+ * - Does NOT throw if the cart is empty.
+ * - Uses localStorage to avoid double-confirm on refresh.
+ * - Clears the cart only if it still has items.
+ */
 export function useConfirmOrder() {
-  const [loading, setLoading] = useState(true);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const location = useLocation();
+  const { search } = useLocation();
 
+  const paymentIntentId = useMemo(
+    () => extractPaymentIntentId(search),
+    [search],
+  );
+
+  const items = useCartStore((s) => s.items ?? []);
   const clearCart = useCartStore((s) => s.clearCart);
-  const cartItems = useCartStore((s) => s.items);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toastOpen, setToastOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const run = async () => {
+    async function run() {
       try {
-        const params = new URLSearchParams(location.search);
-        const paymentIntentId = params.get('payment_intent') ?? undefined;
-
-        const user = auth.currentUser;
-        if (!user) throw new Error('Not authenticated');
-        const token = await user.getIdToken();
-
-        const raw = localStorage.getItem('orderDraft');
-        const draft: OrderDraft | null = raw ? JSON.parse(raw) : null;
-
-        // amount (minor)
-        let amount = draft?.pricing?.totalCents;
-        if (!amount) {
-          amount = Math.round(
-            cartItems.reduce(
-              (s, it) => s + Number(it.price || 0) * (it.quantity ?? 0),
-              0,
-            ) * 100,
-          );
+        // If we don't have a PI, just render the success page without doing anything noisy.
+        if (!paymentIntentId) {
+          setError(null);
+          return;
         }
 
-        // items
-        const baseItems = draft?.items?.length ? draft.items! : cartItems;
-        if (!baseItems || !baseItems.length) throw new Error('Cart is empty');
-
-        const items = baseItems.map((it, idx) => {
-          const img =
-            it.image ??
-            it.imageUrl ??
-            (Array.isArray(it.images) && it.images.length ? it.images[0] : '');
-          return {
-            productId: it.productId ?? it.id ?? `unknown-${idx}`,
-            name: it.name,
-            quantity: it.quantity,
-            price: Number(it.price), // major
-            image: img || undefined,
-          };
-        });
-
-        const paid =
-          draft?.payment?.status === 'succeeded' || Boolean(paymentIntentId);
-
-        const payload = {
-          userId: user.uid,
-          email: user.email ?? undefined,
-          totalAmount: amount, // minor
-          items,
-          status: paid ? ('confirmed' as const) : ('pending' as const),
-          paymentIntentId,
-          payment: {
-            method: draft?.payment?.method ?? 'card',
-            status: paid ? ('paid' as const) : ('unpaid' as const),
-            transactionId: draft?.payment?.transactionId ?? paymentIntentId,
-          },
-          ownerName: draft?.payer?.ownerName,
-          passportId: draft?.payer?.passportId,
-          shippingAddress: draft?.shippingAddress,
-          notes: draft?.notes,
-        };
-
-        // Primary path: create the order document directly
-        const orderRes = await api.post('/orders', payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        // Fallback: if backend asks you to finalize via PI id (e.g. using webhook-only mode)
-        if (!orderRes.data?.id && paymentIntentId) {
-          await api.post(
-            `/orders/create-from-intent/${paymentIntentId}`,
-            {},
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
+        // Skip if we already confirmed this PI in this browser.
+        const doneKey = `pi:${paymentIntentId}:confirmed`;
+        if (localStorage.getItem(doneKey) === '1') {
+          return;
         }
 
-        clearCart();
-        localStorage.removeItem('cart');
-        localStorage.removeItem('orderDraft');
+        // Prefer server-side confirm using PaymentIntent (cart snapshot optional).
+        const payload: any = { paymentIntentId };
+        if (items.length > 0) payload.cart = { items };
+
+        const { data } = await axiosInstance.post<ConfirmResponse>(
+          '/orders/confirm',
+          payload,
+        );
+
+        // Clear cart only if it still has items (no error if already empty).
+        if (items.length > 0) clearCart();
+
+        localStorage.setItem(doneKey, '1');
         if (!cancelled) setToastOpen(true);
       } catch (e: any) {
+        // Treat "Cart is empty" as non-fatal; Success page should not depend on cart.
         const msg =
-          e?.response?.data?.message ??
-          (e as Error)?.message ??
-          'Error confirming order';
-        if (!cancelled)
-          setError(Array.isArray(msg) ? msg.join(', ') : String(msg));
-        console.error('useConfirmOrder error:', e);
+          e?.response?.data?.message || e?.message || 'Failed to confirm order';
+
+        if (String(msg).toLowerCase().includes('cart is empty')) {
+          if (!cancelled) setError(null);
+        } else {
+          if (!cancelled) setError(msg);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
-    };
+    }
 
-    void run();
+    run();
     return () => {
       cancelled = true;
     };
-  }, [location.search, clearCart, cartItems]);
+  }, [paymentIntentId, items, clearCart]);
 
-  return { loading, toastOpen, setToastOpen, error };
+  return { loading, error, toastOpen, setToastOpen };
 }
+
+export default useConfirmOrder;

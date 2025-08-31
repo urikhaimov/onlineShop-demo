@@ -76,6 +76,7 @@ export type TOrderSettings = {
   shipping: number;
   taxRate: number;
   discount: number;
+  currency?: string; // ISO-4217, e.g. 'ILS', 'USD'
   updatedAt?: Timestamp;
   updatedBy?: { uid: string; name?: string };
 };

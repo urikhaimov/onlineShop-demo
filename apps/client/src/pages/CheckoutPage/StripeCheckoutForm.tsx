@@ -12,13 +12,17 @@ import {
   useStripe,
   useElements,
   PaymentElement,
+  LinkAuthenticationElement,
 } from '@stripe/react-stripe-js';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+
 import FormTextField from '../../components/FormTextField';
 import { useCartStore } from '../../stores/useCartStore';
 import { useStripeCheckoutStore } from '../../stores/useStripeCheckoutStore';
-import { useTranslation } from 'react-i18next';
+import axiosInstance from '../../api/axiosInstance';
+import { auth } from '../../firebase';
 
 type ShippingAddress = {
   fullName: string;
@@ -36,7 +40,7 @@ type FormData = {
 };
 
 function toIso2Country(input: string): string {
-  const s = input.trim().toUpperCase();
+  const s = (input || '').trim().toUpperCase();
   if (s.length === 2) return s;
   const map: Record<string, string> = {
     ISRAEL: 'IL',
@@ -63,6 +67,8 @@ export default function StripeCheckoutForm({
   const stripe = useStripe();
   const elements = useElements();
   const navigate = useNavigate();
+
+  const [email, setEmail] = React.useState<string>('');
 
   const {
     register,
@@ -97,77 +103,109 @@ export default function StripeCheckoutForm({
     }
 
     setLoading(true);
-
     try {
       const addr = data.shippingAddress;
       const countryIso2 = toIso2Country(addr.country);
+      const fallbackEmail = auth.currentUser?.email || undefined;
+      const billingEmail = (email || '').trim() || fallbackEmail;
 
       const { error: stripeError, paymentIntent } = await stripe.confirmPayment(
         {
           elements,
           confirmParams: {
+            // Ensure charge.billing_details is populated
             payment_method_data: {
               billing_details: {
                 name: data.ownerName || addr.fullName,
+                email: billingEmail,
                 phone: addr.phone,
                 address: {
                   line1: addr.street,
                   city: addr.city,
                   postal_code: addr.postalCode,
-                  country: countryIso2, // ✅ ISO-2 required
+                  country: countryIso2, // ISO-2 required
                 },
               },
             },
+            // Also set the PI's shipping + receipt email (server can read PI.shipping)
+            shipping: {
+              name: addr.fullName || data.ownerName,
+              phone: addr.phone,
+              address: {
+                line1: addr.street,
+                city: addr.city,
+                postal_code: addr.postalCode,
+                country: countryIso2,
+              },
+            },
+            receipt_email: billingEmail,
+            // Fallback in case a redirect-type method is used
+            return_url: `${window.location.origin}/checkout/success`,
           },
           redirect: 'if_required',
         },
       );
 
-      setLoading(false);
-
       if (stripeError) {
-        // Typical decline / last_payment_error scenario
+        setLoading(false);
         setError(
           stripeError.message ||
             t('checkoutForm.errors.paymentFailed', {
               defaultValue: 'Payment failed',
             }),
         );
-        // 🔁 create a fresh PaymentIntent so the Payment Element resets
         if (onRefreshIntent) await onRefreshIntent();
         return;
       }
 
-      if (paymentIntent?.status === 'succeeded') {
+      const piId = paymentIntent?.id;
+      const piStatus = paymentIntent?.status;
+
+      if (piStatus === 'succeeded' && piId) {
+        // Finalize order on API (idempotent: docId = PI id)
+        try {
+          await axiosInstance.post('/orders/confirm', {
+            paymentIntentId: piId,
+          });
+        } catch (e: any) {
+          const msg =
+            e?.response?.data?.message ||
+            e?.message ||
+            t('checkoutForm.errors.finalizeFailed', {
+              defaultValue: 'Failed to finalize order',
+            });
+          setError(String(msg));
+          setLoading(false);
+          return;
+        }
+
+        // Clear cart only after backend confirms the order
         clearCart();
         localStorage.removeItem('cart');
+
+        setLoading(false);
         navigate('/checkout/success');
-      } else if (paymentIntent?.status === 'requires_payment_method') {
-        // Card failed or needs a new method — refresh to give a clean slate
-        setError(
-          t('checkoutForm.errors.paymentStatus', {
-            status: paymentIntent.status,
-            defaultValue: 'Payment status: {{status}}',
-          }),
-        );
-        if (onRefreshIntent) await onRefreshIntent();
-      } else {
-        setError(
-          t('checkoutForm.errors.paymentStatus', {
-            status: paymentIntent?.status ?? 'unknown',
-            defaultValue: 'Payment status: {{status}}',
-          }),
-        );
+        return;
       }
-    } catch (err) {
+
+      // Needs new method or another state
       setLoading(false);
-      const msg = err instanceof Error ? err.message : 'Unexpected error';
       setError(
-        t('checkoutForm.errors.unexpected', {
-          defaultValue: msg,
+        t('checkoutForm.errors.paymentStatus', {
+          status: piStatus ?? 'unknown',
+          defaultValue: 'Payment status: {{status}}',
         }),
       );
-      // As a safety, refresh the intent too
+      if (onRefreshIntent) await onRefreshIntent();
+    } catch (err) {
+      setLoading(false);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : t('checkoutForm.errors.unexpected', {
+              defaultValue: 'Unexpected error',
+            });
+      setError(String(msg));
       if (onRefreshIntent) await onRefreshIntent();
     }
   };
@@ -181,6 +219,11 @@ export default function StripeCheckoutForm({
       <Typography variant="subtitle2" gutterBottom>
         {t('checkoutForm.paymentDetails', { defaultValue: 'Payment Details' })}
       </Typography>
+
+      {/* Stripe-recommended email capture (populates charge.billing_details.email) */}
+      <LinkAuthenticationElement
+        onChange={(e) => setEmail(e.value?.email ?? '')}
+      />
 
       {/* owner + passport */}
       <FormTextField

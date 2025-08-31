@@ -38,7 +38,11 @@
     "save": "שמירה",
     "clear": "נקה",
     "close": "סגור",
-    "openFilters": "פתח מסננים"
+    "openFilters": "פתח מסננים",
+    "addToCart": "הוסף לעגלה"
+  },
+  "toasts": {
+    "addedToCart": "הוסף לעגלה"
   },
   "validation": {
     "name_required": "יש להזין שם.",
@@ -370,15 +374,17 @@
   },
   "checkout": {
     "title": "תשלום",
-    "subtotal": "סיכום ביניים",
+    "emptyCart": "העגלה שלך ריקה",
+    "subtotal": "סכום ביניים",
     "shipping": "משלוח",
     "tax": "מס ({{rate}}%)",
     "discount": "הנחה",
-    "total": "סך הכול",
-    "currency": "₪",
-    "failedToLoad": "טעינת טופס התשלום נכשלה. נסה שוב מאוחר יותר.",
-    "items": "פריטים",
-    "qty": "כמות"
+    "total": "סך הכל",
+    "currency": "{{currency}}",
+    "thankYouTitle": "תודה על ההזמנה!",
+    "thankYouBody": "קיבלנו את התשלום וההזמנה בתהליך טיפול.",
+    "goHome": "חזרה לדף הבית",
+    "viewOrders": "הצג את ההזמנות שלי"
   },
   "checkoutForm": {
     "paymentDetails": "פרטי תשלום",

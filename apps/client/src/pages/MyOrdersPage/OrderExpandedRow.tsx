@@ -9,8 +9,49 @@ import { useThemeStore } from '../../stores/useThemeStore';
 
 type Props = { order: TOrder };
 
-const clamp = (n: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, n));
+// Optional block that may exist on the document but not in TOrder
+type MaybeCustomer =
+  | { name?: string; email?: string; phone?: string }
+  | null
+  | undefined;
+
+// Responsive value for gridColumn without using `any`
+type GridSpan =
+  | string
+  | number
+  | {
+      xs?: string | number;
+      sm?: string | number;
+      md?: string | number;
+      lg?: string | number;
+      xl?: string | number;
+    };
+
+const coalesce = (...xs: ReadonlyArray<unknown>): string => {
+  for (const x of xs) {
+    if (typeof x === 'string') {
+      const trimmed = x.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return DASH;
+};
+
+// Safely extract a `customer` object if present on the order doc
+function extractCustomer(order: TOrder): MaybeCustomer {
+  const rec = order as unknown as Record<string, unknown>;
+  const c = rec['customer'];
+  if (!c || typeof c !== 'object') return undefined;
+
+  const crecord = c as Record<string, unknown>;
+  const name =
+    typeof crecord['name'] === 'string' ? crecord['name'] : undefined;
+  const email =
+    typeof crecord['email'] === 'string' ? crecord['email'] : undefined;
+  const phone =
+    typeof crecord['phone'] === 'string' ? crecord['phone'] : undefined;
+  return { name, email, phone };
+}
 
 const OrderExpandedRow: React.FC<Props> = ({ order }) => {
   const { t } = useTranslation();
@@ -43,13 +84,10 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
     xs: mui.spacing(0.75 * spacingScale),
     sm: mui.spacing(spacingScale),
   };
-
   const sectionMarginY = {
     xs: mui.spacing(0.75 * spacingScale),
     sm: mui.spacing(spacingScale),
   };
-  console.log('spacingScale', spacingScale);
-  console.log('sectionMarginX', sectionMarginX);
 
   const sectionBorder = `1px solid ${mui.palette.divider}`;
   const sectionShadow = isDark ? mui.shadows[2] : mui.shadows[1];
@@ -59,8 +97,33 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
 
   // Data
   const addr = order?.shippingAddress;
-  const items = order?.items ?? [];
-  const amount = typeof order?.amount === 'number' ? order.amount : undefined;
+  const items = (order?.items ?? []) as ReadonlyArray<
+    Partial<{
+      productId: string;
+      name: string;
+      price: number; // MAJOR
+      quantity: number;
+    }>
+  >;
+
+  // totalAmount stored as MINOR (cents) → display MAJOR
+  const amountMajor =
+    typeof order?.totalAmount === 'number'
+      ? order.totalAmount / 100
+      : undefined;
+
+  // Customer fallbacks (support both new and legacy shapes)
+  const customer = extractCustomer(order);
+  const customerName = coalesce(
+    customer?.name,
+    (order as unknown as Record<string, unknown>)['ownerName'],
+    addr?.fullName,
+  );
+  const customerEmail = coalesce(
+    customer?.email,
+    (order as unknown as Record<string, unknown>)['email'],
+  );
+  const customerPhone = coalesce(customer?.phone, addr?.phone);
 
   const created = asDate(
     order?.metadata?.createdAt as string | number | Date | undefined,
@@ -69,7 +132,8 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
     order?.metadata?.updatedAt as string | number | Date | undefined,
   );
 
-  const etaRaw = order?.delivery?.eta as unknown;
+  const etaRaw = (order as unknown as { delivery?: { eta?: unknown } }).delivery
+    ?.eta;
   const etaDate = asDate(etaRaw as string | number | Date | undefined);
   const etaLabel = etaDate
     ? formatDateTime(etaDate)
@@ -77,16 +141,20 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
       ? String(etaRaw)
       : DASH;
 
-  const keyForItem = (it: TOrder['items'][number], idx: number) =>
-    `${it.productId || 'no-id'}::${it.name || 'no-name'}::${idx}`;
+  const keyForItem = (it: TOrder['items'][number], idx: number) => {
+    const x = it as unknown as Record<string, unknown>;
+    const pid = typeof x['productId'] === 'string' ? x['productId'] : 'no-id';
+    const nm = typeof x['name'] === 'string' ? x['name'] : 'no-name';
+    return `${pid}::${nm}::${idx}`;
+  };
 
   // Reusable Section wrapper (inner padding + outer margins)
   const Section: React.FC<
-    React.PropsWithChildren<{ title: React.ReactNode; gridSpan?: any }>
+    React.PropsWithChildren<{ title: React.ReactNode; gridSpan?: GridSpan }>
   > = ({ title, gridSpan, children }) => (
     <Box
       sx={{
-        gridColumn: gridSpan,
+        gridColumn: gridSpan as unknown,
         // OUTER MARGIN
         mx: sectionMarginX,
         my: sectionMarginY,
@@ -97,6 +165,7 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
         border: sectionBorder,
         bgcolor: 'background.paper',
         boxShadow: sectionShadow,
+        borderRadius: baseRadius,
 
         minWidth: 0,
         maxWidth: '100%',
@@ -123,8 +192,13 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
       }}
     >
       <Section title={t('orderDetails.customer', { defaultValue: 'Customer' })}>
-        <Typography variant="body2">{order?.ownerName ?? DASH}</Typography>
-        <Typography variant="body2">{order?.email ?? DASH}</Typography>
+        <Typography variant="body2">{customerName}</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {customerEmail}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {customerPhone}
+        </Typography>
       </Section>
 
       <Section
@@ -150,12 +224,22 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
         {items.length > 0 ? (
           <Box component="ul" sx={{ pl: 3, my: 0 }}>
             {items.map((it, idx) => {
-              const name = it.name ?? DASH;
-              const qty = it.quantity ?? 0;
+              const rec = it as Record<string, unknown>;
+              const name =
+                typeof rec['name'] === 'string'
+                  ? (rec['name'] as string)
+                  : DASH;
+              const qty =
+                typeof rec['quantity'] === 'number'
+                  ? (rec['quantity'] as number)
+                  : 0;
               const price =
-                typeof it.price === 'number' ? formatCurrency(it.price) : DASH;
+                typeof rec['price'] === 'number'
+                  ? formatCurrency(rec['price'] as number)
+                  : DASH;
+
               return (
-                <li key={keyForItem(it, idx)}>
+                <li key={keyForItem(it as TOrder['items'][number], idx)}>
                   <Typography variant="body2">
                     {t('orderDetails.line', {
                       defaultValue: '{{name}} × {{qty}} — Price: {{price}}',
@@ -174,7 +258,7 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
 
         <Typography variant="body2" sx={{ mt: 0.75 }}>
           <strong>{t('orderDetails.total', { defaultValue: 'Total' })}:</strong>{' '}
-          {amount !== undefined ? formatCurrency(amount) : DASH}
+          {amountMajor !== undefined ? formatCurrency(amountMajor) : DASH}
         </Typography>
       </Section>
 
@@ -223,7 +307,13 @@ const OrderExpandedRow: React.FC<Props> = ({ order }) => {
         title={t('orderDetails.notes', { defaultValue: 'Notes' })}
         gridSpan={{ xs: 'auto', sm: '1 / span 2' }}
       >
-        <Typography variant="body2">{order?.notes ?? DASH}</Typography>
+        <Typography variant="body2">
+          {'notes' in (order as unknown as Record<string, unknown>) &&
+          typeof (order as unknown as Record<string, unknown>)['notes'] ===
+            'string'
+            ? ((order as unknown as Record<string, unknown>)['notes'] as string)
+            : DASH}
+        </Typography>
       </Section>
     </Box>
   );

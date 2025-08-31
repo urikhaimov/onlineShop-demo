@@ -72,36 +72,50 @@ export default function CheckoutPage() {
 
   const baseShadow = isDark ? theme.shadows[3] : theme.shadows[1];
 
-  // ---- Data
+  // ---- Data hooks (run every render)
   const { clientSecret, loading, error, refresh } = useStripeClientSecret();
   const cart = useCartStore((s) => s.items);
-
   const {
     data: settings,
     isLoading: settingsLoading,
     isError: settingsError,
     error: settingsErr,
   } = useOrderSettings();
-  console.log('settings', settings);
-  // Only block while actually loading
+
+  // Settings with safe fallbacks (can be read while loading)
+  const currency = (settings?.currency as string) || CDefaultCurrency || 'ILS';
+  const shippingMajor = Number(settings?.shipping ?? 0);
+  const taxRate = Number(settings?.taxRate ?? 0);
+  const discountMajor = Number(settings?.discount ?? 0);
+
+  // Number formatter (create each render; cheap & avoids extra hooks below the early return)
+  const fmt = new Intl.NumberFormat(undefined, { style: 'currency', currency });
+
+  // Loading gate AFTER all hooks above have executed
   if (settingsLoading) return <LoadingProgress />;
 
-  // Graceful fallbacks if settings failed to load
-  const shipping = settings?.shipping ?? 0;
-  const taxRate = settings?.taxRate ?? 0;
-  const discount = settings?.discount ?? 0;
-
+  // Totals in MAJOR units
   const subtotal = cart.reduce(
-    (sum, item) => sum + (Number(item.price) || 0) * (item.quantity ?? 0),
+    (sum, item) =>
+      sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
     0,
   );
-  const tax = subtotal * taxRate;
+  const tax = +(subtotal * taxRate).toFixed(2);
+  const totalMajor = +(subtotal + tax + shippingMajor - discountMajor).toFixed(
+    2,
+  );
 
-  const total = useCartStore.getState().getCartTotal({
-    shipping,
-    taxRate,
-    discount: discount * 100, // store expects cents
-  });
+  // Stripe Elements options (hide Apple Pay/Link in dev to silence warnings)
+  const isProd = import.meta.env.PROD;
+  const elementsOptions: any = {
+    clientSecret,
+    ...(isProd
+      ? {}
+      : {
+          wallets: { applePay: 'never' }, // hide Apple Pay on localhost
+          paymentMethodOrder: ['card'], // omit 'link'
+        }),
+  };
 
   return (
     <PageLayout
@@ -181,9 +195,9 @@ export default function CheckoutPage() {
                     <Stack spacing={0.75 * spacingScale}>
                       {cart.map((item) => {
                         const img = pickImage(item);
-                        const qty = item.quantity ?? 0;
+                        const qty = Number(item.quantity) || 0;
                         const price = Number(item.price) || 0;
-                        const lineTotal = price * qty;
+                        const lineTotal = +(price * qty).toFixed(2);
 
                         return (
                           <Stack
@@ -241,18 +255,12 @@ export default function CheckoutPage() {
                                 color="text.secondary"
                               >
                                 {t('checkout.qty', { defaultValue: 'Qty' })}:{' '}
-                                {qty} × {price.toFixed(2)}{' '}
-                                {t('checkout.currency', {
-                                  defaultValue: CDefaultCurrency,
-                                })}
+                                {qty} × {fmt.format(price)}
                               </Typography>
                             </Box>
 
                             <Typography variant="body2" fontWeight={600}>
-                              {lineTotal.toFixed(2)}{' '}
-                              {t('checkout.currency', {
-                                defaultValue: CDefaultCurrency,
-                              })}
+                              {fmt.format(lineTotal)}
                             </Typography>
                           </Stack>
                         );
@@ -271,31 +279,30 @@ export default function CheckoutPage() {
               {/* --- Totals --- */}
               <Stack spacing={0.75 * spacingScale} mb={1.5 * spacingScale}>
                 <Typography>
-                  {t('checkout.subtotal', { defaultValue: 'Subtotal' })}: $
-                  {subtotal.toFixed(2)}
+                  {t('checkout.subtotal', { defaultValue: 'Subtotal' })}:{' '}
+                  {fmt.format(subtotal)}
                 </Typography>
                 <Typography>
-                  {t('checkout.shipping', { defaultValue: 'Shipping' })}: $
-                  {shipping.toFixed(2)}
+                  {t('checkout.shipping', { defaultValue: 'Shipping' })}:{' '}
+                  {fmt.format(shippingMajor)}
                 </Typography>
                 <Typography>
                   {t('checkout.tax', {
                     rate: Math.round(taxRate * 100),
                     defaultValue: 'Tax ({{rate}}%)',
                   })}{' '}
-                  : ${tax.toFixed(2)}
+                  : {fmt.format(tax)}
                 </Typography>
                 <Typography>
-                  {t('checkout.discount', { defaultValue: 'Discount' })}: -$
-                  {discount.toFixed(2)}
+                  {t('checkout.discount', { defaultValue: 'Discount' })}: -
+                  {fmt.format(discountMajor)}
                 </Typography>
 
                 <Divider sx={{ my: 0.75 * spacingScale }} />
 
                 <Typography fontWeight={700}>
                   {t('checkout.total', { defaultValue: 'Total' })}:{' '}
-                  {(total / 100).toFixed(2)}{' '}
-                  {t('checkout.currency', { defaultValue: CDefaultCurrency })}
+                  {fmt.format(totalMajor)}
                 </Typography>
               </Stack>
 
@@ -306,9 +313,9 @@ export default function CheckoutPage() {
                 </Box>
               ) : clientSecret ? (
                 <Elements
-                  key={clientSecret} // remount Payment Element on fresh intents
+                  key={clientSecret}
                   stripe={stripePromise}
-                  options={{ clientSecret }}
+                  options={elementsOptions}
                 >
                   <StripeCheckoutForm onRefreshIntent={refresh} />
                 </Elements>
@@ -326,7 +333,7 @@ export default function CheckoutPage() {
               open={!!error}
               autoHideDuration={5000}
               onClose={() => {
-                /* optional: clear error state in your hook/store */
+                /* you can clear error state from your hook/store here */
               }}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
