@@ -1,13 +1,11 @@
 // src/components/Header.tsx
 import * as React from 'react';
 import Stack from '@mui/material/Stack';
-import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import Badge from '@mui/material/Badge';
 import IconButton from '@mui/material/IconButton';
 import CustomDatePicker from './CustomDatePicker';
 import NavbarBreadcrumbs from './NavbarBreadcrumbs';
-import MenuButton from './MenuButton';
 import ColorModeIconDropdown from './ColorModeIconDropdown';
 import Search from './Search';
 import LanguageSwitcher from '../../../components/LanguageSwitcher'; // 👈 add this

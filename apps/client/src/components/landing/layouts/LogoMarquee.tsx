@@ -1,6 +1,6 @@
 // src/components/landing/LogoMarquee.tsx
 import * as React from 'react';
-import { Box, Stack, useMediaQuery, useTheme } from '@mui/material';
+import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { keyframes } from '@emotion/react';
 
 const scroll = keyframes`
@@ -16,7 +16,7 @@ type LogoMarqueeProps = {
 };
 
 export default function LogoMarquee({
-  logos,
+  logos = [],
   speedSec = 40,
   gap = 24,
   height,
