@@ -1,5 +1,4 @@
 // src/utils/columns.util.ts
-
 import { CDefaultCurrencySymbol } from '@common/types';
 
 /** Common dash placeholder for missing values */
@@ -21,6 +20,7 @@ export function asDate(value: unknown): Date | undefined {
   if (
     typeof value === 'object' &&
     value !== null &&
+    // Firestore-like { seconds, nanoseconds }
     'seconds' in (value as Record<string, unknown>)
   ) {
     const v = value as { seconds: number; nanoseconds?: number };
@@ -38,9 +38,22 @@ export function getLocale(i18nLang?: string): string {
   return (i18nLang || 'en').split('-')[0];
 }
 
-/** Create a memoizable currency formatter for a given locale & currency. */
-export function makeCurrencyFormatter() {
-  return (n: number) => `${CDefaultCurrencySymbol} ${n.toFixed(2)}`;
+/** Try to convert any input to a finite number; otherwise return undefined. */
+function toFiniteNumber(v: unknown): number | undefined {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+/** Currency formatter that safely handles unknown/undefined inputs. */
+export function makeCurrencyFormatter(symbol: string = CDefaultCurrencySymbol) {
+  return (value: unknown): string => {
+    const n = toFiniteNumber(value);
+    return n === undefined ? DASH : `${symbol} ${n.toFixed(2)}`;
+  };
 }
 
 /** Create a memoizable date-time formatter for a given locale. */

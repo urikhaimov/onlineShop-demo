@@ -12,7 +12,8 @@ import * as bodyParser from 'body-parser';
 dotenv.config();
 
 async function bootstrap() {
-  // Keep rawBody so req.rawBody is available if you ever need it
+  // rawBody: true lets Nest keep a copy of the original raw body (when using its own json parser)
+  // We ALSO mount bodyParser.raw() on the webhook paths to hand Stripe an actual Buffer.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
@@ -30,15 +31,27 @@ async function bootstrap() {
     }),
   );
 
-  // Global prefix (e.g. /api)
   app.setGlobalPrefix(apiPrefix);
 
-  // 🔒 Stripe webhook must receive the raw request body.
-  // Route-scoped raw parser wins over the default JSON parser for this path.
-  app.use(
+  // --- Stripe webhook raw body (MUST be before any json/urlencoded on those paths) ---
+  const stripeRaw = bodyParser.raw({ type: 'application/json' });
+
+  // Ensure both req.body (Buffer) and req.rawBody (Buffer) are set for Stripe SDK
+  const ensureRawBody = (req: any, _res: any, next: any) => {
+    if (!req.rawBody && req.body && Buffer.isBuffer(req.body)) {
+      req.rawBody = req.body;
+    }
+    next();
+  };
+
+  // If you have more than one webhook path, register all of them:
+  const webhookPaths = [
     `/${apiPrefix}/orders/webhook`,
-    bodyParser.raw({ type: 'application/json' }),
-  );
+    `/${apiPrefix}/payments/webhooks/stripe`,
+  ];
+
+  webhookPaths.forEach((p) => app.use(p, stripeRaw, ensureRawBody));
+  // -------------------------------------------------------------------------------
 
   app.useGlobalPipes(
     new I18nValidationPipe({
@@ -48,6 +61,7 @@ async function bootstrap() {
     }),
   );
 
+  // Helmet CSP (prod hardened, dev relaxed)
   app.use(
     helmet({
       crossOriginEmbedderPolicy: false,
@@ -62,6 +76,8 @@ async function bootstrap() {
                 'https://api.stripe.com',
                 'https://m.stripe.network',
                 'https://q.stripe.com',
+                'https://r.stripe.com',
+                'https://hooks.stripe.com',
               ],
               frameSrc: ["'self'", 'https://js.stripe.com'],
               imgSrc: [
@@ -69,6 +85,7 @@ async function bootstrap() {
                 'data:',
                 'blob:',
                 'https://*.stripe.com',
+                'https://r.stripe.com',
                 'https://firebasestorage.googleapis.com',
                 'https://storage.googleapis.com',
                 'https://picsum.photos',
@@ -81,12 +98,46 @@ async function bootstrap() {
               fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
             },
           }
-        : false,
+        : {
+            useDefaults: true,
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-eval'", 'https://js.stripe.com'],
+              connectSrc: [
+                "'self'",
+                frontendOrigin,
+                'ws://localhost:*',
+                'http://localhost:*',
+                'https://api.stripe.com',
+                'https://m.stripe.network',
+                'https://q.stripe.com',
+                'https://r.stripe.com',
+                'https://hooks.stripe.com',
+              ],
+              frameSrc: ["'self'", 'https://js.stripe.com'],
+              imgSrc: [
+                "'self'",
+                'data:',
+                'blob:',
+                'https://*.stripe.com',
+                'https://r.stripe.com',
+                'https://firebasestorage.googleapis.com',
+                'https://storage.googleapis.com',
+                'https://picsum.photos',
+              ],
+              styleSrc: [
+                "'self'",
+                "'unsafe-inline'",
+                'https://fonts.googleapis.com',
+              ],
+              fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+            },
+          },
     }),
   );
 
   app.enableCors({
-    origin: frontendOrigin,
+    origin: frontendOrigin, // tighten to exact prod domain in production
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -94,9 +145,12 @@ async function bootstrap() {
       'Authorization',
       'Accept-Language',
       'x-lang',
-      'Stripe-Signature',
+      'Stripe-Signature', // required for Stripe signature verify
     ],
   });
+
+  // If behind a proxy/load balancer (Heroku, Render, Nginx, etc.)
+  (app as any).set?.('trust proxy', 1);
 
   if (!isProd()) {
     setupSwagger(app, {

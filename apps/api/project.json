@@ -6,54 +6,39 @@
   "tags": [],
   "targets": {
     "build": {
-      "executor": "nx:run-commands",
+      "executor": "@nx/webpack:webpack",
+      "outputs": ["{workspaceRoot}/dist/apps/api"],
+      "defaultConfiguration": "production",
       "options": {
-        "command": "webpack-cli build",
-        "args": ["--node-env=production"]
+        "target": "node",
+        "outputPath": "dist/apps/api",
+        "main": "apps/api/src/main.ts",
+        "tsConfig": "apps/api/tsconfig.app.json",
+        "webpackConfig": "apps/api/webpack.config.js",
+        "generatePackageJson": false,
+        "assets": [
+          { "input": "apps/api/src/i18n", "glob": "**/*", "output": "i18n" }
+        ]
       },
       "configurations": {
-        "development": {
-          "args": ["--node-env=development"]
-        },
-        "production": {
-          "args": ["--node-env=production"]
-        }
+        "development": { "optimization": false, "sourceMap": true },
+        "production": { "optimization": true, "sourceMap": false }
       }
     },
-    "prune-lockfile": {
-      "dependsOn": ["build"],
-      "cache": true,
-      "executor": "@nx/js:prune-lockfile",
-      "outputs": [
-        "{workspaceRoot}/dist/apps/api/package.json",
-        "{workspaceRoot}/dist/apps/api/package-lock.json"
-      ],
-      "options": {
-        "buildTarget": "build"
-      }
-    },
+
     "serve": {
-      "continuous": true,
       "executor": "@nx/js:node",
       "defaultConfiguration": "development",
-      "dependsOn": ["build"],
       "options": {
-        "buildTarget": "api:build",
-        "runBuildTargetDependencies": false
+        "buildTarget": "api:build:development",
+        "watch": true
       },
       "configurations": {
-        "development": {
-          "buildTarget": "api:build:development"
-        },
-        "production": {
-          "buildTarget": "api:build:production"
-        }
+        "development": { "buildTarget": "api:build:development" },
+        "production": { "buildTarget": "api:build:production" }
       }
     },
-    "test": {
-      "options": {
-        "passWithNoTests": true
-      }
-    }
+
+    "test": { "options": { "passWithNoTests": true } }
   }
 }

@@ -14,6 +14,7 @@ import {
   PaymentElement,
   LinkAuthenticationElement,
 } from '@stripe/react-stripe-js';
+
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +24,7 @@ import { useCartStore } from '../../stores/useCartStore';
 import { useStripeCheckoutStore } from '../../stores/useStripeCheckoutStore';
 import axiosInstance from '../../api/axiosInstance';
 import { auth } from '../../firebase';
+import type { StripeLinkAuthenticationElementChangeEvent } from '@stripe/stripe-js';
 
 type ShippingAddress = {
   fullName: string;
@@ -30,7 +32,7 @@ type ShippingAddress = {
   street: string;
   city: string;
   postalCode: string;
-  country: string; // user-friendly input (can be "Israel")
+  country: string;
 };
 
 type FormData = {
@@ -58,6 +60,25 @@ function toIso2Country(input: string): string {
   return map[s] ?? s.slice(0, 2);
 }
 
+function prettyStripeError(code?: string, fallback?: string) {
+  switch (code) {
+    case 'card_declined':
+      return 'Your card was declined. Try another card.';
+    case 'insufficient_funds':
+      return 'Insufficient funds on this card.';
+    case 'expired_card':
+      return 'This card is expired.';
+    case 'incorrect_cvc':
+      return 'Incorrect CVC.';
+    case 'processing_error':
+      return 'Payment processor error. Please try again.';
+    case 'amount_too_small':
+      return 'Amount is too small to charge.';
+    default:
+      return fallback || 'Payment failed. Please try again.';
+  }
+}
+
 export default function StripeCheckoutForm({
   onRefreshIntent,
 }: {
@@ -69,6 +90,7 @@ export default function StripeCheckoutForm({
   const navigate = useNavigate();
 
   const [email, setEmail] = React.useState<string>('');
+  const [submitting, setSubmitting] = React.useState(false);
 
   const {
     register,
@@ -92,6 +114,40 @@ export default function StripeCheckoutForm({
   const clearCart = useCartStore((s) => s.clearCart);
   const { loading, error, setError, setLoading } = useStripeCheckoutStore();
 
+  // ✅ Poll PUBLIC endpoint until webhook has created the order
+  // Endpoint returns: { state: 'processing'|'succeeded'|..., orderId?: string }
+  async function waitForOrderPaid(piId: string, timeoutMs = 60_000) {
+    const start = Date.now();
+    let delay = 1200;
+
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const { data } = await axiosInstance.get<{
+          state: string;
+          orderId?: string;
+        }>(`/orders/public/${piId}`);
+
+        // Stripe terminal failures
+        if (
+          data?.state === 'canceled' ||
+          data?.state === 'requires_payment_method'
+        ) {
+          throw new Error(`Payment ${data.state}`);
+        }
+
+        // Success when order id is available
+        if (data?.state === 'succeeded' && data?.orderId) {
+          return data.orderId as string;
+        }
+      } catch {
+        // Ignore transient 404/5xx while webhook not finished
+      }
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay + 400, 4000);
+    }
+    return null;
+  }
+
   const onSubmit = async (data: FormData) => {
     if (!stripe || !elements) {
       setError(
@@ -101,8 +157,12 @@ export default function StripeCheckoutForm({
       );
       return;
     }
+    if (submitting) return;
 
+    setSubmitting(true);
     setLoading(true);
+    setError(null);
+
     try {
       const addr = data.shippingAddress;
       const countryIso2 = toIso2Country(addr.country);
@@ -113,7 +173,6 @@ export default function StripeCheckoutForm({
         {
           elements,
           confirmParams: {
-            // Ensure charge.billing_details is populated
             payment_method_data: {
               billing_details: {
                 name: data.ownerName || addr.fullName,
@@ -123,11 +182,10 @@ export default function StripeCheckoutForm({
                   line1: addr.street,
                   city: addr.city,
                   postal_code: addr.postalCode,
-                  country: countryIso2, // ISO-2 required
+                  country: countryIso2,
                 },
               },
             },
-            // Also set the PI's shipping + receipt email (server can read PI.shipping)
             shipping: {
               name: addr.fullName || data.ownerName,
               phone: addr.phone,
@@ -139,7 +197,6 @@ export default function StripeCheckoutForm({
               },
             },
             receipt_email: billingEmail,
-            // Fallback in case a redirect-type method is used
             return_url: `${window.location.origin}/checkout/success`,
           },
           redirect: 'if_required',
@@ -147,13 +204,16 @@ export default function StripeCheckoutForm({
       );
 
       if (stripeError) {
-        setLoading(false);
-        setError(
+        const msg = prettyStripeError(
+          (stripeError as any)?.code,
           stripeError.message ||
             t('checkoutForm.errors.paymentFailed', {
               defaultValue: 'Payment failed',
             }),
         );
+        setError(msg);
+        setLoading(false);
+        setSubmitting(false);
         if (onRefreshIntent) await onRefreshIntent();
         return;
       }
@@ -161,51 +221,59 @@ export default function StripeCheckoutForm({
       const piId = paymentIntent?.id;
       const piStatus = paymentIntent?.status;
 
-      if (piStatus === 'succeeded' && piId) {
-        // Finalize order on API (idempotent: docId = PI id)
-        try {
-          await axiosInstance.post('/orders/confirm', {
-            paymentIntentId: piId,
-          });
-        } catch (e: any) {
-          const msg =
-            e?.response?.data?.message ||
-            e?.message ||
-            t('checkoutForm.errors.finalizeFailed', {
-              defaultValue: 'Failed to finalize order',
-            });
-          setError(String(msg));
+      if (
+        piId &&
+        (piStatus === 'succeeded' ||
+          piStatus === 'processing' ||
+          piStatus === 'requires_action')
+      ) {
+        const orderId = await waitForOrderPaid(piId);
+
+        if (orderId) {
+          try {
+            clearCart();
+            localStorage.removeItem('cart');
+          } catch {
+            // no-op
+          }
           setLoading(false);
+          setSubmitting(false);
+          // choose your success route; example shows order page:
+          // navigate(`/order/${orderId}`);
+          navigate('/checkout/success');
           return;
         }
 
-        // Clear cart only after backend confirms the order
-        clearCart();
-        localStorage.removeItem('cart');
-
+        // Still processing after timeout → soft message
+        setError(
+          t('checkoutForm.errors.processing', {
+            defaultValue:
+              "We are still processing your payment. You'll see your order as soon as it's confirmed.",
+          }),
+        );
         setLoading(false);
-        navigate('/checkout/success');
+        setSubmitting(false);
         return;
       }
 
-      // Needs new method or another state
-      setLoading(false);
       setError(
         t('checkoutForm.errors.paymentStatus', {
           status: piStatus ?? 'unknown',
           defaultValue: 'Payment status: {{status}}',
         }),
       );
-      if (onRefreshIntent) await onRefreshIntent();
-    } catch (err) {
       setLoading(false);
+      setSubmitting(false);
+      if (onRefreshIntent) await onRefreshIntent();
+    } catch (err: any) {
       const msg =
-        err instanceof Error
-          ? err.message
-          : t('checkoutForm.errors.unexpected', {
-              defaultValue: 'Unexpected error',
-            });
+        err?.message ||
+        t('checkoutForm.errors.unexpected', {
+          defaultValue: 'Unexpected error',
+        });
       setError(String(msg));
+      setLoading(false);
+      setSubmitting(false);
       if (onRefreshIntent) await onRefreshIntent();
     }
   };
@@ -220,12 +288,12 @@ export default function StripeCheckoutForm({
         {t('checkoutForm.paymentDetails', { defaultValue: 'Payment Details' })}
       </Typography>
 
-      {/* Stripe-recommended email capture (populates charge.billing_details.email) */}
       <LinkAuthenticationElement
-        onChange={(e) => setEmail(e.value?.email ?? '')}
+        onChange={(event: StripeLinkAuthenticationElementChangeEvent) =>
+          setEmail(event.value?.email ?? '')
+        }
       />
 
-      {/* owner + passport */}
       <FormTextField
         label={t('checkoutForm.ownerName', { defaultValue: 'Owner Name' })}
         register={register('ownerName', {
@@ -245,7 +313,6 @@ export default function StripeCheckoutForm({
         errorObject={errors.passportId}
       />
 
-      {/* shipping address */}
       <Typography variant="subtitle2" sx={{ mt: 1 }}>
         {t('checkoutForm.shippingAddress', {
           defaultValue: 'Shipping Address',
@@ -310,7 +377,6 @@ export default function StripeCheckoutForm({
         })}
       />
 
-      {/* Payment Element */}
       <Box
         sx={{
           border: 1,
@@ -320,17 +386,20 @@ export default function StripeCheckoutForm({
           bgcolor: 'background.default',
         }}
       >
-        <PaymentElement />
+        <PaymentElement
+        // optional: set layout or order here (not in <Elements/>)
+        // options={{ layout: 'tabs' }}
+        />
       </Box>
 
       <Button
         type="submit"
         variant="contained"
         fullWidth
-        disabled={!stripe || loading}
+        disabled={!stripe || !elements || loading || submitting}
         sx={{ mt: 2 }}
       >
-        {loading ? (
+        {loading || submitting ? (
           <CircularProgress size={24} />
         ) : (
           t('checkoutForm.payNow', { defaultValue: 'Pay Now' })

@@ -1,4 +1,3 @@
-// apps/api/src/orders/orders.controller.ts
 import {
   Controller,
   Get,
@@ -10,6 +9,8 @@ import {
   Headers,
   Logger,
   BadRequestException,
+  HttpCode,
+  NotFoundException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
@@ -18,10 +19,13 @@ import { Roles } from '../auth/roles.decorator';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
+import { Public } from '../auth/public.decorator';
 
-type AuthedRequest = Request & { user: { uid: string; role?: string } };
+type AuthedUser = { uid: string; role?: string };
+type AuthedRequest = Request & { user: AuthedUser };
+
 interface RawBodyRequest extends Request {
-  rawBody: Buffer;
+  rawBody?: Buffer; // may be set by bodyParser.raw or Nest rawBody:true
 }
 
 const MIN_MINOR_ILS = 200; // ₪2.00
@@ -49,12 +53,39 @@ export class OrdersController {
   @Get(':id')
   @Roles('user', 'admin', 'superadmin')
   getOrderById(@Req() req: AuthedRequest, @Param('id') id: string) {
-    this.logger.log(`GET /orders/${id} uid=${req.user.uid}`);
+    const orderId = (id || '').trim();
+    this.logger.log(`GET /orders/${orderId} uid=${req.user.uid}`);
     return this.ordersService.getOrderById(
       req.user.uid,
-      id,
+      orderId,
       req.user.role || 'user',
     );
+  }
+
+  // ✅ Public polling by Stripe PaymentIntent id (what the client is calling)
+  // Final path: /api/orders/public/:piId
+  @Public()
+  @Get('public/:piId')
+  getPublicByPaymentIntent(@Param('piId') piId: string) {
+    this.logger.log(`GET /orders/public/${piId}`);
+    return this.ordersService.getPublicStatusByPaymentIntent(piId);
+  }
+
+  // (Optional) Public minimal read by ORDER id (useful after you already know orderId)
+  // Final path: /api/orders/public/order/:id
+  @Public()
+  @Get('public/order/:id')
+  async getOrderPublicById(@Param('id') id: string) {
+    const safeId = (id || '').trim();
+    const doc = await this.ordersService.getOrderDoc(safeId);
+    if (!doc) throw new NotFoundException('Order not found');
+    return {
+      id: safeId,
+      status: doc.status,
+      amount: doc.payment?.amount ?? doc.totalAmount,
+      currency: doc.payment?.currency,
+      updatedAt: doc.updatedAt,
+    };
   }
 
   @Post()
@@ -82,10 +113,6 @@ export class OrdersController {
       shippingAddress,
     } = body;
 
-    this.logger.log(
-      `POST /orders/create-payment-intent uid=${req.user.uid} minor=${amount} cart=${cart?.length ?? 0}`,
-    );
-
     const clientMinor = Math.max(0, Math.round(Number(amount) || 0));
     const safeClientMinor =
       clientMinor < MIN_MINOR_ILS ? MIN_MINOR_ILS : clientMinor;
@@ -95,6 +122,10 @@ export class OrdersController {
         `Bumped client amount from ${amount} → ${safeClientMinor} (minor ILS).`,
       );
     }
+
+    this.logger.log(
+      `POST /orders/create-payment-intent uid=${req.user.uid} minor=${safeClientMinor} cart=${cart?.length ?? 0}`,
+    );
 
     return this.ordersService.createPaymentIntent(
       safeClientMinor,
@@ -110,9 +141,7 @@ export class OrdersController {
   }
 
   /**
-   * ✅ Primary finalize endpoint for the Success page.
-   * Expects body: { paymentIntentId: string }
-   * Idempotent on the service side (doc id = PI id).
+   * Optional SPA finalize endpoint; webhook is still source of truth.
    */
   @Post('confirm')
   @Roles('user', 'admin', 'superadmin')
@@ -133,10 +162,6 @@ export class OrdersController {
     );
   }
 
-  /**
-   * Legacy/manual finalize route (kept for convenience).
-   * Prefer POST /orders/confirm with body.
-   */
   @Post('create-from-intent/:id')
   @Roles('user', 'admin', 'superadmin')
   async createFromIntent(@Req() req: AuthedRequest, @Param('id') id: string) {
@@ -149,22 +174,26 @@ export class OrdersController {
   }
 
   /**
-   * Stripe webhook — must receive raw body.
-   * NOTE: If FirebaseAuthGuard is global or at controller level (like here),
-   * you should EXEMPT this route from auth (e.g., with a custom @Public() decorator
-   * handled by a global guard) or move it to a separate controller without auth.
+   * 🔔 Stripe webhook — must be PUBLIC and receive RAW body.
+   * Ensure main.ts has the bodyParser.raw() on this path.
    */
   @Post('webhook')
-  // @Public() // <-- implement a decorator or move to an unauthenticated controller
+  @Public()
+  @HttpCode(200)
   async handleStripeWebhook(
     @Req() req: RawBodyRequest,
     @Headers('stripe-signature') signature: string,
   ) {
     this.logger.log('POST /orders/webhook (Stripe)');
-    return this.ordersService.handleStripeWebhook(req.rawBody, signature);
+    const raw =
+      req.rawBody ??
+      (Buffer.isBuffer((req as any).body)
+        ? ((req as any).body as Buffer)
+        : undefined);
+    await this.ordersService.handleStripeWebhook(raw as Buffer, signature);
+    return { received: true };
   }
 
-  // Simple liveness check
   @Get('debug/ping')
   @Roles('user', 'admin', 'superadmin')
   debugPing() {

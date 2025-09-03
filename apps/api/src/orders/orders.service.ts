@@ -1,8 +1,10 @@
+// apps/api/src/orders/orders.service.ts
 import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
@@ -177,8 +179,8 @@ export class OrdersService {
   private computeCartTotalMinor(
     cart: PlainItem[],
     shippingMajor: number,
-    taxRate: number,
-    discountMinor: number,
+    taxRate: number, // fraction (e.g., 0.17)
+    discountMinor: number, // minor units (e.g., 500 = ₪5.00)
   ): number {
     const itemsMinor = (cart || []).reduce((sum, i) => {
       const priceMajor = Number(i.price) || 0;
@@ -328,7 +330,6 @@ export class OrdersService {
     }
   }
 
-  /** Called by webhook */
   /** Create (idempotent) order from a Stripe PaymentIntent */
   private async createOrderFromIntent(intent: Stripe.PaymentIntent) {
     const uid = intent.metadata?.uid;
@@ -427,7 +428,7 @@ export class OrdersService {
     const exists = await ref.get();
     if (exists.exists) {
       this.logger.log(`Order already exists for PI ${intent.id}`);
-      return { id: exists.id, ...exists.data() };
+      return { id: exists.id, ...(exists.data() as any) };
     }
 
     await ref.set({ id: ref.id, ...orderDoc }, { merge: false });
@@ -473,6 +474,9 @@ export class OrdersService {
     try {
       const webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET');
       if (!webhookSecret) throw new Error('Missing STRIPE_WEBHOOK_SECRET');
+      if (!rawBody || !signature) {
+        throw new BadRequestException('Missing raw body or signature');
+      }
 
       const event = this.stripe.webhooks.constructEvent(
         rawBody,
@@ -480,16 +484,78 @@ export class OrdersService {
         webhookSecret,
       );
 
-      if (event.type === 'payment_intent.succeeded') {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        await this.createOrderFromIntent(intent);
+      switch (event.type) {
+        case 'payment_intent.processing':
+          this.logger.log('PI processing');
+          break;
+        case 'payment_intent.succeeded':
+          await this.createOrderFromIntent(
+            event.data.object as Stripe.PaymentIntent,
+          );
+          break;
+        case 'payment_intent.payment_failed':
+          this.logger.warn('PI failed');
+          break;
+        default:
+          // ignore others for V1
+          break;
       }
 
       return { received: true };
     } catch (err) {
       this.logger.error('Stripe webhook error', err as Error);
+      // Let controller decide HTTP code; we bubble the error up.
       throw new InternalServerErrorException('Webhook handling failed');
     }
+  }
+
+  // ---------------- public polling endpoint ----------------
+  /** Used by GET /api/orders/public/:piId for client-side polling after checkout */
+  async getPublicStatusByPaymentIntent(piId: string) {
+    if (!piId || !piId.startsWith('pi_')) {
+      throw new BadRequestException('Invalid payment intent id');
+    }
+
+    // 1) Try to find an existing order quickly:
+    //    You store webhook-created orders with doc id = intent.id.
+    try {
+      const direct = await adminDb.collection('orders').doc(piId).get();
+      if (direct.exists) {
+        return { state: 'succeeded', orderId: piId };
+      }
+    } catch (e) {
+      this.logger.warn(`Direct order lookup failed for ${piId}: ${String(e)}`);
+    }
+
+    // 2) Fallback to query (covers manual orders or different ID scheme)
+    try {
+      const snap = await adminDb
+        .collection('orders')
+        .where('payment.transactionId', '==', piId)
+        .limit(1)
+        .get();
+
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        return { state: 'succeeded', orderId: doc.id };
+      }
+    } catch (e) {
+      this.logger.warn(`Order query by tx failed for ${piId}: ${String(e)}`);
+    }
+
+    // 3) Ask Stripe for the latest status
+    let pi: Stripe.Response<Stripe.PaymentIntent>;
+    try {
+      pi = await this.stripe.paymentIntents.retrieve(piId);
+    } catch (e: any) {
+      // If Stripe says "not found", surface a 404. Otherwise, generic error.
+      this.logger.warn(`PI retrieve failed for ${piId}: ${String(e)}`);
+      throw new NotFoundException('PaymentIntent not found');
+    }
+
+    // Return current status; client can keep polling until it's "succeeded"
+    // Common statuses: requires_payment_method, requires_confirmation, requires_action, processing, succeeded, canceled
+    return { state: pi.status as string, orderId: undefined };
   }
 
   // ---------------- queries ----------------
@@ -518,5 +584,17 @@ export class OrdersService {
       .orderBy('createdAt', 'desc')
       .get();
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  }
+
+  /** 👈 used elsewhere */
+  async getOrderDoc(id: string) {
+    if (!id) return null;
+    try {
+      const snap = await adminDb.collection('orders').doc(id).get();
+      return snap.exists ? (snap.data() as any) : null;
+    } catch (e) {
+      this.logger.error(`getOrderDoc failed for id=${id}`, e as any);
+      return null;
+    }
   }
 }

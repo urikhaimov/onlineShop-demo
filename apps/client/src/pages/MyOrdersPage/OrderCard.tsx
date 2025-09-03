@@ -12,16 +12,19 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
+
 import type { TOrder as Order } from '@common/types';
-import { DASH } from '../../utils/columns.util';
+import { DASH, asDate } from '../../utils/columns.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 import { useThemeStore } from '../../stores/useThemeStore';
 
 // Map order status → Chip color (typed)
 function getStatusColor(status: string): ChipProps['color'] {
   switch (status) {
-    case 'processing':
+    case 'pending':
       return 'warning';
+    case 'confirmed':
+      return 'info';
     case 'shipped':
       return 'info';
     case 'delivered':
@@ -31,39 +34,6 @@ function getStatusColor(status: string): ChipProps['color'] {
     default:
       return 'default';
   }
-}
-
-// Coerce Date | string | number | Firestore-like to Date
-function toMaybeDate(value: unknown): Date | undefined {
-  if (!value) return undefined;
-  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
-
-  if (typeof value === 'string' || typeof value === 'number') {
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? undefined : d;
-  }
-
-  if (typeof value === 'object') {
-    const v = value as {
-      toDate?: () => Date;
-      seconds?: number;
-      nanoseconds?: number;
-    };
-    if (typeof v?.toDate === 'function') {
-      try {
-        const d = v.toDate();
-        return d instanceof Date && !isNaN(d.getTime()) ? d : undefined;
-      } catch {
-        return undefined;
-      }
-    }
-    if (typeof v?.seconds === 'number') {
-      const ns = typeof v?.nanoseconds === 'number' ? v.nanoseconds : 0;
-      const d = new Date(v.seconds * 1000 + Math.floor(ns / 1_000_000));
-      return isNaN(d.getTime()) ? undefined : d;
-    }
-  }
-  return undefined;
 }
 
 type Props = { order: Order };
@@ -100,8 +70,7 @@ const OrderCard: React.FC<Props> = ({ order }) => {
   const baseShadow = isDark ? theme.shadows[3] : theme.shadows[1];
   const hoverShadow = isDark ? theme.shadows[6] : theme.shadows[3];
 
-  const created =
-    toMaybeDate(order.createdAt) ?? toMaybeDate(order.metadata?.createdAt);
+  const created = asDate(order.metadata?.createdAt);
 
   return (
     <Paper
@@ -180,7 +149,7 @@ const OrderCard: React.FC<Props> = ({ order }) => {
       </Typography>
 
       <Typography variant="body2" fontWeight={600} gutterBottom>
-        Total: {formatCurrency(order.amount)}
+        Total: {formatCurrency(order.totalAmount)}
       </Typography>
 
       <Divider sx={{ my: spacingScale }} />
