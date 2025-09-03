@@ -12,6 +12,7 @@ import {
 import type { SxProps, Theme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import type {
   Table as ReactTable,
   Row as ReactRow,
@@ -25,7 +26,6 @@ import { useThemeStore } from '../../stores/useThemeStore';
 
 // dnd-kit
 import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 type Props<T extends object> = {
   table: ReactTable<T>;
@@ -43,8 +43,14 @@ type Props<T extends object> = {
   expandedRows: Record<string, boolean>;
   toggleRowExpand: (id: string) => void;
 
-  /** Enable drag on leaf rows (DnD context is managed by StickyTable) */
+  /** Enable drag on leaf rows (DnD context is managed by StickyTable). */
   enableRowDrag?: boolean;
+
+  /** Optional class for the handle button. */
+  dragHandleClassName?: string;
+
+  /** 🔹 NEW: id of the row currently being dragged (for fading source row). */
+  activeId?: string | null;
 };
 
 function getGroupLabelSafe<T extends object>(
@@ -57,7 +63,7 @@ function getGroupLabelSafe<T extends object>(
     const v = row.getValue(colId);
     if (v !== undefined && v !== null && String(v).length > 0) return String(v);
   } catch {
-    // Ignore error
+    // ignore
   }
   const firstChild = row.subRows?.[0];
   const original = firstChild?.original as T | undefined;
@@ -68,31 +74,17 @@ function getGroupLabelSafe<T extends object>(
   return 'Group';
 }
 
-/** Normalize any SxProps to a flat array of items (no nested arrays). */
 function toSxArray(
   sx: SxProps<Theme> | undefined,
 ): ReadonlyArray<
   ((theme: Theme) => Record<string, unknown>) | Record<string, unknown>
 > {
   if (!sx) return [];
-  if (Array.isArray(sx)) {
-    const flat: Array<
-      ((theme: Theme) => Record<string, unknown>) | Record<string, unknown>
-    > = [];
-    for (const item of sx) {
-      if (!item) continue;
-      if (typeof item === 'function')
-        flat.push(item as (t: Theme) => Record<string, unknown>);
-      else flat.push(item as Record<string, unknown>);
-    }
-    return flat;
-  }
-  if (typeof sx === 'function')
-    return [sx as (t: Theme) => Record<string, unknown>];
-  return [sx as Record<string, unknown>];
+  if (Array.isArray(sx)) return sx.filter(Boolean) as any[];
+  return [sx as any];
 }
 
-/** Child component so hooks are not called conditionally in the parent. */
+/** Leaf row (no transforms on <tr>; listeners sit on the handle button). */
 function LeafRow<T extends object>({
   row,
   columnsLength,
@@ -100,9 +92,12 @@ function LeafRow<T extends object>({
   renderExpandedRow,
   denseMode,
   spacingScale,
-  enableRowDrag,
+  enableRowDrag = false,
+  dragHandleClassName = 'drag-handle',
   isExpanded,
   toggleRowExpand,
+  /** NEW: fade when active */
+  active = false,
 }: {
   row: ReactRow<T>;
   columnsLength: number;
@@ -110,40 +105,75 @@ function LeafRow<T extends object>({
   renderExpandedRow?: (row: T) => React.ReactNode;
   denseMode: boolean;
   spacingScale: number;
-  enableRowDrag: boolean;
+  enableRowDrag?: boolean;
+  dragHandleClassName?: string;
   isExpanded: boolean;
   toggleRowExpand: (id: string) => void;
+  active?: boolean;
 }) {
   const theme = useTheme();
 
-  // Always call the hook; only apply its results if dragging is enabled.
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: String(row.id) });
-
-  const dragStyle = enableRowDrag
-    ? {
-        cursor: 'grab',
-        transform: transform ? CSS.Transform.toString(transform) : undefined,
-        transition,
-        opacity: isDragging ? 0.85 : 1,
-      }
-    : {};
+  // Don’t use transform on <tr>; just provide attributes for a11y and listeners on handle
+  const { attributes, listeners, setNodeRef } = useSortable({
+    id: String(row.id),
+    disabled: !enableRowDrag,
+  });
 
   return (
     <>
       <TableRow
-        ref={enableRowDrag ? setNodeRef : undefined}
+        ref={setNodeRef}
         {...(enableRowDrag ? attributes : {})}
-        {...(enableRowDrag ? listeners : {})}
-        sx={dragStyle as any}
+        hover
+        sx={{ opacity: active ? 0.5 : 1, transition: 'opacity 120ms ease' }}
       >
         {row.getVisibleCells().map((cell) => {
+          // Special left sticky reorder column: render the grip
+          if (cell.column.id === '__reorder__') {
+            const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
+            const stickySx = toSxArray(getStickyStyles(theme, meta));
+            const hiddenSx = toSxArray(responsiveVisibility(meta));
+            return (
+              <TableCell
+                key={cell.id}
+                padding="checkbox"
+                sx={[
+                  ...stickySx,
+                  ...hiddenSx,
+                  {
+                    width: 36,
+                    minWidth: 36,
+                    maxWidth: 36,
+                    textAlign: 'center',
+                    backgroundColor: 'background.paper',
+                    borderRight: 1,
+                    borderColor: 'divider',
+                    px: 0.25 * spacingScale,
+                    zIndex: 4,
+                  },
+                ]}
+              >
+                <IconButton
+                  size="small"
+                  className={dragHandleClassName}
+                  sx={{
+                    cursor: enableRowDrag ? 'grab !important' : 'default',
+                    '&:active': {
+                      cursor: enableRowDrag ? 'grabbing !important' : 'default',
+                    },
+                    touchAction: 'none',
+                  }}
+                  aria-label="Drag row"
+                  disabled={!enableRowDrag}
+                  {...(enableRowDrag ? listeners : {})}
+                >
+                  <DragIndicatorIcon fontSize="small" />
+                </IconButton>
+              </TableCell>
+            );
+          }
+
+          // Normal data cells
           const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
           const stickySx = toSxArray(getStickyStyles(theme, meta));
           const hiddenSx = toSxArray(responsiveVisibility(meta));
@@ -153,7 +183,7 @@ function LeafRow<T extends object>({
               sx={[
                 ...stickySx,
                 ...hiddenSx,
-                () => ({
+                {
                   textAlign: 'left',
                   px: (denseMode ? 0.5 : 1) * spacingScale,
                   py: (denseMode ? 0.25 : 0.5) * spacingScale,
@@ -162,7 +192,7 @@ function LeafRow<T extends object>({
                   overflowWrap: 'anywhere',
                   backgroundColor: 'background.paper',
                   borderColor: 'divider',
-                }),
+                },
               ]}
             >
               {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -170,23 +200,22 @@ function LeafRow<T extends object>({
           );
         })}
 
+        {/* Right-sticky expand cell */}
         {enableRowExpansion && (
           <TableCell
-            sx={[
-              {
-                width: EXPAND_COL_WIDTH,
-                minWidth: EXPAND_COL_WIDTH,
-                maxWidth: EXPAND_COL_WIDTH,
-                textAlign: 'center',
-                position: 'sticky',
-                right: RIGHT_GAP,
-                zIndex: 3,
-                backgroundColor: 'background.paper',
-                borderLeft: 1,
-                borderColor: 'divider',
-                px: 0,
-              },
-            ]}
+            sx={{
+              width: EXPAND_COL_WIDTH,
+              minWidth: EXPAND_COL_WIDTH,
+              maxWidth: EXPAND_COL_WIDTH,
+              textAlign: 'center',
+              position: 'sticky',
+              right: RIGHT_GAP,
+              zIndex: 3,
+              backgroundColor: 'background.paper',
+              borderLeft: 1,
+              borderColor: 'divider',
+              px: 0,
+            }}
           >
             <IconButton
               size="small"
@@ -194,7 +223,6 @@ function LeafRow<T extends object>({
                 e.stopPropagation();
                 toggleRowExpand(row.id);
               }}
-              // prevent DnD activator from swallowing click
               onMouseDown={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
@@ -207,6 +235,7 @@ function LeafRow<T extends object>({
         )}
       </TableRow>
 
+      {/* Expanded content row */}
       {enableRowExpansion && isExpanded && (
         <TableRow>
           <TableCell
@@ -247,6 +276,9 @@ export default function TableBodyRows<T extends object>({
   expandedRows,
   toggleRowExpand,
   enableRowDrag = false,
+  dragHandleClassName = 'drag-handle',
+  /** NEW: from StickyTable DragOverlay */
+  activeId = null,
 }: Props<T>) {
   const theme = useTheme();
   const { themeSettings } = useThemeStore();
@@ -308,8 +340,10 @@ export default function TableBodyRows<T extends object>({
                       denseMode={denseMode}
                       spacingScale={spacingScale}
                       enableRowDrag={enableRowDrag}
+                      dragHandleClassName={dragHandleClassName}
                       isExpanded={isExpanded}
                       toggleRowExpand={toggleRowExpand}
+                      active={activeId === String(child.id)}
                     />
                   );
                 })}
@@ -330,8 +364,10 @@ export default function TableBodyRows<T extends object>({
               denseMode={denseMode}
               spacingScale={spacingScale}
               enableRowDrag={enableRowDrag}
+              dragHandleClassName={dragHandleClassName}
               isExpanded={isExpanded}
               toggleRowExpand={toggleRowExpand}
+              active={activeId === String(row.id)}
             />
           );
         }

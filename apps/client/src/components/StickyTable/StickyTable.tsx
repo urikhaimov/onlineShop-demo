@@ -31,13 +31,16 @@ import { groupAndSortData } from './utils/grouping';
 import { tableFilters } from './tableFilters';
 import './sticky-table.css';
 
-// dnd-kit (for row reordering)
+// dnd-kit
 import {
   DndContext,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  defaultDropAnimation,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -52,9 +55,10 @@ type StickyTableWithDnDProps<T extends object> = StickyTableProps<T> & {
   getRowId?: (row: T) => string;
   /** Disable row drag explicitly (e.g., while persisting). */
   disableDrag?: boolean;
-
-  /** 🔹 Columns reorder handler: called with ordered *column ids* whenever the order changes. */
+  /** Columns reorder handler: called with ordered *column ids* whenever the order changes. */
   onColumnsReorder?: (orderedColumnIds: string[]) => void;
+  /** CSS class name for the drag handle element inside each row. */
+  dragHandleClassName?: string;
 };
 
 export default function StickyTable<T extends object>({
@@ -78,8 +82,11 @@ export default function StickyTable<T extends object>({
   getRowId,
   disableDrag = false,
 
-  // 🔹 Columns reorder callback
+  // Columns reorder callback
   onColumnsReorder,
+
+  // Drag handle class (listeners attach to this element only in TableBodyRows)
+  dragHandleClassName = 'drag-handle',
 }: StickyTableWithDnDProps<T>) {
   const [expandedGroups, setExpandedGroups] = React.useState<
     Record<string, boolean>
@@ -91,9 +98,11 @@ export default function StickyTable<T extends object>({
     React.useState<GroupSortMode>('count');
   const [denseMode, setDenseMode] = React.useState(false);
 
-  // Build initial column order from the provided columns (leaf, visible order)
+  // 🔹 active drag id (used to fade source row & render overlay)
+  const [activeId, setActiveId] = React.useState<string | null>(null);
+
+  // Initial column order = leaf ids in the given order
   const initialColumnOrder: ColumnOrderState = React.useMemo(() => {
-    // columns can be nested; TanStack wants leaf ids (column.id or accessorKey)
     const collectIds = (cols: any[], out: string[]) => {
       for (const c of cols) {
         if (c.columns) collectIds(c.columns, out);
@@ -110,7 +119,7 @@ export default function StickyTable<T extends object>({
   const [columnOrder, setColumnOrder] =
     React.useState<ColumnOrderState>(initialColumnOrder);
 
-  // Group/sort the incoming data (pure; DnD acts on the rendered order).
+  // Group/sort the incoming data (pure)
   const sortedData = React.useMemo(
     () => groupAndSortData<T>(data, groupById, groupSortMode),
     [data, groupById, groupSortMode],
@@ -122,7 +131,6 @@ export default function StickyTable<T extends object>({
     state: { sorting, columnFilters, columnOrder },
     onSortingChange,
     onColumnFiltersChange,
-    // 🔹 keep columnOrder in sync
     onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -138,7 +146,7 @@ export default function StickyTable<T extends object>({
       getRowId ? getRowId(row) : ((row as any).id ?? String(idx)),
   });
 
-  // 🔹 Emit to parent whenever the column order changes
+  // Emit reordered columns to parent if needed
   React.useEffect(() => {
     if (!onColumnsReorder) return;
     onColumnsReorder(columnOrder as string[]);
@@ -147,7 +155,7 @@ export default function StickyTable<T extends object>({
   const rowModel = table.getRowModel();
   const isGrouped = Boolean(groupById) && table.getState().grouping.length > 0;
 
-  // Expand all groups by default (first render or when groups change)
+  // Expand all groups by default when grouping changes
   React.useEffect(() => {
     if (!isGrouped) return;
     const next: Record<string, boolean> = {};
@@ -163,17 +171,19 @@ export default function StickyTable<T extends object>({
     setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // ────────────────────────────────────────────────
-  // DnD setup: compute *visible leaf rows* in render order (for row drag)
+  // DnD setup + visible id computation
   // ────────────────────────────────────────────────
-  const sensors = useSensors(useSensor(PointerSensor));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
 
   /** Collect visible leaf rows:
-   *  - Ungrouped: all root rows with no subRows
+   *  - Ungrouped: all root rows with no subRows (on the current page)
    *  - Grouped: leaf children inside groups that are currently expanded
    */
   const visibleLeafRows = React.useMemo(() => {
     const roots = table.getRowModel().rows;
-
     if (!isGrouped) return roots.filter((r) => r.subRows.length === 0);
 
     const leafs: typeof roots = [];
@@ -193,17 +203,19 @@ export default function StickyTable<T extends object>({
     [visibleLeafRows],
   );
 
+  // Keep the guard simple; add sort/filter guards later if you want
   const canDragRows =
-    Boolean(onReorder) &&
-    !disableDrag &&
-    visibleIds.length > 0 &&
-    (sorting?.length ?? 0) === 0 &&
-    (columnFilters?.length ?? 0) === 0;
+    Boolean(onReorder) && !disableDrag && visibleIds.length > 0;
+
+  const handleRowDragStart = (e: DragStartEvent) => {
+    setActiveId(String(e.active.id));
+  };
 
   const handleRowDragEnd = (e: DragEndEvent) => {
-    if (!canDragRows) return;
     const { active, over } = e;
-    if (!over || active.id === over.id) return;
+    setActiveId(null);
+
+    if (!canDragRows || !over || active.id === over.id) return;
 
     const oldIndex = visibleIds.indexOf(String(active.id));
     const newIndex = visibleIds.indexOf(String(over.id));
@@ -213,9 +225,31 @@ export default function StickyTable<T extends object>({
     onReorder?.(newIds);
   };
 
-  // ────────────────────────────────────────────────
+  // 🔹 Overlay that always shows product name (fallback: title → first useful cell)
+  const renderOverlay = React.useCallback(() => {
+    if (!activeId) return null;
+    const row = visibleLeafRows.find((r) => String(r.id) === activeId);
+    if (!row) return null;
+
+    const original = row.original as any;
+    const label: string =
+      (original?.name && String(original.name)) ||
+      (original?.title && String(original.title)) ||
+      // fallback: read "name" column if present
+      ((row as any)
+        .getAllCells?.()
+        ?.find?.((c: any) => c.column?.id === 'name')
+        ?.getValue?.() as string) ||
+      'Product';
+
+    return (
+      <div className="st-ghost">
+        <div className="st-ghost-primary">{label}</div>
+      </div>
+    );
+  }, [activeId, visibleLeafRows]);
+
   // Table shell
-  // ────────────────────────────────────────────────
   const tableShell = (
     <TableContainer
       component={Paper}
@@ -252,11 +286,6 @@ export default function StickyTable<T extends object>({
           enableColumnFilters={enableColumnFilters}
           enableRowExpansion={enableRowExpansion}
           denseMode={denseMode}
-          /**
-           * If you implement header drag in TableHeadSection, call:
-           * table.setColumnOrder(newOrderedIds);
-           * This component will then emit onColumnsReorder for you.
-           */
         />
         <TableBodyRows<T>
           table={table}
@@ -270,8 +299,10 @@ export default function StickyTable<T extends object>({
           toggleGroup={toggleGroup}
           expandedRows={expandedRows}
           toggleRowExpand={toggleRowExpand}
-          // Rows attach useSortable when true
           enableRowDrag={canDragRows}
+          dragHandleClassName={dragHandleClassName}
+          /** fade the source row while dragging */
+          activeId={activeId}
         />
       </Table>
     </TableContainer>
@@ -316,13 +347,22 @@ export default function StickyTable<T extends object>({
       </Stack>
 
       {canDragRows ? (
-        <DndContext sensors={sensors} onDragEnd={handleRowDragEnd}>
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleRowDragStart}
+          onDragEnd={handleRowDragEnd}
+        >
           <SortableContext
             items={visibleIds}
             strategy={verticalListSortingStrategy}
           >
             {tableShell}
           </SortableContext>
+
+          {/* Smooth cursor-follow ghost */}
+          <DragOverlay dropAnimation={defaultDropAnimation}>
+            {renderOverlay()}
+          </DragOverlay>
         </DndContext>
       ) : (
         tableShell

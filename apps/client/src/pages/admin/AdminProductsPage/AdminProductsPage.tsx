@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { Snackbar, Alert, Divider, Box, Button, Stack } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import SwapVertIcon from '@mui/icons-material/SwapVert';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import StickyTable from '../../../components/StickyTable';
@@ -116,6 +117,9 @@ export default function AdminProductsPage() {
   // Product filters ↔ URL
   useAdminProductFiltersQuerySync();
 
+  // NEW: Reorder mode toggle — drag is OFF by default to keep links & row actions clickable
+  const [reorderMode, setReorderMode] = React.useState(false);
+
   useEffect(() => {
     const loadProducts = async () => {
       setLoading(true);
@@ -144,7 +148,6 @@ export default function AdminProductsPage() {
   }, [products]);
 
   const handleReorder = async (orderedIds: string[]) => {
-    // reorder only the visible slice first, then keep the rest as-is
     const visibleSet = new Set(orderedIds);
     const nextVisible = orderedIds.map((id) => byId.get(id)!).filter(Boolean);
     const rest = products.filter((p) => !visibleSet.has(p.id));
@@ -256,6 +259,9 @@ export default function AdminProductsPage() {
     if (params.toString() !== next.toString()) {
       setParams(next, { replace: true });
     }
+
+    // Also leave reorder mode to avoid accidental drags after reset
+    setReorderMode(false);
   }, [
     params,
     setParams,
@@ -300,9 +306,25 @@ export default function AdminProductsPage() {
               >
                 {t('filters.open')}
               </Button>
+
+              {/* NEW: Reorder mode toggle */}
+              <Button
+                variant={reorderMode ? 'contained' : 'outlined'}
+                size="small"
+                startIcon={<SwapVertIcon />}
+                onClick={() => setReorderMode((v) => !v)}
+              >
+                {reorderMode
+                  ? t('adminProductsPage.reorderOn', {
+                      defaultValue: 'Reorder: ON',
+                    })
+                  : t('adminProductsPage.reorderOff', {
+                      defaultValue: 'Reorder: OFF',
+                    })}
+              </Button>
             </Stack>
 
-            {/* New: Add Product */}
+            {/* Add Product */}
             <Button
               variant="contained"
               size="small"
@@ -315,6 +337,16 @@ export default function AdminProductsPage() {
             </Button>
           </Stack>
         </Box>
+
+        {/* Optional hint when reorder mode is enabled */}
+        {reorderMode && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {t('adminProductsPage.reorderHint', {
+              defaultValue:
+                'Drag rows to change order. Turn Reorder OFF to click through to edit pages.',
+            })}
+          </Alert>
+        )}
 
         <Divider sx={{ mb: 2 }} />
 
@@ -335,6 +367,7 @@ export default function AdminProductsPage() {
             enableSorting
             enableColumnFilters={false} // drawer holds filters
             groupById="categoryId"
+            disableDrag={false}
             enableRowExpansion
             renderExpandedRow={(product) => (
               <ProductExpandedRow
@@ -343,15 +376,9 @@ export default function AdminProductsPage() {
               />
             )}
             bodyMaxHeight="60vh"
-            // Reorder hooks inside StickyTable
+            // Reorder only when explicitly enabled, and block when sorting/filters active
             onReorder={handleReorder}
             getRowId={(p) => p.id}
-            // Block drag while persisting or while view is derived
-            disableDrag={
-              isReordering ||
-              (sorting?.length ?? 0) > 0 ||
-              (columnFilters?.length ?? 0) > 0
-            }
           />
         )}
 
