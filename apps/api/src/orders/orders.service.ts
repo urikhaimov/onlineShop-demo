@@ -11,7 +11,6 @@ import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
 
 import { adminDb } from '@common/firebase';
-import { CDefaultCurrency } from '@common/types';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 type PlainItem = {
@@ -21,6 +20,31 @@ type PlainItem = {
   image?: string | null;
   quantity: number;
 };
+
+const ZERO_DEC = new Set([
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'JPY',
+  'KMF',
+  'KRW',
+  'MGA',
+  'PYG',
+  'RWF',
+  'UGX',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+]);
+
+function toMinor(amountMajor: number, currency: string) {
+  return ZERO_DEC.has(currency.toUpperCase())
+    ? Math.round(amountMajor)
+    : Math.round(amountMajor * 100); // ILS → ×100
+}
 
 @Injectable()
 export class OrdersService {
@@ -58,7 +82,7 @@ export class OrdersService {
   }
 
   private toPlainPayment(
-    p:
+    p?:
       | {
           method?: string;
           status?: 'paid' | 'unpaid' | string;
@@ -250,84 +274,85 @@ export class OrdersService {
     }
   }
 
-  async createPaymentIntent(
-    amountMinorFromClient: number,
-    ownerName: string,
-    passportId: string,
-    uid: string,
-    cart: PlainItem[],
-    shippingMajor: number,
-    taxRate: number,
-    discountMinor: number,
-    shippingAddress?: {
-      fullName: string;
-      phone: string;
-      street: string;
-      city: string;
-      postalCode: string;
-      country: string;
-    },
-  ) {
-    const currency = (CDefaultCurrency || 'ILS').toLowerCase();
+  // ---------------- Stripe PI creation ----------------
 
-    this.logger.log(
-      `PI request: currency=${currency}, clientMinor=${amountMinorFromClient}, cart=${cart?.length ?? 0}, shipMaj=${shippingMajor}, tax=${taxRate}, discMinor=${discountMinor}, uid=${uid}`,
+  async createPaymentIntent(params: {
+    totalMajor: number; // MAJOR units (e.g., 71.11)
+    currency?: string; // 'ILS', 'USD', ...
+    userId?: string; // <-- will be written to metadata.uid
+    email?: string;
+    idempotencyKey?: string;
+    metadata?: Record<string, string | number | boolean | null | undefined>;
+  }) {
+    const { userId, email, idempotencyKey, metadata } = params;
+
+    const cur = (params.currency ?? 'ILS').toUpperCase();
+    const totalMajor = Number.isFinite(params.totalMajor as number)
+      ? Number(params.totalMajor)
+      : 0;
+
+    const ZERO_DEC = new Set([
+      'BIF',
+      'CLP',
+      'DJF',
+      'GNF',
+      'JPY',
+      'KMF',
+      'KRW',
+      'MGA',
+      'PYG',
+      'RWF',
+      'UGX',
+      'VND',
+      'VUV',
+      'XAF',
+      'XOF',
+      'XPF',
+    ]);
+    const toMinor = (maj: number) =>
+      ZERO_DEC.has(cur) ? Math.round(maj) : Math.round(maj * 100);
+
+    let amountMinor = toMinor(totalMajor);
+    if (cur === 'ILS' && amountMinor < 200) amountMinor = 200;
+
+    const coerce = (obj?: Record<string, any>) =>
+      obj
+        ? Object.fromEntries(
+            Object.entries(obj).map(([k, v]) => [
+              k,
+              v === null ? '' : String(v),
+            ]),
+          )
+        : {};
+
+    const stripePayload: Stripe.PaymentIntentCreateParams = {
+      amount: amountMinor,
+      currency: cur.toLowerCase(),
+      automatic_payment_methods: { enabled: true },
+      capture_method: 'automatic',
+      payment_method_options: { card: { request_three_d_secure: 'automatic' } },
+      metadata: {
+        // 🔑 REQUIRED by webhook/order creation
+        uid: userId ?? '',
+        userId: userId ?? '',
+        totalMajor: totalMajor.toFixed(2),
+        currency: cur,
+        email: email ?? '',
+        ...coerce(metadata),
+      },
+    };
+
+    const intent = await this.stripe.paymentIntents.create(
+      stripePayload,
+      idempotencyKey ? { idempotencyKey } : undefined,
     );
 
-    const serverMinor = this.computeCartTotalMinor(
-      cart || [],
-      shippingMajor,
-      taxRate,
-      discountMinor,
-    );
-
-    const chosenMinor = serverMinor > 0 ? serverMinor : amountMinorFromClient;
-    const normalizedMinor = this.normalizeAmountMinor(chosenMinor, currency);
-
-    try {
-      const paymentIntent = await this.stripe.paymentIntents.create({
-        amount: normalizedMinor,
-        currency,
-        automatic_payment_methods: { enabled: true },
-        metadata: {
-          uid,
-          ownerName,
-          passportId,
-          currency,
-          serverMinor: String(serverMinor),
-          clientMinor: String(amountMinorFromClient),
-          chosenMinor: String(chosenMinor),
-          normalizedMinor: String(normalizedMinor),
-          shippingMajor: String(shippingMajor),
-          taxRate: String(taxRate),
-          discountMinor: String(discountMinor),
-          items: JSON.stringify(
-            (cart || []).map((i) => ({
-              productId: i.productId,
-              name: i.name,
-              priceMajor: i.price,
-              quantity: i.quantity,
-              image: i.image ?? null,
-            })),
-          ),
-          shippingAddress: shippingAddress
-            ? JSON.stringify(shippingAddress)
-            : '',
-        },
-      });
-
-      this.logger.log(
-        `Created PaymentIntent ${paymentIntent.id} amount=${paymentIntent.amount} ${currency}`,
+    if (!intent.client_secret) {
+      throw new InternalServerErrorException(
+        'Stripe did not return a client secret',
       );
-
-      return { clientSecret: paymentIntent.client_secret };
-    } catch (e) {
-      this.logger.error(
-        'Stripe PI creation failed',
-        (e as Error)?.stack || String(e),
-      );
-      throw new InternalServerErrorException('Failed to create payment intent');
     }
+    return { clientSecret: intent.client_secret, intentId: intent.id };
   }
 
   /** Create (idempotent) order from a Stripe PaymentIntent */
@@ -511,13 +536,13 @@ export class OrdersService {
 
   // ---------------- public polling endpoint ----------------
   /** Used by GET /api/orders/public/:piId for client-side polling after checkout */
+  // apps/api/src/orders/orders.service.ts
   async getPublicStatusByPaymentIntent(piId: string) {
     if (!piId || !piId.startsWith('pi_')) {
       throw new BadRequestException('Invalid payment intent id');
     }
 
-    // 1) Try to find an existing order quickly:
-    //    You store webhook-created orders with doc id = intent.id.
+    // 1) Direct doc (idempotent PI id)
     try {
       const direct = await adminDb.collection('orders').doc(piId).get();
       if (direct.exists) {
@@ -527,7 +552,7 @@ export class OrdersService {
       this.logger.warn(`Direct order lookup failed for ${piId}: ${String(e)}`);
     }
 
-    // 2) Fallback to query (covers manual orders or different ID scheme)
+    // 2) By transaction id
     try {
       const snap = await adminDb
         .collection('orders')
@@ -543,19 +568,32 @@ export class OrdersService {
       this.logger.warn(`Order query by tx failed for ${piId}: ${String(e)}`);
     }
 
-    // 3) Ask Stripe for the latest status
-    let pi: Stripe.Response<Stripe.PaymentIntent>;
+    // 3) Ask Stripe
+    let pi: Stripe.PaymentIntent;
     try {
-      pi = await this.stripe.paymentIntents.retrieve(piId);
+      const resp = await this.stripe.paymentIntents.retrieve(piId);
+      pi = resp as unknown as Stripe.PaymentIntent;
     } catch (e: any) {
-      // If Stripe says "not found", surface a 404. Otherwise, generic error.
       this.logger.warn(`PI retrieve failed for ${piId}: ${String(e)}`);
       throw new NotFoundException('PaymentIntent not found');
     }
 
-    // Return current status; client can keep polling until it's "succeeded"
-    // Common statuses: requires_payment_method, requires_confirmation, requires_action, processing, succeeded, canceled
-    return { state: pi.status as string, orderId: undefined };
+    this.logger.log(`PI ${piId} status=${pi.status}`);
+
+    // 🚀 Fallback: if succeeded, create the order now (webhook-free)
+    if (pi.status === 'succeeded') {
+      try {
+        const created = await this.createOrderFromIntent(pi);
+        return { state: 'succeeded', orderId: created.id };
+      } catch (e) {
+        this.logger.warn(
+          `Create order from PI in public poll failed (${piId}): ${String(e)}`,
+        );
+        // fall through; client can keep polling
+      }
+    }
+
+    return { state: String(pi.status), orderId: undefined };
   }
 
   // ---------------- queries ----------------

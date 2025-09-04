@@ -103,7 +103,8 @@ export class OrdersController {
     @Body() body: CreatePaymentIntentDto,
   ) {
     const {
-      amount,
+      amount, // MINOR units from client (e.g., agorot)
+      currency, // NEW: required to avoid undefined in service
       ownerName,
       passportId,
       cart,
@@ -111,33 +112,65 @@ export class OrdersController {
       taxRate,
       discount,
       shippingAddress,
-    } = body;
+    } = body as CreatePaymentIntentDto & { currency?: string };
 
+    const cur = (currency ?? 'ILS').toUpperCase();
+
+    // Clamp only for ILS
     const clientMinor = Math.max(0, Math.round(Number(amount) || 0));
     const safeClientMinor =
-      clientMinor < MIN_MINOR_ILS ? MIN_MINOR_ILS : clientMinor;
+      cur === 'ILS' && clientMinor < MIN_MINOR_ILS
+        ? MIN_MINOR_ILS
+        : clientMinor;
 
     if (safeClientMinor !== amount) {
       this.logger.warn(
-        `Bumped client amount from ${amount} → ${safeClientMinor} (minor ILS).`,
+        `Bumped client amount from ${amount} → ${safeClientMinor} (minor ${cur}).`,
       );
     }
 
     this.logger.log(
-      `POST /orders/create-payment-intent uid=${req.user.uid} minor=${safeClientMinor} cart=${cart?.length ?? 0}`,
+      `POST /orders/create-payment-intent uid=${req.user.uid} currency=${cur} minor=${safeClientMinor} cart=${cart?.length ?? 0}`,
     );
 
-    return this.ordersService.createPaymentIntent(
-      safeClientMinor,
-      ownerName,
-      passportId,
-      req.user.uid,
-      cart,
-      shipping,
-      taxRate,
-      discount,
-      shippingAddress,
-    );
+    const ZERO_DEC = new Set([
+      'BIF',
+      'CLP',
+      'DJF',
+      'GNF',
+      'JPY',
+      'KMF',
+      'KRW',
+      'MGA',
+      'PYG',
+      'RWF',
+      'UGX',
+      'VND',
+      'VUV',
+      'XAF',
+      'XOF',
+      'XPF',
+    ]);
+    const isZeroDec = ZERO_DEC.has(cur);
+    const totalMajor = isZeroDec ? safeClientMinor : safeClientMinor / 100; // convert MINOR → MAJOR
+
+    return this.ordersService.createPaymentIntent({
+      totalMajor, // MAJOR units expected by the service
+      currency: cur, // e.g. 'ILS'
+      userId: req.user.uid,
+      // email: optional
+      // idempotencyKey: optional (recommended if you want)
+      metadata: {
+        uid: req.user.uid, // REQUIRED: your webhook expects metadata.uid
+        ownerName: ownerName ?? '',
+        passportId: passportId ?? '',
+        shipping: String(shipping ?? 0),
+        taxRate: String(taxRate ?? 0),
+        discount: String(discount ?? 0),
+        shippingAddress: JSON.stringify(shippingAddress ?? {}),
+        items: JSON.stringify(cart ?? []),
+      },
+    });
   }
 
   /**

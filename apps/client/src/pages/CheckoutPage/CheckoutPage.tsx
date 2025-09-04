@@ -1,4 +1,3 @@
-// src/pages/checkout/CheckoutPage.tsx
 import React, { useMemo } from 'react';
 import {
   Alert,
@@ -72,8 +71,7 @@ export default function CheckoutPage() {
 
   const baseShadow = isDark ? theme.shadows[3] : theme.shadows[1];
 
-  // ---- Data hooks (run every render)
-  const { clientSecret, loading, error, refresh } = useStripeClientSecret();
+  // ---- Data hooks
   const cart = useCartStore((s) => s.items);
   const {
     data: settings,
@@ -85,7 +83,7 @@ export default function CheckoutPage() {
   // Settings with safe fallbacks (can be read while loading)
   const currency = (settings?.currency as string) || CDefaultCurrency || 'ILS';
   const shippingMajor = Number(settings?.shipping ?? 0);
-  const taxRatePercent = Number(settings?.taxRate ?? 0); // ✅ percent (e.g., 17)
+  const taxRatePercent = Number(settings?.taxRate ?? 0); // percent (e.g., 17)
   const discountMajor = Number(settings?.discount ?? 0);
 
   // Totals in MAJOR units (memoized)
@@ -111,19 +109,22 @@ export default function CheckoutPage() {
     [currency],
   );
 
+  // ✅ Create / refresh PaymentIntent after totals & currency are known
+  const { clientSecret, loading, error, refresh } = useStripeClientSecret({
+    totalMajor,
+    currency,
+    cart,
+    shippingMajor,
+    taxRatePercent, // percent, e.g. 17
+    discountMajor,
+  });
+
   // Loading gate AFTER hooks
   if (settingsLoading) return <LoadingProgress />;
 
-  // Stripe Elements options (hide Apple Pay/Link in dev to silence warnings)
-  const isProd = import.meta.env.PROD;
+  // --- Elements options (NO wallets/paymentMethodOrder here)
   const elementsOptions: StripeElementsOptions = {
     clientSecret: clientSecret ?? undefined,
-    ...(isProd
-      ? {}
-      : {
-          wallets: { applePay: 'never' }, // hide Apple Pay on localhost
-          paymentMethodOrder: ['card'], // omit 'link'
-        }),
     appearance: {
       theme: isDark ? 'night' : 'stripe',
       rules: {
@@ -321,21 +322,20 @@ export default function CheckoutPage() {
               <StripeCheckoutForm onRefreshIntent={refresh} />
             </Elements>
           ) : (
-            <Typography color="error">
-              {t('checkout.failedToLoad', {
-                defaultValue:
-                  'Failed to load payment form. Please try again later.',
-              })}
-            </Typography>
+            <Alert severity="error">
+              {error ??
+                t('checkout.failedToLoad', {
+                  defaultValue:
+                    'Failed to load payment form. Please try again later.',
+                })}
+            </Alert>
           )}
         </Paper>
 
         <Snackbar
           open={!!error}
           autoHideDuration={5000}
-          onClose={(_, reason) => {
-            // No clearError available; just close the Snackbar
-          }}
+          onClose={() => void 0}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert severity="error" sx={{ width: '100%' }}>

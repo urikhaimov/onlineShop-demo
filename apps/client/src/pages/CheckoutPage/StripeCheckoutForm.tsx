@@ -1,4 +1,3 @@
-// src/pages/checkout/StripeCheckoutForm.tsx
 import React from 'react';
 import {
   Box,
@@ -14,6 +13,10 @@ import {
   PaymentElement,
   LinkAuthenticationElement,
 } from '@stripe/react-stripe-js';
+import type {
+  StripePaymentElementOptions,
+  StripeLinkAuthenticationElementChangeEvent,
+} from '@stripe/stripe-js';
 
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +27,6 @@ import { useCartStore } from '../../stores/useCartStore';
 import { useStripeCheckoutStore } from '../../stores/useStripeCheckoutStore';
 import axiosInstance from '../../api/axiosInstance';
 import { auth } from '../../firebase';
-import type { StripeLinkAuthenticationElementChangeEvent } from '@stripe/stripe-js';
 
 type ShippingAddress = {
   fullName: string;
@@ -88,6 +90,15 @@ export default function StripeCheckoutForm({
   const stripe = useStripe();
   const elements = useElements();
   const navigate = useNavigate();
+  const isProd = import.meta.env.PROD;
+
+  // Dev-only: silence Apple/Google Pay warnings on localhost
+  const paymentElementOptions: StripePaymentElementOptions = isProd
+    ? {}
+    : {
+        wallets: { applePay: 'never' },
+        paymentMethodOrder: ['card'],
+      };
 
   const [email, setEmail] = React.useState<string>('');
   const [submitting, setSubmitting] = React.useState(false);
@@ -127,7 +138,6 @@ export default function StripeCheckoutForm({
           orderId?: string;
         }>(`/orders/public/${piId}`);
 
-        // Stripe terminal failures
         if (
           data?.state === 'canceled' ||
           data?.state === 'requires_payment_method'
@@ -135,7 +145,6 @@ export default function StripeCheckoutForm({
           throw new Error(`Payment ${data.state}`);
         }
 
-        // Success when order id is available
         if (data?.state === 'succeeded' && data?.orderId) {
           return data.orderId as string;
         }
@@ -238,8 +247,6 @@ export default function StripeCheckoutForm({
           }
           setLoading(false);
           setSubmitting(false);
-          // choose your success route; example shows order page:
-          // navigate(`/order/${orderId}`);
           navigate('/checkout/success');
           return;
         }
@@ -386,10 +393,7 @@ export default function StripeCheckoutForm({
           bgcolor: 'background.default',
         }}
       >
-        <PaymentElement
-        // optional: set layout or order here (not in <Elements/>)
-        // options={{ layout: 'tabs' }}
-        />
+        <PaymentElement options={paymentElementOptions} />
       </Box>
 
       <Button
