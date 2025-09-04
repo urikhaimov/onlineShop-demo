@@ -1,9 +1,9 @@
 import { IMetadata } from './common.type';
-
+export type CategoryMetadata = IMetadata;
 export type TCategory = {
   id: string;
   name: string;
-  metadata?: IMetadata;
+  metadata?: CategoryMetadata;
   description: string;
   imageUrl?: string; // ✅ Add this line
 };
