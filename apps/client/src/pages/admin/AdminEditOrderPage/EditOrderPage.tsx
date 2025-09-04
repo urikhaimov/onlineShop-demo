@@ -23,9 +23,13 @@ import { useTranslation } from 'react-i18next';
 import { useOrder, useUpdateOrder, Order } from '../../../hooks/useOrder';
 import LoadingProgress from '@client/components/LoadingProgress';
 import FormTextField from '@client/components/FormTextField';
-import OrderSummaryCard from './components/OrderSummaryCard';
-import OrderItemsTable from './components/OrderItemsTable';
+
 import OrderStatusBadge from './components/OrderStatusBadge';
+import OrderItems from '../../../components/orders/OrderItems';
+import OrderCustomer from '../../../components/orders/OrderCustomer';
+import OrderShipping from '../../../components/orders/OrderShipping';
+import OrderPayment from '../../../components/orders/OrderPayment';
+import OrderTimestamps from '../../../components/orders/OrderTimestamps';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { ESTATUS_OPTIONS } from '@common/types';
 // ✅ Reusable page card layout
@@ -202,15 +206,11 @@ export default function EditOrderPage() {
 
             {/* RIGHT SIDEBAR */}
             <Stack flex={1} spacing={2}>
-              {order && (
-                <Paper sx={{ p: 2, borderRadius: radius }}>
-                  <OrderSummaryCard order={order} />
-                </Paper>
-              )}
-              <Divider />
-              <Paper sx={{ p: 2, borderRadius: radius }}>
-                <OrderItemsTable items={order?.items ?? []} />
-              </Paper>
+              <OrderCustomer order={order} />
+              <OrderShipping order={order} />
+              <OrderItems order={order} />
+              <OrderPayment order={order} />
+              <OrderTimestamps order={order} />
             </Stack>
           </Stack>
         </Stack>

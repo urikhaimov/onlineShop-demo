@@ -17,6 +17,13 @@ import type { TOrder as Order } from '@common/types';
 import { DASH, asDate } from '../../utils/columns.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 import { useThemeStore } from '../../stores/useThemeStore';
+import OrderNotes from '../../components/orders/OrderNotes';
+import OrderTimestamps from '../../components/orders/OrderTimestamps';
+import OrderDelivery from '../../components/orders/OrderDelivery';
+import OrderPayment from '../../components/orders/OrderPayment';
+import OrderItems from '../../components/orders/OrderItems';
+import OrderShipping from '../../components/orders/OrderShipping';
+import OrderCustomer from '../../components/orders/OrderCustomer';
 
 // Map order status → Chip color (typed)
 function getStatusColor(status: string): ChipProps['color'] {
@@ -133,37 +140,13 @@ const OrderCard: React.FC<Props> = ({ order }) => {
         sx={{ my: spacingScale * 0.5 }}
       />
 
-      <Typography variant="body2" sx={{ mb: 0.25 }}>
-        Date: {created ? formatDateTime(created) : DASH}
-      </Typography>
-
-      {/* Placeholders for now; style as secondary to de-emphasize */}
-      <Typography variant="body2" color="text.secondary">
-        Paid with: Visa ending in 4242
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        Shipping: Express Delivery
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-        Delivery ETA: July 8, 2025
-      </Typography>
-
-      <Typography variant="body2" fontWeight={600} gutterBottom>
-        Total: {formatCurrency(order.totalAmount)}
-      </Typography>
-
-      <Divider sx={{ my: spacingScale }} />
-
-      <Box component="ul" sx={{ m: 0, p: 0, pl: 2 }}>
-        {(order.items ?? []).map((item, idx) => (
-          <li key={idx}>
-            <Typography variant="body2">
-              {item.name} × {item.quantity} — Price:{' '}
-              {formatCurrency(item.price)}
-            </Typography>
-          </li>
-        ))}
-      </Box>
+      <OrderCustomer order={order} />
+      <OrderShipping order={order} />
+      <OrderItems order={order} />
+      <OrderPayment order={order} />
+      <OrderDelivery order={order} />
+      <OrderTimestamps order={order} />
+      <OrderNotes order={order} />
     </Paper>
   );
 };
