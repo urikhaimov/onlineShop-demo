@@ -1,4 +1,3 @@
-// src/main.ts
 import * as dotenv from 'dotenv';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
@@ -12,8 +11,7 @@ import * as bodyParser from 'body-parser';
 dotenv.config();
 
 async function bootstrap() {
-  // rawBody: true lets Nest keep a copy of the original raw body (when using its own json parser)
-  // We ALSO mount bodyParser.raw() on the webhook paths to hand Stripe an actual Buffer.
+  // Keep a copy of the original raw body for all requests
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
@@ -33,38 +31,38 @@ async function bootstrap() {
 
   app.setGlobalPrefix(apiPrefix);
 
-  // --- Stripe webhook raw body (MUST be before any json/urlencoded on those paths) ---
-  const stripeRaw = bodyParser.raw({ type: 'application/json' });
+  // --- Stripe webhook raw body (must run BEFORE any JSON/urlencoded parser on those paths) ---
+  const stripeRaw = bodyParser.raw({
+    type: 'application/json',
+    limit: '2mb', // avoid huge payloads
+  });
 
-  // Ensure both req.body (Buffer) and req.rawBody (Buffer) are set for Stripe SDK
+  // If only req.body is set as Buffer (route-level raw), mirror it to req.rawBody for Stripe SDK
   const ensureRawBody = (req: any, _res: any, next: any) => {
-    if (!req.rawBody && req.body && Buffer.isBuffer(req.body)) {
-      req.rawBody = req.body;
-    }
+    if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
     next();
   };
 
-  // If you have more than one webhook path, register all of them:
   const webhookPaths = [
     `/${apiPrefix}/orders/webhook`,
     `/${apiPrefix}/payments/webhooks/stripe`,
   ];
-
   webhookPaths.forEach((p) => app.use(p, stripeRaw, ensureRawBody));
-  // -------------------------------------------------------------------------------
+  // ------------------------------------------------------------------------------------------
 
   app.useGlobalPipes(
     new I18nValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      // transformOptions: { enableImplicitConversion: true }, // enable if you want implicit DTO number coercion
     }),
   );
 
   // Helmet CSP (prod hardened, dev relaxed)
   app.use(
     helmet({
-      crossOriginEmbedderPolicy: false,
+      crossOriginEmbedderPolicy: false, // Stripe iframes
       contentSecurityPolicy: isProd()
         ? {
             useDefaults: true,
@@ -88,6 +86,9 @@ async function bootstrap() {
                 'https://r.stripe.com',
                 'https://firebasestorage.googleapis.com',
                 'https://storage.googleapis.com',
+                // add Unsplash if you render product images from there
+                'https://images.unsplash.com',
+                'https://source.unsplash.com',
                 'https://picsum.photos',
               ],
               styleSrc: [
@@ -123,6 +124,8 @@ async function bootstrap() {
                 'https://r.stripe.com',
                 'https://firebasestorage.googleapis.com',
                 'https://storage.googleapis.com',
+                'https://images.unsplash.com',
+                'https://source.unsplash.com',
                 'https://picsum.photos',
               ],
               styleSrc: [
@@ -137,7 +140,7 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: frontendOrigin, // tighten to exact prod domain in production
+    origin: frontendOrigin, // in prod, set to your exact domain or an array of allowed origins
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -145,7 +148,7 @@ async function bootstrap() {
       'Authorization',
       'Accept-Language',
       'x-lang',
-      'Stripe-Signature', // required for Stripe signature verify
+      'stripe-signature', // use lowercase; header names are case-insensitive but some libs match lower
     ],
   });
 

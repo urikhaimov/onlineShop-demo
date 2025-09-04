@@ -1,40 +1,55 @@
+// apps/api/src/orders/orders.controller.ts
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
   Body,
+  Param,
   Req,
   UseGuards,
-  Param,
   Headers,
-  Logger,
-  BadRequestException,
   HttpCode,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Request } from 'express';
+
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { OrdersService } from './orders.service';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { Public } from '../auth/public.decorator';
+
+import { OrdersService } from './orders.service';
+
+// ── utils (all small & reusable) ──────────────────────────────────────────────
+import { minorToMajor } from './utils/currency.util';
+import { clampMinorForCurrency } from './utils/payment.util';
+import { cartSignature } from './utils/cart.util';
+import {
+  isValidPaymentIntentId,
+  composePIIdempotencyKey, // returns a sanitized, header-safe key
+} from './utils/stripe.util';
+import { getStripeRawBody } from './utils/request.util';
+// (optional) others you created:
+// import { maskEmail } from './utils/hash.util';
+// import { safeDate } from './utils/time.util';
 
 type AuthedUser = { uid: string; role?: string };
 type AuthedRequest = Request & { user: AuthedUser };
 
 interface RawBodyRequest extends Request {
-  rawBody?: Buffer; // may be set by bodyParser.raw or Nest rawBody:true
+  rawBody?: Buffer; // provided by bodyParser.raw in main.ts
 }
-
-const MIN_MINOR_ILS = 200; // ₪2.00
 
 @Controller('orders')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
 export class OrdersController {
   private readonly logger = new Logger(OrdersController.name);
+
   constructor(private readonly ordersService: OrdersService) {}
+
+  // ── Reads ───────────────────────────────────────────────────────────────────
 
   @Get('mine')
   @Roles('user', 'admin', 'superadmin')
@@ -62,17 +77,19 @@ export class OrdersController {
     );
   }
 
-  // ✅ Public polling by Stripe PaymentIntent id (what the client is calling)
-  // Final path: /api/orders/public/:piId
+  // Public polling by PaymentIntent id (what the client uses after checkout)
   @Public()
   @Get('public/:piId')
   getPublicByPaymentIntent(@Param('piId') piId: string) {
-    this.logger.log(`GET /orders/public/${piId}`);
-    return this.ordersService.getPublicStatusByPaymentIntent(piId);
+    const safe = (piId || '').trim();
+    if (!isValidPaymentIntentId(safe)) {
+      throw new BadRequestException('Invalid payment intent id');
+    }
+    this.logger.log(`GET /orders/public/${safe}`);
+    return this.ordersService.getPublicStatusByPaymentIntent(safe);
   }
 
-  // (Optional) Public minimal read by ORDER id (useful after you already know orderId)
-  // Final path: /api/orders/public/order/:id
+  // Optional: minimal public read by ORDER id (after you already know orderId)
   @Public()
   @Get('public/order/:id')
   async getOrderPublicById(@Param('id') id: string) {
@@ -82,79 +99,64 @@ export class OrdersController {
     return {
       id: safeId,
       status: doc.status,
-      amount: doc.payment?.amount ?? doc.totalAmount,
+      amount: doc.totalAmount, // stored MINOR units
       currency: doc.payment?.currency,
       updatedAt: doc.updatedAt,
     };
   }
 
+  // ── Mutations ───────────────────────────────────────────────────────────────
+
   @Post()
   @Roles('user', 'admin', 'superadmin')
-  async createOrder(@Req() req: AuthedRequest, @Body() dto: CreateOrderDto) {
+  async createOrder(@Req() req: AuthedRequest, @Body() dto: any) {
     this.logger.log(`POST /orders uid=${req.user.uid}`);
-    const completeDto = { ...dto, userId: req.user.uid };
-    return this.ordersService.createOrder(completeDto);
+    return this.ordersService.createOrder({ ...dto, userId: req.user.uid });
   }
 
-  // apps/api/src/orders/orders.controller.ts  (method body only)
+  // Create Stripe PaymentIntent (client posts MINOR amount)
   @Post('create-payment-intent')
   @Roles('user', 'admin', 'superadmin')
   async createPaymentIntent(
     @Req() req: AuthedRequest,
     @Body()
     body: {
-      amount: number; // MINOR units from client
-      currency?: string; // 'ILS' etc
-      cart?: any[]; // raw cart; service compacts it
-      shipping?: number;
-      taxRate?: number; // fraction (0.17)
-      discount?: number; // MINOR
+      amount: number; // MINOR units
+      currency?: string; // e.g. 'ILS'
+      cart?: any[]; // raw cart (for metadata/signature)
+      shipping?: number; // MAJOR (optional, tracked in metadata only)
+      taxRate?: number; // fraction (e.g. 0.17)
+      discount?: number; // MINOR (optional)
     },
   ) {
-    const cur = (body.currency ?? 'ILS').toUpperCase();
+    const currency = (body.currency ?? 'ILS').toUpperCase();
 
-    // Clamp for ILS
-    const MIN_MINOR_ILS = 200;
-    const minor = Math.max(0, Math.round(Number(body.amount) || 0));
-    const safeMinor =
-      cur === 'ILS' && minor < MIN_MINOR_ILS ? MIN_MINOR_ILS : minor;
+    // Ensure the amount is valid and satisfies per-currency minima (e.g. ILS ≥ 200 agorot)
+    const minorRaw = Math.max(0, Math.round(Number(body.amount) || 0));
+    const amountMinor = clampMinorForCurrency(minorRaw, currency);
 
-    // Convert MINOR → MAJOR for the service
-    const ZERO_DEC = new Set([
-      'BIF',
-      'CLP',
-      'DJF',
-      'GNF',
-      'JPY',
-      'KMF',
-      'KRW',
-      'MGA',
-      'PYG',
-      'RWF',
-      'UGX',
-      'VND',
-      'VUV',
-      'XAF',
-      'XOF',
-      'XPF',
-    ]);
-    const toMajor = (m: number) => (ZERO_DEC.has(cur) ? m : m / 100);
-    const totalMajor = toMajor(safeMinor);
+    // Convert to MAJOR for the service (Stripe PI creation)
+    const totalMajor = minorToMajor(amountMinor, currency);
+
+    // Small stable cart signature for idempotency & caching
+    const sig = cartSignature(body.cart);
+    const idempotencyKey = composePIIdempotencyKey({
+      uid: req.user.uid,
+      currency,
+      amountMinor,
+      cartSig: sig,
+    });
 
     this.logger.log(
-      `POST /orders/create-payment-intent uid=${req.user.uid} currency=${cur} minor=${safeMinor} cart=${body.cart?.length ?? 0}`,
+      `POST /orders/create-payment-intent uid=${req.user.uid} currency=${currency} minor=${amountMinor} cart=${body.cart?.length ?? 0}`,
     );
 
     return this.ordersService.createPaymentIntent({
       totalMajor,
-      currency: cur,
+      currency,
       userId: req.user.uid,
-      // (optional) email if you have it on the user record
-      // email: req.userEmail ?? '',
-      idempotencyKey: `pi:${cur}:${safeMinor}:${body.cart?.length ?? 0}`,
-      // pass cart so the service can write a compact metadata field
+      idempotencyKey,
       cart: body.cart ?? [],
-      // if you want to keep these in metadata, they’re tiny
       metadata: {
         shippingMajor: body.shipping ?? 0,
         taxRate: body.taxRate ?? 0,
@@ -163,9 +165,7 @@ export class OrdersController {
     });
   }
 
-  /**
-   * Optional SPA finalize endpoint; webhook is still source of truth.
-   */
+  // SPA finalize (webhook remains source of truth)
   @Post('confirm')
   @Roles('user', 'admin', 'superadmin')
   async confirm(
@@ -173,8 +173,8 @@ export class OrdersController {
     @Body() body: { paymentIntentId?: string },
   ) {
     const paymentIntentId = (body?.paymentIntentId || '').trim();
-    if (!paymentIntentId) {
-      throw new BadRequestException('paymentIntentId is required');
+    if (!isValidPaymentIntentId(paymentIntentId)) {
+      throw new BadRequestException('Valid paymentIntentId is required');
     }
     this.logger.log(
       `POST /orders/confirm uid=${req.user.uid} pi=${paymentIntentId}`,
@@ -185,11 +185,14 @@ export class OrdersController {
     );
   }
 
+  // Legacy helper
   @Post('create-from-intent/:id')
   @Roles('user', 'admin', 'superadmin')
   async createFromIntent(@Req() req: AuthedRequest, @Param('id') id: string) {
     const pi = (id || '').trim();
-    if (!pi) throw new BadRequestException('PaymentIntent id is required');
+    if (!isValidPaymentIntentId(pi)) {
+      throw new BadRequestException('Valid payment intent id is required');
+    }
     this.logger.warn(
       `POST /orders/create-from-intent/${pi} (legacy) uid=${req.user.uid}`,
     );
@@ -197,8 +200,8 @@ export class OrdersController {
   }
 
   /**
-   * 🔔 Stripe webhook — must be PUBLIC and receive RAW body.
-   * Ensure main.ts has the bodyParser.raw() on this path.
+   * 🔔 Stripe webhook — must be PUBLIC and receive RAW body (Buffer).
+   * Your main.ts already mounts bodyParser.raw() on this route.
    */
   @Post('webhook')
   @Public()
@@ -208,12 +211,15 @@ export class OrdersController {
     @Headers('stripe-signature') signature: string,
   ) {
     this.logger.log('POST /orders/webhook (Stripe)');
-    const raw =
-      req.rawBody ??
-      (Buffer.isBuffer((req as any).body)
-        ? ((req as any).body as Buffer)
-        : undefined);
-    await this.ordersService.handleStripeWebhook(raw as Buffer, signature);
+    const raw = getStripeRawBody(req);
+
+    if (!raw || !signature) {
+      throw new BadRequestException(
+        'Missing raw body or stripe-signature header',
+      );
+    }
+
+    await this.ordersService.handleStripeWebhook(raw, signature);
     return { received: true };
   }
 
