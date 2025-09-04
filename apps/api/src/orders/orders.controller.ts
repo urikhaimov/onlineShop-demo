@@ -96,43 +96,30 @@ export class OrdersController {
     return this.ordersService.createOrder(completeDto);
   }
 
+  // apps/api/src/orders/orders.controller.ts  (method body only)
   @Post('create-payment-intent')
   @Roles('user', 'admin', 'superadmin')
   async createPaymentIntent(
     @Req() req: AuthedRequest,
-    @Body() body: CreatePaymentIntentDto,
+    @Body()
+    body: {
+      amount: number; // MINOR units from client
+      currency?: string; // 'ILS' etc
+      cart?: any[]; // raw cart; service compacts it
+      shipping?: number;
+      taxRate?: number; // fraction (0.17)
+      discount?: number; // MINOR
+    },
   ) {
-    const {
-      amount, // MINOR units from client (e.g., agorot)
-      currency, // NEW: required to avoid undefined in service
-      ownerName,
-      passportId,
-      cart,
-      shipping,
-      taxRate,
-      discount,
-      shippingAddress,
-    } = body as CreatePaymentIntentDto & { currency?: string };
+    const cur = (body.currency ?? 'ILS').toUpperCase();
 
-    const cur = (currency ?? 'ILS').toUpperCase();
+    // Clamp for ILS
+    const MIN_MINOR_ILS = 200;
+    const minor = Math.max(0, Math.round(Number(body.amount) || 0));
+    const safeMinor =
+      cur === 'ILS' && minor < MIN_MINOR_ILS ? MIN_MINOR_ILS : minor;
 
-    // Clamp only for ILS
-    const clientMinor = Math.max(0, Math.round(Number(amount) || 0));
-    const safeClientMinor =
-      cur === 'ILS' && clientMinor < MIN_MINOR_ILS
-        ? MIN_MINOR_ILS
-        : clientMinor;
-
-    if (safeClientMinor !== amount) {
-      this.logger.warn(
-        `Bumped client amount from ${amount} → ${safeClientMinor} (minor ${cur}).`,
-      );
-    }
-
-    this.logger.log(
-      `POST /orders/create-payment-intent uid=${req.user.uid} currency=${cur} minor=${safeClientMinor} cart=${cart?.length ?? 0}`,
-    );
-
+    // Convert MINOR → MAJOR for the service
     const ZERO_DEC = new Set([
       'BIF',
       'CLP',
@@ -151,24 +138,27 @@ export class OrdersController {
       'XOF',
       'XPF',
     ]);
-    const isZeroDec = ZERO_DEC.has(cur);
-    const totalMajor = isZeroDec ? safeClientMinor : safeClientMinor / 100; // convert MINOR → MAJOR
+    const toMajor = (m: number) => (ZERO_DEC.has(cur) ? m : m / 100);
+    const totalMajor = toMajor(safeMinor);
+
+    this.logger.log(
+      `POST /orders/create-payment-intent uid=${req.user.uid} currency=${cur} minor=${safeMinor} cart=${body.cart?.length ?? 0}`,
+    );
 
     return this.ordersService.createPaymentIntent({
-      totalMajor, // MAJOR units expected by the service
-      currency: cur, // e.g. 'ILS'
+      totalMajor,
+      currency: cur,
       userId: req.user.uid,
-      // email: optional
-      // idempotencyKey: optional (recommended if you want)
+      // (optional) email if you have it on the user record
+      // email: req.userEmail ?? '',
+      idempotencyKey: `pi:${cur}:${safeMinor}:${body.cart?.length ?? 0}`,
+      // pass cart so the service can write a compact metadata field
+      cart: body.cart ?? [],
+      // if you want to keep these in metadata, they’re tiny
       metadata: {
-        uid: req.user.uid, // REQUIRED: your webhook expects metadata.uid
-        ownerName: ownerName ?? '',
-        passportId: passportId ?? '',
-        shipping: String(shipping ?? 0),
-        taxRate: String(taxRate ?? 0),
-        discount: String(discount ?? 0),
-        shippingAddress: JSON.stringify(shippingAddress ?? {}),
-        items: JSON.stringify(cart ?? []),
+        shippingMajor: body.shipping ?? 0,
+        taxRate: body.taxRate ?? 0,
+        discountMinor: body.discount ?? 0,
       },
     });
   }

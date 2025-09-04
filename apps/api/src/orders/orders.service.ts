@@ -16,7 +16,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 type PlainItem = {
   productId: string;
   name: string;
-  price: number; // MAJOR units (e.g., ₪)
+  price: number; // MAJOR
   image?: string | null;
   quantity: number;
 };
@@ -43,7 +43,7 @@ const ZERO_DEC = new Set([
 function toMinor(amountMajor: number, currency: string) {
   return ZERO_DEC.has(currency.toUpperCase())
     ? Math.round(amountMajor)
-    : Math.round(amountMajor * 100); // ILS → ×100
+    : Math.round(amountMajor * 100);
 }
 
 @Injectable()
@@ -169,56 +169,6 @@ export class OrdersService {
     }
   }
 
-  private readonly minByCurrencyMinor: Record<string, number> = {
-    usd: 50,
-    eur: 50,
-    gbp: 30,
-    ils: 200,
-    aud: 50,
-    cad: 50,
-    chf: 50,
-    sek: 50,
-    dkk: 50,
-    nok: 50,
-    jpy: 50,
-    huf: 175,
-    idr: 10000,
-    krw: 500,
-    vnd: 12000,
-  };
-
-  private normalizeAmountMinor(amountMinor: number, currency: string): number {
-    const cur = (currency || 'usd').toLowerCase();
-    const inputMinor = Math.max(0, Math.round(Number(amountMinor) || 0));
-    const minMinor = this.minByCurrencyMinor[cur] ?? 50;
-    if (inputMinor < minMinor) {
-      this.logger.warn(
-        `Amount too small for ${cur}: ${inputMinor}. Bumping to ${minMinor}.`,
-      );
-      return minMinor;
-    }
-    return inputMinor;
-  }
-
-  private computeCartTotalMinor(
-    cart: PlainItem[],
-    shippingMajor: number,
-    taxRate: number, // fraction (e.g., 0.17)
-    discountMinor: number, // minor units (e.g., 500 = ₪5.00)
-  ): number {
-    const itemsMinor = (cart || []).reduce((sum, i) => {
-      const priceMajor = Number(i.price) || 0;
-      const qty = Number(i.quantity) || 0;
-      return sum + Math.round(priceMajor * 100) * qty;
-    }, 0);
-
-    const shippingMinor = Math.round((Number(shippingMajor) || 0) * 100);
-    const taxMinor = Math.round(itemsMinor * (Number(taxRate) || 0));
-    const discount = Math.max(0, Math.round(Number(discountMinor) || 0));
-
-    return Math.max(0, itemsMinor + shippingMinor + taxMinor - discount);
-  }
-
   // ---------------- mutations ----------------
 
   async createOrder(dto: CreateOrderDto) {
@@ -274,45 +224,58 @@ export class OrdersService {
     }
   }
 
+  // ---------- helper: compact cart for Stripe metadata (<= 500 chars per value)
+  private buildItemsCompact(
+    cart?: Array<{
+      productId?: string;
+      id?: string;
+      quantity?: number;
+      price?: number;
+    }>,
+  ): { compact?: string; count: number } {
+    const items = Array.isArray(cart) ? cart : [];
+    const count = items.length;
+    if (!count) return { compact: undefined, count: 0 };
+
+    // pid~qty~priceMajor, comma-separated. Strip separators and trim pid to 48 chars.
+    const parts = items.map((it, idx) => {
+      const rawId = String(it.productId ?? it.id ?? `i${idx}`);
+      const pid = rawId.replace(/[~,|:]/g, '').slice(0, 48);
+      const qty = Math.max(1, Number(it.quantity ?? 1));
+      const price = Number.isFinite(it.price as number) ? Number(it.price) : 0;
+      return `${pid}~${qty}~${price}`;
+    });
+
+    let compact = parts.join(',');
+    if (compact.length > 480) compact = compact.slice(0, 480); // headroom under Stripe’s 500
+    return { compact, count };
+  }
+
   // ---------------- Stripe PI creation ----------------
 
   async createPaymentIntent(params: {
     totalMajor: number; // MAJOR units (e.g., 71.11)
     currency?: string; // 'ILS', 'USD', ...
-    userId?: string; // <-- will be written to metadata.uid
+    userId?: string; // will be written to metadata.uid
     email?: string;
     idempotencyKey?: string;
     metadata?: Record<string, string | number | boolean | null | undefined>;
+    cart?: Array<{
+      productId?: string;
+      id?: string;
+      quantity?: number;
+      price?: number;
+    }>; // NEW: for compact metadata
   }) {
-    const { userId, email, idempotencyKey, metadata } = params;
+    const { userId, email, idempotencyKey, metadata, cart } = params;
 
     const cur = (params.currency ?? 'ILS').toUpperCase();
     const totalMajor = Number.isFinite(params.totalMajor as number)
       ? Number(params.totalMajor)
       : 0;
 
-    const ZERO_DEC = new Set([
-      'BIF',
-      'CLP',
-      'DJF',
-      'GNF',
-      'JPY',
-      'KMF',
-      'KRW',
-      'MGA',
-      'PYG',
-      'RWF',
-      'UGX',
-      'VND',
-      'VUV',
-      'XAF',
-      'XOF',
-      'XPF',
-    ]);
-    const toMinor = (maj: number) =>
-      ZERO_DEC.has(cur) ? Math.round(maj) : Math.round(maj * 100);
-
-    let amountMinor = toMinor(totalMajor);
+    // MAJOR → MINOR using top-level helper
+    let amountMinor = toMinor(totalMajor, cur);
     if (cur === 'ILS' && amountMinor < 200) amountMinor = 200;
 
     const coerce = (obj?: Record<string, any>) =>
@@ -325,21 +288,28 @@ export class OrdersService {
           )
         : {};
 
+    // Compact cart to avoid 500-char metadata limit
+    const { compact: items_compact, count: item_count } =
+      this.buildItemsCompact(cart);
+
+    const md: Record<string, string> = {
+      uid: userId ?? '',
+      userId: userId ?? '',
+      totalMajor: totalMajor.toFixed(2),
+      currency: cur,
+      email: email ?? '',
+      ...coerce(metadata),
+      item_count: String(item_count),
+    };
+    if (items_compact) md.items_compact = items_compact;
+
     const stripePayload: Stripe.PaymentIntentCreateParams = {
       amount: amountMinor,
       currency: cur.toLowerCase(),
       automatic_payment_methods: { enabled: true },
       capture_method: 'automatic',
       payment_method_options: { card: { request_three_d_secure: 'automatic' } },
-      metadata: {
-        // 🔑 REQUIRED by webhook/order creation
-        uid: userId ?? '',
-        userId: userId ?? '',
-        totalMajor: totalMajor.toFixed(2),
-        currency: cur,
-        email: email ?? '',
-        ...coerce(metadata),
-      },
+      metadata: md,
     };
 
     const intent = await this.stripe.paymentIntents.create(
@@ -357,30 +327,53 @@ export class OrdersService {
 
   /** Create (idempotent) order from a Stripe PaymentIntent */
   private async createOrderFromIntent(intent: Stripe.PaymentIntent) {
-    const uid = intent.metadata?.uid;
+    const uid = intent.metadata?.uid || intent.metadata?.userId;
     if (!uid) throw new Error('Missing uid in Stripe metadata');
 
-    // --- items from PI metadata (priceMajor fallback) ---
+    // --- items from PI metadata (JSON first, then compact fallback) ---
     let items: PlainItem[] = [];
-    try {
-      const raw = intent.metadata?.items ?? '[]';
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        items = arr.map((i: any) => ({
-          productId: String(i.productId ?? ''),
-          name: String(i.name ?? ''),
-          price: Number(i.priceMajor ?? i.price ?? 0),
-          image: typeof i.image === 'string' ? i.image : null,
-          quantity: Number(i.quantity ?? 0),
-        }));
-      } else {
-        this.logger.warn('PaymentIntent.metadata.items is not an array');
+
+    // 1) Legacy JSON array (may include images/names)
+    if (!items.length && intent.metadata?.items) {
+      try {
+        const arr = JSON.parse(intent.metadata.items);
+        if (Array.isArray(arr)) {
+          items = arr.map((i: any, idx: number) => ({
+            productId: String(i.productId ?? i.id ?? `i${idx}`),
+            name: String(i.name ?? ''),
+            price: Number(i.priceMajor ?? i.price ?? 0),
+            image: typeof i.image === 'string' ? i.image : null,
+            quantity: Number(i.quantity ?? 0),
+          }));
+        }
+      } catch {
+        // ignore
       }
-    } catch (err) {
-      this.logger.warn(`Invalid items in PI metadata: ${String(err)}`);
     }
 
-    // --- shipping address from metadata OR PI.shipping ---
+    // 2) Compact string: pid~qty~price,pid~qty~price
+    if (!items.length && intent.metadata?.items_compact) {
+      try {
+        const pairs = String(intent.metadata.items_compact).split(',');
+        items = pairs
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((p, idx) => {
+            const [pid, q, pr] = p.split('~');
+            return {
+              productId: (pid || `i${idx}`).trim(),
+              name: '', // name not carried in compact
+              price: Number(pr ?? 0),
+              image: null,
+              quantity: Number(q ?? 0),
+            } as PlainItem;
+          });
+      } catch {
+        // ignore
+      }
+    }
+
+    // --- shipping address: metadata → PI.shipping → latest_charge.shipping ---
     let shippingAddress: {
       fullName: string;
       phone: string;
@@ -405,6 +398,17 @@ export class OrdersService {
         city: intent.shipping.address?.city ?? '',
         postalCode: intent.shipping.address?.postal_code ?? '',
         country: intent.shipping.address?.country ?? '',
+      };
+    }
+    const lc: any = (intent as any).latest_charge;
+    if (!shippingAddress && lc && typeof lc === 'object' && lc.shipping) {
+      shippingAddress = {
+        fullName: lc.shipping.name ?? '',
+        phone: lc.shipping.phone ?? '',
+        street: lc.shipping.address?.line1 ?? '',
+        city: lc.shipping.address?.city ?? '',
+        postalCode: lc.shipping.address?.postal_code ?? '',
+        country: lc.shipping.address?.country ?? '',
       };
     }
 
@@ -471,7 +475,10 @@ export class OrdersService {
   /** ✅ Called by the controller when webhooks can’t reach your server */
   async createOrderFromIntentById(intentId: string, expectedUid?: string) {
     try {
-      const pi = await this.stripe.paymentIntents.retrieve(intentId);
+      const pi = (await this.stripe.paymentIntents.retrieve(intentId, {
+        expand: ['latest_charge'],
+      })) as Stripe.PaymentIntent;
+
       if (pi.status !== 'succeeded') {
         throw new Error(
           `PaymentIntent ${intentId} is not succeeded (status=${pi.status})`,
@@ -482,7 +489,7 @@ export class OrdersService {
           `UID mismatch for PI ${intentId}: expected=${expectedUid} meta=${pi.metadata.uid}`,
         );
       }
-      return this.createOrderFromIntent(pi as Stripe.PaymentIntent);
+      return this.createOrderFromIntent(pi);
     } catch (e) {
       this.logger.error(
         `createOrderFromIntentById failed for ${intentId}`,
@@ -513,36 +520,35 @@ export class OrdersService {
         case 'payment_intent.processing':
           this.logger.log('PI processing');
           break;
-        case 'payment_intent.succeeded':
-          await this.createOrderFromIntent(
-            event.data.object as Stripe.PaymentIntent,
-          );
+        case 'payment_intent.succeeded': {
+          const piId = (event.data.object as any).id as string;
+          const fullPi = (await this.stripe.paymentIntents.retrieve(piId, {
+            expand: ['latest_charge'],
+          })) as Stripe.PaymentIntent;
+          await this.createOrderFromIntent(fullPi);
           break;
+        }
         case 'payment_intent.payment_failed':
           this.logger.warn('PI failed');
           break;
         default:
-          // ignore others for V1
           break;
       }
 
       return { received: true };
     } catch (err) {
       this.logger.error('Stripe webhook error', err as Error);
-      // Let controller decide HTTP code; we bubble the error up.
       throw new InternalServerErrorException('Webhook handling failed');
     }
   }
 
   // ---------------- public polling endpoint ----------------
-  /** Used by GET /api/orders/public/:piId for client-side polling after checkout */
-  // apps/api/src/orders/orders.service.ts
   async getPublicStatusByPaymentIntent(piId: string) {
     if (!piId || !piId.startsWith('pi_')) {
       throw new BadRequestException('Invalid payment intent id');
     }
 
-    // 1) Direct doc (idempotent PI id)
+    // 1) Direct doc
     try {
       const direct = await adminDb.collection('orders').doc(piId).get();
       if (direct.exists) {
@@ -568,11 +574,12 @@ export class OrdersService {
       this.logger.warn(`Order query by tx failed for ${piId}: ${String(e)}`);
     }
 
-    // 3) Ask Stripe
+    // 3) Ask Stripe (expanded)
     let pi: Stripe.PaymentIntent;
     try {
-      const resp = await this.stripe.paymentIntents.retrieve(piId);
-      pi = resp as unknown as Stripe.PaymentIntent;
+      pi = (await this.stripe.paymentIntents.retrieve(piId, {
+        expand: ['latest_charge'],
+      })) as Stripe.PaymentIntent;
     } catch (e: any) {
       this.logger.warn(`PI retrieve failed for ${piId}: ${String(e)}`);
       throw new NotFoundException('PaymentIntent not found');
@@ -580,7 +587,6 @@ export class OrdersService {
 
     this.logger.log(`PI ${piId} status=${pi.status}`);
 
-    // 🚀 Fallback: if succeeded, create the order now (webhook-free)
     if (pi.status === 'succeeded') {
       try {
         const created = await this.createOrderFromIntent(pi);
@@ -589,7 +595,6 @@ export class OrdersService {
         this.logger.warn(
           `Create order from PI in public poll failed (${piId}): ${String(e)}`,
         );
-        // fall through; client can keep polling
       }
     }
 
@@ -624,7 +629,6 @@ export class OrdersService {
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   }
 
-  /** 👈 used elsewhere */
   async getOrderDoc(id: string) {
     if (!id) return null;
     try {
