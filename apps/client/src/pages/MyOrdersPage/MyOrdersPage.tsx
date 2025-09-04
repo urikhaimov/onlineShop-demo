@@ -139,7 +139,7 @@ export default function MyOrdersPage() {
       const matchesDateFrom = !dateFrom || createdStr >= dateFrom;
       const matchesDateTo = !dateTo || createdStr <= dateTo;
 
-      const total = typeof order.amount === 'number' ? order.amount : 0;
+      const total = order.totalAmount;
       const minT = Number.isFinite(minTotal) ? minTotal : ORDER_TOTAL_MIN;
       const maxT = Number.isFinite(maxTotal) ? maxTotal : ORDER_TOTAL_MAX;
       const matchesTotal = total >= minT && total <= maxT;
