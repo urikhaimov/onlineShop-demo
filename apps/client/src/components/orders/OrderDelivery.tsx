@@ -1,64 +1,59 @@
+// src/pages/admin/orders/components/OrderDelivery.tsx
 import * as React from 'react';
 import { Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { TOrder } from '@common/types';
 import OrderSection from './OrderSection';
-import { recProp } from '../../utils/orderSafe';
-import { DASH } from '../../utils/columns.util';
+import { recProp, strProp, asDateLoose, DASH } from '../../utils/orderSafe';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 
 type Props = { order: TOrder };
-type AnyRec = Record<string, unknown>;
+
+const UNIX_SEC_MIN = 946684800; // 2000-01-01
+const UNIX_SEC_MAX = 4102444800; // 2100-01-01
+const UNIX_MS_MIN = UNIX_SEC_MIN * 1000;
+const UNIX_MS_MAX = UNIX_SEC_MAX * 1000;
 
 const OrderDelivery: React.FC<Props> = ({ order }) => {
   const { t } = useTranslation();
   const { formatDateTime } = useLocaleFormatters();
 
-  // delivery is optional; keep types strict
-  const delivery = React.useMemo<AnyRec | undefined>(
-    () =>
-      recProp(order as unknown as AnyRec, ['delivery']) as AnyRec | undefined,
-    [order],
+  const delivery = recProp<Record<string, unknown> | undefined>(
+    order as unknown as Record<string, unknown>,
+    ['delivery'],
   );
 
-  // helpers
-  const isNumericString = (v: unknown): v is string =>
-    typeof v === 'string' && /^\d+$/.test(v);
-
-  const getStr = (obj: AnyRec | undefined, key: string): string | undefined => {
-    const v = obj?.[key];
-    return typeof v === 'string' && v.trim() ? v : undefined;
-  };
-
-  const etaRaw: unknown = delivery?.['eta'];
+  const etaRaw = delivery?.['eta'];
 
   const etaLabel = React.useMemo(() => {
-    // Date instance
-    if (etaRaw instanceof Date && !isNaN(etaRaw.getTime())) {
-      return formatDateTime(etaRaw);
-    }
-    // Number (seconds or millis)
-    if (typeof etaRaw === 'number') {
-      const d = new Date(etaRaw > 1e12 ? etaRaw : etaRaw * 1000);
-      if (!isNaN(d.getTime())) return formatDateTime(d);
-    }
-    // String: try ISO, then numeric string (sec/ms), else show as-is
-    if (typeof etaRaw === 'string') {
-      const iso = new Date(etaRaw);
-      if (!isNaN(iso.getTime())) return formatDateTime(iso);
+    // 1) Try your robust Firestore/ISO parser
+    const d0 = asDateLoose(etaRaw);
+    if (d0) return formatDateTime(d0);
 
-      if (isNumericString(etaRaw)) {
-        const n = Number(etaRaw);
-        const d = new Date(etaRaw.length >= 13 ? n : n * 1000);
-        if (!isNaN(d.getTime())) return formatDateTime(d);
-      }
-      return etaRaw.trim() || DASH;
+    // 2) Numeric string / number → only treat as timestamp if *plausible*
+    if (typeof etaRaw === 'string' && /^\d+$/.test(etaRaw)) {
+      const n = Number(etaRaw);
+      if (n >= UNIX_MS_MIN && n <= UNIX_MS_MAX)
+        return formatDateTime(new Date(n)); // ms
+      if (n >= UNIX_SEC_MIN && n <= UNIX_SEC_MAX)
+        return formatDateTime(new Date(n * 1000)); // sec
+      return etaRaw; // not a plausible timestamp → show as plain text
     }
+    if (typeof etaRaw === 'number') {
+      const n = etaRaw;
+      if (n >= UNIX_MS_MIN && n <= UNIX_MS_MAX)
+        return formatDateTime(new Date(n)); // ms
+      if (n >= UNIX_SEC_MIN && n <= UNIX_SEC_MAX)
+        return formatDateTime(new Date(n * 1000)); // sec
+      return String(n);
+    }
+
+    // 3) Fallback
     return DASH;
   }, [etaRaw, formatDateTime]);
 
-  const provider = getStr(delivery, 'provider');
-  const trackingNumber = getStr(delivery, 'trackingNumber');
+  const provider = strProp(delivery, ['provider']);
+  const trackingNumber = strProp(delivery, ['trackingNumber']);
 
   return (
     <OrderSection
