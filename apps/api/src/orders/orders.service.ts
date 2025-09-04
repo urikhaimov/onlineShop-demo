@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
 import Stripe from 'stripe';
 
 import { adminDb } from '@common/firebase';
@@ -44,7 +45,6 @@ export class OrdersService {
   private nowTs() {
     return nowTs();
   }
-
   private numericUid(uid: string) {
     return numericUid(uid);
   }
@@ -53,7 +53,6 @@ export class OrdersService {
     items: Array<{ productId: string; quantity: number }>,
   ) {
     if (!items?.length) return;
-
     const batch = adminDb.batch();
     let ops = 0;
     const inc = admin.firestore.FieldValue.increment;
@@ -77,7 +76,6 @@ export class OrdersService {
         );
       }
     }
-
     if (ops > 0) {
       try {
         await batch.commit();
@@ -88,6 +86,25 @@ export class OrdersService {
         );
       }
     }
+  }
+
+  // Stable stringify for idempotency signature
+  private stableStringify(x: any): string {
+    if (x === null || typeof x !== 'object') return JSON.stringify(x);
+    if (Array.isArray(x))
+      return `[${x.map((v) => this.stableStringify(v)).join(',')}]`;
+    return `{${Object.keys(x)
+      .sort()
+      .map((k) => JSON.stringify(k) + ':' + this.stableStringify(x[k]))
+      .join(',')}}`;
+  }
+  private makeIdemKey(userId: string | undefined, args: any) {
+    const sig = crypto
+      .createHash('sha256')
+      .update(this.stableStringify(args))
+      .digest('hex')
+      .slice(0, 24);
+    return `pi:${userId ?? 'anon'}:${sig}`;
   }
 
   // ---------------- mutations ----------------
@@ -132,7 +149,6 @@ export class OrdersService {
 
       const ref = adminDb.collection('orders').doc();
       await ref.set({ id: ref.id, ...orderDoc });
-
       await this.decrementStock(
         plainItems.map(({ productId, quantity }) => ({ productId, quantity })),
       );
@@ -152,12 +168,11 @@ export class OrdersService {
     currency?: string; // 'ILS', 'USD', ...
     userId?: string; // -> metadata.uid
     email?: string;
-    idempotencyKey?: string;
+    idempotencyKey?: string; // optional hint from controller
     metadata?: Record<string, string | number | boolean | null | undefined>;
     cart?: CompactCartItem[]; // compacted into metadata safely
   }) {
-    const { userId, email, idempotencyKey, metadata, cart } = params;
-
+    const { userId, email, metadata, cart } = params;
     const cur = (params.currency ?? 'ILS').toUpperCase();
     const totalMajor = Number.isFinite(params.totalMajor as number)
       ? Number(params.totalMajor)
@@ -179,6 +194,7 @@ export class OrdersService {
     const { compact: items_compact, count: item_count } =
       buildItemsCompact(cart);
 
+    // merge customer + extras into metadata
     const md: Record<string, string> = {
       uid: userId ?? '',
       userId: userId ?? '',
@@ -190,19 +206,27 @@ export class OrdersService {
     };
     if (items_compact) md.items_compact = items_compact;
 
-    const intent = await this.stripe.paymentIntents.create(
-      {
-        amount: amountMinor,
-        currency: cur.toLowerCase(),
-        automatic_payment_methods: { enabled: true },
-        capture_method: 'automatic',
-        payment_method_options: {
-          card: { request_three_d_secure: 'automatic' },
-        },
-        metadata: md,
-      },
-      idempotencyKey ? { idempotencyKey } : undefined,
-    );
+    const createArgs: Stripe.PaymentIntentCreateParams = {
+      amount: amountMinor,
+      currency: cur.toLowerCase(),
+      automatic_payment_methods: { enabled: true },
+      capture_method: 'automatic',
+      payment_method_options: { card: { request_three_d_secure: 'automatic' } },
+      metadata: md,
+    };
+
+    // ✅ Compute a **safe** idempotency key from the actual Stripe args.
+    const idempotencyKey =
+      params.idempotencyKey && params.idempotencyKey.length > 0
+        ? this.makeIdemKey(userId, {
+            ...createArgs,
+            hint: params.idempotencyKey,
+          })
+        : this.makeIdemKey(userId, createArgs);
+
+    const intent = await this.stripe.paymentIntents.create(createArgs, {
+      idempotencyKey,
+    });
 
     if (!intent.client_secret) {
       throw new InternalServerErrorException(
@@ -222,7 +246,6 @@ export class OrdersService {
     if (!items.length)
       items = parseItemsCompact(intent.metadata?.items_compact);
 
-    // Shipping & email
     const shippingAddress = extractShippingFromPI(intent);
     const email = extractEmailFromPI(intent);
 
@@ -277,7 +300,6 @@ export class OrdersService {
     }
 
     await ref.set({ id: ref.id, ...orderDoc }, { merge: false });
-
     if (items.length) {
       await this.decrementStock(
         items.map(({ productId, quantity }) => ({ productId, quantity })),
@@ -352,7 +374,6 @@ export class OrdersService {
         default:
           break;
       }
-
       return { received: true };
     } catch (err) {
       this.logger.error('Stripe webhook error', err as Error);
@@ -381,7 +402,6 @@ export class OrdersService {
         .where('payment.transactionId', '==', piId)
         .limit(1)
         .get();
-
       if (!snap.empty) {
         const doc = snap.docs[0];
         return { state: 'succeeded', orderId: doc.id };
@@ -390,7 +410,7 @@ export class OrdersService {
       this.logger.warn(`Order query by tx failed for ${piId}: ${String(e)}`);
     }
 
-    // 3) Ask Stripe (expanded)
+    // 3) Ask Stripe
     let pi: Stripe.PaymentIntent;
     try {
       pi = (await this.stripe.paymentIntents.retrieve(piId, {
@@ -417,7 +437,72 @@ export class OrdersService {
     return { state: String(pi.status), orderId: undefined };
   }
 
-  // ---------------- queries ----------------
+  // ---------------- update / queries ----------------
+  async updateOrder(
+    id: string,
+    dto: Partial<{
+      status: string;
+      notes: string | null;
+      delivery: { provider?: string; trackingNumber?: string; eta?: string };
+    }>,
+    updatedByUid: string,
+  ) {
+    const ref = adminDb.collection('orders').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) throw new NotFoundException('Order not found');
+
+    const existing = snap.data() as any;
+    const now = this.nowTs();
+
+    const updates: any = {
+      updatedAt: now,
+      ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+      ...(dto.delivery
+        ? {
+            delivery: {
+              provider:
+                dto.delivery.provider ?? existing?.delivery?.provider ?? '',
+              trackingNumber:
+                dto.delivery.trackingNumber ??
+                existing?.delivery?.trackingNumber ??
+                '',
+              eta: dto.delivery.eta ?? existing?.delivery?.eta ?? '',
+            },
+          }
+        : {}),
+      metadata: {
+        ...(existing?.metadata || {}),
+        updatedAt: now,
+        updatedBy: {
+          uid: this.numericUid(updatedByUid),
+          name: existing?.email ?? '',
+        },
+      },
+    };
+
+    // Status change → push to history
+    if (dto.status && dto.status !== existing?.status) {
+      updates.status = dto.status;
+      const entry = {
+        status: dto.status,
+        timestamp: new Date().toISOString(),
+        changedBy: 'admin',
+      };
+      await ref.set(
+        {
+          ...updates,
+          statusHistory: admin.firestore.FieldValue.arrayUnion(entry) as any,
+        },
+        { merge: true },
+      );
+    } else {
+      await ref.set(updates, { merge: true });
+    }
+
+    const after = await ref.get();
+    return { id: after.id, ...(after.data() as any) };
+  }
+
   async getOrdersByUserId(uid: string) {
     const snapshot = await adminDb
       .collection('orders')

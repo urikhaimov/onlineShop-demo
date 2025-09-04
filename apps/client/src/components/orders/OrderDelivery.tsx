@@ -3,27 +3,62 @@ import { Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { TOrder } from '@common/types';
 import OrderSection from './OrderSection';
-import { recProp, strProp } from '../../utils/orderSafe';
-import { asDate, DASH } from '../../utils/columns.util';
+import { recProp } from '../../utils/orderSafe';
+import { DASH } from '../../utils/columns.util';
 import { useLocaleFormatters } from '../../hooks/useLocale';
 
 type Props = { order: TOrder };
+type AnyRec = Record<string, unknown>;
 
 const OrderDelivery: React.FC<Props> = ({ order }) => {
   const { t } = useTranslation();
   const { formatDateTime } = useLocaleFormatters();
 
-  const delivery = recProp(
-    order as unknown as Record<string, unknown>,
-    'delivery',
+  // delivery is optional; keep types strict
+  const delivery = React.useMemo<AnyRec | undefined>(
+    () =>
+      recProp(order as unknown as AnyRec, ['delivery']) as AnyRec | undefined,
+    [order],
   );
-  const etaRaw = delivery?.['eta'] as string | number | Date | undefined;
-  const etaDate = asDate(etaRaw);
-  const etaLabel = etaDate
-    ? formatDateTime(etaDate)
-    : typeof etaRaw === 'string' || typeof etaRaw === 'number'
-      ? String(etaRaw)
-      : DASH;
+
+  // helpers
+  const isNumericString = (v: unknown): v is string =>
+    typeof v === 'string' && /^\d+$/.test(v);
+
+  const getStr = (obj: AnyRec | undefined, key: string): string | undefined => {
+    const v = obj?.[key];
+    return typeof v === 'string' && v.trim() ? v : undefined;
+  };
+
+  const etaRaw: unknown = delivery?.['eta'];
+
+  const etaLabel = React.useMemo(() => {
+    // Date instance
+    if (etaRaw instanceof Date && !isNaN(etaRaw.getTime())) {
+      return formatDateTime(etaRaw);
+    }
+    // Number (seconds or millis)
+    if (typeof etaRaw === 'number') {
+      const d = new Date(etaRaw > 1e12 ? etaRaw : etaRaw * 1000);
+      if (!isNaN(d.getTime())) return formatDateTime(d);
+    }
+    // String: try ISO, then numeric string (sec/ms), else show as-is
+    if (typeof etaRaw === 'string') {
+      const iso = new Date(etaRaw);
+      if (!isNaN(iso.getTime())) return formatDateTime(iso);
+
+      if (isNumericString(etaRaw)) {
+        const n = Number(etaRaw);
+        const d = new Date(etaRaw.length >= 13 ? n : n * 1000);
+        if (!isNaN(d.getTime())) return formatDateTime(d);
+      }
+      return etaRaw.trim() || DASH;
+    }
+    return DASH;
+  }, [etaRaw, formatDateTime]);
+
+  const provider = getStr(delivery, 'provider');
+  const trackingNumber = getStr(delivery, 'trackingNumber');
 
   return (
     <OrderSection
@@ -31,11 +66,11 @@ const OrderDelivery: React.FC<Props> = ({ order }) => {
     >
       <Typography variant="body2">
         {t('orderDetails.provider', { defaultValue: 'Provider' })}:{' '}
-        {strProp(delivery, 'provider') ?? DASH}
+        {provider || DASH}
       </Typography>
       <Typography variant="body2">
         {t('orderDetails.tracking', { defaultValue: 'Tracking' })}:{' '}
-        {strProp(delivery, 'trackingNumber') ?? DASH}
+        {trackingNumber || DASH}
       </Typography>
       <Typography variant="body2">
         {t('orderDetails.eta', { defaultValue: 'ETA' })}: {etaLabel}
