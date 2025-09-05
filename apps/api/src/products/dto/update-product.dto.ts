@@ -1,15 +1,15 @@
-import { PartialType, OmitType } from '@nestjs/mapped-types';
-import { IsOptional, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+// apps/api/src/products/dto/update-product.dto.ts
+import { PartialType } from '@nestjs/mapped-types';
 import { CreateProductDto } from './create-product.dto';
-import { MetadataPatchDto } from './metadata.dto';
+import { IsArray, IsOptional, IsString, ArrayNotEmpty } from 'class-validator';
 
-// Omit metadata from the base, then re-declare as patch type
-export class UpdateProductDto extends PartialType(
-  OmitType(CreateProductDto, ['metadata'] as const),
-) {
-  @ValidateNested()
-  @Type(() => MetadataPatchDto)
+export class UpdateProductDto extends PartialType(CreateProductDto) {
   @IsOptional()
-  metadata?: MetadataPatchDto; // ✅ allow updatedBy/updatedAt on update
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[]; // <-- allow array of URLs
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string | null; // <-- allow primary image
 }

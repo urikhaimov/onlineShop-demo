@@ -1,3 +1,4 @@
+// src/main.ts
 import * as dotenv from 'dotenv';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
@@ -11,7 +12,7 @@ import * as bodyParser from 'body-parser';
 dotenv.config();
 
 async function bootstrap() {
-  // Keep a copy of the original raw body for all requests
+  // Keep a copy of the original raw body (needed for Stripe webhooks)
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
@@ -31,35 +32,34 @@ async function bootstrap() {
 
   app.setGlobalPrefix(apiPrefix);
 
-  // --- Stripe webhook raw body (must run BEFORE any JSON/urlencoded parser on those paths) ---
-  const stripeRaw = bodyParser.raw({
-    type: 'application/json',
-    limit: '2mb', // avoid huge payloads
-  });
-
-  // If only req.body is set as Buffer (route-level raw), mirror it to req.rawBody for Stripe SDK
+  // --- Stripe webhook raw body (must be BEFORE any JSON/urlencoded parser for those paths) ---
+  const stripeRaw = bodyParser.raw({ type: 'application/json', limit: '2mb' });
   const ensureRawBody = (req: any, _res: any, next: any) => {
     if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
     next();
   };
-
   const webhookPaths = [
     `/${apiPrefix}/orders/webhook`,
     `/${apiPrefix}/payments/webhooks/stripe`,
   ];
   webhookPaths.forEach((p) => app.use(p, stripeRaw, ensureRawBody));
-  // ------------------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------------------------
 
+  // Standard parsers for the rest of the app (increase limits if you need)
+  app.use(bodyParser.json({ limit: '1mb' }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '1mb' }));
+
+  // Class-validator (via i18n pipe) — strict by default
   app.useGlobalPipes(
     new I18nValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
-      transform: true,
-      // transformOptions: { enableImplicitConversion: true }, // enable if you want implicit DTO number coercion
+      transform: true, // honors @Type(() => Number) etc. in your DTOs
+      // transformOptions: { enableImplicitConversion: true },
     }),
   );
 
-  // Helmet CSP (prod hardened, dev relaxed)
+  // Helmet + CSP (adjusted for Firebase Storage & Stripe)
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -71,13 +71,17 @@ async function bootstrap() {
             'data:',
             'blob:',
             'https://firebasestorage.googleapis.com',
+            'https://storage.googleapis.com',
             'https://*.googleusercontent.com',
           ],
           connectSrc: [
             "'self'",
             'http://localhost:5173',
             'ws://localhost:5173',
+            'http://127.0.0.1:5173',
+            'ws://127.0.0.1:5173',
             'https://firebasestorage.googleapis.com',
+            'https://storage.googleapis.com',
             'https://*.googleapis.com',
             'https://*.googleusercontent.com',
           ],
@@ -90,8 +94,9 @@ async function bootstrap() {
     }),
   );
 
+  // CORS for your client
   app.enableCors({
-    origin: frontendOrigin, // in prod, set to your exact domain or an array of allowed origins
+    origin: frontendOrigin, // set to your exact domain(s) in prod
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -99,11 +104,11 @@ async function bootstrap() {
       'Authorization',
       'Accept-Language',
       'x-lang',
-      'stripe-signature', // use lowercase; header names are case-insensitive but some libs match lower
+      'stripe-signature', // keep lowercase
     ],
   });
 
-  // If behind a proxy/load balancer (Heroku, Render, Nginx, etc.)
+  // If behind a proxy (Heroku/Render/Nginx/etc.)
   (app as any).set?.('trust proxy', 1);
 
   if (!isProd()) {

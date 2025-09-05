@@ -26,8 +26,7 @@ type ProductDoc = {
   categoryId: string;
   images: string[];
   imageUrl?: string | null;
-  /** persisted sort position */
-  order: number;
+  order: number; // persisted sort position
   metadata: {
     createdBy: UserRef;
     updatedBy: UserRef;
@@ -84,33 +83,66 @@ export class ProductsService {
     const ref = adminDb.collection('products').doc();
     const actor = this.actor(uid, actorName);
 
-    const nextOrder = await this.getNextOrder();
+    // --- sanitize / normalize images (same as before) ---
+    const rawImages = dto.images ?? [];
+    const images = Array.from(
+      new Set(
+        rawImages
+          .map((s) => (typeof s === 'string' ? s.trim() : ''))
+          .filter((s) => s.length > 0)
+          .filter((s) => s.startsWith('https://') || s.startsWith('http://')),
+      ),
+    );
 
-    const doc: ProductDoc = {
+    const provided = dto.imageUrl;
+    const imageUrl =
+      provided === ''
+        ? null
+        : provided !== undefined
+          ? provided
+          : (images[0] ?? null);
+
+    const baseDoc = {
       name: dto.name,
       description: dto.description,
       price: dto.price,
       stock: dto.stock,
       categoryId: dto.categoryId,
-      images: dto.images ?? [],
-      imageUrl: dto.imageUrl ?? null,
-      order: nextOrder,
+      images,
+      imageUrl,
+      // order will be set inside the transaction
       metadata: {
         createdBy: actor,
         updatedBy: actor,
         createdAt: this.st(),
         updatedAt: this.st(),
       },
-    };
+    } as const;
 
-    await ref.set({ id: ref.id, ...doc });
+    // ---- ATOMIC PART: read current max order & write new product ----
+    await adminDb.runTransaction(async (tx) => {
+      const q = adminDb
+        .collection('products')
+        .orderBy('order', 'desc')
+        .limit(1);
+      const last = await tx.get(q);
+      const currentMax =
+        typeof last.docs[0]?.data()?.order === 'number'
+          ? (last.docs[0].data() as any).order
+          : -1;
+      const nextOrder = currentMax + 1;
 
+      tx.set(ref, { id: ref.id, ...baseDoc, order: nextOrder });
+    });
+
+    // Optional: re-read to return fresh data
     const snap = await ref.get();
     this.logger.log(`Created product ${ref.id}`);
     return { id: ref.id, ...snap.data() };
   }
 
   // ---------------- update ----------------
+  // src/products/products.service.ts  (inside ProductsService)
   async update(
     uid: string,
     actorName: string | undefined,
@@ -131,48 +163,61 @@ export class ProductsService {
       updatedAt: this.st(),
     };
 
+    // Start with scalar fields that may be present
     const patch = this.pickDefined<ProductDoc>({
       name: dto.name,
       description: dto.description,
       price: dto.price,
       stock: dto.stock,
       categoryId: dto.categoryId,
-      images: dto.images,
-      imageUrl: dto.imageUrl ?? null,
+      // images & imageUrl handled below
       metadata,
-      // NOTE: we do not accept "order" via update() — use reorder()
     });
+
+    // If the client provided `images`, update them (including empty array to clear)
+    if (Array.isArray((dto as any).images)) {
+      patch.images = dto.images!;
+
+      // If imageUrl is also provided, honor it (null means clear).
+      // Otherwise, derive primary from the first image in the new list.
+      if ('imageUrl' in (dto as any)) {
+        patch.imageUrl = dto.imageUrl ?? null;
+      } else {
+        patch.imageUrl = dto.images![0] ?? null;
+      }
+    } else if ('imageUrl' in (dto as any)) {
+      // Client wants to change/clear primary image without touching the list
+      patch.imageUrl = dto.imageUrl ?? null;
+    }
 
     await ref.update(patch as admin.firestore.UpdateData<ProductDoc>);
 
-    this.logger.log(`Updated product ${id}`);
+    this.logger.log(
+      `Updated product ${id} (images: ${
+        Array.isArray((dto as any).images) ? dto.images!.length : 'UNCHANGED'
+      }, imageUrl: ${'imageUrl' in (dto as any) ? JSON.stringify(dto.imageUrl ?? null) : 'UNCHANGED'})`,
+    );
+
     const after = (await ref.get()).data();
     return { id, ...after };
   }
 
   // ---------------- queries ----------------
-
-  // src/products/products.service.ts — replace ONLY getAll()
   async getAll() {
     try {
-      // Primary: sort by persisted 'order'
       const ss = await adminDb
         .collection('products')
         .orderBy('order', 'asc')
         .get();
-
       return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
     } catch (e: any) {
-      // If order field/index isn't available yet, fall back to name
       this.logger.warn(
         `getAll() falling back to name ordering: ${e?.code || e?.message}`,
       );
-
       const ss = await adminDb
         .collection('products')
         .orderBy('name', 'asc')
         .get();
-
       return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
     }
   }
@@ -197,7 +242,6 @@ export class ProductsService {
     if (!Array.isArray(orderList) || orderList.length === 0) {
       throw new BadRequestException('orderList must be a non-empty array');
     }
-
     const ids = new Set(orderList.map((i) => i.id));
     if (ids.size !== orderList.length) {
       throw new BadRequestException('orderList contains duplicate ids');

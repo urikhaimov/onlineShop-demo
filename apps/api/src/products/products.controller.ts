@@ -9,6 +9,7 @@ import {
   Delete,
   Req,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
@@ -17,12 +18,14 @@ import { SaveProductDto } from './dto/save-product.dto';
 import { ReorderProductsDto } from './dto/reorder-products.dto';
 
 type AuthedReq = Request & {
-  user: { uid: string; email?: string; name?: string };
+  user?: { uid: string; email?: string; name?: string };
 };
 
 @Controller('products')
 @UseGuards(FirebaseAuthGuard)
 export class ProductsController {
+  private readonly logger = new Logger(ProductsController.name);
+
   constructor(private readonly svc: ProductsService) {}
 
   @Get()
@@ -37,15 +40,26 @@ export class ProductsController {
 
   @Post()
   create(@Req() req: AuthedReq, @Body() dto: SaveProductDto) {
+    // Dev-only diagnostics to verify images flow through the ValidationPipe/DTO
+    if (process.env.NODE_ENV !== 'production') {
+      const raw = (req as any)?.body;
+      this.logger.debug(
+        `[create] raw.body.images length: ${Array.isArray(raw?.images) ? raw.images.length : 'n/a'}`,
+      );
+      this.logger.debug(
+        `[create] dto.images length: ${Array.isArray(dto.images) ? dto.images.length : 'n/a'}`,
+      );
+    }
+
     const actorName = req.user?.name || req.user?.email;
-    return this.svc.create(req.user.uid, actorName, dto);
+    return this.svc.create(req.user!.uid, actorName, dto);
   }
 
-  // ✅ Put the specific route BEFORE the param route
+  // Keep specific route BEFORE the param route
   @Put('reorder')
   reorder(@Req() req: AuthedReq, @Body() dto: ReorderProductsDto) {
     const actorName = req.user?.name || req.user?.email;
-    return this.svc.reorder(req.user.uid, actorName, dto.orderList);
+    return this.svc.reorder(req.user!.uid, actorName, dto.orderList);
   }
 
   @Put(':id')
@@ -54,8 +68,19 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() dto: SaveProductDto,
   ) {
+    // Dev-only diagnostics to verify images flow through the ValidationPipe/DTO
+    if (process.env.NODE_ENV !== 'production') {
+      const raw = (req as any)?.body;
+      this.logger.debug(
+        `[update] raw.body.images length: ${Array.isArray(raw?.images) ? raw.images.length : 'n/a'}`,
+      );
+      this.logger.debug(
+        `[update] dto.images length: ${Array.isArray(dto.images) ? dto.images.length : 'n/a'}`,
+      );
+    }
+
     const actorName = req.user?.name || req.user?.email;
-    return this.svc.update(req.user.uid, actorName, id, dto);
+    return this.svc.update(req.user!.uid, actorName, id, dto);
   }
 
   @Delete(':id')

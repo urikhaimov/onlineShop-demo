@@ -1,23 +1,55 @@
 // src/products/dto/save-product.dto.ts
-import { IsArray, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class SaveProductDto {
-  @IsString() name!: string;
-  @IsString() description!: string;
-  @IsString() categoryId!: string;
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
 
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   price!: number;
 
+  @ApiProperty()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   stock!: number;
 
-  @IsArray()
-  images!: string[];
-
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  imageUrl?: string; // optional primary image if you use it in cards
+  @IsNotEmpty()
+  categoryId!: string;
+
+  // ✅ IMPORTANT: decorate so whitelist won't strip it
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Ordered list of HTTPS image URLs',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  images?: string[];
+
+  // Accept omitted or a string; do NOT enforce IsString because client may omit it
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional()
+  imageUrl?: string | null;
 }
