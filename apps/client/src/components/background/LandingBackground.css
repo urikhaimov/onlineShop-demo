@@ -1,0 +1,249 @@
+/* === Base layer behind everything === */
+.landing-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0; /* keep behind app */
+  pointer-events: none;
+  /* pleasant base in case variants are slow */
+  background: transparent !important;
+  filter: saturate(1.02) contrast(1.01);
+}
+
+/* Pseudo elements --------------------------------------------------------- */
+.landing-bg::before,
+.landing-bg::after {
+  content: ''; /* ✅ REQUIRED so ::before renders */
+  position: absolute;
+  inset: 0;
+  will-change: transform, background-position, filter, opacity;
+}
+
+/* Global intensity & veil */
+.landing-bg::before {
+  opacity: var(--bg-opacity, 0.65);
+}
+
+.landing-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    0deg,
+    rgba(255, 255, 255, var(--veil, 0.08)),
+    rgba(255, 255, 255, var(--veil, 0.08))
+  );
+}
+html[data-color-scheme='dark'] .landing-bg::after {
+  background: linear-gradient(
+    0deg,
+    rgba(0, 0, 0, var(--veil, 0.06)),
+    rgba(0, 0, 0, var(--veil, 0.06))
+  );
+}
+/* Edge mask (keeps center clean) */
+.landing-bg {
+  -webkit-mask-image:
+    radial-gradient(120% 100% at -10% 0, #000 30%, transparent 70%),
+    radial-gradient(120% 100% at 110% 100%, #000 30%, transparent 70%);
+  mask-image:
+    radial-gradient(120% 100% at -10% 0, #000 30%, transparent 70%),
+    radial-gradient(120% 100% at 110% 100%, #000 30%, transparent 70%);
+}
+.landing-bg[style*='--bg-mask: full'] {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .landing-bg:not([style*='--bg-motion: on'])::before {
+    animation: none !important;
+  }
+}
+
+/* === Variants (the fun part) ============================================ */
+
+/* Aurora */
+.bg--aurora::before {
+  filter: blur(38px) saturate(1.15);
+  background:
+    conic-gradient(
+      from 0deg at 30% 50%,
+      color-mix(in oklab, var(--c1, #0ea5e9), #fff 10%),
+      transparent 45% 100%
+    ),
+    conic-gradient(
+      from 180deg at 70% 40%,
+      color-mix(in oklab, var(--c3, #f472b6), #fff 8%),
+      transparent 55% 100%
+    ),
+    radial-gradient(
+      60% 50% at 60% 50%,
+      color-mix(in oklab, var(--c2, #a78bfa), transparent 55%) 0 50%,
+      transparent 51%
+    );
+  animation:
+    aurora-spin 28s linear infinite,
+    aurora-drift 18s ease-in-out infinite alternate;
+}
+@keyframes aurora-spin {
+  from {
+    transform: rotate(0deg) scale(1.03);
+  }
+  to {
+    transform: rotate(360deg) scale(1.03);
+  }
+}
+@keyframes aurora-drift {
+  0% {
+    translate: -2% -2%;
+  }
+  100% {
+    translate: 2% 3%;
+  }
+}
+
+/* Mesh */
+.bg--mesh::before {
+  background:
+    radial-gradient(
+      780px 540px at 20% 20%,
+      color-mix(in oklab, var(--c1, #0ea5e9), transparent 58%) 0 44%,
+      transparent 45%
+    ),
+    radial-gradient(
+      700px 520px at 80% 25%,
+      color-mix(in oklab, var(--c3, #f472b6), transparent 58%) 0 46%,
+      transparent 47%
+    ),
+    radial-gradient(
+      700px 520px at 35% 80%,
+      color-mix(in oklab, var(--c2, #a78bfa), transparent 58%) 0 46%,
+      transparent 47%
+    );
+  filter: blur(18px) saturate(1.1);
+  animation: mesh-pulse 16s ease-in-out infinite alternate;
+}
+@keyframes mesh-pulse {
+  0% {
+    transform: scale(1) translate(0, 0);
+  }
+  100% {
+    transform: scale(1.04) translate(-1%, 1%);
+  }
+}
+
+/* Shimmer */
+.bg--shimmer::before {
+  background:
+    linear-gradient(
+      120deg,
+      transparent 0 35%,
+      color-mix(in oklab, #fff, var(--c2, #a78bfa) 25%) 45%,
+      transparent 60% 100%
+    ),
+    radial-gradient(
+      1200px 900px at 100% 0%,
+      color-mix(in oklab, var(--c4, #22d3ee), transparent 72%) 0 60%,
+      transparent 61%
+    );
+  mix-blend-mode: screen;
+  animation: shimmer-sweep 10s ease-in-out infinite;
+}
+@keyframes shimmer-sweep {
+  0% {
+    background-position:
+      -60vw -40vh,
+      0 0;
+  }
+  100% {
+    background-position:
+      120vw 60vh,
+      0 0;
+  }
+}
+
+/* Bokeh */
+.bg--bokeh::before {
+  background:
+    radial-gradient(
+      120px 120px at 15% 20%,
+      color-mix(in oklab, var(--c3, #f472b6), transparent 60%) 0 50%,
+      transparent 51%
+    ),
+    radial-gradient(
+      150px 150px at 70% 30%,
+      color-mix(in oklab, var(--c2, #a78bfa), transparent 60%) 0 50%,
+      transparent 51%
+    ),
+    radial-gradient(
+      110px 110px at 40% 75%,
+      color-mix(in oklab, var(--c1, #0ea5e9), transparent 60%) 0 50%,
+      transparent 51%
+    );
+  filter: blur(10px) saturate(1.2);
+  animation: bokeh-float 22s ease-in-out infinite;
+}
+@keyframes bokeh-float {
+  0% {
+    transform: translate(-2%, 2%) scale(1);
+  }
+  50% {
+    transform: translate(1%, -1%) scale(1.03);
+  }
+  100% {
+    transform: translate(-2%, 2%) scale(1);
+  }
+}
+
+/* Rays */
+.bg--rays::before {
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    color-mix(in oklab, var(--c1, #0ea5e9), transparent 82%) 0 12%,
+    transparent 13% 25%,
+    color-mix(in oklab, var(--c2, #a78bfa), transparent 82%) 26% 38%,
+    transparent 39% 51%,
+    color-mix(in oklab, var(--c3, #f472b6), transparent 82%) 52% 64%,
+    transparent 65% 77%,
+    color-mix(in oklab, var(--c4, #22d3ee), transparent 82%) 78% 90%,
+    transparent 91% 100%
+  );
+  filter: blur(28px) saturate(1.05);
+  animation: rays-spin 36s linear infinite;
+}
+@keyframes rays-spin {
+  from {
+    transform: rotate(0deg) scale(1.02);
+  }
+  to {
+    transform: rotate(360deg) scale(1.02);
+  }
+}
+
+/* Stripes (very subtle) */
+.bg--stripes::before {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(0, 0, 0, 0.06) 0 1px,
+      transparent 1px 14px
+    ),
+    linear-gradient(180deg, var(--bg-dark, #0b1020), #050816);
+  mix-blend-mode: normal;
+  opacity: calc(var(--bg-opacity, 0.24) * 0.35);
+  animation: stripes-shift 28s linear infinite;
+}
+@keyframes stripes-shift {
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      220px 120px,
+      0 0;
+  }
+}

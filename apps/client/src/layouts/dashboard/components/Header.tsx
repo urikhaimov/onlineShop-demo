@@ -9,6 +9,7 @@ import NavbarBreadcrumbs from './NavbarBreadcrumbs';
 import ColorModeIconDropdown from './ColorModeIconDropdown';
 import Search from './Search';
 import LanguageSwitcher from '../../../components/LanguageSwitcher'; // 👈 add this
+import BackgroundModeControl from '../../../components/background/BackgroundModeControl';
 import { useCartCount } from '../../../stores/useCartStore';
 import { useSidebarStore } from '../../../stores/useSidebarStore';
 
@@ -53,6 +54,7 @@ export default function Header() {
         </IconButton>
 
         <ColorModeIconDropdown />
+        <BackgroundModeControl />
       </Stack>
     </Stack>
   );

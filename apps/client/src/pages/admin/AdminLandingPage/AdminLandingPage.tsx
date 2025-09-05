@@ -146,7 +146,9 @@ export default function AdminLandingPage() {
     await new Promise<void>((res, rej) =>
       task.on(
         'state_changed',
-        () => {},
+        () => {
+          //todo
+        },
         rej,
         () => res(),
       ),
