@@ -14,7 +14,12 @@ import {
 } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
 import { useForm, useFieldArray } from 'react-hook-form';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  uploadBytesResumable,
+} from 'firebase/storage';
 
 import { LandingPageData, HOMEPAGE_LAYOUTS } from '@common/types';
 import { footerHeight, headerHeight } from '../../../config/themeConfig';
@@ -129,9 +134,24 @@ export default function AdminLandingPage() {
   }, [data, reset, replaceSections, replaceCards]);
 
   const uploadBannerToStorage = async (file: File): Promise<string> => {
+    console.log(
+      '[uploader] using uploadBytesResumable?',
+      typeof uploadBytesResumable === 'function',
+    ); // should print true
     const objectRef = ref(storage, `landing/banner_${Date.now()}.jpg`);
-    await uploadBytes(objectRef, file, { contentType: file.type });
-    return await getDownloadURL(objectRef);
+    const task = uploadBytesResumable(objectRef, file, {
+      contentType: file.type || 'image/jpeg',
+    });
+
+    await new Promise<void>((res, rej) =>
+      task.on(
+        'state_changed',
+        () => {},
+        rej,
+        () => res(),
+      ),
+    );
+    return getDownloadURL(task.snapshot.ref);
   };
 
   const handleBannerCropUpload = async (file: File) => {

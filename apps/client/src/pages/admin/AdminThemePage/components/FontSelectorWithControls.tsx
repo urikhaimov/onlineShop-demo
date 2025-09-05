@@ -13,7 +13,7 @@ import {
 import { useThemeStore } from '../../../../stores/useThemeStore';
 
 const FONT_GROUPS = {
-  'Sans Serif': ['Roboto', 'Open Sans', 'Lato', 'Poppins'],
+  'Sans Serif': ['Noto Sans Hebrew', 'Open Sans', 'Lato', 'Poppins'],
   Serif: ['Merriweather', 'Playfair Display', 'Georgia'],
   Monospace: ['Courier New', 'Fira Code', 'Source Code Pro'],
 };

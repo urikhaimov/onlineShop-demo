@@ -1,18 +1,26 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+// apps/api/src/landing-page/landing-page.controller.ts
+import { Controller, Get, Put, Body, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { LandingPageService } from './landing-page.service';
-import { LandingPageData } from '@common/types';
+import type { LandingPageData } from '@common/types';
 
-@Controller('landing') // <- /api/landing (with global prefix)
+@Controller('landing')
 export class LandingPageController {
   constructor(private readonly svc: LandingPageService) {}
 
   @Get()
-  getLandingPage(): LandingPageData {
+  async get(@Res({ passthrough: true }) res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
     return this.svc.get();
   }
 
   @Put()
-  updateLandingPage(@Body() body: LandingPageData): LandingPageData {
-    return this.svc.update(body);
+  async put(
+    @Body() body: LandingPageData,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const saved = await this.svc.update(body);
+    res.setHeader('Cache-Control', 'no-store');
+    return saved;
   }
 }

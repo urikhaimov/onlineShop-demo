@@ -24,7 +24,7 @@ export function getThemeFromSettings(s: ThemeSettings): AppTheme {
   const fontFamily =
     (s as ThemeSettings).fontFamily ||
     (s as ThemeSettings & { font?: string }).font ||
-    'Roboto';
+    'Noto Sans Hebrew';
   const fontSize = s.fontSize ?? 16;
   const fontWeight = s.fontWeight ?? 400;
 

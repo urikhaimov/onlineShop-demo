@@ -1,6 +1,7 @@
 // apps/api/src/landing-page/landing-page.service.ts
 import { Injectable } from '@nestjs/common';
-import { LandingPageData, TBentoCard } from '@common/types';
+import { Firestore } from '@google-cloud/firestore';
+import type { LandingPageData, TBentoCard } from '@common/types';
 
 const DEFAULT_CARDS: TBentoCard[] = [
   { title: 'Free shipping', body: 'On orders over $99' },
@@ -24,36 +25,52 @@ const DEFAULT_DATA: LandingPageData = {
       content: 'Check out our daily deals on popular products.',
     },
   ],
-  bentoCards: DEFAULT_CARDS, // ensure we always have cards by default
-  cards: DEFAULT_CARDS, // keep legacy `cards` too, for old clients
+  bentoCards: DEFAULT_CARDS,
+  cards: DEFAULT_CARDS,
 };
 
 @Injectable()
 export class LandingPageService {
-  private data: LandingPageData = { ...DEFAULT_DATA };
+  constructor(private readonly db: Firestore) {}
 
-  get(): LandingPageData {
-    return this.data;
+  private docRef() {
+    // ✅ Use the plural path that exists in your DB
+    return this.db.collection('landingPages').doc('default');
   }
 
-  update(updated: LandingPageData): LandingPageData {
-    // Prefer updated.bentoCards; accept updated.cards as legacy fallback; else keep existing
-    const nextCards: TBentoCard[] | undefined = Array.isArray(
-      updated.bentoCards,
-    )
-      ? updated.bentoCards
-      : Array.isArray(updated.cards)
-        ? updated.cards
-        : (this.data.bentoCards ?? this.data.cards);
+  private normalize(
+    data: Partial<LandingPageData> | undefined,
+  ): LandingPageData {
+    const d = data ?? {};
+    const cards = Array.isArray(d.bentoCards)
+      ? d.bentoCards
+      : Array.isArray(d.cards)
+        ? d.cards
+        : DEFAULT_DATA.bentoCards;
 
-    this.data = {
-      ...this.data,
-      ...updated,
-      bentoCards: nextCards,
-      // normalize so both keys exist in responses
-      cards: nextCards,
+    return {
+      ...DEFAULT_DATA,
+      ...d,
+      sections: (d.sections ?? []).map((s) => ({
+        title: s.title ?? '',
+        content: s.content ?? '',
+      })),
+      bentoCards: cards,
+      cards,
     };
+  }
 
-    return this.data;
+  async get(): Promise<LandingPageData> {
+    const snap = await this.docRef().get();
+    return this.normalize(
+      snap.exists ? (snap.data() as Partial<LandingPageData>) : undefined,
+    );
+  }
+
+  async update(updated: LandingPageData): Promise<LandingPageData> {
+    // Normalize once, save, then read back to be the single source of truth
+    const next = this.normalize(updated);
+    await this.docRef().set(next, { merge: true });
+    return this.get();
   }
 }

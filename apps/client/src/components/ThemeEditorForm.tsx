@@ -17,7 +17,7 @@ import {
 } from '../hooks/useThemeHooks';
 import FormTextField from '../components/FormTextField';
 
-const fontOptions = ['Roboto', 'Open Sans', 'Inter', 'Orbitron', 'Poppins'];
+const fontOptions = ['Noto Sans Hebrew', 'Open Sans', 'Inter', 'Orbitron', 'Poppins'];
 const maxWidthOptions: ThemeSettings['maxWidth'][] = [
   'sm',
   'md',
@@ -32,7 +32,7 @@ const defaultValues: ThemeSettings = {
   darkMode: false,
   primaryColor: '#1976d2',
   secondaryColor: '#dc004e',
-  fontFamily: 'Roboto',
+  fontFamily: 'Noto Sans Hebrew',
   fontSize: 16,
   fontWeight: 400,
   spacingScale: 2,

@@ -22,7 +22,7 @@ export default function ThemePreview({ watch }: Props) {
           padding: 3,
           backgroundColor: theme.palette.background.paper,
           borderRadius: settings.borderRadius || 12,
-          fontFamily: settings.fontFamily || 'Roboto',
+          fontFamily: settings.fontFamily || 'Noto Sans Hebrew',
         }}
       >
         <Typography variant="h4" color="primary" gutterBottom>

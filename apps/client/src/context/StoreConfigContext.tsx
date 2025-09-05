@@ -7,7 +7,7 @@ export const defaultConfig: StoreConfig = {
   storeName: 'Default Store',
   primaryColor: '#1976d2',
   logoUrl: '/assets/default-logo.svg',
-  font: 'Arial',
+  font: 'Noto Sans Hebrew',
   layout: 'grid',
   currency: CDefaultCurrency,
   stripeKey: 'pk_test_default_123456',

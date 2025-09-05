@@ -100,7 +100,7 @@ export function getMuiTheme(settings: ThemeSettings) {
     typography: {
       fontFamily:
         settings.fontFamily ||
-        'Roboto, system-ui, -apple-system, "Segoe UI", Arial, sans-serif',
+        'Noto Sans Hebrew, system-ui, -apple-system, "Segoe UI", Noto Sans Hebrew, sans-serif',
       fontSize: settings.fontSize ?? 16,
       fontWeightRegular: settings.fontWeight ?? 400,
     },

@@ -29,7 +29,7 @@ const defaultThemeSettings: ThemeSettings = {
   primaryColor: '#1976d2',
   secondaryColor: '#dc004e',
   darkMode: false,
-  fontFamily: 'Roboto',
+  fontFamily: 'Arial',
   borderRadius: 2,
   spacingScale: 1, // ← important (your frontend multiplies 8 * spacingScale * factor)
 };

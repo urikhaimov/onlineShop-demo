@@ -32,7 +32,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
         secondary: { main: data?.secondaryColor || '#f50057' },
       },
       typography: {
-        fontFamily: data?.font || 'Roboto',
+        fontFamily: data?.font || 'Arial',
       },
       shape: {
         borderRadius: data?.borderRadius ?? 8,

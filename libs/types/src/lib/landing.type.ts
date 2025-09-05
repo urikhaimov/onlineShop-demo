@@ -14,6 +14,7 @@ export interface TSection {
 }
 
 export type TBentoCard = { title: string; body: string; icon?: string };
+
 export interface LandingPageData {
   title: string;
   subtitle?: string;

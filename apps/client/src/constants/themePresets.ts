@@ -7,7 +7,7 @@ export const themePresets: Record<string, ThemeSettings> = {
     darkMode: false,
     primaryColor: '#1976d2',
     secondaryColor: '#dc004e',
-    fontFamily: 'Roboto, sans-serif',
+    fontFamily: 'Noto Sans Hebrew, sans-serif',
     fontSize: 16,
     fontWeight: 400,
     spacingScale: 8,

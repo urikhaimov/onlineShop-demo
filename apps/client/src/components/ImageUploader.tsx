@@ -1,5 +1,5 @@
 // src/components/ImageUploader.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { Box, Typography, Paper, Snackbar, Alert } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useDropzone } from 'react-dropzone';
@@ -35,14 +35,18 @@ export default function ImageUploader({
   showSnackbar,
   onCloseSnackbar,
 }: ImageUploaderProps) {
-  const createdPreviewsRef = useRef<string[]>([]);
+  // Track active blob: preview URLs so we can revoke them as soon as they disappear
+  const activeBlobsRef = useRef<Set<string>>(new Set());
 
-  const handleDropRejected = () => {
+  const disabled = images.length >= MAX_IMAGES;
+  const remainingSlots = Math.max(0, MAX_IMAGES - images.length);
+
+  const handleDropRejected = useCallback(() => {
     onCloseSnackbar();
     alert(
-      `❌ Some files were rejected. Only images up to ${MAX_FILE_SIZE_MB}MB are allowed.`,
+      `❌ Some files were rejected. Only image files up to ${MAX_FILE_SIZE_MB}MB are allowed.`,
     );
-  };
+  }, [onCloseSnackbar]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -50,23 +54,35 @@ export default function ImageUploader({
     accept: { 'image/*': [] },
     multiple: true,
     maxSize: MAX_FILE_SIZE_MB * 1024 * 1024,
-    disabled: images.length >= MAX_IMAGES,
+    maxFiles: remainingSlots || undefined, // prevent selecting more than allowed
+    disabled,
   });
 
-  // Track new preview blobs
+  // Keep active blob previews in sync with props; revoke removed ones immediately
   useEffect(() => {
-    const newBlobUrls = images
-      .filter((img) => img.type === 'new' && img.url.startsWith('blob:'))
-      .map((img) => img.url)
-      .filter((url) => !createdPreviewsRef.current.includes(url));
+    const currentBlobs = new Set(
+      images
+        .filter((img) => img.type === 'new' && img.url.startsWith('blob:'))
+        .map((img) => img.url),
+    );
 
-    createdPreviewsRef.current.push(...newBlobUrls);
+    // Revoke previews that are no longer present
+    for (const url of activeBlobsRef.current) {
+      if (!currentBlobs.has(url)) {
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    activeBlobsRef.current = currentBlobs;
   }, [images]);
 
-  // Clean up blob URLs on unmount
+  // Final cleanup on unmount
   useEffect(() => {
     return () => {
-      createdPreviewsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      for (const url of activeBlobsRef.current) {
+        URL.revokeObjectURL(url);
+      }
+      activeBlobsRef.current.clear();
     };
   }, []);
 
@@ -88,21 +104,33 @@ export default function ImageUploader({
           borderColor: isDragActive ? 'primary.main' : 'grey.400',
           textAlign: 'center',
           color: isDragActive ? 'primary.main' : 'grey.600',
-          cursor: images.length >= MAX_IMAGES ? 'not-allowed' : 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
           mt: 2,
-          opacity: images.length >= MAX_IMAGES ? 0.4 : 1,
-          pointerEvents: images.length >= MAX_IMAGES ? 'none' : 'auto',
+          opacity: disabled ? 0.45 : 1,
+          pointerEvents: disabled ? 'none' : 'auto',
+          transition: 'border-color 120ms ease',
         }}
+        aria-disabled={disabled}
       >
         <input {...getInputProps()} />
         <CloudUploadIcon fontSize="large" />
         <Typography mt={1}>
           {isDragActive
             ? 'Drop files here...'
-            : images.length >= MAX_IMAGES
+            : disabled
               ? `Upload limit reached (${MAX_IMAGES})`
               : `Drag or click to upload (max ${MAX_FILE_SIZE_MB}MB each)`}
         </Typography>
+        {!disabled && remainingSlots < MAX_IMAGES && (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            display="block"
+            mt={0.5}
+          >
+            {`${remainingSlots} slot${remainingSlots === 1 ? '' : 's'} remaining`}
+          </Typography>
+        )}
       </Paper>
 
       {errorMessage && (

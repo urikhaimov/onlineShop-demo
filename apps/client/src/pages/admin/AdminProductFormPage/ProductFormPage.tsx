@@ -1,4 +1,3 @@
-// src/pages/admin/ProductFormPage.tsx
 import React, { useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, Stack, Button, MenuItem } from '@mui/material';
@@ -21,8 +20,16 @@ import ImageUploader, {
 } from '../../../components/ImageUploader';
 import { useProductFormStore } from '../../../stores/useProductFormStore';
 
-// ✅ Reusable centered card with inner padding
 import PageCard from '../../../layouts/PageCard';
+
+// ✅ Firebase Storage helpers
+import {
+  getDownloadURL,
+  uploadBytesResumable,
+  ref as storageRef,
+  deleteObject,
+} from 'firebase/storage';
+import { storage } from '../../../firebase';
 
 export type FormState = {
   name: string;
@@ -168,9 +175,59 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     addCombinedImages(newImages);
   };
 
+  // ---------- upload + delete helpers ----------
+  const sanitizeName = (name: string) => name.replace(/[^\w.-]+/g, '_');
+
+  const uploadFileGetUrl = async (
+    file: File,
+    docIdForPath: string | undefined,
+  ): Promise<string> => {
+    const clean = sanitizeName(file.name);
+    // use productId for nice organization; fallback to generic folder
+    const path = `products/${docIdForPath ?? 'misc'}/${Date.now()}_${clean}`;
+    const ref = storageRef(storage, path);
+    await new Promise<void>((resolve, reject) => {
+      const task = uploadBytesResumable(ref, file, { contentType: file.type });
+      task.on('state_changed', undefined, reject, () => resolve());
+    });
+    return await getDownloadURL(ref);
+  };
+
+  const deleteByUrlIfPossible = async (url: string) => {
+    try {
+      // Works with both "gs://" and "https://firebasestorage.googleapis.com/..." URLs
+      const pathMatch = url.match(/\/o\/([^?]+)/);
+      const objectPath = pathMatch ? decodeURIComponent(pathMatch[1]) : url;
+      const ref = storageRef(storage, objectPath);
+      await deleteObject(ref);
+    } catch (e) {
+      // Non-fatal; log and continue
+      console.warn('[storage] delete skip:', e);
+    }
+  };
+  // --------------------------------------------
+
   const onSubmit = async (formData: FormState) => {
     try {
       setUploadingImages(true);
+
+      // 1) Build final ordered URLs
+      const finalUrls: string[] = [];
+      for (const img of combinedImages) {
+        if (img.type === 'existing') {
+          finalUrls.push(img.url);
+        } else if (img.type === 'new' && img.file) {
+          const url = await uploadFileGetUrl(img.file, productId);
+          finalUrls.push(url);
+        }
+      }
+
+      // 2) Physically delete removed images (optional but recommended)
+      for (const url of deletedImageIds) {
+        await deleteByUrlIfPossible(url);
+      }
+
+      // 3) Persist to API with clean string[] images
       await saveMutation.mutateAsync({
         productId,
         mode,
@@ -179,9 +236,13 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
           price: Number(formData.price),
           stock: Number(formData.stock),
         },
-        images: combinedImages,
+        // 👇 send only strings, not blobs / wrappers
+        images: finalUrls,
+        // you can drop this if server no longer needs it
+        imageUrl: finalUrls[0] ?? null, // optional main image
         deletedImageIds,
       });
+
       alert(
         t('adminProductForm.savedOk', {
           defaultValue: 'Product saved successfully!',
@@ -219,7 +280,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      {/* ✅ Reusable Card Layout: handles outer scroll, centered paper, inner padding */}
       <PageCard variant="form" pad={{ xs: 3, sm: 3.5, md: 4 }}>
         <Stack spacing={2.5}>
           <Typography variant="h5" fontWeight={600} sx={{ mb: 1 }}>
@@ -314,7 +374,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 />
               </Stack>
 
-              {/* Category select using MUI children */}
               <FormTextField
                 label={t('adminProductForm.category', {
                   defaultValue: 'Category',
@@ -356,6 +415,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                       (img) => img.id === id,
                     );
                     if (imageToDelete?.type === 'existing') {
+                      // store the raw URL so we can delete from Storage later
                       addDeletedImageId(
                         imageToDelete.id.replace('existing-', ''),
                       );
@@ -366,9 +426,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   }}
                   onReorderAll={(newOrder) => setCombinedImages(newOrder)}
                   showSnackbar={false}
-                  onCloseSnackbar={() => {
-                    //TODO
-                  }}
+                  onCloseSnackbar={() => {}}
                 />
               </Box>
 

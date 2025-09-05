@@ -109,9 +109,7 @@ export function buildUserProductColumns(
       meta: { align: 'left' as const },
       size: 100,
       cell: ({ getValue }) => (
-        <Typography variant="body2" textAlign="right">
-          {getValue<number>() ?? 0}
-        </Typography>
+        <Typography variant="body2">{getValue<number>() ?? 0}</Typography>
       ),
     },
 

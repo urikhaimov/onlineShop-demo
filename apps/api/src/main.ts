@@ -62,80 +62,31 @@ async function bootstrap() {
   // Helmet CSP (prod hardened, dev relaxed)
   app.use(
     helmet({
-      crossOriginEmbedderPolicy: false, // Stripe iframes
-      contentSecurityPolicy: isProd()
-        ? {
-            useDefaults: true,
-            directives: {
-              defaultSrc: ["'self'"],
-              scriptSrc: ["'self'", 'https://js.stripe.com'],
-              connectSrc: [
-                "'self'",
-                'https://api.stripe.com',
-                'https://m.stripe.network',
-                'https://q.stripe.com',
-                'https://r.stripe.com',
-                'https://hooks.stripe.com',
-              ],
-              frameSrc: ["'self'", 'https://js.stripe.com'],
-              imgSrc: [
-                "'self'",
-                'data:',
-                'blob:',
-                'https://*.stripe.com',
-                'https://r.stripe.com',
-                'https://firebasestorage.googleapis.com',
-                'https://storage.googleapis.com',
-                // add Unsplash if you render product images from there
-                'https://images.unsplash.com',
-                'https://source.unsplash.com',
-                'https://picsum.photos',
-              ],
-              styleSrc: [
-                "'self'",
-                "'unsafe-inline'",
-                'https://fonts.googleapis.com',
-              ],
-              fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-            },
-          }
-        : {
-            useDefaults: true,
-            directives: {
-              defaultSrc: ["'self'"],
-              scriptSrc: ["'self'", "'unsafe-eval'", 'https://js.stripe.com'],
-              connectSrc: [
-                "'self'",
-                frontendOrigin,
-                'ws://localhost:*',
-                'http://localhost:*',
-                'https://api.stripe.com',
-                'https://m.stripe.network',
-                'https://q.stripe.com',
-                'https://r.stripe.com',
-                'https://hooks.stripe.com',
-              ],
-              frameSrc: ["'self'", 'https://js.stripe.com'],
-              imgSrc: [
-                "'self'",
-                'data:',
-                'blob:',
-                'https://*.stripe.com',
-                'https://r.stripe.com',
-                'https://firebasestorage.googleapis.com',
-                'https://storage.googleapis.com',
-                'https://images.unsplash.com',
-                'https://source.unsplash.com',
-                'https://picsum.photos',
-              ],
-              styleSrc: [
-                "'self'",
-                "'unsafe-inline'",
-                'https://fonts.googleapis.com',
-              ],
-              fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-            },
-          },
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          imgSrc: [
+            "'self'",
+            'data:',
+            'blob:',
+            'https://firebasestorage.googleapis.com',
+            'https://*.googleusercontent.com',
+          ],
+          connectSrc: [
+            "'self'",
+            'http://localhost:5173',
+            'ws://localhost:5173',
+            'https://firebasestorage.googleapis.com',
+            'https://*.googleapis.com',
+            'https://*.googleusercontent.com',
+          ],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          fontSrc: ["'self'", 'data:'],
+          frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com'],
+        },
+      },
     }),
   );
 

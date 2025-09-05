@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
-import { LandingPageController } from './landing-page.controller';
+import { DatabaseModule } from '../database/database.module'; // ✅ add this
 import { LandingPageService } from './landing-page.service';
+import { LandingPageController } from './landing-page.controller';
 
 @Module({
-  controllers: [LandingPageController],
+  imports: [DatabaseModule], // ✅ Firestore now available here
   providers: [LandingPageService],
+  controllers: [LandingPageController],
 })
 export class LandingPageModule {}

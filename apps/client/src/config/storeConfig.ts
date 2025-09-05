@@ -5,7 +5,7 @@ export const storesConfig: Record<string, StoreConfig> = {
     storeName: 'Tech Store',
     primaryColor: '#1976d2',
     logoUrl: '/assets/tech-logo.svg',
-    font: 'Roboto',
+    font: 'Noto Sans Hebrew',
     layout: 'grid',
     currency: CDefaultCurrency,
     stripeKey: 'pk_test_tech_1234',

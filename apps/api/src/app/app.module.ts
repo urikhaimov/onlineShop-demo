@@ -1,8 +1,10 @@
+// apps/api/src/app/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { I18nModule } from 'nestjs-i18n';
 import { join } from 'path';
 
+import { DatabaseModule } from '../database/database.module'; // ✅ add this
 import { ProductsModule } from '../products/products.module';
 import { OrdersModule } from '../orders/orders.module';
 import { UsersModule } from '../users/users.module';
@@ -15,22 +17,22 @@ import { AuthClientModule } from 'auth-client';
 import { ApiAuthModule } from '../auth/auth.module';
 import { SearchModule } from '../search/search.module';
 import { HealthController } from '../health.controller';
-import { StripeModule } from '../stripe/stripe.module'; // 👈 add this
+import { StripeModule } from '../stripe/stripe.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-    }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+
     I18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {
-        // Make sure this path points to a folder that exists at runtime (dist/prod too)
+        // make sure i18n files are copied to dist on build
         path: join(__dirname, 'i18n'),
         watch: process.env.NODE_ENV !== 'production',
       },
     }),
+
+    DatabaseModule, // ✅ Firestore available to feature modules
 
     AuthClientModule,
     ApiAuthModule,
@@ -42,12 +44,8 @@ import { StripeModule } from '../stripe/stripe.module'; // 👈 add this
     ThemeSettingsModule,
     SecurityLogsModule,
     SearchModule,
-
-    StripeModule, // 👈 import the feature module
+    StripeModule,
   ],
-  controllers: [
-    ImageProxyController,
-    HealthController, // keep this
-  ],
+  controllers: [ImageProxyController, HealthController],
 })
 export class AppModule {}

@@ -20,7 +20,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     darkMode: false,
     primaryColor: '#1976d2',
     secondaryColor: '#ff4081',
-    fontFamily: 'Roboto',
+    fontFamily: 'Arial',
     fontSize: 16,
     fontWeight: 400,
     logoUrl: '',

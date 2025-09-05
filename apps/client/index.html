@@ -4,7 +4,19 @@
     <meta charset="utf-8" />
     <title>Client</title>
     <base href="/" />
-
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+    default-src 'self';
+    img-src 'self' data: blob: https://firebasestorage.googleapis.com https://*.googleusercontent.com;
+    connect-src 'self' http://localhost:3000 http://localhost:5173 ws://localhost:5173
+                 https://firebasestorage.googleapis.com https://*.googleapis.com https://*.googleusercontent.com https://*.gstatic.com;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com;
+    style-src 'self' 'unsafe-inline';
+    font-src 'self' data:;
+    frame-src https://js.stripe.com https://hooks.stripe.com;
+  "
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="stylesheet" href="/src/styles.less" />
