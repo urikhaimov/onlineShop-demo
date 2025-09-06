@@ -24,6 +24,10 @@ import 'react-quill/dist/quill.snow.css';
 import { useProduct } from '../../../hooks/useProduct';
 import { useCategories } from '../../../hooks/useCategories';
 import { useSaveProductMutation } from '../../../hooks/useSaveProductMutation';
+import type {
+  CombinedImageForSave,
+  SaveProductArgs,
+} from '../../../hooks/useSaveProductMutation';
 
 import FormTextField from '../../../components/FormTextField';
 import ImageUploader, {
@@ -32,15 +36,6 @@ import ImageUploader, {
 import { useProductFormStore } from '../../../stores/useProductFormStore';
 import { useSnackbar } from 'notistack';
 import PageCard from '../../../layouts/PageCard';
-
-// Firebase Storage helpers
-import {
-  getDownloadURL,
-  uploadBytesResumable,
-  ref as storageRef,
-  deleteObject,
-} from 'firebase/storage';
-import { storage } from '../../../firebase';
 
 export type FormState = {
   name: string;
@@ -52,6 +47,7 @@ export type FormState = {
 
 const MAX_IMAGES = 5;
 type UploadableImage = CombinedImage & { file?: File };
+
 export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   const { t, i18n } = useTranslation();
   const saveMutation = useSaveProductMutation();
@@ -137,7 +133,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     if (q) q.enable(true);
   });
 
-  // categories stable push
+  // categories → store (once stable)
   const prevCatSigRef = useRef<string>('');
   useEffect(() => {
     const sig = JSON.stringify(categoryData.map((c) => c.id));
@@ -147,7 +143,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     }
   }, [categoryData, setCategories]);
 
-  // bootstrap
+  // bootstrap form for add/edit
   const bootstrappedForIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (mode === 'add') {
@@ -166,6 +162,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
       }
       return;
     }
+
     if (
       !productId ||
       productLoading ||
@@ -235,40 +232,62 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     if (newImages.length) addCombinedImages(newImages);
   };
 
-  // ---------- upload + delete helpers ----------
-  const sanitizeName = (name: string) => name.replace(/[^\w.-]+/g, '_');
-
-  const uploadFileGetUrl = async (
-    file: File,
-    docIdForPath: string | undefined,
-  ): Promise<string> => {
-    const clean = sanitizeName(file.name);
-    const path = `products/${docIdForPath ?? 'misc'}/${Date.now()}_${clean}`;
-    const ref = storageRef(storage, path);
-    await new Promise<void>((resolve, reject) => {
-      const task = uploadBytesResumable(ref, file, { contentType: file.type });
-      task.on('state_changed', undefined, reject, () => resolve());
-    });
-    return await getDownloadURL(ref);
-  };
-
-  const deleteByUrlIfPossible = async (url: string) => {
-    try {
-      const pathMatch = url.match(/\/o\/([^?]+)/);
-      const objectPath = pathMatch ? decodeURIComponent(pathMatch[1]) : url;
-      const ref = storageRef(storage, objectPath);
-      await deleteObject(ref);
-    } catch (e) {
-      console.warn('[storage] delete skip:', e);
-    }
-  };
-  // --------------------------------------------
-
+  // ---------- SUBMIT ----------
   const onSubmit = async (formData: FormState) => {
     try {
+      // Guard: category must be real
+      const hasValidCategory = categories.some(
+        (c) => c.id === formData.categoryId,
+      );
+      if (!hasValidCategory) {
+        enqueueSnackbar(
+          t('adminProductForm.invalidCategoryShort', {
+            defaultValue: 'Please choose a valid category.',
+          }) as string,
+          { variant: 'warning' },
+        );
+        return;
+      }
+
       setUploadingImages(true);
 
-      // ... build finalUrls, delete removed, saveMutation ...
+      // Build images payload for the hook:
+      // - existing → URL string
+      // - new      → { type:'new', file } (hook will upload to Firebase)
+      const imagesForSave: Array<string | CombinedImageForSave> = combinedImages
+        .map((img) => {
+          if (img.type === 'existing' && img.url) {
+            return img.url; // pass as string URL
+          }
+          if (img.type === 'new' && (img as UploadableImage).file) {
+            return {
+              id: img.id,
+              url: img.url, // may be blob:…; the hook can ignore/replace after upload
+              type: 'new',
+              file: (img as UploadableImage).file!,
+            } as CombinedImageForSave;
+          }
+          // Fallback: ignore anything malformed
+          return null;
+        })
+        .filter(Boolean) as Array<string | CombinedImageForSave>;
+
+      const payload: SaveProductArgs = {
+        productId,
+        mode,
+        data: {
+          name: formData.name.trim(),
+          description: formData.description ?? '',
+          // accept empty as 0; coerce to number for backend sanity
+          price: formData.price === '' ? 0 : Number(formData.price),
+          stock: formData.stock === '' ? 0 : Number(formData.stock),
+          categoryId: formData.categoryId,
+        },
+        images: imagesForSave,
+        deletedImageIds, // existing-* ids stripped earlier to raw URL in your onRemove logic
+      };
+
+      await saveMutation.mutateAsync(payload);
 
       enqueueSnackbar(
         t('adminProductForm.savedOk', {
@@ -280,7 +299,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
       navigate('/admin/products');
     } catch (err) {
       console.error('❌ Failed to save product:', err);
-
       enqueueSnackbar(
         t('adminProductForm.saveFailed', {
           defaultValue: 'Failed to save product. Check console for details.',
@@ -522,7 +540,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 sx={{
                   p: 1.5,
                   borderRadius: 2,
-                  border: 0, // ← avoid double dashed borders; uploader shows the dashed area
+                  border: 0,
                   bgcolor: 'background.paper',
                 }}
               >
@@ -534,6 +552,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                       (img) => img.id === id,
                     );
                     if (imageToDelete?.type === 'existing') {
+                      // store keeps raw URL ids (strip 'existing-')
                       addDeletedImageId(
                         imageToDelete.id.replace('existing-', ''),
                       );
@@ -545,7 +564,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   onReorderAll={(newOrder) => setCombinedImages(newOrder)}
                   showSnackbar={false}
                   onCloseSnackbar={() => {
-                    //todo
+                    // noop
                   }}
                   singleHeight={240}
                   withinCard
@@ -581,7 +600,9 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
               <Button
                 type="submit"
                 variant="contained"
-                disabled={isSubmitting || isUploadingImages || !isValid}
+                disabled={
+                  isSubmitting || isUploadingImages || !isValid || !isDirty
+                }
               >
                 {t('actions.save', { defaultValue: 'Save' })}
               </Button>
