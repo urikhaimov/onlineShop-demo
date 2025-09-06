@@ -1,7 +1,17 @@
-// src/pages/AdminProductsPage/index.tsx
 import * as React from 'react';
-import { useEffect, useMemo } from 'react';
-import { Divider, Box, Button, Stack } from '@mui/material';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import {
+  Divider,
+  Box,
+  Button,
+  Stack,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Typography,
+} from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
@@ -99,12 +109,68 @@ export default function AdminProductsPage() {
   const [params, setParams] = useSearchParams();
 
   const { data: categories = [] } = useCategories();
-  const { reorder } = useProductMutations();
-  const isReordering = reorder.isPending;
+  const { reorder, remove } = useProductMutations();
   const navigate = useNavigate();
 
-  // ✅ Build columns with locale-aware hook (no hooks inside the builder)
-  const columns = useProductColumns(categories, navigate);
+  // --- Delete dialog state ----------------------------------------------------
+  const [toDelete, setToDelete] = useState<IProduct | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const openDeleteDialog = useCallback((p: IProduct) => {
+    setDeleteError(null);
+    setToDelete(p);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) {
+      setDeleting(false);
+      enqueueSnackbar(
+        t('common.authRequired', {
+          defaultValue: 'You must be signed in.',
+        }) as string,
+        { variant: 'error', autoHideDuration: 3500 },
+      );
+      return;
+    }
+
+    // optimistic update
+    const prev = products;
+    setProducts(prev.filter((p) => p.id !== toDelete.id));
+
+    try {
+      await remove.mutateAsync(toDelete.id);
+      enqueueSnackbar(
+        t('adminProductsPage.snackbarDeleted', {
+          defaultValue: 'Product deleted successfully',
+        }) as string,
+        { variant: 'success', autoHideDuration: 3000 },
+      );
+      setToDelete(null);
+    } catch (err) {
+      console.error('❌ Delete failed', err);
+      setProducts(prev); // rollback
+      const message =
+        err instanceof Error
+          ? err.message
+          : (t('adminProductsPage.deleteFailed', {
+              defaultValue: 'Failed to delete product.',
+            }) as string);
+      setDeleteError(message);
+      enqueueSnackbar(message, { variant: 'error', autoHideDuration: 4000 });
+    } finally {
+      setDeleting(false);
+    }
+  }, [enqueueSnackbar, products, remove, setProducts, t, toDelete]);
+  // ---------------------------------------------------------------------------
+
+  // columns: pass "openDeleteDialog" so the table opens the dialog (no alerts)
+  const columns = useProductColumns(categories, navigate, openDeleteDialog);
 
   // Table ↔ URL
   useStickyTableQuerySync({
@@ -114,10 +180,10 @@ export default function AdminProductsPage() {
     setColumnFilters,
   });
 
-  // Product filters ↔ URL
+  // Filters ↔ URL
   useAdminProductFiltersQuerySync();
 
-  // NEW: Reorder mode toggle — drag is OFF by default to keep links & row actions clickable
+  // Reorder mode toggle
   const [reorderMode, setReorderMode] = React.useState(false);
 
   useEffect(() => {
@@ -134,10 +200,7 @@ export default function AdminProductsPage() {
             t('adminProductsPage.loadFailed', {
               defaultValue: 'Failed to load products.',
             }) as string,
-            {
-              variant: 'error',
-              autoHideDuration: 4000,
-            },
+            { variant: 'error', autoHideDuration: 4000 },
           );
         }
       } catch (err) {
@@ -146,10 +209,7 @@ export default function AdminProductsPage() {
           t('adminProductsPage.loadFailed', {
             defaultValue: 'Failed to load products.',
           }) as string,
-          {
-            variant: 'error',
-            autoHideDuration: 4000,
-          },
+          { variant: 'error', autoHideDuration: 4000 },
         );
       } finally {
         setLoading(false);
@@ -159,7 +219,7 @@ export default function AdminProductsPage() {
   }, [setLoading, setProducts, setProductsSorted, enqueueSnackbar, t]);
 
   // ---- Reorder wiring (called by StickyTable with visible ordered IDs)
-  const byId = React.useMemo(() => {
+  const byId = useMemo(() => {
     const m = new Map<string, IProduct>();
     for (const p of products) m.set(p.id, p);
     return m;
@@ -193,8 +253,6 @@ export default function AdminProductsPage() {
         }) as string,
         { variant: 'error', autoHideDuration: 4000 },
       );
-      // Optional: rollback
-      // setProducts(products);
     }
   };
   // ---------------------------------------------
@@ -264,8 +322,8 @@ export default function AdminProductsPage() {
     updatedTo,
   ]);
 
-  /** Reset table + product filters + URL (same UX as Orders) */
-  const resetAll = React.useCallback(() => {
+  /** Reset table + product filters + URL */
+  const resetAll = useCallback(() => {
     // Table
     setSorting([]);
     setColumnFilters([]);
@@ -289,7 +347,6 @@ export default function AdminProductsPage() {
       setParams(next, { replace: true });
     }
 
-    // Also leave reorder mode to avoid accidental drags after reset
     setReorderMode(false);
   }, [
     params,
@@ -314,7 +371,7 @@ export default function AdminProductsPage() {
           onReset={resetAll}
         />
 
-        {/* Controls (always visible) */}
+        {/* Controls */}
         <Box
           sx={{
             position: 'sticky',
@@ -367,14 +424,6 @@ export default function AdminProductsPage() {
           </Stack>
         </Box>
 
-        {/* Optional hint when reorder mode is enabled */}
-        {reorderMode && (
-          <Box sx={{ mb: 2 }}>
-            {/* Keeping this as an inline hint; replace with snackbar if preferred */}
-            {/* or use enqueueSnackbar when toggled on */}
-          </Box>
-        )}
-
         <Divider sx={{ mb: 2 }} />
 
         {/* Body */}
@@ -392,7 +441,7 @@ export default function AdminProductsPage() {
             onColumnFiltersChange={setColumnFilters}
             enablePagination
             enableSorting
-            enableColumnFilters={false} // drawer holds filters
+            enableColumnFilters={false}
             groupById="categoryId"
             disableDrag={!reorderMode}
             enableRowExpansion
@@ -408,7 +457,7 @@ export default function AdminProductsPage() {
           />
         )}
 
-        {/* Filters drawer (stays open while editing) */}
+        {/* Filters drawer */}
         <RightFiltersDrawer
           title={t('filters.open')}
           open={filtersOpen}
@@ -419,6 +468,64 @@ export default function AdminProductsPage() {
             onClose={() => setFiltersOpen(false)}
           />
         </RightFiltersDrawer>
+
+        {/* Confirm delete dialog */}
+        <Dialog
+          open={Boolean(toDelete)}
+          onClose={() => (deleting ? null : setToDelete(null))}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>
+            {t('adminProductsPage.dialog.title', {
+              defaultValue: 'Delete product?',
+            })}
+          </DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Alert severity="warning" variant="outlined">
+                {t('adminProductsPage.dialog.warning', {
+                  defaultValue:
+                    'This will permanently delete the product. This action cannot be undone.',
+                })}
+              </Alert>
+              <Typography variant="body2">
+                {t('adminProductsPage.dialog.confirm', {
+                  name: toDelete?.name ?? toDelete?.id,
+                  defaultValue: 'Are you sure you want to delete {{name}}?',
+                })}
+              </Typography>
+              {deleteError && (
+                <Alert severity="error" variant="filled">
+                  {deleteError}
+                </Alert>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={() => setToDelete(null)}
+              disabled={deleting}
+              variant="text"
+            >
+              {t('adminProductsPage.dialog.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
+              disabled={deleting}
+              color="error"
+              variant="contained"
+            >
+              {deleting
+                ? t('adminProductsPage.dialog.deleting', {
+                    defaultValue: 'Deleting…',
+                  })
+                : t('adminProductsPage.dialog.delete', {
+                    defaultValue: 'Delete',
+                  })}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </PageContainer>
     </PageLayout>
   );

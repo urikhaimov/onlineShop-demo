@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -15,7 +15,6 @@ import { useCategories } from '../../../hooks/useCategories';
 import StickyTable from '../../../components/StickyTable';
 import { defineCategoryColumns } from './Columns';
 import { PageLayout } from '../../../layouts/page.layout';
-import type { Row } from '@tanstack/react-table';
 import {
   EAbilityActions,
   EAbilitySubjects,
@@ -27,8 +26,21 @@ import type { TCategory as Category } from '@common/types';
 import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
 
 // Firestore
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../../firebase';
+import {
+  doc,
+  deleteDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+  limit as fsLimit,
+} from 'firebase/firestore';
+import { db, storage } from '../../../firebase';
+
+// Storage (delete product images)
+import { ref as storageRef, deleteObject } from 'firebase/storage';
+
 import CategoryExpandedRow from './CategoryExpandedRow';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
@@ -56,7 +68,7 @@ export default function AdminCategoriesPage() {
     setColumnFilters,
   });
 
-  // Pass onDelete into columns; clicking Delete opens the dialog
+  // Open confirm dialog from actions column
   const columns = useMemo(
     () =>
       defineCategoryColumns(navigate, (category) => {
@@ -66,19 +78,79 @@ export default function AdminCategoriesPage() {
     [navigate],
   );
 
-  const handleConfirmDelete = async () => {
+  // Helper: delete all images for a product (best-effort; ignores missing files)
+  async function deleteProductImagesMaybe(urls: unknown) {
+    const arr = Array.isArray(urls) ? urls : [];
+    for (const url of arr) {
+      if (typeof url !== 'string') continue;
+      try {
+        // ref() accepts gs:// or https download URLs
+        const imgRef = storageRef(storage, url);
+        await deleteObject(imgRef);
+      } catch {
+        // ignore — image might have been removed already or URL invalid
+      }
+    }
+  }
+
+  /**
+   * Delete all products for a given category in batches, then delete the category.
+   * Also removes product images from Storage (best-effort).
+   * Returns the number of product docs removed.
+   */
+  const deleteCategoryWithProducts = useCallback(
+    async (categoryId: string): Promise<number> => {
+      let totalDeleted = 0;
+
+      // Loop in batches to stay safely under the 500 writes/commit limit
+      // We use 400 to leave headroom.
+
+      while (true) {
+        const q = query(
+          collection(db, 'products'),
+          where('categoryId', '==', categoryId),
+          fsLimit(400),
+        );
+
+        const snap = await getDocs(q);
+        if (snap.empty) break;
+
+        const batch = writeBatch(db);
+
+        // Delete Storage images first (best-effort), then queue the doc delete
+        for (const d of snap.docs) {
+          const data = d.data() as any;
+          await deleteProductImagesMaybe(data?.images);
+          batch.delete(d.ref);
+        }
+
+        await batch.commit();
+        totalDeleted += snap.size;
+      }
+
+      // Finally delete the category doc itself
+      await deleteDoc(doc(db, 'categories', categoryId));
+
+      return totalDeleted;
+    },
+    [],
+  );
+
+  const handleConfirmDelete = useCallback(async () => {
     if (!toDelete) return;
     setDeleting(true);
     setDeleteError(null);
+
     try {
-      await deleteDoc(doc(db, 'categories', toDelete.id));
+      const count = await deleteCategoryWithProducts(toDelete.id);
       setToDelete(null);
 
       enqueueSnackbar(
-        t('adminCategoriesPage.snackbarDeleted', {
-          defaultValue: 'Category deleted successfully',
+        t('adminCategoriesPage.snackbarDeletedCascade', {
+          defaultValue: 'Category deleted. {{count}} products removed.',
+          count,
         }) as string,
-        { variant: 'success', autoHideDuration: 3000 },
+        { variant: 'success', autoHideDuration: 3500 },
       );
 
       if (typeof refetch === 'function') await refetch();
@@ -86,18 +158,16 @@ export default function AdminCategoriesPage() {
       const message =
         err instanceof Error
           ? err.message
-          : typeof err === 'string'
-            ? err
-            : (t('adminCategoriesPage.failedToDeleteFallback', {
-                defaultValue: 'Failed to delete category.',
-              }) as string);
+          : (t('adminCategoriesPage.failedToDeleteFallback', {
+              defaultValue: 'Failed to delete category (and its products).',
+            }) as string);
 
       setDeleteError(message);
       enqueueSnackbar(message, { variant: 'error', autoHideDuration: 4000 });
     } finally {
       setDeleting(false);
     }
-  };
+  }, [deleteCategoryWithProducts, enqueueSnackbar, refetch, t, toDelete]);
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
@@ -155,9 +225,9 @@ export default function AdminCategoriesPage() {
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
               <Alert severity="warning" variant="outlined">
-                {t('adminCategoriesPage.dialog.warning', {
+                {t('adminCategoriesPage.dialog.warningCascade', {
                   defaultValue:
-                    'This will permanently delete the category. This action cannot be undone.',
+                    'This will permanently delete the category AND all products in it. This action cannot be undone.',
                 })}
               </Alert>
               <Typography variant="body2">

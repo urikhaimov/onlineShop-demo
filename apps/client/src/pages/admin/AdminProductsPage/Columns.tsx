@@ -1,4 +1,3 @@
-// src/pages/AdminProductsPage/Columns.ts
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import EditIcon from '@mui/icons-material/Edit';
@@ -35,10 +34,10 @@ export function buildAdminProductColumns(
   categories: { id: string; name: string }[],
   navigate: NavigateFunction,
   { formatCurrency, formatDateTime }: Formatters,
+  onOpenDelete?: (p: IProduct) => void, // ← open dialog
 ): ColumnDef<IProduct>[] {
   const selectOptions = categories.map((c) => ({ label: c.name, value: c.id }));
 
-  // ── Reorder column (grip is rendered in TableBodyRows) ──────────────────────
   const reorderCol: ColumnDef<IProduct> = {
     id: '__reorder__',
     header: () => (
@@ -55,7 +54,6 @@ export function buildAdminProductColumns(
     cell: () => null,
   };
 
-  // ── Name (sticky left, sits immediately after the grip) ─────────────────────
   const nameCol: ColumnDef<IProduct> = {
     accessorKey: 'name',
     header: t('table.name', { defaultValue: 'Name' }),
@@ -66,7 +64,6 @@ export function buildAdminProductColumns(
     cell: ({ getValue }) => getValue<string>() ?? DASH,
   };
 
-  // Category — select filter, show human name
   const categoryCol: ColumnDef<IProduct> = {
     accessorKey: 'categoryId',
     header: t('table.category', { defaultValue: 'Category' }),
@@ -81,7 +78,6 @@ export function buildAdminProductColumns(
     },
   };
 
-  // Stock — number range
   const stockCol: ColumnDef<IProduct> = {
     ...makeNumberColumn<IProduct>(
       'stock',
@@ -92,7 +88,6 @@ export function buildAdminProductColumns(
     filterFn: betweenNumberRange,
   };
 
-  // Price — currency + number range
   const priceCol: ColumnDef<IProduct> = {
     ...makeCurrencyColumn<IProduct>(
       'price',
@@ -104,7 +99,6 @@ export function buildAdminProductColumns(
     meta: { filterVariant: 'number' },
   };
 
-  // Created At — date range; robust parsing with metadata fallback
   const createdCol: ColumnDef<IProduct> = {
     accessorKey: 'createdAt',
     header: t('table.createdAt', { defaultValue: 'Created At' }),
@@ -126,7 +120,6 @@ export function buildAdminProductColumns(
     },
   };
 
-  // Actions — sticky right
   const actionsCol: ColumnDef<IProduct> = {
     id: 'actions',
     header: t('table.actions', { defaultValue: 'Actions' }),
@@ -147,13 +140,7 @@ export function buildAdminProductColumns(
           id: 'delete',
           label: t('actions.delete', { defaultValue: 'Delete' }),
           icon: <DeleteIcon fontSize="small" />,
-          onClick: (p) => {
-            if (
-              window.confirm(t('adminProducts.confirmDelete', { name: p.name }))
-            ) {
-              navigate(`/admin/products/delete/${p.id}`);
-            }
-          },
+          onClick: (p) => onOpenDelete?.(p), // ← open dialog (no window.confirm)
         },
       ];
       return (
@@ -167,7 +154,6 @@ export function buildAdminProductColumns(
     },
   };
 
-  // Put the reorder column FIRST so the handle is always visible & not overlapped.
   return [
     reorderCol,
     nameCol,
@@ -182,15 +168,19 @@ export function buildAdminProductColumns(
 export function useProductColumns(
   categories: { id: string; name: string }[],
   navigate: NavigateFunction,
+  onOpenDelete?: (p: IProduct) => void,
 ): ColumnDef<IProduct>[] {
   const { t } = useTranslation();
   const { formatCurrency, formatDateTime } = useLocaleFormatters();
   return React.useMemo(
     () =>
-      buildAdminProductColumns(t, categories, navigate, {
-        formatCurrency,
-        formatDateTime,
-      }),
-    [t, categories, navigate, formatCurrency, formatDateTime],
+      buildAdminProductColumns(
+        t,
+        categories,
+        navigate,
+        { formatCurrency, formatDateTime },
+        onOpenDelete,
+      ),
+    [t, categories, navigate, formatCurrency, formatDateTime, onOpenDelete],
   );
 }
