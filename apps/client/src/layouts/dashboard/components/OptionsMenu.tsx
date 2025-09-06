@@ -49,7 +49,7 @@ export default function OptionsMenu() {
   const handleLogout = async () => {
     try {
       await signOut();
-      navigate(ROUTES.LOGIN);
+      navigate(ROUTES.LOGIN, { replace: true }); // ← important
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {

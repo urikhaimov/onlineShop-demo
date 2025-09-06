@@ -32,7 +32,7 @@ export default function SideMenuMobile({
   const handleLogout = async () => {
     try {
       await signOut();
-      navigate(ROUTES.LOGIN);
+      navigate(ROUTES.LOGIN, { replace: true }); // ← important
     } catch (err) {
       console.error('❌ Logout failed:', err);
     }
@@ -87,7 +87,7 @@ export default function SideMenuMobile({
           <Divider />
         </Stack>
 
-        <CardAlert />
+        {/* <CardAlert /> */}
 
         <Stack sx={{ p: 2 }}>
           <Button

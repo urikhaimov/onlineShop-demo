@@ -66,20 +66,22 @@ export enum ERoutePaths {
   ADMIN_DASHBOARD = '/admin/*',
 }
 
+// src/routes/appRoutes.tsx
 export const appRoutes = (location: Location<any>) => (
   <Routes location={location} key={location.pathname}>
+    {/* Auth routes WITHOUT app shell */}
+    <Route path={ERoutePaths.LOGIN} element={<LoginPage />} />
+    <Route path={ERoutePaths.SIGNUP} element={<SignupPage />} />
+    <Route path={ERoutePaths.RESET_PASSWORD} element={<ResetPasswordPage />} />
+    <Route path="/reset-password/confirm" element={<ResetPasswordPage />} />
+
+    {/* Everything else uses the app shell */}
     <Route element={<DashboardLayout />}>
       <Route path={ERoutePaths.HOME} element={<HomePage />} />
       <Route path={ERoutePaths.PRODUCTS} element={<ProductsPage />} />
       <Route path={ERoutePaths.PRODUCT} element={<ProductPage />} />
       <Route path={ERoutePaths.CART} element={<CartPage />} />
-      <Route path={ERoutePaths.CART} element={<CartPage />} />
-      <Route path={ERoutePaths.LOGIN} element={<LoginPage />} />
-      <Route path={ERoutePaths.SIGNUP} element={<SignupPage />} />
-      <Route
-        path={ERoutePaths.RESET_PASSWORD}
-        element={<ResetPasswordPage />}
-      />
+
       <Route
         path={ERoutePaths.CHECKOUT}
         element={
@@ -121,6 +123,7 @@ export const appRoutes = (location: Location<any>) => (
         }
       />
 
+      {/* Admin area */}
       <Route
         path={ERoutePaths.ADMIN_DASHBOARD}
         element={
@@ -148,6 +151,7 @@ export const appRoutes = (location: Location<any>) => (
         <Route path="theme" element={<AdminThemePage />} />
         <Route path="security-logs" element={<AdminSecurityLogsPage />} />
       </Route>
+
       <Route path="*" element={<NotFoundPage />} />
     </Route>
   </Routes>

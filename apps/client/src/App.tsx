@@ -8,7 +8,7 @@ import { SnackbarProvider } from 'notistack';
 import { useThemeStore } from './stores/useThemeStore';
 import { getThemeFromSettings } from './utils/themeBuilder';
 import { appRoutes } from './config/routesConfig';
-
+import { handleGoogleRedirectResultOnce } from './auth/auth-google';
 import GlobalBackground from './components/background/GlobalBackground';
 import './App.css';
 
@@ -25,6 +25,9 @@ export default function App() {
     );
   }, [theme.palette.mode]);
 
+  useEffect(() => {
+    handleGoogleRedirectResultOnce().catch(console.error);
+  }, []);
   const routes = appRoutes(location);
 
   return (

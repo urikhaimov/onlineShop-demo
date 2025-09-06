@@ -11,6 +11,7 @@ import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import SideMenuMobile from './SideMenuMobile';
 import MenuButton from './MenuButton';
 import ColorModeIconDropdown from './ColorModeIconDropdown';
+import BackgroundModeControl from '@client/components/background/BackgroundModeControl';
 
 const Toolbar = styled(MuiToolbar)({
   width: '100%',
@@ -64,14 +65,8 @@ export default function AppNavbar() {
             sx={{ justifyContent: 'center', mr: 'auto' }}
           >
             <CustomIcon />
-            <Typography
-              variant="h4"
-              component="h1"
-              sx={{ color: 'text.primary' }}
-            >
-              Dashboard
-            </Typography>
           </Stack>
+          Bunder Shop
           <ColorModeIconDropdown />
           <MenuButton aria-label="menu" onClick={toggleDrawer(true)}>
             <MenuRoundedIcon />
