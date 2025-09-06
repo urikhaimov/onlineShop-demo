@@ -1,25 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
-  Alert,
   Box,
   Button,
   CircularProgress,
   Container,
   IconButton,
   Paper,
-  Snackbar,
   Stack,
   Typography,
   MenuItem,
 } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
 import { useForm, useFieldArray } from 'react-hook-form';
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  uploadBytesResumable,
-} from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
+import { useSnackbar } from 'notistack';
 
 import { LandingPageData, HOMEPAGE_LAYOUTS } from '@common/types';
 import { footerHeight, headerHeight } from '../../../config/themeConfig';
@@ -35,7 +29,6 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { storage } from '../../../firebase';
-import type { FieldErrors } from 'react-hook-form';
 
 const DEFAULT_FORM: LandingPageData = {
   title: 'Welcome to Bunder Shop',
@@ -50,7 +43,6 @@ const DEFAULT_FORM: LandingPageData = {
       content: 'Check out our daily deals on popular products.',
     },
   ],
-  // 👇 default Bento cards so the admin has something to edit
   bentoCards: [
     { title: 'Free shipping', body: 'On orders over $99' },
     { title: '24/7 support', body: 'We’re here anytime' },
@@ -65,6 +57,7 @@ const isLayout = (v: unknown): v is LandingPageData['homepageLayout'] =>
   (Object.values(HOMEPAGE_LAYOUTS) as string[]).includes(v as string);
 
 export default function AdminLandingPage() {
+  const { enqueueSnackbar } = useSnackbar();
   const { data, isLoading, isError } = useLandingPage();
   const updateMutation = useUpdateLandingPage();
 
@@ -78,9 +71,6 @@ export default function AdminLandingPage() {
   } = useForm<LandingPageData>({
     defaultValues: DEFAULT_FORM,
   });
-
-  // Explicitly type errors for use in the component
-  const typedErrors = errors as FieldErrors<LandingPageData>;
 
   // FieldArray for "sections"
   const {
@@ -103,8 +93,6 @@ export default function AdminLandingPage() {
     control,
     name: 'bentoCards',
   });
-
-  const [toastOpen, setToastOpen] = useState(false);
 
   // merge server → form defaults; validate layout; sync FieldArrays
   useEffect(() => {
@@ -129,29 +117,18 @@ export default function AdminLandingPage() {
     };
 
     reset(merged);
-    replaceSections(merged.sections); // ensure FieldArray items render
-    replaceCards(merged.bentoCards!); // sync cards FieldArray
+    replaceSections(merged.sections);
+    replaceCards(merged.bentoCards!);
   }, [data, reset, replaceSections, replaceCards]);
 
   const uploadBannerToStorage = async (file: File): Promise<string> => {
-    console.log(
-      '[uploader] using uploadBytesResumable?',
-      typeof uploadBytesResumable === 'function',
-    ); // should print true
     const objectRef = ref(storage, `landing/banner_${Date.now()}.jpg`);
     const task = uploadBytesResumable(objectRef, file, {
       contentType: file.type || 'image/jpeg',
     });
 
     await new Promise<void>((res, rej) =>
-      task.on(
-        'state_changed',
-        () => {
-          //todo
-        },
-        rej,
-        () => res(),
-      ),
+      task.on('state_changed', undefined, rej, () => res()),
     );
     return getDownloadURL(task.snapshot.ref);
   };
@@ -175,9 +152,14 @@ export default function AdminLandingPage() {
       reset(next);
       replaceSections(next.sections ?? []);
       replaceCards(next.bentoCards ?? []);
-      setToastOpen(true);
+      enqueueSnackbar('Landing page updated successfully!', {
+        variant: 'success',
+        autoHideDuration: 2500,
+      });
     } catch (error) {
       console.error('Failed to update landing page:', error);
+      const msg = (error as any)?.message ?? 'Failed to update landing page.';
+      enqueueSnackbar(msg, { variant: 'error', autoHideDuration: 4000 });
     }
   };
 
@@ -273,7 +255,7 @@ export default function AdminLandingPage() {
                 ))}
               </FormTextField>
 
-              {/* Sections (existing) */}
+              {/* Sections */}
               <Typography variant="h6" mt={4}>
                 Sections
               </Typography>
@@ -329,7 +311,7 @@ export default function AdminLandingPage() {
                 Add Section
               </Button>
 
-              {/* Bento Cards (new) */}
+              {/* Bento Cards */}
               <Typography variant="h6" mt={4}>
                 Feature Cards (Bento)
               </Typography>
@@ -397,22 +379,6 @@ export default function AdminLandingPage() {
               </Button>
             </Stack>
           </form>
-
-          <Snackbar
-            open={toastOpen}
-            autoHideDuration={2500}
-            onClose={() => setToastOpen(false)}
-            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-          >
-            <Alert
-              onClose={() => setToastOpen(false)}
-              severity="success"
-              variant="filled"
-              sx={{ width: '100%' }}
-            >
-              Landing page updated successfully!
-            </Alert>
-          </Snackbar>
         </Container>
       </Box>
     </PageLayout>

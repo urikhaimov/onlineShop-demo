@@ -1,11 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   Alert,
   Box,
   CircularProgress,
   Divider,
   Paper,
-  Snackbar,
   Stack,
   Typography,
   useTheme,
@@ -29,6 +28,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { CDefaultCurrency } from '@common/types';
 import LoadingProgress from '@client/components/LoadingProgress';
+import { useSnackbar } from 'notistack';
 
 // small helpers to avoid `any`
 type WithImage = { image?: string };
@@ -48,6 +48,7 @@ function pickImage(it: unknown): string {
 export default function CheckoutPage() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const { themeSettings } = useThemeStore();
 
   // ---- Theme-aware tokens
@@ -118,6 +119,25 @@ export default function CheckoutPage() {
     taxRatePercent, // percent, e.g. 17
     discountMajor,
   });
+
+  // Toast errors instead of Snackbar components
+  useEffect(() => {
+    if (error) {
+      enqueueSnackbar(String(error), {
+        variant: 'error',
+        autoHideDuration: 5000,
+      });
+    }
+  }, [error, enqueueSnackbar]);
+
+  useEffect(() => {
+    if (settingsError && settingsErr) {
+      enqueueSnackbar(String(settingsErr), {
+        variant: 'warning',
+        autoHideDuration: 4000,
+      });
+    }
+  }, [settingsError, settingsErr, enqueueSnackbar]);
 
   // Loading gate AFTER hooks
   if (settingsLoading) return <LoadingProgress />;
@@ -331,17 +351,6 @@ export default function CheckoutPage() {
             </Alert>
           )}
         </Paper>
-
-        <Snackbar
-          open={!!error}
-          autoHideDuration={5000}
-          onClose={() => void 0}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="error" sx={{ width: '100%' }}>
-            {String(error || '')}
-          </Alert>
-        </Snackbar>
       </Box>
     </PageLayout>
   );

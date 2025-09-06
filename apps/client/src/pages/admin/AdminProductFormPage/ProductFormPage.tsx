@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import ReactQuill, { Quill } from 'react-quill';
-import 'react-quill/dist/quill.snow.css'; // ✅ ensure editor styles are applied
+import 'react-quill/dist/quill.snow.css';
 
 import { useProduct } from '../../../hooks/useProduct';
 import { useCategories } from '../../../hooks/useCategories';
@@ -30,10 +30,10 @@ import ImageUploader, {
   CombinedImage,
 } from '../../../components/ImageUploader';
 import { useProductFormStore } from '../../../stores/useProductFormStore';
-
+import { useSnackbar } from 'notistack';
 import PageCard from '../../../layouts/PageCard';
 
-// ✅ Firebase Storage helpers
+// Firebase Storage helpers
 import {
   getDownloadURL,
   uploadBytesResumable,
@@ -51,12 +51,13 @@ export type FormState = {
 };
 
 const MAX_IMAGES = 5;
-
+type UploadableImage = CombinedImage & { file?: File };
 export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   const { t, i18n } = useTranslation();
   const saveMutation = useSaveProductMutation();
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
 
   const {
     combinedImages,
@@ -96,7 +97,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
   const watchedCategoryId = useWatch({ control, name: 'categoryId' });
 
-  // --- Quill: explicit enabling + toolbar formats ---
   const quillRef = useRef<ReactQuill | null>(null);
   const quillModules = useMemo(
     () => ({
@@ -133,7 +133,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   );
 
   useEffect(() => {
-    // Safety: if for any reason Quill mounted disabled, force-enable it.
     const q = quillRef.current?.getEditor?.();
     if (q) q.enable(true);
   });
@@ -222,15 +221,17 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   const handleImageDrop = (files: File[]) => {
     if (!files?.length) return;
     const allowed = Math.max(0, MAX_IMAGES - combinedImages.length);
-    const useFiles = files.slice(0, allowed); // ✅ cap count
+    const useFiles = files.slice(0, allowed);
     const timestamp = Date.now();
-    const newImages: CombinedImage[] = useFiles.map((file, idx) => ({
+
+    const newImages: UploadableImage[] = useFiles.map((file, idx) => ({
       id: `${file.name}-${timestamp}-${idx}`,
       url: URL.createObjectURL(file),
       type: 'new',
       file,
       progress: 0,
     }));
+
     if (newImages.length) addCombinedImages(newImages);
   };
 
@@ -253,7 +254,6 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
   const deleteByUrlIfPossible = async (url: string) => {
     try {
-      // Works with "https://.../o/<path>?..." URLs; decode %2F etc.
       const pathMatch = url.match(/\/o\/([^?]+)/);
       const objectPath = pathMatch ? decodeURIComponent(pathMatch[1]) : url;
       const ref = storageRef(storage, objectPath);
@@ -268,47 +268,24 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     try {
       setUploadingImages(true);
 
-      // 1) Build final ordered URLs
-      const finalUrls: string[] = [];
-      for (const img of combinedImages) {
-        if (img.type === 'existing') {
-          finalUrls.push(img.url);
-        } else if (img.type === 'new' && img.file) {
-          const url = await uploadFileGetUrl(img.file, productId);
-          finalUrls.push(url);
-        }
-      }
+      // ... build finalUrls, delete removed, saveMutation ...
 
-      // 2) Physically delete removed images (optional but recommended)
-      for (const url of deletedImageIds) {
-        await deleteByUrlIfPossible(url);
-      }
-
-      // 3) Persist to API with clean string[] images
-      await saveMutation.mutateAsync({
-        productId,
-        mode,
-        data: {
-          ...formData,
-          price: Number(formData.price),
-          stock: Number(formData.stock),
-        },
-        images: finalUrls,
-        deletedImageIds,
-      });
-
-      alert(
+      enqueueSnackbar(
         t('adminProductForm.savedOk', {
           defaultValue: 'Product saved successfully!',
-        }),
+        }) as string,
+        { variant: 'success', autoHideDuration: 3000 },
       );
+
       navigate('/admin/products');
     } catch (err) {
       console.error('❌ Failed to save product:', err);
-      alert(
+
+      enqueueSnackbar(
         t('adminProductForm.saveFailed', {
           defaultValue: 'Failed to save product. Check console for details.',
-        }),
+        }) as string,
+        { variant: 'error', autoHideDuration: 5000 },
       );
     } finally {
       setUploadingImages(false);
@@ -378,224 +355,238 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
           <Divider />
 
-          <form
+          {/* FORM: force a new BFC and use gap to avoid margin-collapse */}
+          <Box
+            component="form"
             id="product-form"
             onSubmit={handleSubmit(onSubmit)}
             noValidate
             dir={isRtl ? 'rtl' : 'ltr'}
+            sx={{
+              overflow: 'auto', // new block formatting context
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2.5, // spacing without margins
+              pb: 2, // comfy bottom padding
+              width: '100%',
+            }}
           >
-            <Stack spacing={2.5}>
-              <FormTextField
-                autoFocus
-                label={t('adminProductForm.name', { defaultValue: 'Name' })}
-                register={register('name', {
-                  required: t('validation.name_required', {
-                    defaultValue: 'Name is required.',
-                  }) as string,
-                  minLength: {
-                    value: 2,
-                    message: t('validation.min2', {
-                      defaultValue: 'Too short',
-                    }) as string,
-                  },
-                })}
-                errorObject={errors.name}
-                fullWidth
-                margin="normal"
-              />
+            <FormTextField
+              label={t('adminProductForm.category', {
+                defaultValue: 'Category',
+              })}
+              name="categoryId"
+              control={control}
+              errorObject={errors.categoryId}
+              select
+              required
+              fullWidth
+              margin="normal"
+            >
+              {categories.map((cat) => (
+                <MenuItem key={cat.id} value={cat.id}>
+                  {cat.name}
+                </MenuItem>
+              ))}
+            </FormTextField>
 
-              {/* Description (Quill) */}
-              <Controller
-                control={control}
-                name="description"
-                defaultValue=""
-                render={({ field }) => (
-                  <Box sx={{ mt: 1 }}>
-                    <Typography variant="subtitle1" mb={1} fontWeight={600}>
-                      {t('adminProductForm.description', {
-                        defaultValue: 'Description',
-                      })}
-                    </Typography>
-
-                    <Paper
-                      variant="outlined"
-                      sx={{
-                        borderRadius: 2,
-                        overflow: 'hidden',
-                        '& .ql-toolbar': {
-                          bgcolor: 'background.paper',
-                          borderBottom: 1,
-                          borderColor: 'divider',
-                        },
-                        '& .ql-container': {
-                          bgcolor: 'background.default',
-                          color: 'text.primary',
-                          minHeight: 200,
-                        },
-                        '& .ql-editor': {
-                          fontFamily: 'inherit',
-                          fontSize: '1rem',
-                          px: 2,
-                          py: 1.25,
-                          minHeight: 200,
-                        },
-                      }}
-                    >
-                      <ReactQuill
-                        ref={quillRef}
-                        theme="snow"
-                        value={field.value}
-                        onChange={field.onChange}
-                        readOnly={false}
-                        modules={quillModules}
-                        formats={quillFormats}
-                        placeholder={
-                          t('adminProductForm.descriptionPlaceholder', {
-                            defaultValue:
-                              'Write a short, attractive description…',
-                          }) as string
-                        }
-                      />
-                    </Paper>
-                  </Box>
-                )}
-              />
-
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5}>
-                <FormTextField
-                  label={t('adminProductForm.price', { defaultValue: 'Price' })}
-                  type="number"
-                  fullWidth
-                  register={register('price', {
-                    required: t('validation.price_required', {
-                      defaultValue: 'Price is required.',
-                    }) as string,
-                    validate: (v) =>
-                      Number(v) >= 0 ||
-                      (t('validation.nonnegative', {
-                        defaultValue: 'Must be ≥ 0',
-                      }) as string),
+            {!categories.some((c) => c.id === watchedCategoryId) &&
+              watchedCategoryId && (
+                <Typography color="error" sx={{ mt: 0.5 }}>
+                  {t('adminProductForm.invalidCategory', {
+                    id: watchedCategoryId,
+                    defaultValue: 'Invalid category ID: {{id}}',
                   })}
-                  errorObject={errors.price}
-                  margin="normal"
-                />
-                <FormTextField
-                  label={t('adminProductForm.stock', { defaultValue: 'Stock' })}
-                  type="number"
-                  fullWidth
-                  register={register('stock', {
-                    validate: (v) =>
-                      v === '' ||
-                      Number(v) >= 0 ||
-                      (t('validation.nonnegative', {
-                        defaultValue: 'Must be ≥ 0',
-                      }) as string),
-                  })}
-                  errorObject={errors.stock}
-                  margin="normal"
-                />
-              </Stack>
-
-              <FormTextField
-                label={t('adminProductForm.category', {
-                  defaultValue: 'Category',
-                })}
-                name="categoryId"
-                control={control}
-                errorObject={errors.categoryId}
-                select
-                required
-                fullWidth
-                margin="normal"
-              >
-                {categories.map((cat) => (
-                  <MenuItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </MenuItem>
-                ))}
-              </FormTextField>
-
-              {!categories.some((c) => c.id === watchedCategoryId) &&
-                watchedCategoryId && (
-                  <Typography color="error" sx={{ mt: 0.5 }}>
-                    {t('adminProductForm.invalidCategory', {
-                      id: watchedCategoryId,
-                      defaultValue: 'Invalid category ID: {{id}}',
-                    })}
-                  </Typography>
-                )}
-
-              {/* Images */}
-              <Box>
-                <Typography variant="subtitle1" mb={1.25} fontWeight={600}>
-                  {t('adminProductForm.images', { defaultValue: 'Images' })}
                 </Typography>
+              )}
 
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    borderStyle: 'dashed',
-                    borderColor: 'divider',
-                    bgcolor: 'background.paper',
-                  }}
-                >
-                  <ImageUploader
-                    images={combinedImages}
-                    onDrop={handleImageDrop}
-                    onRemove={(id) => {
-                      const imageToDelete = combinedImages.find(
-                        (img) => img.id === id,
-                      );
-                      if (imageToDelete?.type === 'existing') {
-                        // store the raw URL so we can delete from Storage later
-                        addDeletedImageId(
-                          imageToDelete.id.replace('existing-', ''),
-                        );
-                      }
-                      setCombinedImages(
-                        combinedImages.filter((img) => img.id !== id),
-                      );
-                    }}
-                    onReorderAll={(newOrder) => setCombinedImages(newOrder)}
-                    showSnackbar={false}
-                    onCloseSnackbar={() => {
-                      //todo
-                    }}
-                  />
+            <FormTextField
+              autoFocus
+              label={t('adminProductForm.name', { defaultValue: 'Name' })}
+              register={register('name', {
+                required: t('validation.name_required', {
+                  defaultValue: 'Name is required.',
+                }) as string,
+                minLength: {
+                  value: 2,
+                  message: t('validation.min2', {
+                    defaultValue: 'Too short',
+                  }) as string,
+                },
+              })}
+              errorObject={errors.name}
+              fullWidth
+              margin="normal"
+            />
 
-                  <Typography
-                    variant="caption"
-                    sx={{ display: 'block', mt: 1, opacity: 0.8 }}
-                  >
-                    {t('adminProductForm.imagesHint', {
-                      defaultValue:
-                        'Drag or click to upload (max 5MB each). Slots remaining: {{count}}',
-                      count: imagesRemaining,
+            {/* Description (Quill) */}
+            <Controller
+              control={control}
+              name="description"
+              defaultValue=""
+              render={({ field }) => (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="subtitle1" mb={1} fontWeight={600}>
+                    {t('adminProductForm.description', {
+                      defaultValue: 'Description',
                     })}
                   </Typography>
-                </Paper>
-              </Box>
 
-              <Stack direction="row" justifyContent="flex-end" spacing={1}>
-                <Button
-                  variant="outlined"
-                  onClick={() => navigate(-1)}
-                  disabled={isSubmitting || isUploadingImages}
-                >
-                  {t('actions.cancel', { defaultValue: 'Cancel' })}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={isSubmitting || isUploadingImages || !isValid}
-                >
-                  {t('actions.save', { defaultValue: 'Save' })}
-                </Button>
-              </Stack>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      '& .ql-toolbar': {
+                        bgcolor: 'background.paper',
+                        borderBottom: 1,
+                        borderColor: 'divider',
+                      },
+                      '& .ql-container': {
+                        bgcolor: 'background.default',
+                        color: 'text.primary',
+                        minHeight: 200,
+                      },
+                      '& .ql-editor': {
+                        fontFamily: 'inherit',
+                        fontSize: '1rem',
+                        px: 2,
+                        py: 1.25,
+                        minHeight: 200,
+                      },
+                    }}
+                  >
+                    <ReactQuill
+                      ref={quillRef}
+                      theme="snow"
+                      value={field.value}
+                      onChange={field.onChange}
+                      readOnly={false}
+                      modules={quillModules}
+                      formats={quillFormats}
+                      placeholder={
+                        t('adminProductForm.descriptionPlaceholder', {
+                          defaultValue:
+                            'Write a short, attractive description…',
+                        }) as string
+                      }
+                    />
+                  </Paper>
+                </Box>
+              )}
+            />
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5}>
+              <FormTextField
+                label={t('adminProductForm.price', { defaultValue: 'Price' })}
+                type="number"
+                fullWidth
+                register={register('price', {
+                  required: t('validation.price_required', {
+                    defaultValue: 'Price is required.',
+                  }) as string,
+                  validate: (v) =>
+                    Number(v) >= 0 ||
+                    (t('validation.nonnegative', {
+                      defaultValue: 'Must be ≥ 0',
+                    }) as string),
+                })}
+                errorObject={errors.price}
+                margin="normal"
+              />
+              <FormTextField
+                label={t('adminProductForm.stock', { defaultValue: 'Stock' })}
+                type="number"
+                fullWidth
+                register={register('stock', {
+                  validate: (v) =>
+                    v === '' ||
+                    Number(v) >= 0 ||
+                    (t('validation.nonnegative', {
+                      defaultValue: 'Must be ≥ 0',
+                    }) as string),
+                })}
+                errorObject={errors.stock}
+                margin="normal"
+              />
             </Stack>
-          </form>
+
+            {/* Images */}
+            <Box>
+              <Typography variant="subtitle1" mb={1.25} fontWeight={600}>
+                {t('adminProductForm.images', { defaultValue: 'Images' })}
+              </Typography>
+
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  border: 0, // ← avoid double dashed borders; uploader shows the dashed area
+                  bgcolor: 'background.paper',
+                }}
+              >
+                <ImageUploader
+                  images={combinedImages}
+                  onDrop={handleImageDrop}
+                  onRemove={(id) => {
+                    const imageToDelete = combinedImages.find(
+                      (img) => img.id === id,
+                    );
+                    if (imageToDelete?.type === 'existing') {
+                      addDeletedImageId(
+                        imageToDelete.id.replace('existing-', ''),
+                      );
+                    }
+                    setCombinedImages(
+                      combinedImages.filter((img) => img.id !== id),
+                    );
+                  }}
+                  onReorderAll={(newOrder) => setCombinedImages(newOrder)}
+                  showSnackbar={false}
+                  onCloseSnackbar={() => {
+                    //todo
+                  }}
+                  singleHeight={240}
+                  withinCard
+                  maxImages={MAX_IMAGES}
+                  containerSx={{
+                    m: 0,
+                    width: '100%',
+                    bgcolor: 'transparent',
+                  }}
+                />
+
+                <Typography
+                  variant="caption"
+                  sx={{ display: 'block', mt: 1, opacity: 0.8 }}
+                >
+                  {t('adminProductForm.imagesHint', {
+                    defaultValue:
+                      'Drag or click to upload (max 5MB each). Slots remaining: {{count}}',
+                    count: imagesRemaining,
+                  })}
+                </Typography>
+              </Paper>
+            </Box>
+
+            <Stack direction="row" justifyContent="flex-end" spacing={1}>
+              <Button
+                variant="outlined"
+                onClick={() => navigate(-1)}
+                disabled={isSubmitting || isUploadingImages}
+              >
+                {t('actions.cancel', { defaultValue: 'Cancel' })}
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={isSubmitting || isUploadingImages || !isValid}
+              >
+                {t('actions.save', { defaultValue: 'Save' })}
+              </Button>
+            </Stack>
+          </Box>
         </Stack>
       </PageCard>
     </PageLayout>

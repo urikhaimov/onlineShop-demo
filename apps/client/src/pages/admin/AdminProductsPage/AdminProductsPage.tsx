@@ -1,11 +1,12 @@
 // src/pages/AdminProductsPage/index.tsx
 import * as React from 'react';
 import { useEffect, useMemo } from 'react';
-import { Snackbar, Alert, Divider, Box, Button, Stack } from '@mui/material';
+import { Divider, Box, Button, Stack } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 
 import StickyTable from '../../../components/StickyTable';
 import LoadingProgress from '../../../components/LoadingProgress';
@@ -60,17 +61,16 @@ function toDate(value: unknown): Date | null {
 
 export default function AdminProductsPage() {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
 
   const {
     products,
     loading,
-    snackbarOpen,
     sorting,
     columnFilters,
     setProducts,
     setProductsSorted,
     setLoading,
-    setSnackbarOpen,
     setSorting,
     setColumnFilters,
     filtersOpen,
@@ -130,15 +130,33 @@ export default function AdminProductsPage() {
         } else {
           setProducts([]);
           console.error('❌ Invalid product response:', res.data);
+          enqueueSnackbar(
+            t('adminProductsPage.loadFailed', {
+              defaultValue: 'Failed to load products.',
+            }) as string,
+            {
+              variant: 'error',
+              autoHideDuration: 4000,
+            },
+          );
         }
       } catch (err) {
         console.error('❌ Failed to load products:', err);
+        enqueueSnackbar(
+          t('adminProductsPage.loadFailed', {
+            defaultValue: 'Failed to load products.',
+          }) as string,
+          {
+            variant: 'error',
+            autoHideDuration: 4000,
+          },
+        );
       } finally {
         setLoading(false);
       }
     };
     void loadProducts();
-  }, [setLoading, setProducts, setProductsSorted]);
+  }, [setLoading, setProducts, setProductsSorted, enqueueSnackbar, t]);
 
   // ---- Reorder wiring (called by StickyTable with visible ordered IDs)
   const byId = React.useMemo(() => {
@@ -161,9 +179,20 @@ export default function AdminProductsPage() {
 
     try {
       await reorder.mutateAsync({ orderList, token });
-      setSnackbarOpen(true);
+      enqueueSnackbar(
+        t('adminProductsPage.snackbarReordered', {
+          defaultValue: 'Products reordered',
+        }) as string,
+        { variant: 'success', autoHideDuration: 3000 },
+      );
     } catch (err) {
       console.error('❌ Reorder failed', err);
+      enqueueSnackbar(
+        t('adminProductsPage.reorderFailed', {
+          defaultValue: 'Failed to reorder products.',
+        }) as string,
+        { variant: 'error', autoHideDuration: 4000 },
+      );
       // Optional: rollback
       // setProducts(products);
     }
@@ -307,7 +336,7 @@ export default function AdminProductsPage() {
                 {t('filters.open')}
               </Button>
 
-              {/* NEW: Reorder mode toggle */}
+              {/* Reorder mode toggle */}
               <Button
                 variant={reorderMode ? 'contained' : 'outlined'}
                 size="small"
@@ -340,12 +369,10 @@ export default function AdminProductsPage() {
 
         {/* Optional hint when reorder mode is enabled */}
         {reorderMode && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            {t('adminProductsPage.reorderHint', {
-              defaultValue:
-                'Drag rows to change order. Turn Reorder OFF to click through to edit pages.',
-            })}
-          </Alert>
+          <Box sx={{ mb: 2 }}>
+            {/* Keeping this as an inline hint; replace with snackbar if preferred */}
+            {/* or use enqueueSnackbar when toggled on */}
+          </Box>
         )}
 
         <Divider sx={{ mb: 2 }} />
@@ -367,7 +394,7 @@ export default function AdminProductsPage() {
             enableSorting
             enableColumnFilters={false} // drawer holds filters
             groupById="categoryId"
-            disableDrag={false}
+            disableDrag={!reorderMode}
             enableRowExpansion
             renderExpandedRow={(product) => (
               <ProductExpandedRow
@@ -376,7 +403,6 @@ export default function AdminProductsPage() {
               />
             )}
             bodyMaxHeight="60vh"
-            // Reorder only when explicitly enabled, and block when sorting/filters active
             onReorder={handleReorder}
             getRowId={(p) => p.id}
           />
@@ -393,17 +419,6 @@ export default function AdminProductsPage() {
             onClose={() => setFiltersOpen(false)}
           />
         </RightFiltersDrawer>
-
-        <Snackbar
-          open={snackbarOpen}
-          autoHideDuration={3000}
-          onClose={() => setSnackbarOpen(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="success" variant="filled">
-            {t('adminProductsPage.snackbarReordered')}
-          </Alert>
-        </Snackbar>
       </PageContainer>
     </PageLayout>
   );

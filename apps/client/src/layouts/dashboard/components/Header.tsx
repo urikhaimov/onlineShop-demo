@@ -33,8 +33,8 @@ export default function Header() {
       }}
       spacing={2}
     >
-      <NavbarBreadcrumbs />
-
+      {/* <NavbarBreadcrumbs /> */}
+      <BackgroundModeControl />
       <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
         <Search />
         <CustomDatePicker />
@@ -54,7 +54,6 @@ export default function Header() {
         </IconButton>
 
         <ColorModeIconDropdown />
-        <BackgroundModeControl />
       </Stack>
     </Stack>
   );

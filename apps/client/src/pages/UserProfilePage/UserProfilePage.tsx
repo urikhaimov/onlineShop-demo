@@ -2,8 +2,6 @@
 import * as React from 'react';
 import { useEffect } from 'react';
 import {
-  Snackbar,
-  Alert,
   Divider,
   Box,
   Button,
@@ -33,30 +31,20 @@ import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
-import {
-  useUserProfileToastStore,
-  useUserProfileUIStore,
-} from '../../stores/useUserProfileUIStore';
+import { useUserProfileUIStore } from '../../stores/useUserProfileUIStore';
 import { useTranslation } from 'react-i18next';
 
 import PageContainer from '../../components/PageContainer';
 import AdminHeaderBar from '../../components/AdminHeaderBar';
+import { useSnackbar } from 'notistack';
 
 type FormValues = { name: string; email?: string; uid?: string };
 
 export default function UserProfilePage() {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const { user, loading } = useAuth();
 
-  const {
-    toastOpen,
-    toastMessage,
-    errorMsg,
-    setToastOpen,
-    setToastMessage,
-    setErrorMsg,
-    resetToast,
-  } = useUserProfileToastStore();
   const {
     avatarVer,
     avatarUploading,
@@ -93,17 +81,18 @@ export default function UserProfilePage() {
   const onSubmit = async (data: { name: string }) => {
     try {
       await updateMutation.mutateAsync({ name: data.name });
-      setToastMessage(
+      enqueueSnackbar(
         t('userProfile.toasts.profileUpdated', {
           defaultValue: 'Profile updated',
         }),
+        { variant: 'success' },
       );
-      setToastOpen(true);
     } catch {
-      setErrorMsg(
+      enqueueSnackbar(
         t('userProfile.errors.updateFailed', {
           defaultValue: 'Failed to update profile.',
         }),
+        { variant: 'error' },
       );
     }
   };
@@ -113,18 +102,18 @@ export default function UserProfilePage() {
       setUploading(true);
       await uploadAvatarMutation.mutateAsync(file);
       incrementAvatarVer();
-      setToastMessage(
+      enqueueSnackbar(
         t('userProfile.toasts.profileUpdated', {
           defaultValue: 'Profile updated',
         }),
+        { variant: 'success' },
       );
-      setToastOpen(true);
     } catch (err: unknown) {
       const fallback = t('userProfile.errors.avatarUploadFailed', {
         defaultValue: 'Avatar upload failed.',
       });
       const message = err instanceof Error ? err.message : fallback;
-      setErrorMsg(message || fallback);
+      enqueueSnackbar(message || fallback, { variant: 'error' });
     } finally {
       setUploading(false);
     }
@@ -134,17 +123,18 @@ export default function UserProfilePage() {
     try {
       await deleteAvatarMutation.mutateAsync();
       incrementAvatarVer();
-      setToastMessage(
+      enqueueSnackbar(
         t('userProfile.toasts.avatarDeleted', {
           defaultValue: 'Avatar deleted',
         }),
+        { variant: 'success' },
       );
-      setToastOpen(true);
     } catch {
-      setErrorMsg(
+      enqueueSnackbar(
         t('userProfile.errors.deleteAvatarFailed', {
           defaultValue: 'Failed to delete avatar',
         }),
+        { variant: 'error' },
       );
     } finally {
       setDeleteDialog(false);
@@ -266,30 +256,6 @@ export default function UserProfilePage() {
             </Stack>
           </Paper>
         )}
-
-        {/* success toast */}
-        <Snackbar
-          open={toastOpen}
-          autoHideDuration={3000}
-          onClose={resetToast}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert severity="success" sx={{ width: '100%' }}>
-            {toastMessage}
-          </Alert>
-        </Snackbar>
-
-        {/* error toast */}
-        <Snackbar
-          open={!!errorMsg}
-          autoHideDuration={4000}
-          onClose={() => setErrorMsg('')}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="error" sx={{ width: '100%' }}>
-            {errorMsg}
-          </Alert>
-        </Snackbar>
 
         {/* delete avatar dialog */}
         <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialog(false)}>

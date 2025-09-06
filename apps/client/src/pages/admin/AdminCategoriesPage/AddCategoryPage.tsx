@@ -1,7 +1,7 @@
 // src/pages/admin/categories/AddCategoryPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Typography, Snackbar, Alert, Stack } from '@mui/material';
+import { Typography, Alert, Stack } from '@mui/material';
 import CategoryForm, { CategoryFormValues } from './CategoryForm';
 import { PageLayout } from '../../../layouts/page.layout';
 import {
@@ -9,18 +9,19 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 
-// ✅ Reusable centered card with inner padding
+// Reusable centered card with inner padding
 import PageCard from '../../../layouts/PageCard';
 
 export default function AddCategoryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
 
-  const [okOpen, setOkOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const handleSubmit = async (data: CategoryFormValues) => {
@@ -34,15 +35,23 @@ export default function AddCategoryPage() {
         updatedAt: serverTimestamp(),
       });
 
-      setOkOpen(true);
-      setTimeout(() => navigate('/admin/categories'), 300);
-    } catch (e: any) {
-      setErr(
-        e?.message ??
-          t('adminCategoriesAddPage.failedToCreateFallback', {
-            defaultValue: 'Failed to create category.',
-          }),
+      enqueueSnackbar(
+        t('adminCategoriesAddPage.snackbarCreated', {
+          defaultValue: 'Category created',
+        }) as string,
+        { variant: 'success', autoHideDuration: 2500 },
       );
+
+      navigate('/admin/categories');
+    } catch (e: any) {
+      const message =
+        e?.message ??
+        (t('adminCategoriesAddPage.failedToCreateFallback', {
+          defaultValue: 'Failed to create category.',
+        }) as string);
+
+      setErr(message);
+      enqueueSnackbar(message, { variant: 'error', autoHideDuration: 4000 });
     }
   };
 
@@ -73,19 +82,6 @@ export default function AddCategoryPage() {
           )}
         </Stack>
       </PageCard>
-
-      <Snackbar
-        open={okOpen}
-        autoHideDuration={2500}
-        onClose={() => setOkOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" variant="filled">
-          {t('adminCategoriesAddPage.snackbarCreated', {
-            defaultValue: 'Category created',
-          })}
-        </Alert>
-      </Snackbar>
     </PageLayout>
   );
 }

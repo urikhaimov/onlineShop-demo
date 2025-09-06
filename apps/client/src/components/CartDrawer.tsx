@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Alert,
   Box,
   Button,
   Divider,
@@ -9,26 +8,17 @@ import {
   IconButton,
   List,
   ListItemText,
-  Slide,
-  Snackbar,
   SwipeableDrawer,
   Typography,
 } from '@mui/material';
-import type { TransitionProps } from '@mui/material/transitions';
 import CloseIcon from '@mui/icons-material/Close';
 import { useCartStore } from '../stores/useCartStore';
 import { useSwipeable } from 'react-swipeable';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 
 import { IProduct } from '@common/types';
 export type CartItem = IProduct & { quantity: number };
-
-const SlideTransition = React.forwardRef(function SlideTransition(
-  props: TransitionProps & { children: React.ReactElement },
-  ref: React.Ref<unknown>,
-) {
-  return <Slide direction="up" ref={ref} {...props} />;
-});
 
 interface CartDrawerProps {
   open: boolean;
@@ -134,18 +124,17 @@ function SwipeableCartItem({
 const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
+
   const items = useCartStore((s) => s.items);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeFromCart = useCartStore((s) => s.removeFromCart);
   const clearCart = useCartStore((s) => s.clearCart);
   const subtotal = items.reduce((s, i) => s + i.quantity * i.price, 0);
 
-  const [toast, setToast] = useState<{ open: boolean; message: string }>({
-    open: false,
-    message: '',
-  });
   const noop = () => undefined;
-  const showToast = (message: string) => setToast({ open: true, message });
+  const showToast = (message: string) =>
+    enqueueSnackbar(message, { variant: 'info', autoHideDuration: 2500 });
 
   return (
     <SwipeableDrawer anchor="right" open={open} onClose={onClose} onOpen={noop}>
@@ -231,22 +220,6 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
           </Button>
         </Box>
       </Box>
-
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={2500}
-        onClose={() => setToast({ open: false, message: '' })}
-        TransitionComponent={SlideTransition}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          severity="info"
-          variant="filled"
-          onClose={() => setToast({ open: false, message: '' })}
-        >
-          {toast.message}
-        </Alert>
-      </Snackbar>
     </SwipeableDrawer>
   );
 };

@@ -1,14 +1,7 @@
 // src/pages/ProductsPage/index.tsx
 import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Divider,
-  Snackbar,
-  Alert,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
+import { Box, Divider, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useInView } from 'react-intersection-observer';
 import { debounce } from 'lodash';
@@ -56,9 +49,11 @@ import { toJsDate } from '../../utils/toJsDate';
 import { useTranslation } from 'react-i18next';
 import LoadingProgress from '@client/components/LoadingProgress';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { useSnackbar } from 'notistack';
 
 export default function ProductsPage() {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
 
   // 🧩 Theme + Theme Store
   const theme = useTheme();
@@ -87,7 +82,6 @@ export default function ProductsPage() {
   // Data & state
   const [products, setProducts] = useState<IProduct[]>([]);
   const [visibleCount, setVisibleCount] = useState(20);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -231,8 +225,16 @@ export default function ProductsPage() {
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  // Locale-aware columns
-  const columns = useProductColumns(categories, setSnackbarOpen);
+  // ✅ Proper () => void callback for columns to trigger a toast
+  const showAddedToast = React.useCallback(() => {
+    enqueueSnackbar(t('toasts.addedToCart'), {
+      variant: 'success',
+      autoHideDuration: 3000,
+    });
+  }, [enqueueSnackbar, t]);
+
+  // Locale-aware columns (pass toast trigger)
+  const columns = useProductColumns(categories, showAddedToast);
 
   // URL sync for table state
   useStickyTableQuerySync({
@@ -329,10 +331,7 @@ export default function ProductsPage() {
             enableSorting
             enableRowExpansion
             renderExpandedRow={(product) => (
-              <ProductExpandedRow
-                product={product}
-                categoryName={getCategoryName(product.categoryId)}
-              />
+              <ProductExpandedRow product={product} />
             )}
             bodyMaxHeight="60vh"
           />
@@ -342,7 +341,12 @@ export default function ProductsPage() {
               <Box key={product.id} sx={{ display: 'flex', minWidth: 0 }}>
                 <ProductCard
                   product={product}
-                  onAddToCart={() => setSnackbarOpen(true)}
+                  onAddToCart={() =>
+                    enqueueSnackbar(t('toasts.addedToCart'), {
+                      variant: 'success',
+                      autoHideDuration: 3000,
+                    })
+                  }
                 />
               </Box>
             ))}
@@ -367,18 +371,6 @@ export default function ProductsPage() {
             closeOnChange={false}
           />
         </RightFiltersDrawer>
-
-        {/* Add-to-cart toast */}
-        <Snackbar
-          open={snackbarOpen}
-          autoHideDuration={3000}
-          onClose={() => setSnackbarOpen(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="success" variant="filled">
-            {t('toasts.addedToCart')}
-          </Alert>
-        </Snackbar>
       </PageContainer>
     </PageLayout>
   );

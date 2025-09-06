@@ -4,7 +4,6 @@ import {
   Button,
   Divider,
   Typography,
-  Snackbar,
   Alert,
   Stack,
   Dialog,
@@ -48,6 +47,7 @@ import {
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 
 /** ---------- types & helpers (fully typed) ---------- */
 type OrderItem = {
@@ -149,6 +149,7 @@ function orderMatchesFilters(o: OrderLike, f: AdminOrderFilterState): boolean {
 
 export default function AdminOrdersPage() {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
 
@@ -157,8 +158,6 @@ export default function AdminOrdersPage() {
     setSorting,
     columnFilters,
     setColumnFilters,
-    snackbarOpen,
-    setSnackbarOpen,
     resetFilters,
     filters,
   } = useAdminOrdersStore();
@@ -211,14 +210,24 @@ export default function AdminOrdersPage() {
     try {
       await deleteDoc(doc(db, 'orders', toDelete.id));
       setToDelete(null);
-      setSnackbarOpen(true);
+
+      enqueueSnackbar(
+        t('adminOrdersPage.snackbarSuccess', {
+          defaultValue: 'Order deleted successfully',
+        }) as string,
+        { variant: 'success', autoHideDuration: 3000 },
+      );
+
       if (typeof refetch === 'function') await refetch();
     } catch (err) {
       const msg =
         err instanceof Error
           ? err.message
-          : t('adminOrdersPage.failedToDeleteFallback');
+          : (t('adminOrdersPage.failedToDeleteFallback', {
+              defaultValue: 'Failed to delete order.',
+            }) as string);
       setDeleteError(msg);
+      enqueueSnackbar(msg, { variant: 'error', autoHideDuration: 4000 });
     } finally {
       setDeleting(false);
     }
@@ -286,18 +295,6 @@ export default function AdminOrdersPage() {
             bodyMaxHeight="60vh"
           />
         )}
-
-        {/* action toast */}
-        <Snackbar
-          open={snackbarOpen}
-          autoHideDuration={3000}
-          onClose={() => setSnackbarOpen(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="success" variant="filled">
-            {t('adminOrdersPage.snackbarSuccess')}
-          </Alert>
-        </Snackbar>
 
         {/* confirm delete */}
         <Dialog

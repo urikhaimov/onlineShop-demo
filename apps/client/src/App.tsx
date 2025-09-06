@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { CssBaseline, ThemeProvider as MuiThemeProvider } from '@mui/material';
 import { createTheme } from '@mui/material/styles';
 import { AnimatePresence } from 'framer-motion';
+import { SnackbarProvider } from 'notistack';
 
 import { useThemeStore } from './stores/useThemeStore';
 import { getThemeFromSettings } from './utils/themeBuilder';
@@ -28,9 +29,16 @@ export default function App() {
 
   return (
     <MuiThemeProvider theme={theme}>
-      <CssBaseline />
-      <GlobalBackground /> {/* ← renders once, behind everything */}
-      <AnimatePresence mode="wait">{routes}</AnimatePresence>
+      <SnackbarProvider
+        maxSnack={3}
+        preventDuplicate
+        autoHideDuration={3000}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <CssBaseline />
+        <GlobalBackground />
+        <AnimatePresence mode="wait">{routes}</AnimatePresence>
+      </SnackbarProvider>
     </MuiThemeProvider>
   );
 }

@@ -1,12 +1,10 @@
 // src/pages/user/components/ChangePasswordForm.tsx
 import React, { useState } from 'react';
 import {
-  Alert,
   Box,
   Button,
   IconButton,
   InputAdornment,
-  Snackbar,
   Stack,
   Typography,
 } from '@mui/material';
@@ -21,6 +19,7 @@ import { auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import FormTextField from '../../../components/FormTextField';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 
 interface PasswordFormData {
   oldPassword: string;
@@ -30,12 +29,13 @@ interface PasswordFormData {
 
 export default function ChangePasswordForm() {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
 
   const {
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     reset,
   } = useForm<PasswordFormData>({
     defaultValues: {
@@ -48,15 +48,14 @@ export default function ChangePasswordForm() {
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
 
   const onSubmit = async (data: PasswordFormData) => {
     if (data.newPassword !== data.confirmPassword) {
-      setErrorMsg(
+      enqueueSnackbar(
         t('userProfile.changePassword.errors.mismatch', {
           defaultValue: 'New passwords do not match',
         }),
+        { variant: 'error' },
       );
       return;
     }
@@ -77,18 +76,20 @@ export default function ChangePasswordForm() {
       await reauthenticateWithCredential(auth.currentUser, credential);
       await updatePassword(auth.currentUser, data.newPassword);
 
-      setSuccessMsg(
+      enqueueSnackbar(
         t('userProfile.changePassword.success', {
           defaultValue: 'Password updated successfully',
         }),
+        { variant: 'success' },
       );
       reset();
     } catch (err: any) {
-      setErrorMsg(
+      enqueueSnackbar(
         err?.message ||
           t('userProfile.changePassword.errors.updateFailed', {
             defaultValue: 'Failed to update password',
           }),
+        { variant: 'error' },
       );
     }
   };
@@ -165,34 +166,17 @@ export default function ChangePasswordForm() {
           }}
         />
 
-        <Button type="submit" variant="outlined" fullWidth>
+        <Button
+          type="submit"
+          variant="outlined"
+          fullWidth
+          disabled={isSubmitting}
+        >
           {t('userProfile.changePassword.submit', {
             defaultValue: 'Change Password',
           })}
         </Button>
       </Stack>
-
-      <Snackbar
-        open={!!successMsg}
-        autoHideDuration={3000}
-        onClose={() => setSuccessMsg('')}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity="success" sx={{ width: '100%' }}>
-          {successMsg}
-        </Alert>
-      </Snackbar>
-
-      <Snackbar
-        open={!!errorMsg}
-        autoHideDuration={4000}
-        onClose={() => setErrorMsg('')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="error" sx={{ width: '100%' }}>
-          {errorMsg}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

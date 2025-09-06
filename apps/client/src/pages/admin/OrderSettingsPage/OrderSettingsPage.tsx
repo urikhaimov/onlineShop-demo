@@ -7,7 +7,6 @@ import {
   Typography,
   TextField,
   Button,
-  Snackbar,
   Alert,
   InputAdornment,
   Divider,
@@ -24,6 +23,7 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 
 type FormValues = { shipping: number; taxRate: number; discount: number };
 
@@ -50,6 +50,7 @@ function asDate(value: unknown): Date | undefined {
 
 export default function OrderSettingsPage() {
   const { t } = useTranslation('common');
+  const { enqueueSnackbar } = useSnackbar();
 
   // Load current settings
   const { data, isLoading, isError, error } = useOrderSettings();
@@ -60,8 +61,6 @@ export default function OrderSettingsPage() {
     isPending: saving,
     error: saveError,
   } = useUpdateOrderSettingsMutation();
-
-  const [successOpen, setSuccessOpen] = React.useState(false);
 
   const {
     register,
@@ -93,10 +92,24 @@ export default function OrderSettingsPage() {
         : 0,
       discount: Number.isFinite(v.discount) ? v.discount : 0,
     };
-    await mutateAsync(next);
-    setSuccessOpen(true);
-    // Reset dirty state to the just-saved values
-    reset(next);
+
+    try {
+      await mutateAsync(next);
+      // Reset dirty state to the just-saved values
+      reset(next);
+      enqueueSnackbar(
+        t('orderSettings.saved', { defaultValue: 'Settings saved' }) as string,
+        { variant: 'success', autoHideDuration: 2200 },
+      );
+    } catch (e: any) {
+      const msg =
+        e?.message ??
+        (t('orderSettings.saveFailed', {
+          defaultValue:
+            'Failed to save. You may not have permission or the network failed.',
+        }) as string);
+      enqueueSnackbar(msg, { variant: 'error', autoHideDuration: 4000 });
+    }
   };
 
   if (isLoading) return <LoadingProgress />;
@@ -133,11 +146,11 @@ export default function OrderSettingsPage() {
                   value: 0,
                   message: t('validation.min0', {
                     defaultValue: 'Must be ≥ 0',
-                  }),
+                  }) as string,
                 },
               })}
               error={!!errors.shipping}
-              helperText={errors.shipping?.message}
+              helperText={errors.shipping?.message as string | undefined}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -158,21 +171,21 @@ export default function OrderSettingsPage() {
                   value: 0,
                   message: t('validation.min0', {
                     defaultValue: 'Must be ≥ 0',
-                  }),
+                  }) as string,
                 },
                 max: {
                   value: 1,
                   message: t('validation.max1', {
                     defaultValue: 'Must be ≤ 1.00',
-                  }),
+                  }) as string,
                 },
               })}
               error={!!errors.taxRate}
               helperText={
-                errors.taxRate?.message ??
-                t('orderSettings.taxRateHint', {
+                (errors.taxRate?.message as string | undefined) ??
+                (t('orderSettings.taxRateHint', {
                   defaultValue: 'Use a fraction (e.g., 0.17 for 17%)',
-                })
+                }) as string)
               }
               InputProps={{
                 endAdornment: (
@@ -194,11 +207,11 @@ export default function OrderSettingsPage() {
                   value: 0,
                   message: t('validation.min0', {
                     defaultValue: 'Must be ≥ 0',
-                  }),
+                  }) as string,
                 },
               })}
               error={!!errors.discount}
-              helperText={errors.discount?.message}
+              helperText={errors.discount?.message as string | undefined}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -252,28 +265,17 @@ export default function OrderSettingsPage() {
                 const d = asDate(data?.updatedAt);
                 return d
                   ? d.toLocaleString()
-                  : t('common.na', { defaultValue: 'N/A' });
+                  : (t('common.na', { defaultValue: 'N/A' }) as string);
               })()}
               {' · '}
               {t('orderSettings.by', { defaultValue: 'by' })}{' '}
               {data?.updatedBy?.name ||
                 data?.updatedBy?.uid ||
-                t('common.system', { defaultValue: 'system' })}
+                (t('common.system', { defaultValue: 'system' }) as string)}
             </Typography>
           </Stack>
         </Paper>
       </Box>
-
-      <Snackbar
-        open={successOpen}
-        autoHideDuration={2200}
-        onClose={() => setSuccessOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" onClose={() => setSuccessOpen(false)}>
-          {t('orderSettings.saved', { defaultValue: 'Settings saved' })}
-        </Alert>
-      </Snackbar>
     </PageLayout>
   );
 }

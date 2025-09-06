@@ -1,7 +1,7 @@
 // src/pages/admin/categories/EditCategoryPage.tsx
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Snackbar, Alert, Stack } from '@mui/material';
+import { Box, Typography, Alert, Stack } from '@mui/material';
 import CategoryForm, { CategoryFormValues } from './CategoryForm';
 import { PageLayout } from '../../../layouts/page.layout';
 import {
@@ -9,19 +9,20 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 
-// ✅ Reusable centered card with inner padding
+// Reusable centered card with inner padding
 import PageCard from '../../../layouts/PageCard';
 
 export default function EditCategoryPage() {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const [okOpen, setOkOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   if (!id) {
@@ -47,15 +48,23 @@ export default function EditCategoryPage() {
         updatedAt: serverTimestamp(),
       });
 
-      setOkOpen(true);
-      setTimeout(() => navigate('/admin/categories'), 300);
-    } catch (e: any) {
-      setErr(
-        e?.message ??
-          t('adminCategoriesEditPage.failedToUpdateFallback', {
-            defaultValue: 'Failed to update category.',
-          }),
+      enqueueSnackbar(
+        t('adminCategoriesEditPage.snackbarUpdated', {
+          defaultValue: 'Category updated',
+        }) as string,
+        { variant: 'success', autoHideDuration: 2500 },
       );
+
+      navigate('/admin/categories');
+    } catch (e: any) {
+      const message =
+        e?.message ??
+        (t('adminCategoriesEditPage.failedToUpdateFallback', {
+          defaultValue: 'Failed to update category.',
+        }) as string);
+
+      setErr(message);
+      enqueueSnackbar(message, { variant: 'error', autoHideDuration: 4000 });
     }
   };
 
@@ -82,19 +91,6 @@ export default function EditCategoryPage() {
           )}
         </Stack>
       </PageCard>
-
-      <Snackbar
-        open={okOpen}
-        autoHideDuration={2500}
-        onClose={() => setOkOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" variant="filled">
-          {t('adminCategoriesEditPage.snackbarUpdated', {
-            defaultValue: 'Category updated',
-          })}
-        </Alert>
-      </Snackbar>
     </PageLayout>
   );
 }

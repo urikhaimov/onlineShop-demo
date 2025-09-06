@@ -1,16 +1,13 @@
 // src/pages/admin/orders/EditOrderPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
   Typography,
-  Snackbar,
-  Alert,
   Paper,
   Stack,
   Button,
   CircularProgress,
-  Divider,
   MenuItem,
 } from '@mui/material';
 import { PageLayout } from '../../../layouts/page.layout';
@@ -38,14 +35,15 @@ import PageCard from '@client/layouts/PageCard';
 // For inner paper radius
 import { useThemeStore } from '../../../stores/useThemeStore';
 import { getLayoutTokens } from '../../../utils/uiLayout';
+import { useSnackbar } from 'notistack';
 
 export default function EditOrderPage() {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const { id } = useParams<{ id: string }>();
 
   const { data: order, isLoading, isError, error } = useOrder(id);
   const updateOrderMutation = useUpdateOrder(id);
-  const [toastOpen, setToastOpen] = useState(false);
 
   const {
     control,
@@ -71,7 +69,28 @@ export default function EditOrderPage() {
   const onSubmit: SubmitHandler<Order> = (formData) => {
     updateOrderMutation.mutate(
       { ...formData, previousStatus: order?.status },
-      { onSuccess: () => setToastOpen(true) },
+      {
+        onSuccess: () => {
+          enqueueSnackbar(
+            t('orderEdit.success', {
+              defaultValue: 'Order updated successfully!',
+            }) as string,
+            { variant: 'success', autoHideDuration: 4000 },
+          );
+        },
+        onError: (err) => {
+          const message =
+            err instanceof Error
+              ? err.message
+              : (t('orderEdit.updateFailed', {
+                  defaultValue: 'Failed to update order.',
+                }) as string);
+          enqueueSnackbar(message, {
+            variant: 'error',
+            autoHideDuration: 4000,
+          });
+        },
+      },
     );
   };
 
@@ -215,19 +234,6 @@ export default function EditOrderPage() {
           </Stack>
         </Stack>
       </PageCard>
-
-      <Snackbar
-        open={toastOpen}
-        autoHideDuration={4000}
-        onClose={() => setToastOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" onClose={() => setToastOpen(false)}>
-          {t('orderEdit.success', {
-            defaultValue: 'Order updated successfully!',
-          })}
-        </Alert>
-      </Snackbar>
     </PageLayout>
   );
 }

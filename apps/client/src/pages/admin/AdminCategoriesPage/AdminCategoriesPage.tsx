@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Typography,
-  Snackbar,
   Alert,
   Dialog,
   DialogTitle,
@@ -24,28 +23,30 @@ import {
 import { useCategoryTableStore } from '../../../stores/useCategoryTableStore';
 import type { TCategory as Category } from '@common/types';
 
-// ✅ URL sync for table sorting + column filters
+// URL sync for table sorting + column filters
 import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
 
-// 🔥 If you're using Firestore; otherwise replace with your API
+// Firestore
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import CategoryExpandedRow from './CategoryExpandedRow';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 
 export default function AdminCategoriesPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
+
   const { sorting, setSorting, columnFilters, setColumnFilters } =
     useCategoryTableStore();
 
   const { data: categories = [], refetch } = useCategories();
-  const navigate = useNavigate();
 
-  // ⛔️ confirm state
+  // confirm state
   const [toDelete, setToDelete] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
 
   // Hook URL ↔ table state
   useStickyTableQuerySync({
@@ -72,20 +73,27 @@ export default function AdminCategoriesPage() {
     try {
       await deleteDoc(doc(db, 'categories', toDelete.id));
       setToDelete(null);
-      setSnackbarOpen(true);
+
+      enqueueSnackbar(
+        t('adminCategoriesPage.snackbarDeleted', {
+          defaultValue: 'Category deleted successfully',
+        }) as string,
+        { variant: 'success', autoHideDuration: 3000 },
+      );
+
       if (typeof refetch === 'function') await refetch();
     } catch (err) {
-      if (err instanceof Error) {
-        setDeleteError(err.message);
-      } else if (typeof err === 'string') {
-        setDeleteError(err);
-      } else {
-        setDeleteError(
-          t('adminCategoriesPage.failedToDeleteFallback', {
-            defaultValue: 'Failed to delete category.',
-          }),
-        );
-      }
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : (t('adminCategoriesPage.failedToDeleteFallback', {
+                defaultValue: 'Failed to delete category.',
+              }) as string);
+
+      setDeleteError(message);
+      enqueueSnackbar(message, { variant: 'error', autoHideDuration: 4000 });
     } finally {
       setDeleting(false);
     }
@@ -132,21 +140,7 @@ export default function AdminCategoriesPage() {
           )}
         />
 
-        {/* ✅ Success toast */}
-        <Snackbar
-          open={snackbarOpen}
-          autoHideDuration={3000}
-          onClose={() => setSnackbarOpen(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="success" variant="filled">
-            {t('adminCategoriesPage.snackbarDeleted', {
-              defaultValue: 'Category deleted successfully',
-            })}
-          </Alert>
-        </Snackbar>
-
-        {/* ⛔️ Confirm delete dialog with warning */}
+        {/* Confirm delete dialog with warning */}
         <Dialog
           open={Boolean(toDelete)}
           onClose={() => (deleting ? null : setToDelete(null))}

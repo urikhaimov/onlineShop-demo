@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  Button,
-  CircularProgress,
-  Snackbar,
-  Alert,
-  Typography,
-} from '@mui/material';
+import { Box, Button, CircularProgress, Typography } from '@mui/material';
 import {
   useStripe,
   useElements,
@@ -27,6 +20,7 @@ import { useCartStore } from '../../stores/useCartStore';
 import { useStripeCheckoutStore } from '../../stores/useStripeCheckoutStore';
 import axiosInstance from '../../api/axiosInstance';
 import { auth } from '../../firebase';
+import { useSnackbar } from 'notistack';
 
 type ShippingAddress = {
   fullName: string;
@@ -91,6 +85,7 @@ export default function StripeCheckoutForm({
   const elements = useElements();
   const navigate = useNavigate();
   const isProd = import.meta.env.PROD;
+  const { enqueueSnackbar } = useSnackbar();
 
   // Dev-only: silence Apple/Google Pay warnings on localhost
   const paymentElementOptions: StripePaymentElementOptions = isProd
@@ -124,6 +119,18 @@ export default function StripeCheckoutForm({
 
   const clearCart = useCartStore((s) => s.clearCart);
   const { loading, error, setError, setLoading } = useStripeCheckoutStore();
+
+  // Toast any errors via notistack (and clear the store error)
+  React.useEffect(() => {
+    if (error) {
+      enqueueSnackbar(String(error), {
+        variant: 'error',
+        autoHideDuration: 5000,
+      });
+      // clear after showing so repeated effects don't re-toast
+      setError(null);
+    }
+  }, [error, enqueueSnackbar, setError]);
 
   // ✅ Poll PUBLIC endpoint until webhook has created the order
   // Endpoint returns: { state: 'processing'|'succeeded'|..., orderId?: string }
@@ -216,9 +223,9 @@ export default function StripeCheckoutForm({
         const msg = prettyStripeError(
           (stripeError as any)?.code,
           stripeError.message ||
-            t('checkoutForm.errors.paymentFailed', {
+            (t('checkoutForm.errors.paymentFailed', {
               defaultValue: 'Payment failed',
-            }),
+            }) as string),
         );
         setError(msg);
         setLoading(false);
@@ -256,7 +263,7 @@ export default function StripeCheckoutForm({
           t('checkoutForm.errors.processing', {
             defaultValue:
               "We are still processing your payment. You'll see your order as soon as it's confirmed.",
-          }),
+          }) as string,
         );
         setLoading(false);
         setSubmitting(false);
@@ -267,7 +274,7 @@ export default function StripeCheckoutForm({
         t('checkoutForm.errors.paymentStatus', {
           status: piStatus ?? 'unknown',
           defaultValue: 'Payment status: {{status}}',
-        }),
+        }) as string,
       );
       setLoading(false);
       setSubmitting(false);
@@ -275,9 +282,9 @@ export default function StripeCheckoutForm({
     } catch (err: any) {
       const msg =
         err?.message ||
-        t('checkoutForm.errors.unexpected', {
+        (t('checkoutForm.errors.unexpected', {
           defaultValue: 'Unexpected error',
-        });
+        }) as string);
       setError(String(msg));
       setLoading(false);
       setSubmitting(false);
@@ -409,21 +416,6 @@ export default function StripeCheckoutForm({
           t('checkoutForm.payNow', { defaultValue: 'Pay Now' })
         )}
       </Button>
-
-      <Snackbar
-        open={!!error}
-        autoHideDuration={5000}
-        onClose={() => setError(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          onClose={() => setError(null)}
-          severity="error"
-          sx={{ width: '100%' }}
-        >
-          {error}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

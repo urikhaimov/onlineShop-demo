@@ -1,14 +1,6 @@
 // src/pages/checkout/CheckoutSuccessPage.tsx
 import * as React from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  Stack,
-  Snackbar,
-  Alert,
-  Paper,
-} from '@mui/material';
+import { Box, Typography, Button, Stack, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useConfirmOrder } from '../../hooks/useConfirmOrder';
 import { PageLayout } from '../../layouts/page.layout';
@@ -18,15 +10,34 @@ import {
 } from '../../services/ability.service';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { useSnackbar } from 'notistack';
 
 export default function CheckoutSuccessPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { loading, error, setToastOpen } = useConfirmOrder();
   const { themeSettings } = useThemeStore();
+  const { enqueueSnackbar } = useSnackbar();
 
   const radius = (themeSettings?.borderRadius as number | undefined) ?? 8;
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
+
+  // 🔔 Replace MUI Snackbar with notistack toasts
+  React.useEffect(() => {
+    if (error) {
+      enqueueSnackbar(
+        String(
+          error ||
+            t('checkoutSuccess.errors.generic', {
+              defaultValue: 'Something went wrong during order confirmation.',
+            }),
+        ),
+        { variant: 'error', autoHideDuration: 6000 },
+      );
+      // if your hook controls a "toast open" flag, close/reset it
+      setToastOpen(false);
+    }
+  }, [error, enqueueSnackbar, setToastOpen, t]);
 
   return (
     <PageLayout
@@ -114,20 +125,6 @@ export default function CheckoutSuccessPage() {
             )}
           </Stack>
         </Paper>
-
-        <Snackbar
-          open={!!error}
-          autoHideDuration={6000}
-          onClose={() => setToastOpen(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert severity="error" sx={{ width: '100%' }}>
-            {error ||
-              t('checkoutSuccess.errors.generic', {
-                defaultValue: 'Something went wrong during order confirmation.',
-              })}
-          </Alert>
-        </Snackbar>
       </Box>
     </PageLayout>
   );
