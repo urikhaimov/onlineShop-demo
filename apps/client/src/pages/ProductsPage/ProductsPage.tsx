@@ -1,4 +1,3 @@
-// src/pages/ProductsPage/index.tsx
 import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Divider, useMediaQuery, useTheme } from '@mui/material';
@@ -50,6 +49,7 @@ import { useTranslation } from 'react-i18next';
 import LoadingProgress from '@client/components/LoadingProgress';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useSnackbar } from 'notistack';
+import { createCategoryGroupHeader } from './CategoryGroupHeader';
 
 export default function ProductsPage() {
   const { t } = useTranslation();
@@ -109,7 +109,15 @@ export default function ProductsPage() {
     loading,
   } = useProductStore();
 
+  // 🔹 Load categories BEFORE using them
   const { data: categories = [] } = useCategories();
+
+  // 🔹 Group header renderer (uses categories)
+  const renderGroupHeader = React.useMemo(
+    () => createCategoryGroupHeader<IProduct>(categories),
+    [categories],
+  );
+
   const { ref: sentinelRef, inView } = useInView();
 
   useProductFiltersQuerySync(viewMode, setViewMode);
@@ -268,9 +276,6 @@ export default function ProductsPage() {
     };
   }, []);
 
-  const getCategoryName = (categoryId?: string | null) =>
-    categories.find((c) => c.id === categoryId)?.name ?? '—';
-
   const handleColumnFiltersChange = (updater: Updater<ColumnFiltersState>) => {
     setColumnFilters((prev) =>
       typeof updater === 'function'
@@ -327,6 +332,7 @@ export default function ProductsPage() {
             columnFilters={columnFilters}
             onColumnFiltersChange={handleColumnFiltersChange}
             groupById="categoryId"
+            renderGroupHeader={renderGroupHeader} // ✅ show image+name in group header
             enablePagination
             enableSorting
             enableRowExpansion

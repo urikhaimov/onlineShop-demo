@@ -59,6 +59,14 @@ type StickyTableWithDnDProps<T extends object> = StickyTableProps<T> & {
   onColumnsReorder?: (orderedColumnIds: string[]) => void;
   /** CSS class name for the drag handle element inside each row. */
   dragHandleClassName?: string;
+
+  /** Custom renderer for the group header row (e.g., show avatar + name + count). */
+  renderGroupHeader?: (args: {
+    value: unknown; // group value (e.g., categoryId)
+    rows: T[]; // rows in this group
+    expanded: boolean;
+    toggle: () => void;
+  }) => React.ReactNode;
 };
 
 export default function StickyTable<T extends object>({
@@ -87,6 +95,9 @@ export default function StickyTable<T extends object>({
 
   // Drag handle class (listeners attach to this element only in TableBodyRows)
   dragHandleClassName = 'drag-handle',
+
+  // 🔹 New: group header renderer
+  renderGroupHeader,
 }: StickyTableWithDnDProps<T>) {
   const [expandedGroups, setExpandedGroups] = React.useState<
     Record<string, boolean>
@@ -173,7 +184,6 @@ export default function StickyTable<T extends object>({
   // ────────────────────────────────────────────────
   // DnD setup + visible id computation
   // ────────────────────────────────────────────────
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -301,6 +311,8 @@ export default function StickyTable<T extends object>({
           toggleRowExpand={toggleRowExpand}
           enableRowDrag={canDragRows}
           dragHandleClassName={dragHandleClassName}
+          /** custom group header renderer */
+          renderGroupHeader={renderGroupHeader}
           /** fade the source row while dragging */
           activeId={activeId}
         />

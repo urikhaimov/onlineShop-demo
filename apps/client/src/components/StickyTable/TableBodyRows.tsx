@@ -35,6 +35,14 @@ type Props<T extends object> = {
   enableRowExpansion: boolean;
   renderExpandedRow?: (row: T) => React.ReactNode;
 
+  /** ✅ Custom renderer for each group header row */
+  renderGroupHeader?: (args: {
+    value: unknown; // group value (e.g., categoryId)
+    rows: T[]; // rows in this group
+    expanded: boolean;
+    toggle: () => void;
+  }) => React.ReactNode;
+
   denseMode: boolean;
 
   expandedGroups: Record<string, boolean>;
@@ -270,6 +278,8 @@ export default function TableBodyRows<T extends object>({
   isGrouped,
   enableRowExpansion,
   renderExpandedRow,
+  /** ✅ custom group header renderer */
+  renderGroupHeader,
   denseMode,
   expandedGroups,
   toggleGroup,
@@ -302,6 +312,11 @@ export default function TableBodyRows<T extends object>({
         if (row.depth === 0 && row.subRows.length > 0 && isGrouped) {
           const isOpen = expandedGroups[row.id];
           const label = getGroupLabelSafe(row, groupById);
+          const colId = groupById ? String(groupById) : undefined;
+          const groupValue: unknown =
+            (colId ? row.getValue(colId) : undefined) ?? label;
+
+          const rowsInGroup = row.subRows.map((child) => child.original as T);
 
           return (
             <React.Fragment key={row.id}>
@@ -317,12 +332,25 @@ export default function TableBodyRows<T extends object>({
                     >
                       {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                     </IconButton>
-                    <Typography fontWeight={600}>
-                      {label}{' '}
-                      <Typography component="span" variant="caption">
-                        ({row.subRows.length})
+
+                    {/* ✅ Use custom header if provided */}
+                    {renderGroupHeader ? (
+                      <>
+                        {renderGroupHeader({
+                          value: groupValue,
+                          rows: rowsInGroup,
+                          expanded: isOpen,
+                          toggle: () => toggleGroup(row.id),
+                        })}
+                      </>
+                    ) : (
+                      <Typography fontWeight={600}>
+                        {label}{' '}
+                        <Typography component="span" variant="caption">
+                          ({row.subRows.length})
+                        </Typography>
                       </Typography>
-                    </Typography>
+                    )}
                   </Stack>
                 </TableCell>
               </TableRow>
