@@ -25,7 +25,8 @@ import type { IProduct } from '@common/types';
 import { useProductColumns } from './Columns';
 import { useCategories } from '../../../hooks/useCategories';
 import { useProductMutations } from '../../../hooks/useProductMutations';
-import { fetchAllProducts } from '../../../hooks/useProducts';
+// ⬇️ switched to the query hook
+import { useProductsQuery } from '../../../hooks/useProductsQuery';
 import { auth } from '../../../firebase';
 import { PageLayout } from '../../../layouts/page.layout';
 import {
@@ -183,40 +184,72 @@ export default function AdminProductsPage() {
   // Filters ↔ URL
   useAdminProductFiltersQuerySync();
 
+  // Build server query params from current UI state
+  const serverParams = useMemo(() => {
+    // Use the first sort rule (if any) to ask the API for server sort.
+    const firstSort =
+      Array.isArray(sorting) && sorting.length ? sorting[0] : null;
+    const sort =
+      firstSort && firstSort.id
+        ? `${firstSort.id}:${firstSort.desc ? 'desc' : 'asc'}`
+        : undefined;
+
+    return {
+      q: searchTerm || undefined,
+      categoryId: selectedCategoryId || undefined,
+      priceMin: minPrice ?? undefined,
+      priceMax: maxPrice ?? undefined,
+      stockMin: minStock ?? undefined,
+      stockMax: maxStock ?? undefined,
+      // we still do client-side pagination; grab enough to fill the table
+      limit: 500,
+      page: 1,
+      sort,
+    };
+  }, [
+    searchTerm,
+    selectedCategoryId,
+    minPrice,
+    maxPrice,
+    minStock,
+    maxStock,
+    sorting,
+  ]);
+
+  // 🔎 Query the API (defaults to /products/public with automatic fallback)
+  const {
+    data: productResult,
+    isFetching,
+    isError,
+    error,
+  } = useProductsQuery(serverParams, { enabled: true });
+
+  // Keep store "loading" in sync with query
+  useEffect(() => {
+    setLoading(isFetching);
+  }, [isFetching, setLoading]);
+
+  // Push results into the store (preserves your centralized table state)
+  useEffect(() => {
+    const items = productResult?.items ?? [];
+    setProductsSorted(items);
+  }, [productResult, setProductsSorted]);
+
+  // Surface errors nicely
+  useEffect(() => {
+    if (isError) {
+      console.error('❌ Failed to load products:', error);
+      enqueueSnackbar(
+        t('adminProductsPage.loadFailed', {
+          defaultValue: 'Failed to load products.',
+        }) as string,
+        { variant: 'error', autoHideDuration: 4000 },
+      );
+    }
+  }, [isError, error, enqueueSnackbar, t]);
+
   // Reorder mode toggle
   const [reorderMode, setReorderMode] = React.useState(false);
-
-  useEffect(() => {
-    const loadProducts = async () => {
-      setLoading(true);
-      try {
-        const res = await fetchAllProducts();
-        if (Array.isArray(res.data)) {
-          setProductsSorted(res.data);
-        } else {
-          setProducts([]);
-          console.error('❌ Invalid product response:', res.data);
-          enqueueSnackbar(
-            t('adminProductsPage.loadFailed', {
-              defaultValue: 'Failed to load products.',
-            }) as string,
-            { variant: 'error', autoHideDuration: 4000 },
-          );
-        }
-      } catch (err) {
-        console.error('❌ Failed to load products:', err);
-        enqueueSnackbar(
-          t('adminProductsPage.loadFailed', {
-            defaultValue: 'Failed to load products.',
-          }) as string,
-          { variant: 'error', autoHideDuration: 4000 },
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-    void loadProducts();
-  }, [setLoading, setProducts, setProductsSorted, enqueueSnackbar, t]);
 
   // ---- Reorder wiring (called by StickyTable with visible ordered IDs)
   const byId = useMemo(() => {
@@ -260,7 +293,7 @@ export default function AdminProductsPage() {
   const getCategoryName = (categoryId?: string | null) =>
     categories.find((c) => c.id === categoryId)?.name ?? '—';
 
-  /** Apply filters (client-side) */
+  /** Apply filters (client-side guard; server already filters as well) */
   const filteredProducts = useMemo<IProduct[]>(() => {
     const term = (searchTerm || '').trim().toLowerCase();
     const cat = selectedCategoryId || '';

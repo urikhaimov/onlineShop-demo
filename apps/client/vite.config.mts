@@ -1,3 +1,4 @@
+// apps/client/vite.config.ts
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 import { defineConfig } from 'vite';
@@ -14,7 +15,6 @@ export default defineConfig(async () => {
   const { default: react } = await import('@vitejs/plugin-react');
 
   // Print CSP once so you can confirm emulator hosts / scheme-level policy in dev
-  // Check DevTools → Network → the HTML doc → Response Headers → content-security-policy
   console.log('\n[CSP header that Vite will send]\n' + csp + '\n');
 
   return {
@@ -30,14 +30,16 @@ export default defineConfig(async () => {
     ],
 
     server: {
-      // Make the CSP available via response header in dev
+      host: '127.0.0.1',
+      port: 5173,
       headers: { 'Content-Security-Policy': csp },
       proxy: {
+        // forward /api -> http://localhost:3000/api (Nest)
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
           secure: false,
-          ws: true, // in case your Nest API uses websockets
+          ws: true, // if your API exposes websockets
         },
       },
       // open: true,
@@ -71,23 +73,18 @@ export default defineConfig(async () => {
         'src/**/*.{test,spec}.{ts,tsx}',
         'tests/**/*.{test,spec}.{ts,tsx}',
       ],
-      // ✅ fix deprecation: use server.deps.inline (not deps.inline)
+      // ✅ use server.deps.inline
       server: { deps: { inline: [/firebase\/.*/] } },
       passWithNoTests: true,
-
-      // 👇 match Node env for emulator/rules tests
       environmentMatchGlobs: [
         ['**/*.node.spec.ts', 'node'],
         ['**/*.node.spec.tsx', 'node'],
       ],
-      // Give rules/emulator tests extra headroom on first run
       testTimeout: 30000,
-
       coverage: {
         reporter: ['text', 'lcov'],
         include: ['src/**/*.{ts,tsx}'],
         exclude: ['src/**/*.d.ts', '**/*.stories.*', 'tests/**'],
-        // 🔒 gates to catch regressions (tune as you like)
         lines: 70,
         functions: 70,
         branches: 60,

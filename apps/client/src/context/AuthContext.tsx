@@ -2,6 +2,7 @@
 
 import React, {
   createContext,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -18,6 +19,8 @@ import {
   signOut as firebaseSignOut,
   updateProfile,
   getIdTokenResult,
+  setPersistence,
+  browserLocalPersistence,
 } from 'firebase/auth';
 import {
   type AbilityTuple,
@@ -68,6 +71,10 @@ export const AuthContext = createContext<AuthContextType | undefined>(
   undefined,
 );
 
+/* ────────────────────────────────────────────────────────────────────────── */
+/* Helpers                                                                   */
+/* ────────────────────────────────────────────────────────────────────────── */
+
 async function readRoleFromClaims(
   u: User | null,
   forceRefresh = false,
@@ -106,10 +113,14 @@ async function ensureRoleClaim(u: User): Promise<TUserRole | null> {
   }
 }
 
+/* ────────────────────────────────────────────────────────────────────────── */
+/* Provider                                                                  */
+/* ────────────────────────────────────────────────────────────────────────── */
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<TUserRole | null>(null);
-  const [loading, setLoading] = useState(true); // 🔑 becomes false after first auth resolve
+  const [loading, setLoading] = useState(true); // becomes false after first resolve
   const [accessToken, setAccessToken] = useState<string | undefined>(undefined);
 
   const ability = useMemo(
@@ -125,6 +136,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const firstResolved = useRef(false);
 
+  // Persist session across reloads (handy with emulator)
+  useEffect(() => {
+    setPersistence(auth, browserLocalPersistence).catch(() => {
+      /* ignore (SSR/pathological cases) */
+    });
+  }, []);
+
   // Keep ability in sync with user/role
   useEffect(() => {
     ability.update(defineAbilityFor({ user, role }).rules);
@@ -132,6 +150,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ability.update(defineAbilityFor({ user: null, role: null }).rules);
     };
   }, [ability, user, role]);
+
+  const hardClear = useCallback(async () => {
+    try {
+      queryClient.clear();
+    } catch {
+      /* ignore */
+    }
+    try {
+      runAllStoreResets();
+    } catch {
+      /* ignore */
+    }
+
+    // Remove any persisted keys you use (zustand persist, auth, carts, etc.)
+    const localKeys = [
+      'cart',
+      'profile',
+      'auth',
+      'zustand',
+      'zustandPersist:cart',
+    ];
+    for (const key of localKeys) {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      sessionStorage.removeItem('cart-storage');
+    } catch {
+      /* ignore */
+    }
+
+    setUser(null);
+    setRole(null);
+    setAccessToken(undefined);
+  }, [queryClient]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -147,13 +203,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setAccessToken(undefined);
           }
 
-          // Try to read role from claims; if missing, request backend to set it
+          // Try to read role from claims; if missing, ask API to ensure it
           let r = await readRoleFromClaims(u, true);
           if (!r) r = await ensureRoleClaim(u);
 
           if (!r) {
             logger.warn('No role found for user, clearing session');
-            await hardClear(); // ensure all caches are consistent
+            await hardClear();
             navigate(ERoutePaths.LOGIN);
             return;
           }
@@ -170,51 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsub();
-  }, []);
-
-  // Centralized cleanup for logout / invalid session
-  const hardClear = async () => {
-    try {
-      // React Query
-      queryClient.clear();
-    } catch {
-      // ignore
-    }
-
-    try {
-      // All registered Zustand store resets
-      runAllStoreResets();
-    } catch {
-      // ignore
-    }
-
-    // Remove any persisted keys you use (zustand persist, auth, carts, etc.)
-    const localKeys = [
-      'cart',
-      'profile',
-      'auth',
-      'zustand',
-      'zustandPersist:cart',
-    ];
-    for (const key of localKeys) {
-      try {
-        localStorage.removeItem(key);
-      } catch {
-        // ignore
-      }
-    }
-
-    // Your cart store uses sessionStorage key "cart-storage"
-    try {
-      sessionStorage.removeItem('cart-storage');
-    } catch {
-      // ignore
-    }
-
-    setUser(null);
-    setRole(null);
-    setAccessToken(undefined);
-  };
+  }, [hardClear, navigate]);
 
   const signInWithGoogle = async () => {
     setLoading(true);
@@ -233,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = async (data: LoginFormData) => {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      await signInWithEmailAndPassword(auth, data.email.trim(), data.password);
       navigate(ERoutePaths.HOME);
     } catch (error) {
       logger.error('Error signing in with email:', error);
@@ -290,4 +302,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/* Hooks                                                                     */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+export function useAuth(): AuthContextType {
+  const ctx = React.useContext(AuthContext);
+  if (!ctx) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return ctx;
+}
+
+// Optional non-throwing variant if you ever need it
+export function useAuthOptional() {
+  return React.useContext(AuthContext);
 }

@@ -1,28 +1,38 @@
 {
   "name": "shop",
   "version": "1.0.0",
-  "description": "",
   "private": true,
   "license": "ISC",
-  "author": "",
   "type": "commonjs",
   "main": "index.js",
+  "description": "",
+  "author": "",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "prepare": "husky",
-    "lint": "eslint --cache --fix .",
-    "nx:all": "npx nx run-many --target=build --all",
-    "nx:run-all": "npx nx run-many -p auth api client --target=serve",
-    "nx:latest": "npm i -g nx && npx nx migrate latest && npx nx --version",
-    "emu:start": "firebase emulators:start --config ./firebase.json --only auth,firestore,storage --project onlinestoretemplate-59d3e",
+    "prepare": "husky install",
+    "emu:start": "firebase emulators:start --import ./.emu-data --export-on-exit ./.emu-data",
+    "emu:exec": "firebase emulators:exec --project onlinestoretemplate-59d3e",
+    "emu:seed:auth": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/seed-auth.js",
+    "emu:seed:firestore": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node scripts/seed-firestore.js",
+    "emu:seed:storage": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e STORAGE_EMULATOR_HOST=http://127.0.0.1:9199 node scripts/seed-storage.js",
+    "emu:purge-seed": "node scripts/emu-purge-seed.js",
+    "smoke:auth": "node scripts/auth-smoke.mjs",
+    "smoke:client": "node scripts/client-smoke.mjs",
+    "smoke:api": "node scripts/api-smoke.mjs",
     "smoke:storage": "node scripts/storage-smoke.mjs",
-    "api:dev": "cross-env FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=onlinestoretemplate-59d3e nx serve api"
+    "smoke:all": "node scripts/auth-smoke.mjs && node scripts/client-smoke.mjs && node scripts/api-smoke.mjs && node scripts/storage-smoke.mjs",
+    "api:dev": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 STORAGE_EMULATOR_HOST=http://127.0.0.1:9199 nx serve api",
+    "web:dev": "nx serve client",
+    "dev": "concurrently -k -n EMU,API,WEB \"npm:emu:start\" \"npm:api:dev\" \"npm:web:dev\"",
+    "export:prod:firestore": "node scripts/export-prod.js",
+    "import:emu": "node scripts/import-emu.js",
+    "emu:start:core": "firebase emulators:start --config ./firebase.json --project onlinestoretemplate-59d3e --only auth,firestore,storage,ui --import ./.emu-data --export-on-exit ./.emu-data",
+    "emu:start:full": "firebase emulators:start --config ./firebase.json --project onlinestoretemplate-59d3e --only auth,firestore,storage,functions,hosting,ui --import ./.emu-data --export-on-exit ./.emu-data"
   },
   "lint-staged": {
     "*.{json,mdx}": "npx prettier --write",
     "*.less": [
       "npx prettier --write",
-      "stylelint \"**/*.less\" --fix --color -f string verbose"
+      "stylelint \"**/*.less\" --fix --color --custom-syntax postcss-less --formatter verbose"
     ],
     "*.{js,ts,jsx,tsx}": [
       "npx prettier --write",
@@ -30,6 +40,9 @@
     ]
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "firebase-tools": "^13.0.0",
     "@babel/core": "^7.28.3",
     "@babel/plugin-proposal-decorators": "^7.28.0",
     "@babel/plugin-transform-runtime": "^7.28.3",
@@ -71,8 +84,8 @@
     "@types/lodash": "^4.17.20",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.1.0",
-    "@types/react": "^19.1.10",
-    "@types/react-dom": "^19.1.7",
+    "@types/react": "^18.3.8",
+    "@types/react-dom": "^18.3.0",
     "@types/react-window": "^1.8.8",
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
@@ -105,8 +118,11 @@
     "less": "^4.4.0",
     "lint-staged": "^16.1.5",
     "nx": "21.3.11",
+    "postcss-less": "^6.0.0",
     "prettier": "^3.6.2",
     "source-map-support": "^0.5.21",
+    "stylelint": "^16.9.0",
+    "stylelint-config-standard": "^36.0.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.1",
     "ts-loader": "^9.5.2",
@@ -120,7 +136,6 @@
     "vitest": "^3.2.4",
     "webpack-cli": "^6.0.1"
   },
-  "nx": {},
   "dependencies": {
     "@casl/ability": "^6.7.3",
     "@casl/react": "^5.0.0",
@@ -156,14 +171,13 @@
     "canvas-to-blob": "^1.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
-    "cross-env": "^10.0.0",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
     "dompurify": "^3.2.6",
     "dotenv": "^17.2.1",
     "faker": "^6.6.6",
     "firebase": "^12.1.0",
-    "firebase-admin": "^13.4.0",
+    "firebase-admin": "^13.5.0",
     "firebase-functions": "^6.4.0",
     "framer-motion": "^12.23.12",
     "googleapis": "^155.0.1",
@@ -200,12 +214,15 @@
     "stripe": "^18.4.0",
     "stylis": "^4.3.6",
     "stylis-plugin-rtl": "^2.1.1",
-    "ts-node": "^10.9.2",
     "tslib": "^2.8.1",
     "uuid": "^11.1.0",
     "winston": "^3.17.0",
     "yup": "^1.7.0",
     "zod": "^4.0.17",
     "zustand": "^5.0.7"
-  }
+  },
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "nx": {}
 }

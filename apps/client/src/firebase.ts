@@ -1,5 +1,11 @@
+// src/firebase.ts
 import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import {
+  getAuth,
+  connectAuthEmulator,
+  setPersistence,
+  browserLocalPersistence,
+} from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getEnv } from '@common/utils';
@@ -22,17 +28,14 @@ const senderId = clean(
 );
 const appId = clean(getEnv('VITE_FIREBASE_APP_ID', { env }) as string);
 
-// Canonicalize bucket: prefer explicit; otherwise derive modern domain from projectId
-const canonicalBucket =
-  bucketEnv && !/\.appspot\.com$/i.test(bucketEnv)
-    ? bucketEnv
-    : `${projectId}.firebasestorage.app`;
+// ✅ Bucket must be the gs bucket name (default: <projectId>.appspot.com)
+const storageBucket = bucketEnv || `${projectId}.appspot.com`;
 
 const firebaseConfig = {
   apiKey,
   authDomain,
   projectId,
-  storageBucket: canonicalBucket,
+  storageBucket, // keep this here so SDK knows the default bucket
   messagingSenderId: senderId,
   appId,
 } as const;
@@ -45,15 +48,15 @@ export const firebaseApp: FirebaseApp = getApps().length
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
 
-// Pin storage to the EXACT bucket (no implicit fallbacks)
-export const storage = getStorage(firebaseApp, `gs://${canonicalBucket}`);
+// Pin storage to the EXACT bucket (gs://<bucket>)
+export const storage = getStorage(firebaseApp, `gs://${storageBucket}`);
 
 // ---- Emulators --------------------------------------------------------------
-const useEmu =
+export const isEmulator =
   (env.VITE_USE_FIREBASE_EMULATOR || '').toLowerCase() === '1' ||
   (env.VITE_USE_FIREBASE_EMULATOR || '').toLowerCase() === 'true';
 
-if (useEmu) {
+if (isEmulator) {
   // Auth
   try {
     const authHost =
@@ -64,7 +67,7 @@ if (useEmu) {
     if (import.meta.env.DEV)
       console.log('[Firebase] 🔌 Auth emulator:', authHost);
   } catch {
-    /* HMR double-connect is fine */
+    /* HMR double-connect ok */
   }
 
   // Firestore
@@ -96,17 +99,21 @@ if (useEmu) {
   }
 }
 
-// ---- Dev Diagnostics / DevTools helper -------------------------------------
+// 🔐 keep user signed in across reloads (especially useful with emulator)
+setPersistence(auth, browserLocalPersistence).catch(() => {
+  /* ignore on SSR/HMR */
+});
+
+// ---- Dev Diagnostics --------------------------------------------------------
 if (import.meta.env.DEV) {
   console.log('[Firebase] projectId:', firebaseApp.options.projectId);
   console.log('[Firebase] storageBucket (env):', bucketEnv);
-  console.log('[Firebase] storageBucket (canonical):', canonicalBucket);
+  console.log('[Firebase] storageBucket (resolved):', storageBucket);
 
-  // should log: gs://<project>.firebasestorage.app/
+  // should log: gs://<project-id>.appspot.com/
   import('firebase/storage').then(({ ref }) =>
     console.log('[Firebase] storage root:', ref(storage, '').toString()),
   );
 
-  // Expose auth in DevTools so you can do: await auth.currentUser?.getIdToken(true)
   (window as any).auth = auth;
 }

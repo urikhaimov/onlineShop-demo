@@ -2,6 +2,7 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+
   "functions": [
     {
       "source": "functions",
@@ -39,21 +40,34 @@
       ]
     }
   ],
+
   "storage": {
     "rules": "storage.rules"
   },
+
   "hosting": {
     "public": "dist/apps/client",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [{ "source": "**", "destination": "/index.html" }]
   },
+
   "emulators": {
     "singleProjectMode": true,
-    "functions": { "port": 5101, "inspectFunctions": true },
-    "hosting": { "port": 5100 },
-    "firestore": { "port": 8080 },
-    "auth": { "port": 9099 },
-    "storage": { "port": 9199 },
-    "ui": { "enabled": true, "port": 9150 }
+
+    "ui": { "enabled": true, "host": "127.0.0.1", "port": 4000 },
+
+    "auth": { "host": "127.0.0.1", "port": 9099 },
+    "firestore": { "host": "127.0.0.1", "port": 8080 },
+    "storage": { "host": "127.0.0.1", "port": 9199 },
+
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5101,
+      "inspectFunctions": true
+    },
+    "hosting": { "host": "127.0.0.1", "port": 5100 },
+
+    "hub": { "host": "127.0.0.1", "port": 4400 },
+    "logging": { "host": "127.0.0.1", "port": 4500 }
   }
 }

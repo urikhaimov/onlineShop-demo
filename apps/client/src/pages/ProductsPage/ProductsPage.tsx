@@ -50,9 +50,15 @@ import { useThemeStore } from '../../stores/useThemeStore';
 import { useSnackbar } from 'notistack';
 import { createCategoryGroupHeader } from './CategoryGroupHeader';
 
+// 👇 NEW: gate queries on auth readiness to avoid 401s
+import { useAuth } from '../../context/AuthContext';
+
 export default function ProductsPage() {
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
+
+  // Auth gate
+  const { user, loading: authLoading } = useAuth();
 
   // 🧩 Theme + Theme Store
   const theme = useTheme();
@@ -107,8 +113,10 @@ export default function ProductsPage() {
     loading,
   } = useProductStore();
 
-  // 🔹 Load categories BEFORE using them
-  const { data: categories = [] } = useCategories();
+  // 🔹 Load categories BEFORE using them (gated on auth)
+  const { data: categories = [] } = useCategories(undefined, {
+    enabled: !!user && !authLoading,
+  });
 
   // 🔹 Group header renderer (uses categories)
   const renderGroupHeader = React.useMemo(
@@ -116,29 +124,40 @@ export default function ProductsPage() {
     [categories],
   );
 
+  // 🔹 Force table re-render when category list changes (fixes header mismatch)
+  const tableKey = React.useMemo(
+    () => `cats-${categories.map((c) => c.id).join(',')}`,
+    [categories],
+  );
+
   const { ref: sentinelRef, inView } = useInView();
 
   useProductFiltersQuerySync(viewMode, setViewMode);
 
-  // 🔹 Fetch products via API (emulator-friendly)
+  // Build filters once per dependency change
+  const apiFilters = useMemo(
+    () => ({
+      q: (searchTerm ?? '').trim() || undefined,
+      categoryId: selectedCategoryId || undefined,
+      priceMin: minPrice,
+      priceMax: maxPrice,
+      stockMin: minStock,
+      stockMax: maxStock,
+      limit: 500,
+      page: 1,
+    }),
+    [searchTerm, selectedCategoryId, minPrice, maxPrice, minStock, maxStock],
+  );
+
+  // 🔹 Fetch products via API (gated on auth)
   const {
     data: productsResp,
     isLoading: productsLoading,
     error: productsError,
-  } = useProductsQuery({
-    q: (searchTerm ?? '').trim() || undefined,
-    categoryId: selectedCategoryId || undefined,
-    priceMin: minPrice,
-    priceMax: maxPrice,
-    stockMin: minStock,
-    stockMax: maxStock,
-    // fetch a generous page so your client-side infinite scroll keeps working
-    limit: 500,
-    page: 1,
-  });
+  } = useProductsQuery(apiFilters, { enabled: !!user && !authLoading });
 
   const products: IProduct[] = productsResp?.items ?? [];
-  const busy = loading || productsLoading;
+  const busy = loading || authLoading || productsLoading;
 
   // Filtering (kept client-side to preserve existing UX)
   const filteredProducts = useMemo(() => {
@@ -203,7 +222,7 @@ export default function ProductsPage() {
     maxStock,
   ]);
 
-  // Reset visible window when filters change
+  // Reset visible window when filters/categories change
   useEffect(() => {
     setVisibleCount(20);
   }, [
@@ -216,6 +235,7 @@ export default function ProductsPage() {
     minStock,
     maxStock,
     viewMode,
+    categories, // 👈 ensures reset when categories arrive
   ]);
 
   // Infinite load window (client-side slice)
@@ -308,17 +328,25 @@ export default function ProductsPage() {
             onChangeView={(m) => setViewMode(m as ViewMode)}
             onOpenFilters={() => setFiltersOpen(true)}
             onResetFilters={resetAllFilters}
-            buttonWidth={isSmDown ? 'auto' : 120 + 8 * (unit - 2)} // scale with spacing
+            buttonWidth={isSmDown ? 'auto' : 120 + 8 * (unit - 2)}
           />
         </Box>
 
         <Divider sx={{ mb: 2, borderColor: dividerColor }} />
 
         {/* Main content */}
-        {visibleProducts.length === 0 ? (
+        {productsError ? (
+          <NotFound
+            // you can localize this key if you like
+            message={t('errors.productsLoad', {
+              defaultValue: 'Failed to load products.',
+            })}
+          />
+        ) : visibleProducts.length === 0 ? (
           <NotFound message={t('empty.noProducts')} />
         ) : viewMode === 'table' ? (
           <StickyTable<IProduct>
+            key={tableKey}
             data={visibleProducts}
             columns={columns}
             sorting={sorting}
@@ -327,7 +355,7 @@ export default function ProductsPage() {
             columnFilters={columnFilters}
             onColumnFiltersChange={handleColumnFiltersChange}
             groupById="categoryId"
-            renderGroupHeader={renderGroupHeader} // ✅ show image+name in group header
+            renderGroupHeader={renderGroupHeader}
             enablePagination
             enableSorting
             enableRowExpansion
