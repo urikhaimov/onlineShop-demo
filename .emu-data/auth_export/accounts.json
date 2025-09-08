@@ -3,18 +3,14 @@
   "users": [
     {
       "localId": "Q7swm4r5h7xDHGziMGnsT9F8R7jl",
-      "lastLoginAt": "1757341350442",
+      "createdAt": "1757337343408",
+      "lastLoginAt": "1757345589100",
       "displayName": "Uri Khaimov",
       "photoUrl": "",
-      "emailVerified": false,
-      "phoneNumber": "+972547401813",
-      "email": "urikhaimov@gmail.com",
-      "salt": "fakeSaltBDPINziOSx1YDwynYUV4",
       "passwordHash": "fakeHash:salt=fakeSaltBDPINziOSx1YDwynYUV4:password=admin777",
-      "passwordUpdatedAt": 1757337343410,
-      "validSince": "1757337343",
-      "mfaInfo": [],
-      "createdAt": "1757337343408",
+      "salt": "fakeSaltBDPINziOSx1YDwynYUV4",
+      "passwordUpdatedAt": 1757341568627,
+      "customAttributes": "{\"role\":\"admin\"}",
       "providerUserInfo": [
         {
           "providerId": "password",
@@ -30,8 +26,18 @@
           "rawId": "+972547401813"
         }
       ],
-      "lastRefreshAt": "2025-09-08T14:22:30.443Z",
-      "customAttributes": "{\"role\":\"admin\"}"
+      "phoneNumber": "+972547401813",
+      "validSince": "1757341568",
+      "email": "urikhaimov@gmail.com",
+      "emailVerified": false,
+      "disabled": false,
+      "lastRefreshAt": "2025-09-08T15:33:09.100Z"
+    },
+    {
+      "localId": "otJM1cq10GnrFiz3f8y762X7zle9",
+      "lastLoginAt": "1757344108697",
+      "createdAt": "1757344108697",
+      "lastRefreshAt": "2025-09-08T15:08:28.710Z"
     }
   ]
 }

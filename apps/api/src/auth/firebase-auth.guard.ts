@@ -1,4 +1,3 @@
-// src/auth/firebase-auth.guard.ts
 import {
   Injectable,
   CanActivate,
@@ -26,7 +25,7 @@ export class FirebaseAuthGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // ✅ Bypass auth for routes decorated with @Public()
+    // Allow @Public() routes
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -37,29 +36,21 @@ export class FirebaseAuthGuard implements CanActivate {
       .switchToHttp()
       .getRequest<Request & { user?: AuthedUser }>();
 
-    // ✅ Allow CORS preflight through
-    if (req.method === 'OPTIONS') return true;
+    if (req.method === 'OPTIONS') return true; // CORS preflight
 
     const token = getBearerToken(req);
-    if (!token) {
+    if (!token)
       throw new UnauthorizedException('Missing Authorization: Bearer <token>');
-    }
 
     try {
-      // Verify Firebase ID token
       const decoded = await admin.auth().verifyIdToken(token);
-
-      // Read role from custom claims (fallback to 'user')
       const roleFromClaims =
         (decoded as any).role ||
         (decoded as any)['https://hasura.io/jwt/claims']?.[
           'x-hasura-default-role'
         ] ||
         'user';
-
-      // Attach to request for downstream guards/controllers
       req.user = { uid: decoded.uid, role: roleFromClaims };
-
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');

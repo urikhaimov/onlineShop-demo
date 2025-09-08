@@ -1,7 +1,12 @@
+// scripts/auth-smoke.mjs
 // Simple auth emulator smoke: sign in (or sign up then sign in)
 
-const AUTH_HOST = process.env.AUTH_EMULATOR_HOST || '127.0.0.1:9099';
-const AUTH_BASE = `http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1`;
+const HOST =
+  process.env.AUTH_EMULATOR_HOST ||
+  process.env.FIREBASE_AUTH_EMULATOR_HOST || // compat with other scripts
+  '127.0.0.1:9099';
+
+const AUTH_BASE = `http://${HOST}/identitytoolkit.googleapis.com/v1`;
 const API_KEY = 'fake-api-key';
 
 // Set your seeded user here (or via env)
@@ -40,7 +45,7 @@ async function main() {
     try {
       res = await signIn();
     } catch {
-      // create then sign in
+      // Create user, then sign in
       await post(`${AUTH_BASE}/accounts:signUp?key=${API_KEY}`, {
         email: EMAIL,
         password: PASSWORD,
@@ -48,14 +53,24 @@ async function main() {
       });
       res = await signIn();
     }
+
     const token = res.idToken;
     if (!token) throw new Error('No idToken from auth emulator');
+
+    // Friendly line (what smoke:all shows)
     console.log(
       `✓ auth-smoke: signed in as ${EMAIL} (token len: ${token.length})`,
     );
+
+    // Optional machine-readable output for scripts
+    if (process.argv.includes('--print-token')) {
+      // Single-line marker easy to grep/Select-String
+      console.log(`::token::${token}`);
+    }
+
     process.exit(0);
   } catch (err) {
-    console.error('✗ auth-smoke:', err.message || err);
+    console.error('✗ auth-smoke:', err?.message || err);
     process.exit(1);
   }
 }
