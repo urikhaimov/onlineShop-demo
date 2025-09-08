@@ -12,6 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(async () => {
   // @ts-expect-error - expected error
   const { default: react } = await import('@vitejs/plugin-react');
+
   return {
     cacheDir: '../../node_modules/.vite/apps/client',
     root: __dirname,
@@ -23,6 +24,7 @@ export default defineConfig(async () => {
       nxViteTsPaths(),
       nxCopyAssetsPlugin(['*.md']),
     ],
+
     server: {
       // middlewareMode: true,
       headers: {
@@ -36,7 +38,7 @@ export default defineConfig(async () => {
         },
       },
     },
-    // assetsInclude: ['**/*.json'],
+
     css: {
       preprocessorOptions: {
         less: {
@@ -44,14 +46,42 @@ export default defineConfig(async () => {
         },
       },
     },
+
     build: {
       rollupOptions: {
-        external: ['motion-dom'], // only if you're not using it directly
+        // keep if you're not importing it directly to avoid bundling
+        external: ['motion-dom'],
       },
       emptyOutDir: true,
       outDir: '../../dist/apps/client',
       reportCompressedSize: true,
       commonjsOptions: { transformMixedEsModules: true },
+    },
+
+    // 🔧 Vitest configuration for your login/logout tests
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      css: true, // allow importing .css/.less in tests
+      // matches your current file location
+      setupFiles: path.resolve(__dirname, './src/tests/setupTests.ts'),
+      include: [
+        'src/**/*.{test,spec}.{ts,tsx}',
+        'tests/**/*.{test,spec}.{ts,tsx}',
+      ],
+      // ✅ fix deprecation: use server.deps.inline (not deps.inline)
+      server: { deps: { inline: [/firebase\/.*/] } },
+      passWithNoTests: true, // don't fail when there are no *.spec/test files yet
+      coverage: {
+        reporter: ['text', 'lcov'],
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: ['src/**/*.d.ts', '**/*.stories.*', 'tests/**'],
+        // 🔒 gates to catch regressions
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        statements: 70,
+      },
     },
   };
 });

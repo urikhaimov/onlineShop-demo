@@ -1,62 +1,92 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import * as React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useRedirect } from '../context/RedirectContext';
 import { Box, CircularProgress } from '@mui/material';
 import { useAuth } from '../hooks/useAuth';
+import { useRedirect } from '../context/RedirectContext';
 
-export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuth();
+type Props = { children: React.ReactNode };
+
+export const ProtectedRoute: React.FC<Props> = ({ children }) => {
+  const { user, loading } = useAuth();
   const location = useLocation();
   const { setRedirectTo, setMessage } = useRedirect();
+  const notified = React.useRef(false);
 
-  const [shouldRedirect, setShouldRedirect] = useState(false);
-
-  useEffect(() => {
-    if (!user) {
-      setRedirectTo(location.pathname);
+  React.useEffect(() => {
+    if (!loading && !user && !notified.current) {
+      const full = location.pathname + location.search + location.hash;
+      setRedirectTo(full);
       setMessage('You must be logged in to continue.');
-      setShouldRedirect(true);
+      notified.current = true;
     }
-  }, [user, location.pathname, setRedirectTo, setMessage]);
-
-  // if (!user && shouldRedirect) {
-  //   return <Navigate to={`/login?redirect=${location.pathname}`} replace />;
-  // }
-
-  if (!user) {
-    return null;
-  }
-
-  return <>{children}</>;
-};
-
-interface Props {
-  children: ReactNode;
-}
-
-export const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
-  const { user, loading, role } = useAuth();
-  const [shouldRedirect, setShouldRedirect] = useState(false);
-
-  // ✅ Enable this check once roles are ready
-  const isAdmin = role === 'admin';
-
-  useEffect(() => {
-    if (!loading && (!user || !isAdmin)) {
-      setShouldRedirect(true);
-    }
-  }, [user, loading, isAdmin]);
+  }, [loading, user, location, setRedirectTo, setMessage]);
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" mt={5}>
+      <Box
+        data-testid="auth-loading"
+        sx={{ minHeight: '60vh', display: 'grid', placeItems: 'center' }}
+      >
         <CircularProgress />
       </Box>
     );
   }
 
-  if (shouldRedirect) {
-    return <Navigate to="/login" replace />;
+  if (!user) {
+    const redirect = encodeURIComponent(
+      location.pathname + location.search + location.hash,
+    );
+    return (
+      <Navigate
+        to={`/login?redirect=${redirect}`}
+        replace
+        state={{ from: location }}
+      />
+    );
+  }
+
+  return <>{children}</>;
+};
+
+export const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
+  const { user, loading, role } = useAuth();
+  const location = useLocation();
+  const { setRedirectTo, setMessage } = useRedirect();
+  const notified = React.useRef(false);
+
+  const isAdmin = role === 'admin';
+
+  React.useEffect(() => {
+    if (!loading && (!user || !isAdmin) && !notified.current) {
+      const full = location.pathname + location.search + location.hash;
+      setRedirectTo(full);
+      setMessage('Admin access required.');
+      notified.current = true;
+    }
+  }, [loading, user, isAdmin, location, setRedirectTo, setMessage]);
+
+  if (loading) {
+    return (
+      <Box
+        data-testid="auth-loading"
+        sx={{ minHeight: '60vh', display: 'grid', placeItems: 'center' }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    const redirect = encodeURIComponent(
+      location.pathname + location.search + location.hash,
+    );
+    return (
+      <Navigate
+        to={`/login?redirect=${redirect}`}
+        replace
+        state={{ from: location }}
+      />
+    );
   }
 
   return <>{children}</>;

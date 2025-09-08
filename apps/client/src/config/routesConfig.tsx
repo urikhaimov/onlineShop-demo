@@ -34,7 +34,7 @@ import CheckoutSuccessPage from '../pages/CheckoutPage/CheckoutSuccessPage';
 import DashboardLayout from '../layouts/dashboard/DashboardLayout';
 import AddCategoryPage from '../pages/admin/AdminCategoriesPage/AddCategoryPage';
 import EditCategoryPage from '../pages/admin/AdminCategoriesPage/EditCategoryPage';
-import OrderSettingsPage from '@client/pages/admin/OrderSettingsPage';
+import OrderSettingsPage from '../pages/admin/OrderSettingsPage';
 
 export enum ERoutePaths {
   HOME = '/',
@@ -67,7 +67,7 @@ export enum ERoutePaths {
 }
 
 // src/routes/appRoutes.tsx
-export const appRoutes = (location: Location<any>) => (
+export const appRoutes = (location: Location) => (
   <Routes location={location} key={location.pathname}>
     {/* Auth routes WITHOUT app shell */}
     <Route path={ERoutePaths.LOGIN} element={<LoginPage />} />

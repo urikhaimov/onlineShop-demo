@@ -37,6 +37,7 @@ import { useTranslation } from 'react-i18next';
 import PageContainer from '../../components/PageContainer';
 import AdminHeaderBar from '../../components/AdminHeaderBar';
 import { useSnackbar } from 'notistack';
+import GoogleLinkSection from '../../components/profile/GoogleLinkSection';
 
 type FormValues = { name: string; email?: string; uid?: string };
 
@@ -187,74 +188,87 @@ export default function UserProfilePage() {
             })}
           </Typography>
         ) : (
-          <Paper
-            elevation={2}
-            sx={{
-              width: '100%',
-              maxWidth: 520,
-              mx: 'auto',
-              p: { xs: 2, sm: 3 },
-              borderRadius: 3,
-            }}
-          >
-            <Typography
-              variant="h5"
-              textAlign="center"
-              sx={{ mb: 1 }}
-              fontWeight={600}
+          <Stack spacing={2} sx={{ maxWidth: 820, mx: 'auto' }}>
+            {/* Profile Card */}
+            <Paper
+              elevation={2}
+              sx={{
+                width: '100%',
+                p: { xs: 2, sm: 3 },
+                borderRadius: 3,
+              }}
             >
-              {t('userProfile.title', { defaultValue: 'My Profile' })}
-            </Typography>
-
-            <Stack spacing={3} mt={1} alignItems="center">
-              <PictureUploaderWithCrop
-                avatarUrl={
-                  userDoc?.photoURL
-                    ? `${userDoc.photoURL}?v=${avatarVer}`
-                    : null
-                }
-                onCropUpload={handleAvatarUpload}
-                onDeleteAvatar={() => setDeleteDialog(true)}
-                disabled={avatarUploading || isSubmitting}
-              />
-
-              <Box
-                component="form"
-                onSubmit={handleSubmit(onSubmit)}
-                width="100%"
+              <Typography
+                variant="h5"
+                textAlign="center"
+                sx={{ mb: 1 }}
+                fontWeight={600}
               >
-                <Stack spacing={2}>
-                  <FormTextField
-                    name="name"
-                    label={t('userProfile.fields.name', {
-                      defaultValue: 'Name',
-                    })}
-                    control={control}
-                    required
-                    errorObject={errors.name}
-                  />
-                  <FormTextField
-                    name="email"
-                    label={t('userProfile.fields.email', {
-                      defaultValue: 'Email',
-                    })}
-                    control={control}
-                    disabled
-                  />
-                  <FormTextField
-                    name="uid"
-                    label={t('userProfile.fields.uid', { defaultValue: 'UID' })}
-                    control={control}
-                    disabled
-                  />
-                  <ChangePasswordForm />
+                {t('userProfile.title', { defaultValue: 'My Profile' })}
+              </Typography>
 
-                  {/* Hidden submit so Enter key works; the sticky Save button calls handleSubmit too */}
-                  <button type="submit" style={{ display: 'none' }} />
-                </Stack>
-              </Box>
-            </Stack>
-          </Paper>
+              <Stack spacing={3} mt={1} alignItems="center">
+                <PictureUploaderWithCrop
+                  avatarUrl={
+                    userDoc?.photoURL
+                      ? `${userDoc.photoURL}?v=${avatarVer}`
+                      : null
+                  }
+                  onCropUpload={handleAvatarUpload}
+                  onDeleteAvatar={() => setDeleteDialog(true)}
+                  disabled={avatarUploading || isSubmitting}
+                />
+
+                <Box
+                  component="form"
+                  onSubmit={handleSubmit(onSubmit)}
+                  width="100%"
+                >
+                  <Stack spacing={2}>
+                    <FormTextField
+                      name="name"
+                      label={t('userProfile.fields.name', {
+                        defaultValue: 'Name',
+                      })}
+                      control={control}
+                      required
+                      errorObject={errors.name}
+                    />
+                    <FormTextField
+                      name="email"
+                      label={t('userProfile.fields.email', {
+                        defaultValue: 'Email',
+                      })}
+                      control={control}
+                      disabled
+                    />
+                    <FormTextField
+                      name="uid"
+                      label={t('userProfile.fields.uid', {
+                        defaultValue: 'UID',
+                      })}
+                      control={control}
+                      disabled
+                    />
+                    <ChangePasswordForm />
+
+                    {/* Hidden submit so Enter key works; the sticky Save button calls handleSubmit too */}
+                    <button type="submit" style={{ display: 'none' }} />
+                  </Stack>
+                </Box>
+              </Stack>
+            </Paper>
+
+            {/* Sign-in methods: Google link/unlink */}
+            <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                {t('userProfile.signInMethods', {
+                  defaultValue: 'Sign-in methods',
+                })}
+              </Typography>
+              <GoogleLinkSection />
+            </Paper>
+          </Stack>
         )}
 
         {/* delete avatar dialog */}
