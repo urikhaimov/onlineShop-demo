@@ -10,12 +10,15 @@ import {
   Req,
   UseGuards,
   Logger,
+  Query,
+  Res,
 } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request, Response } from 'express';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { ProductsService } from './products.service';
 import { SaveProductDto } from './dto/save-product.dto';
 import { ReorderProductsDto } from './dto/reorder-products.dto';
+import { ListProductsDto } from './dto/list-products.dto';
 
 type AuthedReq = Request & {
   user?: { uid: string; email?: string; name?: string };
@@ -28,9 +31,16 @@ export class ProductsController {
 
   constructor(private readonly svc: ProductsService) {}
 
+  // GET /products?q=&categoryId=&page=&limit=&priceMin=&priceMax=&stockMin=&stockMax=&sort=
   @Get()
-  list() {
-    return this.svc.getAll();
+  async list(@Query() q: ListProductsDto, @Res() res: Response) {
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.debug(`[list] query: ${JSON.stringify(q)}`);
+    }
+
+    const { items, total } = await this.svc.list(q);
+    res.setHeader('X-Total-Count', String(total));
+    return res.json({ items, total });
   }
 
   @Get(':id')
@@ -44,10 +54,14 @@ export class ProductsController {
     if (process.env.NODE_ENV !== 'production') {
       const raw = (req as any)?.body;
       this.logger.debug(
-        `[create] raw.body.images length: ${Array.isArray(raw?.images) ? raw.images.length : 'n/a'}`,
+        `[create] raw.body.images length: ${
+          Array.isArray(raw?.images) ? raw.images.length : 'n/a'
+        }`,
       );
       this.logger.debug(
-        `[create] dto.images length: ${Array.isArray(dto.images) ? dto.images.length : 'n/a'}`,
+        `[create] dto.images length: ${
+          Array.isArray(dto.images) ? dto.images.length : 'n/a'
+        }`,
       );
     }
 
@@ -72,10 +86,14 @@ export class ProductsController {
     if (process.env.NODE_ENV !== 'production') {
       const raw = (req as any)?.body;
       this.logger.debug(
-        `[update] raw.body.images length: ${Array.isArray(raw?.images) ? raw.images.length : 'n/a'}`,
+        `[update] raw.body.images length: ${
+          Array.isArray(raw?.images) ? raw.images.length : 'n/a'
+        }`,
       );
       this.logger.debug(
-        `[update] dto.images length: ${Array.isArray(dto.images) ? dto.images.length : 'n/a'}`,
+        `[update] dto.images length: ${
+          Array.isArray(dto.images) ? dto.images.length : 'n/a'
+        }`,
       );
     }
 

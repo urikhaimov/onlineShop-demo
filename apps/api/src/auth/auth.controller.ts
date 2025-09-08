@@ -1,33 +1,43 @@
+import { Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { Auth } from 'firebase-admin/auth';
+import { FIREBASE_ADMIN_AUTH } from '../firebase/admin.provider';
 import {
-  Controller,
-  Post,
-  Req,
-  UnauthorizedException,
-  UseGuards,
-} from '@nestjs/common';
-import { User } from 'firebase/auth';
-import { ApiAuthService } from './auth.service';
-import { AuthGuard } from './auth.guard';
+  FirebaseAuthGuard,
+  FirebaseRequest,
+} from './guards/firebase-auth.guard';
 
-@Controller('auth')
-export class ApiAuthController {
-  constructor(private readonly authService: ApiAuthService) {}
+function computeRoleForEmail(email?: string | null) {
+  const adminsCsv = (process.env.ADMINS_LIST || '').toLowerCase();
+  const admins = adminsCsv
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (email && admins.includes(email.toLowerCase())) return 'admin';
+  return 'viewer'; // default for everyone else
+}
 
-  @UseGuards(AuthGuard)
+@Controller('auth') // final path => /api/auth/* because of your global prefix
+export class AuthController {
+  constructor(@Inject(FIREBASE_ADMIN_AUTH) private readonly adminAuth: Auth) {}
+
   @Post('set-role')
-  async setUserRole(
-    @Req() req: Request & { user: User },
-  ): Promise<{ message: string }> {
-    const { user } = req;
+  @UseGuards(FirebaseAuthGuard)
+  async setRole(@Req() req: FirebaseRequest) {
+    const { uid, email, role: currentRole } = req.firebaseUser || {};
 
-    if (!user) {
-      throw new UnauthorizedException('Missing token');
+    // if already has a valid role, don't change it
+    if (
+      currentRole &&
+      ['admin', 'editor', 'viewer', 'superadmin'].includes(currentRole)
+    ) {
+      return { role: currentRole, from: 'claims' };
     }
 
-    try {
-      return await this.authService.setUserRole(user);
-    } catch (error) {
-      throw new UnauthorizedException('Unable to set user role', error);
-    }
+    const role = computeRoleForEmail(email);
+    await this.adminAuth.setCustomUserClaims(uid, { role });
+
+    // client should refresh ID token after this call
+    return { role, from: 'set' };
   }
 }

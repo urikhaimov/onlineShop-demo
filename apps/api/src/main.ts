@@ -62,6 +62,8 @@ async function bootstrap() {
   // Helmet + CSP (adjusted for Firebase Storage & Stripe)
   app.use(
     helmet({
+      // Avoid COEP headaches in dev (e.g., with Stripe, Firebase)
+      crossOriginEmbedderPolicy: false,
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
@@ -76,6 +78,8 @@ async function bootstrap() {
           ],
           connectSrc: [
             "'self'",
+            frontendOrigin,
+            frontendOrigin.replace('http://', 'ws://'),
             'http://localhost:5173',
             'ws://localhost:5173',
             'http://127.0.0.1:5173',
@@ -96,7 +100,7 @@ async function bootstrap() {
 
   // CORS for your client
   app.enableCors({
-    origin: frontendOrigin, // set to your exact domain(s) in prod
+    origin: [frontendOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173'],
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -106,6 +110,8 @@ async function bootstrap() {
       'x-lang',
       'stripe-signature', // keep lowercase
     ],
+    // Let the client read totals for pagination
+    exposedHeaders: ['X-Total-Count', 'X-Total', 'X-Total-Results'],
   });
 
   // If behind a proxy (Heroku/Render/Nginx/etc.)

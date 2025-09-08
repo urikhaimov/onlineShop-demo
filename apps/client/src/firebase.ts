@@ -1,14 +1,14 @@
-// src/firebase.ts
 import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getEnv } from '@common/utils';
 
-const env = import.meta.env;
-const clean = (v: string) => (v ?? '').trim().replace(/^"+|"+$/g, '');
+const env = import.meta.env as Record<string, string | undefined>;
+const clean = (v: string | undefined) =>
+  (v ?? '').trim().replace(/^"+|"+$/g, '');
 
-// Raw envs
+// ---- Raw envs ---------------------------------------------------------------
 const apiKey = clean(getEnv('VITE_FIREBASE_API_KEY', { env }) as string);
 const authDomain = clean(
   getEnv('VITE_FIREBASE_AUTH_DOMAIN', { env }) as string,
@@ -22,7 +22,7 @@ const senderId = clean(
 );
 const appId = clean(getEnv('VITE_FIREBASE_APP_ID', { env }) as string);
 
-// Canonicalize bucket: if env is missing or ends with appspot.com, derive from projectId
+// Canonicalize bucket: prefer explicit; otherwise derive modern domain from projectId
 const canonicalBucket =
   bucketEnv && !/\.appspot\.com$/i.test(bucketEnv)
     ? bucketEnv
@@ -32,12 +32,12 @@ const firebaseConfig = {
   apiKey,
   authDomain,
   projectId,
-  storageBucket: canonicalBucket, // normalized
+  storageBucket: canonicalBucket,
   messagingSenderId: senderId,
   appId,
 } as const;
 
-// Create (or reuse) the app
+// ---- App / SDKs -------------------------------------------------------------
 export const firebaseApp: FirebaseApp = getApps().length
   ? getApp()
   : initializeApp(firebaseConfig);
@@ -45,10 +45,58 @@ export const firebaseApp: FirebaseApp = getApps().length
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
 
-// 🔒 Pin storage to the EXACT bucket. No fallbacks.
+// Pin storage to the EXACT bucket (no implicit fallbacks)
 export const storage = getStorage(firebaseApp, `gs://${canonicalBucket}`);
 
-// --- Diagnostics (dev only)
+// ---- Emulators --------------------------------------------------------------
+const useEmu =
+  (env.VITE_USE_FIREBASE_EMULATOR || '').toLowerCase() === '1' ||
+  (env.VITE_USE_FIREBASE_EMULATOR || '').toLowerCase() === 'true';
+
+if (useEmu) {
+  // Auth
+  try {
+    const authHost =
+      env.VITE_FIREBASE_AUTH_EMULATOR_HOST ||
+      env.FIREBASE_AUTH_EMULATOR_HOST ||
+      '127.0.0.1:9099';
+    connectAuthEmulator(auth, `http://${authHost}`, { disableWarnings: true });
+    if (import.meta.env.DEV)
+      console.log('[Firebase] 🔌 Auth emulator:', authHost);
+  } catch {
+    /* HMR double-connect is fine */
+  }
+
+  // Firestore
+  try {
+    const fsHost =
+      env.VITE_FIRESTORE_EMULATOR_HOST ||
+      env.FIRESTORE_EMULATOR_HOST ||
+      '127.0.0.1:8080';
+    const [host, portStr] = fsHost.split(':');
+    connectFirestoreEmulator(db, host, Number(portStr || 8080));
+    if (import.meta.env.DEV)
+      console.log('[Firebase] 🔌 Firestore emulator:', fsHost);
+  } catch {
+    /* noop */
+  }
+
+  // Storage
+  try {
+    const stHost =
+      env.VITE_FIREBASE_STORAGE_EMULATOR_HOST ||
+      env.FIREBASE_STORAGE_EMULATOR_HOST ||
+      '127.0.0.1:9199';
+    const [host, portStr] = stHost.split(':');
+    connectStorageEmulator(storage, host, Number(portStr || 9199));
+    if (import.meta.env.DEV)
+      console.log('[Firebase] 🔌 Storage emulator:', stHost);
+  } catch {
+    /* noop */
+  }
+}
+
+// ---- Dev Diagnostics / DevTools helper -------------------------------------
 if (import.meta.env.DEV) {
   console.log('[Firebase] projectId:', firebaseApp.options.projectId);
   console.log('[Firebase] storageBucket (env):', bucketEnv);
@@ -58,4 +106,7 @@ if (import.meta.env.DEV) {
   import('firebase/storage').then(({ ref }) =>
     console.log('[Firebase] storage root:', ref(storage, '').toString()),
   );
+
+  // Expose auth in DevTools so you can do: await auth.currentUser?.getIdToken(true)
+  (window as any).auth = auth;
 }

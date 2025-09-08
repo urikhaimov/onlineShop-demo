@@ -9,6 +9,7 @@ import * as admin from 'firebase-admin';
 import { ConfigService } from '@nestjs/config';
 import { adminDb } from '@common/firebase';
 import type { SaveProductDto } from './dto/save-product.dto';
+import type { ListProductsDto } from './dto/list-products.dto';
 
 type TS = admin.firestore.Timestamp | admin.firestore.FieldValue;
 
@@ -74,6 +75,89 @@ export class ProductsService {
     return currentMax + 1;
   }
 
+  // ---------------- list (fixed types) ----------------
+  async list(
+    q: ListProductsDto,
+  ): Promise<{ items: Array<Record<string, any>>; total: number }> {
+    const page = Math.max(1, Number(q.page ?? 1));
+    const limit = Math.max(1, Math.min(100, Number(q.limit ?? 20)));
+
+    // Base ref
+    let ref: admin.firestore.Query = adminDb.collection('products');
+
+    // Equality filter
+    if (q.categoryId) ref = ref.where('categoryId', '==', q.categoryId);
+
+    // Only one inequality field per Firestore query
+    const wantsPrice =
+      typeof q.priceMin === 'number' || typeof q.priceMax === 'number';
+    const wantsStock =
+      typeof q.stockMin === 'number' || typeof q.stockMax === 'number';
+    const rangeField = wantsPrice
+      ? 'price'
+      : wantsStock
+        ? 'stock'
+        : (undefined as 'price' | 'stock' | undefined);
+
+    if (rangeField === 'price') {
+      if (typeof q.priceMin === 'number')
+        ref = ref.where('price', '>=', q.priceMin);
+      if (typeof q.priceMax === 'number')
+        ref = ref.where('price', '<=', q.priceMax);
+    } else if (rangeField === 'stock') {
+      if (typeof q.stockMin === 'number')
+        ref = ref.where('stock', '>=', q.stockMin);
+      if (typeof q.stockMax === 'number')
+        ref = ref.where('stock', '<=', q.stockMax);
+    }
+
+    // Sort field/dir
+    const [sortFieldRaw, sortDirRaw] = String(q.sort ?? '').split(':');
+    let sortField =
+      (sortFieldRaw?.trim() as keyof ProductDoc | undefined) ??
+      rangeField ??
+      'order';
+    const sortDir: admin.firestore.OrderByDirection =
+      sortDirRaw === 'desc' ? 'desc' : 'asc';
+
+    if (rangeField && sortField !== rangeField) sortField = rangeField;
+
+    ref = ref.orderBy(sortField as string, sortDir);
+
+    // Offset/Limit pagination (fine for emulator/dev)
+    const offset = (page - 1) * limit;
+
+    // Fetch page
+    const snap = await ref.offset(offset).limit(limit).get();
+    let pageDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    // Optional in-page text search
+    const needle = (q.q ?? '').toString().trim().toLowerCase();
+    if (needle) {
+      pageDocs = pageDocs.filter((p: any) => {
+        const name = (p?.name ?? '').toString().toLowerCase();
+        const id = (p?.id ?? '').toString().toLowerCase();
+        const desc = (p?.description ?? '').toString().toLowerCase();
+        return (
+          name.includes(needle) || id.includes(needle) || desc.includes(needle)
+        );
+      });
+    }
+
+    // Total using aggregation; fallback to page length if not available
+    let total = pageDocs.length;
+    try {
+      const agg = await ref.count().get();
+      total = typeof agg.data().count === 'number' ? agg.data().count : total;
+    } catch (e) {
+      this.logger.debug(
+        `count() fallback: ${String((e as any)?.message || e)}`,
+      );
+    }
+
+    return { items: pageDocs, total };
+  }
+
   // ---------------- create ----------------
   async create(
     uid: string,
@@ -83,7 +167,6 @@ export class ProductsService {
     const ref = adminDb.collection('products').doc();
     const actor = this.actor(uid, actorName);
 
-    // --- sanitize / normalize images (same as before) ---
     const rawImages = dto.images ?? [];
     const images = Array.from(
       new Set(
@@ -110,7 +193,6 @@ export class ProductsService {
       categoryId: dto.categoryId,
       images,
       imageUrl,
-      // order will be set inside the transaction
       metadata: {
         createdBy: actor,
         updatedBy: actor,
@@ -119,7 +201,6 @@ export class ProductsService {
       },
     } as const;
 
-    // ---- ATOMIC PART: read current max order & write new product ----
     await adminDb.runTransaction(async (tx) => {
       const q = adminDb
         .collection('products')
@@ -135,14 +216,12 @@ export class ProductsService {
       tx.set(ref, { id: ref.id, ...baseDoc, order: nextOrder });
     });
 
-    // Optional: re-read to return fresh data
     const snap = await ref.get();
     this.logger.log(`Created product ${ref.id}`);
     return { id: ref.id, ...snap.data() };
   }
 
   // ---------------- update ----------------
-  // src/products/products.service.ts  (inside ProductsService)
   async update(
     uid: string,
     actorName: string | undefined,
@@ -163,30 +242,23 @@ export class ProductsService {
       updatedAt: this.st(),
     };
 
-    // Start with scalar fields that may be present
     const patch = this.pickDefined<ProductDoc>({
       name: dto.name,
       description: dto.description,
       price: dto.price,
       stock: dto.stock,
       categoryId: dto.categoryId,
-      // images & imageUrl handled below
       metadata,
     });
 
-    // If the client provided `images`, update them (including empty array to clear)
     if (Array.isArray((dto as any).images)) {
       patch.images = dto.images!;
-
-      // If imageUrl is also provided, honor it (null means clear).
-      // Otherwise, derive primary from the first image in the new list.
       if ('imageUrl' in (dto as any)) {
         patch.imageUrl = dto.imageUrl ?? null;
       } else {
         patch.imageUrl = dto.images![0] ?? null;
       }
     } else if ('imageUrl' in (dto as any)) {
-      // Client wants to change/clear primary image without touching the list
       patch.imageUrl = dto.imageUrl ?? null;
     }
 
@@ -195,7 +267,11 @@ export class ProductsService {
     this.logger.log(
       `Updated product ${id} (images: ${
         Array.isArray((dto as any).images) ? dto.images!.length : 'UNCHANGED'
-      }, imageUrl: ${'imageUrl' in (dto as any) ? JSON.stringify(dto.imageUrl ?? null) : 'UNCHANGED'})`,
+      }, imageUrl: ${
+        'imageUrl' in (dto as any)
+          ? JSON.stringify(dto.imageUrl ?? null)
+          : 'UNCHANGED'
+      })`,
     );
 
     const after = (await ref.get()).data();
@@ -204,22 +280,12 @@ export class ProductsService {
 
   // ---------------- queries ----------------
   async getAll() {
-    try {
-      const ss = await adminDb
-        .collection('products')
-        .orderBy('order', 'asc')
-        .get();
-      return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
-    } catch (e: any) {
-      this.logger.warn(
-        `getAll() falling back to name ordering: ${e?.code || e?.message}`,
-      );
-      const ss = await adminDb
-        .collection('products')
-        .orderBy('name', 'asc')
-        .get();
-      return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
-    }
+    const { items } = await this.list({
+      page: 1,
+      limit: 100,
+      sort: 'order:asc',
+    } as any);
+    return items;
   }
 
   async getById(id: string) {

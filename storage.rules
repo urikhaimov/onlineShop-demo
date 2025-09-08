@@ -1,33 +1,71 @@
-rules_version = '2'; // Optional but recommended
+rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // ---- Helpers ----
+    function authed() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return request.auth.token.role;
+    }
+
+    function isAdminOrSuperadmin() {
+      return authed() && role() in ['admin', 'superadmin'];
+    }
+
+    function isImage() {
+      // request.resource is only available on write
+      return request.resource != null &&
+             request.resource.contentType.matches('image/.*');
+    }
+
+    function max10mb() {
+      return request.resource != null &&
+             request.resource.size < 10 * 1024 * 1024;
+    }
+
+    function max20mb() {
+      return request.resource != null &&
+             request.resource.size < 20 * 1024 * 1024;
+    }
+
     // === Public user avatars ===
-    match /avatars/{avatarPath} {
-      // Allow read by anyone
+    // Use a path that encodes the UID explicitly to avoid "startsWith" pitfalls.
+    // Example object path: avatars/{uid}/avatar.jpg
+    match /avatars/{uid}/{file=**} {
+      // Publicly readable avatars
       allow read: if true;
 
-      // Allow write only if user is uploading their own avatar
-      allow write: if request.auth != null &&
-                   avatarPath.startsWith(request.auth.uid);
+      // Only the owner can write their avatar, must be an image and < 10MB
+      allow write: if authed() &&
+                   request.auth.uid == uid &&
+                   isImage() &&
+                   max10mb();
     }
 
     // === Product images ===
-    match /products/{allPaths=**} {
+    // Path example: products/{productId}/image.png
+    match /products/{productId}/{file=**} {
       // Publicly readable product images
       allow read: if true;
 
-      // Only admins or superadmins can write
-      allow write: if request.auth != null &&
-                   request.auth.token.role in ['admin', 'superadmin'];
+      // Only admins/superadmins; image only; < 10MB
+      allow write: if isAdminOrSuperadmin() &&
+                   isImage() &&
+                   max10mb();
     }
 
     // === Temporary uploads ===
-    match /temp/{tempPath} {
+    // Path example: temp/{uid}/anything.tmp
+    match /temp/{uid}/{file=**} {
       // Only the authenticated user can access their own temp files
-      allow read, write: if request.auth != null &&
-                         tempPath.startsWith(request.auth.uid);
+      allow read, write: if authed() &&
+                         request.auth.uid == uid &&
+                         max20mb();
+      // If you want images-only here too, swap max20mb() with (isImage() && max20mb()).
     }
 
     // === Fallback: deny all other paths ===

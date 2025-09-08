@@ -14,7 +14,7 @@ import { ThemeSettingsModule } from '../theme/theme-settings.module';
 import { LandingPageModule } from '../landing-page/landing-page.module';
 import { SecurityLogsModule } from '../security-logs/security-logs.module';
 import { AuthClientModule } from 'auth-client';
-import { ApiAuthModule } from '../auth/auth.module';
+import { AuthModule } from '../auth/auth.module';
 import { SearchModule } from '../search/search.module';
 import { HealthController } from '../health.controller';
 import { StripeModule } from '../stripe/stripe.module';
@@ -35,7 +35,7 @@ import { StripeModule } from '../stripe/stripe.module';
     DatabaseModule, // ✅ Firestore available to feature modules
 
     AuthClientModule,
-    ApiAuthModule,
+    AuthModule,
     ProductsModule,
     OrdersModule,
     UsersModule,

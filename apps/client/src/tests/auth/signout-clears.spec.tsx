@@ -15,7 +15,9 @@ const {
   // simulate running all store resets by invoking cartResetSpy()
   runAllStoreResetsSpy: vi.fn(() => cartResetSpy()),
   cartResetSpy: vi.fn(),
-  signOutSpy: vi.fn(async () => {}),
+  signOutSpy: vi.fn(() => {
+    // mock implementation
+  }),
 }));
 
 // mock the reset registry used by AuthProvider

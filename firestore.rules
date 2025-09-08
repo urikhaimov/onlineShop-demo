@@ -1,0 +1,73 @@
+// firestore.rules
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && request.auth.token.role == 'admin'; }
+    function isAdminOrSuperadmin() {
+      return isSignedIn() && request.auth.token.role in ['admin','superadmin'];
+    }
+    function isSettingPaymentToPaid() {
+      return request.resource.data.payment.status == 'paid' &&
+             request.resource.data.payment.status != resource.data.payment.status;
+    }
+    function isModifyingRestrictedFields() {
+      return request.resource.data.internalTags != resource.data.internalTags ||
+             request.resource.data.delivery.sla != resource.data.delivery.sla;
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update, delete: if isAdminOrSuperadmin();
+    }
+
+    match /categories/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdminOrSuperadmin();
+    }
+
+    match /themes/{themeId} {
+      allow read: if true;
+      allow create, update, delete: if isAdminOrSuperadmin();
+    }
+
+    match /landingPage/{pageId} {
+      allow read: if true;
+      allow create, update, delete: if isAdminOrSuperadmin();
+    }
+
+    match /users/{userId} {
+      allow read, update, delete: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn();
+    }
+
+    match /orders/{orderId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId || isAdminOrSuperadmin()
+      );
+
+      allow update: if isSignedIn() && (
+        (
+          request.auth.uid == resource.data.userId &&
+          !isModifyingRestrictedFields() &&
+          !isSettingPaymentToPaid()
+        ) || isAdminOrSuperadmin()
+      );
+
+      allow delete: if isAdminOrSuperadmin();
+    }
+
+    match /abandonedCarts/{clientSecret} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isAdminOrSuperadmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

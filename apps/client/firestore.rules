@@ -7,10 +7,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(uidField) {
-      return isSignedIn() && request.auth.uid == resource.data[uidField];
-    }
-
     function isAdmin() {
       return isSignedIn() && request.auth.token.role == 'admin';
     }
@@ -19,6 +15,19 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.role in ['admin', 'superadmin'];
     }
 
+    // Prevent users from setting/elevating role
+    function noRoleOnCreate() {
+      return !('role' in request.resource.data) || request.resource.data.role == 'user';
+    }
+
+    function noRoleChangeBySelf() {
+      // if 'role' exists in current doc, it must stay the same;
+      // if it doesn't exist, user can't add it
+      return !('role' in request.resource.data) ||
+             ( 'role' in resource.data && request.resource.data.role == resource.data.role );
+    }
+
+    // Your existing order helpers
     function isSettingPaymentToPaid() {
       return request.resource.data.payment.status == 'paid' &&
              request.resource.data.payment.status != resource.data.payment.status;
@@ -55,18 +64,38 @@ service cloud.firestore {
 
     // === Users ===
     match /users/{userId} {
-      allow read, update, delete: if isSignedIn() && request.auth.uid == userId;
-      allow create: if isSignedIn();
+      // Read: owner or admin/superadmin
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdminOrSuperadmin());
+
+      // Create: only the signed-in user may create their own doc and cannot set role
+      allow create: if isSignedIn()
+                    && userId == request.auth.uid
+                    && noRoleOnCreate();
+
+      // Update:
+      //  - owner may update but cannot change 'role'
+      //  - admin/superadmin may update any user doc
+      allow update: if isSignedIn() && (
+                      (request.auth.uid == userId && noRoleChangeBySelf()) ||
+                      isAdminOrSuperadmin()
+                    );
+
+      // Delete: owner OR admin/superadmin (keep both; tighten to only admin if you prefer)
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdminOrSuperadmin());
     }
 
     // === Orders ===
     match /orders/{orderId} {
+      // creator must be the owner
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
 
+      // read/update: owner or admin/superadmin
       allow read: if isSignedIn() && (
         request.auth.uid == resource.data.userId || isAdminOrSuperadmin()
       );
 
+      // owner can update only non-restricted fields and cannot flip payment to 'paid'
+      // admin/superadmin can update freely
       allow update: if isSignedIn() && (
         (
           request.auth.uid == resource.data.userId &&

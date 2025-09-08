@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ApiAuthService } from './auth.service';
-import { ApiAuthController } from './auth.controller';
-import { AuthClientModule } from 'auth-client';
+import { AuthController } from './auth.controller';
+import { firebaseAdminAuthProvider } from '../firebase/admin.provider';
+import { FirebaseAuthGuard } from './guards/firebase-auth.guard';
 
 @Module({
-  imports: [AuthClientModule],
-  controllers: [ApiAuthController],
-  providers: [ApiAuthService], // optional for now
+  controllers: [AuthController],
+  providers: [firebaseAdminAuthProvider, FirebaseAuthGuard],
 })
-export class ApiAuthModule {}
+export class AuthModule {}

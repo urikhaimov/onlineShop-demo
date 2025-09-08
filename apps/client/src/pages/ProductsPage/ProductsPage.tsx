@@ -1,17 +1,15 @@
+// src/pages/ProductsPage.tsx
 import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Divider, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useInView } from 'react-intersection-observer';
-import { debounce } from 'lodash';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
 import {
   EAbilityActions,
   EAbilitySubjects,
 } from '../../services/ability.service';
 import type { IProduct } from '@common/types';
-import { db } from '../../firebase';
 import StickyTable from '../../components/StickyTable';
 import { useProductColumns } from './Columns';
 import NotFound from '../../components/NotFound';
@@ -23,6 +21,7 @@ import type {
 
 import { useStickyTableQuerySync } from '../../hooks/useStickyTableQuerySync';
 import { useProductFiltersQuerySync } from '../../hooks/useProductFiltersQuerySync';
+import { useProductsQuery } from '../../hooks/useProductsQuery';
 
 import type { Dayjs } from 'dayjs';
 import { useCategories } from '../../hooks/useCategories';
@@ -80,7 +79,6 @@ export default function ProductsPage() {
     alpha(theme.palette.text.primary, isDark ? 0.2 : 0.12);
 
   // Data & state
-  const [products, setProducts] = useState<IProduct[]>([]);
   const [visibleCount, setVisibleCount] = useState(20);
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -122,33 +120,30 @@ export default function ProductsPage() {
 
   useProductFiltersQuerySync(viewMode, setViewMode);
 
-  // Firestore subscription
-  useEffect(() => {
-    const q = query(collection(db, 'products'), orderBy('order'));
-    const debouncedSet = debounce(
-      (items: IProduct[]) => setProducts(items),
-      300,
-    );
+  // 🔹 Fetch products via API (emulator-friendly)
+  const {
+    data: productsResp,
+    isLoading: productsLoading,
+    error: productsError,
+  } = useProductsQuery({
+    q: (searchTerm ?? '').trim() || undefined,
+    categoryId: selectedCategoryId || undefined,
+    priceMin: minPrice,
+    priceMax: maxPrice,
+    stockMin: minStock,
+    stockMax: maxStock,
+    // fetch a generous page so your client-side infinite scroll keeps working
+    limit: 500,
+    page: 1,
+  });
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs: IProduct[] = snapshot.docs.map((doc) => ({
-        ...(doc.data() as IProduct),
-        id: doc.id,
-      }));
-      debouncedSet(docs);
-    });
+  const products: IProduct[] = productsResp?.items ?? [];
+  const busy = loading || productsLoading;
 
-    return () => {
-      unsub();
-      debouncedSet.cancel();
-    };
-  }, []);
-
-  // Filtering
+  // Filtering (kept client-side to preserve existing UX)
   const filteredProducts = useMemo(() => {
     const from = (updatedFrom as Dayjs | null)?.startOf('day')?.toDate();
     const to = (updatedTo as Dayjs | null)?.endOf('day')?.toDate();
-
     const term = (searchTerm ?? '').toString().trim().toLowerCase();
 
     return products.filter((p) => {
@@ -223,7 +218,7 @@ export default function ProductsPage() {
     viewMode,
   ]);
 
-  // Infinite load window
+  // Infinite load window (client-side slice)
   useEffect(() => {
     if (inView && visibleCount < filteredProducts.length) {
       const tmo = setTimeout(() => setVisibleCount((prev) => prev + 12), 200);
@@ -284,7 +279,7 @@ export default function ProductsPage() {
     );
   };
 
-  if (loading) return <LoadingProgress />;
+  if (busy) return <LoadingProgress />;
 
   return (
     <PageLayout
@@ -320,7 +315,7 @@ export default function ProductsPage() {
         <Divider sx={{ mb: 2, borderColor: dividerColor }} />
 
         {/* Main content */}
-        {visibleProducts.length === 0 && !loading ? (
+        {visibleProducts.length === 0 ? (
           <NotFound message={t('empty.noProducts')} />
         ) : viewMode === 'table' ? (
           <StickyTable<IProduct>

@@ -13,7 +13,10 @@
     "lint": "eslint --cache --fix .",
     "nx:all": "npx nx run-many --target=build --all",
     "nx:run-all": "npx nx run-many -p auth api client --target=serve",
-    "nx:latest": "npm i -g nx && npx nx migrate latest && npx nx --version"
+    "nx:latest": "npm i -g nx && npx nx migrate latest && npx nx --version",
+    "emu:start": "firebase emulators:start --config ./firebase.json --only auth,firestore,storage --project onlinestoretemplate-59d3e",
+    "smoke:storage": "node scripts/storage-smoke.mjs",
+    "api:dev": "cross-env FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=onlinestoretemplate-59d3e nx serve api"
   },
   "lint-staged": {
     "*.{json,mdx}": "npx prettier --write",
@@ -36,6 +39,7 @@
     "@commitlint/config-conventional": "^19.8.1",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.33.0",
+    "@firebase/rules-unit-testing": "^5.0.0",
     "@nestjs/cli": "^11.0.10",
     "@nestjs/schematics": "^11.0.7",
     "@nestjs/testing": "^11.1.6",

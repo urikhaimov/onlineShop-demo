@@ -10,8 +10,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig(async () => {
-  // @ts-expect-error - expected error
+  // @ts-expect-error - Vite's dynamic import + default export
   const { default: react } = await import('@vitejs/plugin-react');
+
+  // Print CSP once so you can confirm emulator hosts / scheme-level policy in dev
+  // Check DevTools → Network → the HTML doc → Response Headers → content-security-policy
+  console.log('\n[CSP header that Vite will send]\n' + csp + '\n');
 
   return {
     cacheDir: '../../node_modules/.vite/apps/client',
@@ -26,24 +30,23 @@ export default defineConfig(async () => {
     ],
 
     server: {
-      // middlewareMode: true,
-      headers: {
-        'Content-Security-Policy': csp,
-      },
+      // Make the CSP available via response header in dev
+      headers: { 'Content-Security-Policy': csp },
       proxy: {
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
           secure: false,
+          ws: true, // in case your Nest API uses websockets
         },
       },
+      // open: true,
+      // strictPort: true,
     },
 
     css: {
       preprocessorOptions: {
-        less: {
-          javascriptEnabled: true,
-        },
+        less: { javascriptEnabled: true },
       },
     },
 
@@ -58,12 +61,11 @@ export default defineConfig(async () => {
       commonjsOptions: { transformMixedEsModules: true },
     },
 
-    // 🔧 Vitest configuration for your login/logout tests
+    // 🔧 Vitest
     test: {
       environment: 'jsdom',
       globals: true,
       css: true, // allow importing .css/.less in tests
-      // matches your current file location
       setupFiles: path.resolve(__dirname, './src/tests/setupTests.ts'),
       include: [
         'src/**/*.{test,spec}.{ts,tsx}',
@@ -71,12 +73,21 @@ export default defineConfig(async () => {
       ],
       // ✅ fix deprecation: use server.deps.inline (not deps.inline)
       server: { deps: { inline: [/firebase\/.*/] } },
-      passWithNoTests: true, // don't fail when there are no *.spec/test files yet
+      passWithNoTests: true,
+
+      // 👇 match Node env for emulator/rules tests
+      environmentMatchGlobs: [
+        ['**/*.node.spec.ts', 'node'],
+        ['**/*.node.spec.tsx', 'node'],
+      ],
+      // Give rules/emulator tests extra headroom on first run
+      testTimeout: 30000,
+
       coverage: {
         reporter: ['text', 'lcov'],
         include: ['src/**/*.{ts,tsx}'],
         exclude: ['src/**/*.d.ts', '**/*.stories.*', 'tests/**'],
-        // 🔒 gates to catch regressions
+        // 🔒 gates to catch regressions (tune as you like)
         lines: 70,
         functions: 70,
         branches: 60,

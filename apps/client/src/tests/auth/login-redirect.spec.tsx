@@ -14,7 +14,10 @@ const { useAuthMock } = vi.hoisted(() => ({
     user: null,
     loading: false,
     role: null,
-    signInWithEmail: vi.fn(async () => {}),
+    signInWithEmail: vi.fn(async () => {
+      // mock implementation
+      return Promise.resolve();
+    }),
   })),
 }));
 
@@ -35,7 +38,7 @@ function LoginPage() {
       onClick={() => {
         // simulate successful credential login via context
         const ctx = useAuthMock();
-        ctx.signInWithEmail?.({ email: 'a@b.com', password: 'x' });
+        ctx.signInWithEmail?.();
 
         const target = redirect ? decodeURIComponent(redirect) : '/';
         nav(target);

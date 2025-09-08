@@ -4,46 +4,6 @@
     <meta charset="utf-8" />
     <title>Client</title>
     <base href="/" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="
-default-src 'self';
-base-uri 'self';
-object-src 'none';
-
-script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://apis.google.com https://www.gstatic.com;
-script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://apis.google.com https://www.gstatic.com;
-
-style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-font-src 'self' https://fonts.gstatic.com data:;
-
-img-src 'self' data: blob: https://firebasestorage.googleapis.com https://storage.googleapis.com https://*.googleusercontent.com https://www.gstatic.com https://q.stripe.com;
-
-connect-src 'self' http://localhost:3000 http://localhost:5173 ws://localhost:5173 ws: wss:
-  https://identitytoolkit.googleapis.com
-  https://securetoken.googleapis.com
-  https://firestore.googleapis.com
-  https://firebase.googleapis.com
-  https://firebasestorage.googleapis.com
-  https://storage.googleapis.com
-  https://www.googleapis.com
-  https://apis.google.com
-  https://accounts.google.com
-  https://*.googleapis.com
-  https://*.gstatic.com;
-
-frame-src 'self'
-  https://js.stripe.com
-  https://hooks.stripe.com
-  https://accounts.google.com
-  https://onlinestoretemplate-59d3e.firebaseapp.com
-  https://onlinestoretemplate-59d3e.web.app
-  https://*.firebaseapp.com
-  https://*.web.app;
-
-worker-src 'self' blob:;
-"
-    />
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />

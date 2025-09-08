@@ -5,21 +5,20 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios';
 import { auth } from '../firebase';
-// import i18n from '../i18n'; // uncomment if you want Accept-Language
+// import i18n from '@/i18n'; // uncomment if you want locale headers
 
 /**
- * Create a preconfigured Axios instance for your API.
- * - baseURL: '/api' (proxy to http://localhost:3000/api in dev)
- * - withCredentials: true (cookies if you ever use them)
+ * Base URL:
+ * - default: '/api' which Vite proxies to http://localhost:3000/api in dev
+ * - override with VITE_API_BASE (e.g. 'http://localhost:3000/api' or a prod URL)
  */
+const baseURL = (import.meta.env.VITE_API_BASE as string) || '/api';
+
 const axiosInstance = axios.create({
-  baseURL: '/api',
+  baseURL,
   withCredentials: true,
 });
 
-/**
- * Ensure headers are an AxiosHeaders object (Axios v1)
- */
 function ensureHeaders(
   headers: InternalAxiosRequestConfig['headers'],
 ): AxiosHeaders {
@@ -27,26 +26,23 @@ function ensureHeaders(
 }
 
 /**
- * Attach Firebase ID token to every request when signed in.
+ * Attach Firebase ID token to each request when signed in.
  */
 axiosInstance.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     const user = auth.currentUser;
-
-    // Public endpoints don't need a token, but it's safe to send one.
-    // If you prefer to skip, you can whitelist paths here.
-
-    // Always ensure proper headers type first
     const headers = ensureHeaders(config.headers);
 
     if (user) {
-      // Get the latest (non-forced) token
+      // latest non-forced token (fast path)
       const token = await user.getIdToken();
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    // Optional locale header
-    // headers.set('Accept-Language', i18n?.language ?? 'en');
+    // Optional locale headers (both are allowed by your API CORS)
+    // const lang = i18n?.language ?? 'en';
+    // headers.set('Accept-Language', lang);
+    // headers.set('x-lang', lang);
 
     config.headers = headers;
     return config;
@@ -55,40 +51,38 @@ axiosInstance.interceptors.request.use(
 );
 
 /**
- * One-time 401 retry with a forced token refresh.
+ * One-time 401 retry after forcing a fresh token.
  */
 axiosInstance.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const cfg = error.config as
-      | (InternalAxiosRequestConfig & {
-          _retry?: boolean;
-        })
+      | (InternalAxiosRequestConfig & { _retry?: boolean })
       | undefined;
 
-    const status = error.response?.status;
-
-    // Only attempt refresh/rehit if:
-    // - we have a config
-    // - it was a 401
-    // - we haven't retried this exact request yet
-    // - and a user is signed in
-    if (cfg && status === 401 && !cfg._retry && auth.currentUser) {
+    if (
+      cfg &&
+      error.response?.status === 401 &&
+      !cfg._retry &&
+      auth.currentUser
+    ) {
       try {
         cfg._retry = true;
 
-        // Force refresh the token
         const fresh = await auth.currentUser.getIdToken(true);
-
-        // Make sure headers are in the right shape before retrying
         const headers = ensureHeaders(cfg.headers);
         headers.set('Authorization', `Bearer ${fresh}`);
-        // headers.set('Accept-Language', i18n?.language ?? 'en');
+
+        // // Optional: reapply locale on retry
+        // const lang = i18n?.language ?? 'en';
+        // headers.set('Accept-Language', lang);
+        // headers.set('x-lang', lang);
+
         cfg.headers = headers;
 
         return axiosInstance(cfg);
       } catch {
-        // fall through to reject
+        // fall through
       }
     }
 
