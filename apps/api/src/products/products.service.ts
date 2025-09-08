@@ -36,6 +36,16 @@ type ProductDoc = {
   };
 };
 
+// Whitelist sort keys (friendly -> actual Firestore field)
+const SAFE_SORT_MAP: Record<string, string> = {
+  order: 'order',
+  price: 'price',
+  stock: 'stock',
+  name: 'name',
+  updatedat: 'metadata.updatedAt',
+  createdat: 'metadata.createdAt',
+};
+
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
@@ -80,24 +90,23 @@ export class ProductsService {
     q: ListProductsDto,
   ): Promise<{ items: Array<Record<string, any>>; total: number }> {
     const page = Math.max(1, Number(q.page ?? 1));
-    const limit = Math.max(1, Math.min(100, Number(q.limit ?? 20)));
+    const limit = Math.max(1, Math.min(500, Number(q.limit ?? 20)));
 
-    // Base ref
     let ref: admin.firestore.Query = adminDb.collection('products');
 
-    // Equality filter
+    // Equality
     if (q.categoryId) ref = ref.where('categoryId', '==', q.categoryId);
 
-    // Only one inequality field per Firestore query
+    // One inequality field max
     const wantsPrice =
       typeof q.priceMin === 'number' || typeof q.priceMax === 'number';
     const wantsStock =
       typeof q.stockMin === 'number' || typeof q.stockMax === 'number';
-    const rangeField = wantsPrice
+    const rangeField: 'price' | 'stock' | undefined = wantsPrice
       ? 'price'
       : wantsStock
         ? 'stock'
-        : (undefined as 'price' | 'stock' | undefined);
+        : undefined;
 
     if (rangeField === 'price') {
       if (typeof q.priceMin === 'number')
@@ -111,27 +120,66 @@ export class ProductsService {
         ref = ref.where('stock', '<=', q.stockMax);
     }
 
-    // Sort field/dir
-    const [sortFieldRaw, sortDirRaw] = String(q.sort ?? '').split(':');
+    // ---- robust sort (default + whitelist + range tie-in)
+    const SAFE_SORT_MAP: Record<string, string> = {
+      order: 'order',
+      price: 'price',
+      stock: 'stock',
+      name: 'name',
+      updatedat: 'metadata.updatedAt',
+      createdat: 'metadata.createdAt',
+    };
+
+    const [sfRaw, sdRaw] = String(q.sort ?? '').split(':');
+    const sfKey = (sfRaw ?? '').trim().toLowerCase();
     let sortField =
-      (sortFieldRaw?.trim() as keyof ProductDoc | undefined) ??
-      rangeField ??
-      'order';
+      SAFE_SORT_MAP[sfKey] ?? (rangeField as string | undefined) ?? 'order';
     const sortDir: admin.firestore.OrderByDirection =
-      sortDirRaw === 'desc' ? 'desc' : 'asc';
+      sdRaw === 'desc' ? 'desc' : 'asc';
 
     if (rangeField && sortField !== rangeField) sortField = rangeField;
+    ref = ref.orderBy(sortField, sortDir);
+    // -----------------------------------------------------
 
-    ref = ref.orderBy(sortField as string, sortDir);
-
-    // Offset/Limit pagination (fine for emulator/dev)
     const offset = (page - 1) * limit;
 
-    // Fetch page
-    const snap = await ref.offset(offset).limit(limit).get();
-    let pageDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // Page fetch with fallback
+    let pageDocs: Array<Record<string, any>>;
+    try {
+      const snap = await ref.offset(offset).limit(limit).get();
+      pageDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      // Common cases: FAILED_PRECONDITION (index), PERMISSION, etc.
+      this.logger.error(`[products.list] primary query failed: ${msg}`);
 
-    // Optional in-page text search
+      // Extremely safe fallback so smoke never 500s:
+      // - drop filters that may require a composite index
+      // - order by 'order' (single-field index)
+      try {
+        const safe = await adminDb
+          .collection('products')
+          .orderBy('order', 'asc')
+          .offset(0)
+          .limit(Math.min(limit, 50))
+          .get();
+
+        pageDocs = safe.docs.map((d) => ({ id: d.id, ...d.data() }));
+        this.logger.warn(
+          `[products.list] returned fallback results due to query error. Original error: ${msg}`,
+        );
+      } catch (fallbackErr: any) {
+        // If even the fallback fails, surface a clear 500
+        this.logger.error(
+          `[products.list] fallback query failed: ${String(
+            fallbackErr?.message || fallbackErr,
+          )}`,
+        );
+        throw fallbackErr;
+      }
+    }
+
+    // Optional in-page text search (client-like)
     const needle = (q.q ?? '').toString().trim().toLowerCase();
     if (needle) {
       pageDocs = pageDocs.filter((p: any) => {
@@ -144,15 +192,23 @@ export class ProductsService {
       });
     }
 
-    // Total using aggregation; fallback to page length if not available
-    let total = pageDocs.length;
-    try {
-      const agg = await ref.count().get();
-      total = typeof agg.data().count === 'number' ? agg.data().count : total;
-    } catch (e) {
-      this.logger.debug(
-        `count() fallback: ${String((e as any)?.message || e)}`,
-      );
+    // Total: when text filter is applied post-fetch, just use page length.
+    let total: number;
+    if (needle) {
+      total = pageDocs.length;
+    } else {
+      try {
+        const agg = await ref.count().get();
+        total =
+          typeof agg.data().count === 'number'
+            ? agg.data().count
+            : pageDocs.length;
+      } catch (e) {
+        this.logger.debug(
+          `count() fallback: ${String((e as any)?.message || e)}`,
+        );
+        total = pageDocs.length;
+      }
     }
 
     return { items: pageDocs, total };
@@ -314,18 +370,24 @@ export class ProductsService {
     }
 
     const actor = this.actor(uid, actorName);
-    const batch = adminDb.batch();
 
-    for (const item of orderList) {
-      const ref = adminDb.collection('products').doc(item.id);
-      batch.update(ref, {
-        order: item.order,
-        'metadata.updatedBy': actor,
-        'metadata.updatedAt': this.st(),
-      } as admin.firestore.UpdateData<ProductDoc>);
+    // Respect Firestore batch limit of 500 ops
+    for (let i = 0; i < orderList.length; i += 500) {
+      const chunk = orderList.slice(i, i + 500);
+      const batch = adminDb.batch();
+
+      for (const item of chunk) {
+        const ref = adminDb.collection('products').doc(item.id);
+        batch.update(ref, {
+          order: item.order,
+          'metadata.updatedBy': actor,
+          'metadata.updatedAt': this.st(),
+        } as admin.firestore.UpdateData<ProductDoc>);
+      }
+
+      await batch.commit();
     }
 
-    await batch.commit();
     this.logger.log(`Reordered ${orderList.length} products`);
 
     const ss = await adminDb

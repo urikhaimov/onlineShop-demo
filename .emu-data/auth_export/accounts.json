@@ -1,1 +1,37 @@
-{"kind":"identitytoolkit#DownloadAccountResponse","users":[]}
+{
+  "kind": "identitytoolkit#DownloadAccountResponse",
+  "users": [
+    {
+      "localId": "Q7swm4r5h7xDHGziMGnsT9F8R7jl",
+      "lastLoginAt": "1757341350442",
+      "displayName": "Uri Khaimov",
+      "photoUrl": "",
+      "emailVerified": false,
+      "phoneNumber": "+972547401813",
+      "email": "urikhaimov@gmail.com",
+      "salt": "fakeSaltBDPINziOSx1YDwynYUV4",
+      "passwordHash": "fakeHash:salt=fakeSaltBDPINziOSx1YDwynYUV4:password=admin777",
+      "passwordUpdatedAt": 1757337343410,
+      "validSince": "1757337343",
+      "mfaInfo": [],
+      "createdAt": "1757337343408",
+      "providerUserInfo": [
+        {
+          "providerId": "password",
+          "email": "urikhaimov@gmail.com",
+          "federatedId": "urikhaimov@gmail.com",
+          "rawId": "urikhaimov@gmail.com",
+          "displayName": "Uri Khaimov",
+          "photoUrl": ""
+        },
+        {
+          "providerId": "phone",
+          "phoneNumber": "+972547401813",
+          "rawId": "+972547401813"
+        }
+      ],
+      "lastRefreshAt": "2025-09-08T14:22:30.443Z",
+      "customAttributes": "{\"role\":\"admin\"}"
+    }
+  ]
+}
