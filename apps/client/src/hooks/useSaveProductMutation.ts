@@ -1,4 +1,3 @@
-// src/hooks/useSaveProductMutation.ts
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axiosInstance';
 import { auth, storage } from '../firebase';
@@ -20,18 +19,19 @@ export type SaveProductArgs = {
     description: string;
     price: number | string;
     stock: number | string;
-    categoryId: string;
+    categoryId: string; // REQUIRED
   };
-  images: Array<string | CombinedImageForSave>; // allow strings or objects
-  deletedImageIds: string[];
+  images: Array<string | CombinedImageForSave>;
+  deletedImageIds: string[]; // optional: only useful on edit
 };
 
 const isHttp = (u: string) => /^https?:\/\//i.test(u);
 const isBlob = (u: string) => u.startsWith('blob:');
 const isGs = (u: string) => u.startsWith('gs://');
 
-function toNumber(n: number | string): number {
-  return typeof n === 'string' ? Number(n) : n;
+function toNumber(n: number | string, fallback = 0): number {
+  const v = typeof n === 'string' ? Number(n) : n;
+  return Number.isFinite(v) ? v : fallback;
 }
 
 async function fileFromBlobUrl(url: string, name: string): Promise<File> {
@@ -51,7 +51,7 @@ async function uploadFileToFolder(file: File, folder: string): Promise<string> {
     });
     task.on('state_changed', undefined, reject, () => resolve());
   });
-  return await getDownloadURL(objectRef);
+  return getDownloadURL(objectRef);
 }
 
 /** Normalize ONE entry (string or object) into a final HTTPS download URL. */
@@ -59,20 +59,16 @@ async function normalizeImage(
   entry: string | CombinedImageForSave,
   folder: string,
 ): Promise<string | null> {
-  // 1) string
   if (typeof entry === 'string') {
     const url = entry.trim();
     if (!url) return null;
-
     if (isHttp(url)) return url;
-    if (isBlob(url)) {
-      const f = await fileFromBlobUrl(url, `image_${Date.now()}.jpg`);
-      return await uploadFileToFolder(f, folder);
-    }
-    if (isGs(url)) {
-      const r = ref(storage, url);
-      return await getDownloadURL(r);
-    }
+    if (isBlob(url))
+      return uploadFileToFolder(
+        await fileFromBlobUrl(url, `image_${Date.now()}.jpg`),
+        folder,
+      );
+    if (isGs(url)) return getDownloadURL(ref(storage, url));
     console.warn(
       '[saveProduct] skipped string image (unrecognized scheme):',
       url,
@@ -80,23 +76,19 @@ async function normalizeImage(
     return null;
   }
 
-  // 2) object with file
   if (entry?.file instanceof File) {
-    return await uploadFileToFolder(entry.file, folder);
+    return uploadFileToFolder(entry.file, folder);
   }
 
-  // 3) object with url
   const url = String(entry?.url ?? '').trim();
   if (!url) return null;
   if (isHttp(url)) return url;
-  if (isBlob(url)) {
-    const f = await fileFromBlobUrl(url, `image_${Date.now()}.jpg`);
-    return await uploadFileToFolder(f, folder);
-  }
-  if (isGs(url)) {
-    const r = ref(storage, url);
-    return await getDownloadURL(r);
-  }
+  if (isBlob(url))
+    return uploadFileToFolder(
+      await fileFromBlobUrl(url, `image_${Date.now()}.jpg`),
+      folder,
+    );
+  if (isGs(url)) return getDownloadURL(ref(storage, url));
 
   console.warn('[saveProduct] skipped image (unknown shape):', entry);
   return null;
@@ -108,42 +100,47 @@ export function useSaveProductMutation() {
   return useMutation<IProduct, Error, SaveProductArgs>({
     mutationKey: ['saveProduct'],
     mutationFn: async (args) => {
+      // Guard: categoryId is required
+      if (!args?.data?.categoryId) {
+        throw new Error('בחר קטגוריה (categoryId is required).');
+      }
+
       const user = auth.currentUser;
       const token = await user?.getIdToken?.();
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-      const folder = args.productId ?? 'misc';
+      // Prefer a stable folder per product. For new products use user UID or a temp bucket.
+      const folder = args.productId ?? user?.uid ?? 'tmp';
 
       if (import.meta.env.DEV) {
-        console.log('[saveProduct] args.images length =', args.images?.length);
-        console.log('[saveProduct] args.images =', args.images);
+        console.log('[saveProduct] images:', args.images?.length, args.images);
       }
 
-      // Normalize every entry → final HTTPS URL (keep order)
-      const finalImages: string[] = [];
-      for (let i = 0; i < (args.images ?? []).length; i++) {
-        try {
-          const url = await normalizeImage(args.images[i], folder);
-          if (url) finalImages.push(url);
-        } catch (e) {
-          console.error('[saveProduct] failed to process image #', i, e);
-        }
-      }
+      // Parallelize image processing
+      const normalized = await Promise.all(
+        (args.images ?? []).map((e, i) =>
+          normalizeImage(e, folder).catch((err) => {
+            console.error('[saveProduct] image normalize failed #', i, err);
+            return null;
+          }),
+        ),
+      );
+      const finalImages = normalized.filter((x): x is string => Boolean(x));
 
-      if (import.meta.env.DEV) {
-        console.log('[saveProduct] finalImages length =', finalImages.length);
-        console.log('[saveProduct] finalImages =', finalImages);
-      }
-
-      const payload = {
+      const payload: any = {
         name: args.data.name ?? '',
         description: args.data.description ?? '',
-        price: toNumber(args.data.price),
-        stock: toNumber(args.data.stock),
-        categoryId: args.data.categoryId ?? '',
+        price: toNumber(args.data.price, 0),
+        stock: toNumber(args.data.stock, 0),
+        categoryId: args.data.categoryId,
         images: finalImages,
         imageUrl: finalImages[0] ?? null,
       };
+
+      // If you handle deletion on the server during EDIT
+      if (args.mode === 'edit' && args.deletedImageIds?.length) {
+        payload.deletedImageIds = args.deletedImageIds;
+      }
 
       if (import.meta.env.DEV) console.log('[saveProduct] payload →', payload);
 
@@ -159,21 +156,16 @@ export function useSaveProductMutation() {
       const { data } = await api.put<IProduct>(
         `/products/${args.productId}`,
         payload,
-        {
-          headers,
-        },
+        { headers },
       );
       return data;
     },
 
-    // 🔁 make UI reflect new images without hard reload
     onSuccess: (saved, vars) => {
-      // Update the detailed product cache with the response
+      // Update specific product cache
       queryClient.setQueryData<IProduct>(['product', saved.id], saved);
-
-      // Invalidate product lists (and any other views) to refetch
+      // Refresh lists (respects filters like categoryId on the query keys)
       queryClient.invalidateQueries({ queryKey: ['products'] });
-
       if (vars.productId) {
         queryClient.invalidateQueries({
           queryKey: ['product', vars.productId],

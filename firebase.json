@@ -1,73 +1,23 @@
 {
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
-
-  "functions": [
-    {
-      "source": "functions",
-      "runtime": "nodejs20",
-      "codebase": "default"
-    },
-    {
-      "source": "apps/api/src/firebase",
-      "codebase": "role-sync",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ],
-      "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run lint",
-        "npm --prefix \"$RESOURCE_DIR\" run build"
-      ]
-    },
-    {
-      "source": "libs/firebase1",
-      "codebase": "roles-sync",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ],
-      "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run lint",
-        "npm --prefix \"$RESOURCE_DIR\" run build"
-      ]
-    }
-  ],
-
   "storage": {
     "rules": "storage.rules"
   },
-
-  "hosting": {
-    "public": "dist/apps/client",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
-  },
-
   "emulators": {
-    "singleProjectMode": true,
-
-    "ui": { "enabled": true, "host": "127.0.0.1", "port": 4000 },
-
-    "auth": { "host": "127.0.0.1", "port": 9099 },
-    "firestore": { "host": "127.0.0.1", "port": 8080 },
-    "storage": { "host": "127.0.0.1", "port": 9199 },
-
-    "functions": {
-      "host": "127.0.0.1",
-      "port": 5101,
-      "inspectFunctions": true
+    "firestore": {
+      "port": 8080,
+      "host": "127.0.0.1"
     },
-    "hosting": { "host": "127.0.0.1", "port": 5100 },
-
-    "hub": { "host": "127.0.0.1", "port": 4400 },
-    "logging": { "host": "127.0.0.1", "port": 4500 }
+    "storage": {
+      "port": 9199,
+      "host": "127.0.0.1"
+    },
+    "ui": {
+      "enabled": true,
+      "port": 9150
+    }
   }
 }

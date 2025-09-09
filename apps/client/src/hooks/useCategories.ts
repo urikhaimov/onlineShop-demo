@@ -9,13 +9,17 @@ import api from '../api/axiosInstance';
 import { useOptimisticMutation } from './useOptimisticMutation';
 import type { TCategory as Category } from '@common/types';
 
+// ───────────────────────────────────────────────────────────────────────────────
+// Types
+// ───────────────────────────────────────────────────────────────────────────────
+
 type CategoriesResult = { items: Category[]; total: number };
 
 export type ListParams = {
   q?: string;
   page?: number;
   limit?: number;
-  sort?: string; // e.g. 'name:asc'
+  sort?: string; // e.g. 'nameLower:asc'
 };
 
 type QueryOptions = {
@@ -26,26 +30,43 @@ type QueryOptions = {
   staleTime?: number;
 };
 
-/** Safe normalizer that accepts either {items,total} or a plain array */
+// ───────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ───────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Safe normalizer that accepts either `{ items, total }` or a plain array.
+ * Also guarantees every item has an `id` (defensive for older APIs/seeds).
+ */
 function normalizeCategories(data: unknown): CategoriesResult {
-  if (Array.isArray(data)) {
-    return { items: data as Category[], total: (data as Category[]).length };
-  }
-  const any = data as Partial<CategoriesResult> | undefined;
-  const items = Array.isArray(any?.items) ? (any!.items as Category[]) : [];
-  const total =
-    typeof any?.total === 'number'
-      ? any.total
-      : Array.isArray(any?.items)
-        ? any!.items!.length
-        : 0;
+  const asArray: any[] = Array.isArray(data)
+    ? (data as Category[])
+    : Array.isArray((data as any)?.items)
+      ? ((data as any).items as Category[])
+      : [];
+
+  const items: Category[] = asArray.map((c, i) => {
+    const any = c as any;
+    const id = c?.id ?? any?.metadata?.id ?? any?.docId ?? `__missing_${i}`;
+    return { ...c, id } as Category;
+  });
+
+  const total: number =
+    typeof (data as any)?.total === 'number'
+      ? (data as any).total
+      : items.length;
+
   return { items, total };
 }
 
 /** Build a stable query key part from params (prevents ref churn). */
 const paramsKey = (p?: ListParams) => JSON.stringify(p ?? {});
 
-/** Default server params for categories (no `order`, we sort by `name`) */
+/**
+ * Default server params for categories.
+ * Prefer sorting by a normalized lowercase field when the API supports it
+ * (see service: `nameLower`).
+ */
 const baseParams: Required<Pick<ListParams, 'limit' | 'sort'>> = {
   limit: 500,
   sort: 'name:asc',
@@ -55,7 +76,7 @@ const baseParams: Required<Pick<ListParams, 'limit' | 'sort'>> = {
 // Queries
 // ───────────────────────────────────────────────────────────────────────────────
 
-/** Fetch categories; accepts server params but returns just the items array for drop-in use. */
+/** Fetch categories; accepts server params but returns just the items array. */
 export const useCategories = (params?: ListParams, options?: QueryOptions) =>
   useQuery<Category[]>({
     queryKey: ['categories', paramsKey(params)],
@@ -98,7 +119,12 @@ export const useCategoryById = (id?: string, options?: QueryOptions) =>
     enabled: !!id && (options?.enabled ?? true),
     queryFn: async () => {
       const res = await api.get(`/categories/${id}`);
-      return res.data as Category;
+      const one = res.data as Category | undefined;
+      // Defensive: ensure id present in detail view too
+      if (one && !('id' in one)) {
+        (one as any).id = String(id);
+      }
+      return one as Category;
     },
     staleTime: options?.staleTime ?? 5 * 60_000,
     refetchOnWindowFocus: false,
@@ -145,11 +171,17 @@ export const useDeleteCategory = () => {
     mutationFn: async (id: string) => {
       await api.delete(`/categories/${id}`);
     },
-    // optimistic remove from ALL cached lists
+    // Optimistic remove from ALL cached lists
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ['categories'], exact: false });
+      await qc.cancelQueries({
+        queryKey: ['categories', 'result'],
+        exact: false,
+      });
+
       const snapshots: Array<{ key: readonly unknown[]; prev: unknown }> = [];
 
+      // Update simple lists (items only)
       qc.getQueriesData<Category[]>({ queryKey: ['categories'] }).forEach(
         ([key, prev]) => {
           if (Array.isArray(prev)) {
@@ -161,6 +193,21 @@ export const useDeleteCategory = () => {
           }
         },
       );
+
+      // Update { items, total } lists
+      qc.getQueriesData<CategoriesResult>({
+        queryKey: ['categories', 'result'],
+      }).forEach(([key, prev]) => {
+        if (prev && Array.isArray(prev.items)) {
+          snapshots.push({ key, prev });
+          const items = prev.items.filter((c) => c.id !== id);
+          const total =
+            typeof prev.total === 'number'
+              ? Math.max(0, prev.total - 1)
+              : items.length;
+          qc.setQueryData<CategoriesResult>(key, { items, total });
+        }
+      });
 
       return { snapshots };
     },
@@ -178,18 +225,23 @@ export const useDeleteCategory = () => {
 };
 
 export function useUpdateCategory() {
-  // Optimistic inline rename across the base list;
-  // server response body is not used, so we only need to refetch afterwards.
-  return useOptimisticMutation<{ id: string; name: string }, Category>({
-    mutationFn: async ({ id, name }) => {
+  const qc = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
       await api.put(`/categories/${id}`, { name });
     },
-    queryKey: ['categories'],
-    getItemId: (item) => item.id,
-    getOptimisticUpdate: (item, { name }) => ({ ...item, name }),
-    successMessage: 'Category updated',
-    errorMessage: 'Failed to update category',
-    // If your useOptimisticMutation supports it, you can also pass onSettled here
-    // to invalidate ['categories', 'result'] after server confirms.
+    onSuccess: async () => {
+      enqueueSnackbar('Category updated', { variant: 'success' });
+      await qc.invalidateQueries({ queryKey: ['categories'], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ['categories', 'result'],
+        exact: false,
+      });
+    },
+    onError: () => {
+      enqueueSnackbar('Failed to update category', { variant: 'error' });
+    },
   });
 }
