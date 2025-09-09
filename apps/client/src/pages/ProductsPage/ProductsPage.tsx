@@ -347,7 +347,7 @@ export default function ProductsPage() {
         ) : viewMode === 'table' ? (
           <StickyTable<IProduct>
             key={tableKey}
-            data={visibleProducts}
+            data={filteredProducts}
             columns={columns}
             sorting={sorting}
             onSortingChange={setSorting}

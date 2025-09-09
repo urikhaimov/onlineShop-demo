@@ -136,7 +136,10 @@ export default function StickyTable<T extends object>({
     [data, groupById, groupSortMode],
   );
 
-  const table = useReactTable({
+  // ✅ Disable pagination whenever the table is grouped
+  const paginationEnabled = enablePagination && !groupById;
+
+  const baseOptions = {
     data: sortedData,
     columns,
     state: { sorting, columnFilters, columnOrder },
@@ -145,16 +148,25 @@ export default function StickyTable<T extends object>({
     onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     manualGrouping: false,
-    initialState: { grouping: groupById ? [String(groupById)] : [] },
+    initialState: {
+      grouping: groupById ? [String(groupById)] : [],
+      pagination: { pageIndex: 0, pageSize: rowsPerPage },
+    },
     enableSorting,
     enableColumnFilters,
     filterFns: { ...tableFilters },
     // Stable row IDs
-    getRowId: (row: T, idx) =>
+    getRowId: (row: T, idx: number) =>
       getRowId ? getRowId(row) : ((row as any).id ?? String(idx)),
+  } as const;
+
+  const table = useReactTable({
+    ...baseOptions,
+    ...(paginationEnabled
+      ? { getPaginationRowModel: getPaginationRowModel() }
+      : {}),
   });
 
   // Emit reordered columns to parent if needed
@@ -370,8 +382,6 @@ export default function StickyTable<T extends object>({
           >
             {tableShell}
           </SortableContext>
-
-          {/* Smooth cursor-follow ghost */}
           <DragOverlay dropAnimation={defaultDropAnimation}>
             {renderOverlay()}
           </DragOverlay>
@@ -380,7 +390,8 @@ export default function StickyTable<T extends object>({
         tableShell
       )}
 
-      {enablePagination && !isGrouped && (
+      {/* Only paginate when not grouped */}
+      {paginationEnabled && !isGrouped && (
         <TablePagination
           component="div"
           count={table.getFilteredRowModel().rows.length}

@@ -17,7 +17,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
-
+import { createCategoryGroupHeader } from './CategoryGroupHeader';
 import StickyTable from '../../../components/StickyTable';
 import LoadingProgress from '../../../components/LoadingProgress';
 import NotFound from '../../../components/NotFound';
@@ -109,7 +109,10 @@ export default function AdminProductsPage() {
 
   const [params, setParams] = useSearchParams();
 
-  const { data: categories = [] } = useCategories();
+  const { data: categories = [] } = useCategories(undefined, {
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
   const { reorder, remove } = useProductMutations();
   const navigate = useNavigate();
 
@@ -472,6 +475,7 @@ export default function AdminProductsPage() {
             onSortingChange={setSorting}
             columnFilters={columnFilters}
             onColumnFiltersChange={setColumnFilters}
+            renderGroupHeader={createCategoryGroupHeader(categories)}
             enablePagination
             enableSorting
             enableColumnFilters={false}

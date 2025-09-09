@@ -18,7 +18,16 @@ export type ListProductsParams = {
 };
 
 type ProductsResult = { items: IProduct[]; total: number };
-type QueryOptions = { enabled?: boolean };
+
+type QueryOptions = {
+  enabled?: boolean;
+  /** Override default 30s freshness */
+  staleTime?: number;
+  /** Force a refetch when the component mounts */
+  refetchOnMount?: boolean | 'always';
+  /** Disable/enable refetch on window focus (default false here) */
+  refetchOnWindowFocus?: boolean;
+};
 
 /** treat '', null, undefined, 'undefined', 'null' as "empty" */
 const isBlank = (v: unknown) =>
@@ -91,11 +100,19 @@ async function listProducts(
   for (const p of paths) {
     try {
       const res = await api.get(p, { params });
-      return normalizeProducts(res.data);
+
+      // Prefer body {items,total}, but respect X-Total-Count header if present
+      const base = normalizeProducts(res.data);
+      const headerTotal = Number(res.headers?.['x-total-count']);
+      const total =
+        Number.isFinite(headerTotal) && headerTotal >= 0
+          ? headerTotal
+          : base.total;
+
+      return { items: base.items, total };
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 404) {
-        // try the next path
-        continue;
+        continue; // try the next path
       }
       throw err; // other errors should surface
     }
@@ -120,8 +137,9 @@ export function useProductsQuery(
       }
       return listProducts(params);
     },
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
+    staleTime: options?.staleTime ?? 30_000,
+    refetchOnMount: options?.refetchOnMount ?? false,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus ?? false,
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
   });
