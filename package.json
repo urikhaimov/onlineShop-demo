@@ -8,6 +8,11 @@
   "description": "",
   "author": "",
   "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint --cache --fix .",
+    "nx:all": "npx nx run-many --target=build --all",
+    "nx:run-all": "npx nx run-many -p auth api client --target=serve",
+    "nx:latest": "npm i -g nx && npx nx migrate latest && npx nx --version",
     "prepare": "husky install",
     "emu:start": "firebase emulators:start --import ./.emu-data --export-on-exit ./.emu-data",
     "emu:exec": "firebase emulators:exec --project onlinestoretemplate-59d3e",

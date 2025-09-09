@@ -9,51 +9,67 @@ export class CategoriesService {
   private readonly logger = new Logger(CategoriesService.name);
   private categoriesRef = adminDb.collection('categories');
 
-  /** New: queryable list with pagination, sorting, and simple search */
+  /** Queryable list with pagination, sorting, and simple search */
   async list(
     q: ListCategoriesDto,
   ): Promise<{ items: Array<Record<string, any>>; total: number }> {
     const page = Math.max(1, Number(q.page ?? 1));
     const limit = Math.max(1, Math.min(500, Number(q.limit ?? 100)));
 
-    // sort like "order:asc" or "name:asc" (default by name)
+    // sort like "name:asc" (default) or "order:asc|desc"
     const [sf, sdRaw] = String(q.sort ?? 'name:asc').split(':');
     const sortField = (sf?.trim() || 'name') as string;
     const sortDir: admin.firestore.OrderByDirection =
       sdRaw === 'desc' ? 'desc' : 'asc';
 
-    const ref: admin.firestore.Query = this.categoriesRef.orderBy(
+    let ref: admin.firestore.Query = this.categoriesRef.orderBy(
       sortField,
       sortDir,
     );
 
+    // Firestore-friendly prefix search (on 'name')
+    const needle = (q.q ?? '').toString().trim();
+    if (needle) {
+      // If sorting by 'name', we can do server-side prefix filter
+      if (sortField === 'name') {
+        ref = ref
+          .where('name', '>=', needle)
+          .where('name', '<=', needle + '\uf8ff');
+      }
+    }
+
+    // Total via aggregation; fallback gracefully if unavailable
+    let total = 0;
+    try {
+      const agg = await this.categoriesRef.count().get();
+      total = Number(agg.data().count ?? 0);
+    } catch (e) {
+      this.logger.debug(
+        `count() unsupported, falling back. ${String((e as any)?.message || e)}`,
+      );
+      const all = await this.categoriesRef.get();
+      total = all.size;
+    }
+
+    // Pagination
     const offset = (page - 1) * limit;
     const snap = await ref.offset(offset).limit(limit).get();
     let items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    // In-page substring search on name (keeps server simple in emulator)
-    const needle = (q.q ?? '').toString().trim().toLowerCase();
-    if (needle) {
+    // Client-like substring search if we couldn't use server-side filter
+    if (needle && sortField !== 'name') {
+      const low = needle.toLowerCase();
       items = items.filter((c: any) =>
-        (c?.name ?? '').toString().toLowerCase().includes(needle),
-      );
-    }
-
-    // Total via aggregation; fallback to page length if not available
-    let total = items.length;
-    try {
-      const agg = await ref.count().get();
-      total = typeof agg.data().count === 'number' ? agg.data().count : total;
-    } catch (e) {
-      this.logger.debug(
-        `count() fallback: ${String((e as any)?.message || e)}`,
+        String(c?.name ?? '')
+          .toLowerCase()
+          .includes(low),
       );
     }
 
     return { items, total };
   }
 
-  /** Back-compat: use list() under the hood */
+  /** Back-compat: list all (up to 500) sorted by name */
   async findAll() {
     const { items } = await this.list({
       page: 1,
@@ -64,41 +80,34 @@ export class CategoriesService {
   }
 
   async create(name: string) {
-    if (!name.trim()) {
-      throw new ConflictException('Name is required');
-    }
+    const trimmed = String(name ?? '').trim();
+    if (!trimmed) throw new ConflictException('Name is required');
 
-    // Simple uniqueness check (case-sensitive to match your original behavior)
-    const existing = await this.categoriesRef
-      .where('name', '==', name.trim())
+    // Uniqueness (case-sensitive to match current behavior)
+    const dup = await this.categoriesRef
+      .where('name', '==', trimmed)
       .limit(1)
       .get();
+    if (!dup.empty) throw new ConflictException('Category already exists');
 
-    if (!existing.empty) {
-      throw new ConflictException('Category already exists');
-    }
-
-    const docRef = await this.categoriesRef.add({ name: name.trim() });
-    return { id: docRef.id, name: name.trim() };
+    const docRef = await this.categoriesRef.add({ name: trimmed });
+    return { id: docRef.id, name: trimmed };
   }
 
   async updateCategory(id: string, name: string) {
-    if (!name || !name.trim()) {
-      throw new ConflictException('Name is required');
-    }
+    const trimmed = String(name ?? '').trim();
+    if (!trimmed) throw new ConflictException('Name is required');
 
-    // Prevent rename to an existing category name (excluding this id)
     const dup = await this.categoriesRef
-      .where('name', '==', name.trim())
+      .where('name', '==', trimmed)
       .limit(1)
       .get();
     if (!dup.empty && dup.docs[0].id !== id) {
       throw new ConflictException('Category already exists');
     }
 
-    const ref = this.categoriesRef.doc(id);
-    await ref.update({ name: name.trim() });
-    return { id, name: name.trim() };
+    await this.categoriesRef.doc(id).update({ name: trimmed });
+    return { id, name: trimmed };
   }
 
   async remove(id: string) {
