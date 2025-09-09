@@ -1,0 +1,53 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - generic [ref=e8]:
+      - list [ref=e9]:
+        - listitem [ref=e10]:
+          - button "Home" [ref=e11] [cursor=pointer]:
+            - img [ref=e13] [cursor=pointer]
+            - generic [ref=e16] [cursor=pointer]: Home
+        - listitem [ref=e17]:
+          - button "Products" [ref=e18] [cursor=pointer]:
+            - img [ref=e20] [cursor=pointer]
+            - generic [ref=e23] [cursor=pointer]: Products
+        - listitem [ref=e24]:
+          - button "My Orders" [ref=e25] [cursor=pointer]:
+            - img [ref=e27] [cursor=pointer]
+            - generic [ref=e30] [cursor=pointer]: My Orders
+      - list [ref=e31]
+    - button "Open menu" [ref=e34] [cursor=pointer]:
+      - img [ref=e35] [cursor=pointer]
+  - main [ref=e37]:
+    - generic [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e42]: Background
+          - generic [ref=e43]:
+            - combobox "Background" [ref=e44] [cursor=pointer]: Mesh gradient
+            - textbox: mesh
+            - img
+            - group:
+              - generic: Background
+        - generic [ref=e45]:
+          - generic [ref=e46]: "Off"
+          - switch [checked] [ref=e49] [cursor=pointer]
+          - generic [ref=e52]: "On"
+      - generic [ref=e53]:
+        - generic [ref=e56]:
+          - img [ref=e58]
+          - combobox "Search…" [ref=e60]
+          - group
+        - button "Sep 09, 2025 04:22 AM" [ref=e61] [cursor=pointer]:
+          - img [ref=e63] [cursor=pointer]
+          - text: Sep 09, 2025 04:22 AM
+        - button "English" [ref=e65] [cursor=pointer]
+        - button "Open cart" [ref=e66] [cursor=pointer]:
+          - generic [ref=e67] [cursor=pointer]:
+            - img [ref=e68] [cursor=pointer]
+            - generic: "0"
+        - button "Switch to dark mode" [ref=e70] [cursor=pointer]:
+          - img [ref=e71] [cursor=pointer]
+```
