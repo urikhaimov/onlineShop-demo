@@ -53,7 +53,10 @@ export default function AdminCategoriesPage() {
   const { sorting, setSorting, columnFilters, setColumnFilters } =
     useCategoryTableStore();
 
-  const { data: categories = [], refetch } = useCategories();
+  const { data: categories = [], refetch } = useCategories(undefined, {
+    refetchOnMount: 'always',
+    staleTime: 0,
+  });
 
   // confirm state
   const [toDelete, setToDelete] = useState<Category | null>(null);

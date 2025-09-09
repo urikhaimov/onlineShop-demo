@@ -1,4 +1,3 @@
-// src/hooks/useCategories.ts
 import {
   useMutation,
   useQuery,
@@ -19,7 +18,13 @@ export type ListParams = {
   sort?: string; // e.g. 'name:asc'
 };
 
-type QueryOptions = { enabled?: boolean };
+type QueryOptions = {
+  enabled?: boolean;
+  /** Force a refetch when the component mounts */
+  refetchOnMount?: boolean | 'always';
+  /** Override default 5m cache freshness if needed */
+  staleTime?: number;
+};
 
 /** Safe normalizer that accepts either {items,total} or a plain array */
 function normalizeCategories(data: unknown): CategoriesResult {
@@ -60,8 +65,9 @@ export const useCategories = (params?: ListParams, options?: QueryOptions) =>
       });
       return normalizeCategories(res.data).items;
     },
-    staleTime: 5 * 60_000,
+    staleTime: options?.staleTime ?? 5 * 60_000,
     refetchOnWindowFocus: false,
+    refetchOnMount: options?.refetchOnMount ?? false,
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
   });
@@ -79,8 +85,9 @@ export const useCategoriesResult = (
       });
       return normalizeCategories(res.data);
     },
-    staleTime: 5 * 60_000,
+    staleTime: options?.staleTime ?? 5 * 60_000,
     refetchOnWindowFocus: false,
+    refetchOnMount: options?.refetchOnMount ?? false,
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
   });
@@ -93,8 +100,9 @@ export const useCategoryById = (id?: string, options?: QueryOptions) =>
       const res = await api.get(`/categories/${id}`);
       return res.data as Category;
     },
-    staleTime: 5 * 60_000,
+    staleTime: options?.staleTime ?? 5 * 60_000,
     refetchOnWindowFocus: false,
+    refetchOnMount: options?.refetchOnMount ?? false,
     placeholderData: keepPreviousData,
   });
 
@@ -115,6 +123,10 @@ export const useAddCategory = () => {
       enqueueSnackbar('Category added', { variant: 'success' });
       // Invalidate every categories query (all param variants)
       await qc.invalidateQueries({ queryKey: ['categories'], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ['categories', 'result'],
+        exact: false,
+      });
     },
     onError: (error: any) => {
       const message =
@@ -157,6 +169,10 @@ export const useDeleteCategory = () => {
     },
     onSettled: async () => {
       await qc.invalidateQueries({ queryKey: ['categories'], exact: false });
+      await qc.invalidateQueries({
+        queryKey: ['categories', 'result'],
+        exact: false,
+      });
     },
   });
 };
@@ -173,5 +189,7 @@ export function useUpdateCategory() {
     getOptimisticUpdate: (item, { name }) => ({ ...item, name }),
     successMessage: 'Category updated',
     errorMessage: 'Failed to update category',
+    // If your useOptimisticMutation supports it, you can also pass onSettled here
+    // to invalidate ['categories', 'result'] after server confirms.
   });
 }
