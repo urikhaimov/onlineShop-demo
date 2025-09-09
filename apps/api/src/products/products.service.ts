@@ -121,15 +121,6 @@ export class ProductsService {
     }
 
     // ---- robust sort (default + whitelist + range tie-in)
-    const SAFE_SORT_MAP: Record<string, string> = {
-      order: 'order',
-      price: 'price',
-      stock: 'stock',
-      name: 'name',
-      updatedat: 'metadata.updatedAt',
-      createdat: 'metadata.createdAt',
-    };
-
     const [sfRaw, sdRaw] = String(q.sort ?? '').split(':');
     const sfKey = (sfRaw ?? '').trim().toLowerCase();
     let sortField =
@@ -147,15 +138,12 @@ export class ProductsService {
     let pageDocs: Array<Record<string, any>>;
     try {
       const snap = await ref.offset(offset).limit(limit).get();
-      pageDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // Put id LAST so it can't be overwritten by data-level `id`
+      pageDocs = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
     } catch (err: any) {
       const msg = String(err?.message || err);
-      // Common cases: FAILED_PRECONDITION (index), PERMISSION, etc.
       this.logger.error(`[products.list] primary query failed: ${msg}`);
 
-      // Extremely safe fallback so smoke never 500s:
-      // - drop filters that may require a composite index
-      // - order by 'order' (single-field index)
       try {
         const safe = await adminDb
           .collection('products')
@@ -164,12 +152,11 @@ export class ProductsService {
           .limit(Math.min(limit, 50))
           .get();
 
-        pageDocs = safe.docs.map((d) => ({ id: d.id, ...d.data() }));
+        pageDocs = safe.docs.map((d) => ({ ...d.data(), id: d.id }));
         this.logger.warn(
           `[products.list] returned fallback results due to query error. Original error: ${msg}`,
         );
       } catch (fallbackErr: any) {
-        // If even the fallback fails, surface a clear 500
         this.logger.error(
           `[products.list] fallback query failed: ${String(
             fallbackErr?.message || fallbackErr,
@@ -192,7 +179,7 @@ export class ProductsService {
       });
     }
 
-    // Total: when text filter is applied post-fetch, just use page length.
+    // Total
     let total: number;
     if (needle) {
       total = pageDocs.length;
@@ -274,7 +261,8 @@ export class ProductsService {
 
     const snap = await ref.get();
     this.logger.log(`Created product ${ref.id}`);
-    return { id: ref.id, ...snap.data() };
+    // Put id LAST
+    return { ...snap.data(), id: ref.id };
   }
 
   // ---------------- update ----------------
@@ -331,7 +319,8 @@ export class ProductsService {
     );
 
     const after = (await ref.get()).data();
-    return { id, ...after };
+    // Put id LAST
+    return { ...after, id };
   }
 
   // ---------------- queries ----------------
@@ -347,7 +336,8 @@ export class ProductsService {
   async getById(id: string) {
     const snap = await adminDb.collection('products').doc(id).get();
     if (!snap.exists) throw new NotFoundException('Product not found');
-    return { id: snap.id, ...snap.data() };
+    // Put id LAST
+    return { ...snap.data(), id: snap.id };
   }
 
   async remove(id: string) {
@@ -361,39 +351,120 @@ export class ProductsService {
     actorName: string | undefined,
     orderList: Array<{ id: string; order: number }>,
   ) {
-    if (!Array.isArray(orderList) || orderList.length === 0) {
-      throw new BadRequestException('orderList must be a non-empty array');
-    }
-    const ids = new Set(orderList.map((i) => i.id));
-    if (ids.size !== orderList.length) {
-      throw new BadRequestException('orderList contains duplicate ids');
-    }
-
-    const actor = this.actor(uid, actorName);
-
-    // Respect Firestore batch limit of 500 ops
-    for (let i = 0; i < orderList.length; i += 500) {
-      const chunk = orderList.slice(i, i + 500);
-      const batch = adminDb.batch();
-
-      for (const item of chunk) {
-        const ref = adminDb.collection('products').doc(item.id);
-        batch.update(ref, {
-          order: item.order,
-          'metadata.updatedBy': actor,
-          'metadata.updatedAt': this.st(),
-        } as admin.firestore.UpdateData<ProductDoc>);
+    try {
+      // 1) Input validation
+      if (!Array.isArray(orderList) || orderList.length === 0) {
+        throw new BadRequestException('orderList must be a non-empty array');
+      }
+      const badIdx: number[] = [];
+      orderList.forEach((it, idx) => {
+        const idOk = typeof it?.id === 'string' && it.id.trim().length > 0;
+        const ordOk =
+          typeof it?.order === 'number' && Number.isFinite(it.order);
+        if (!idOk || !ordOk) badIdx.push(idx);
+      });
+      if (badIdx.length) {
+        throw new BadRequestException(
+          `orderList has invalid entries at indexes: ${badIdx.join(', ')}`,
+        );
+      }
+      const dupCheck = new Set(orderList.map((i) => i.id));
+      if (dupCheck.size !== orderList.length) {
+        throw new BadRequestException('orderList contains duplicate ids');
       }
 
-      await batch.commit();
+      // 2) Resolve each incoming id (docId or legacy slug/data-id) -> real docId
+      const resolveDocId = async (input: string): Promise<string | null> => {
+        // try as direct doc id
+        const direct = await adminDb.collection('products').doc(input).get();
+        if (direct.exists) return direct.id;
+
+        // try data.id == input
+        const byDataId = await adminDb
+          .collection('products')
+          .where('id', '==', input)
+          .limit(1)
+          .get();
+        if (!byDataId.empty) return byDataId.docs[0].id;
+
+        // optional: try 'slug' field
+        const bySlug = await adminDb
+          .collection('products')
+          .where('slug', '==', input)
+          .limit(1)
+          .get();
+        if (!bySlug.empty) return bySlug.docs[0].id;
+
+        return null;
+      };
+
+      const resolved = await Promise.all(
+        orderList.map(async ({ id, order }) => ({
+          input: id,
+          docId: await resolveDocId(id),
+          order,
+        })),
+      );
+
+      const missing = resolved.filter((r) => !r.docId).map((r) => r.input);
+      if (missing.length) {
+        throw new NotFoundException(
+          `Unknown product id(s): ${missing.join(', ')}`,
+        );
+      }
+
+      const idMap = new Map(resolved.map((r) => [r.input, r.docId!]));
+
+      // 3) Batch updates (500-op chunks)
+      const actor = this.actor(uid, actorName);
+      for (let i = 0; i < orderList.length; i += 500) {
+        const chunk = orderList.slice(i, i + 500);
+        const batch = adminDb.batch();
+
+        for (const item of chunk) {
+          const realId = idMap.get(item.id)!;
+          const ref = adminDb.collection('products').doc(realId);
+          batch.update(ref, {
+            order: item.order,
+            'metadata.updatedBy': actor,
+            'metadata.updatedAt': this.st(),
+          } as admin.firestore.UpdateData<ProductDoc>);
+        }
+
+        try {
+          await batch.commit();
+        } catch (err: any) {
+          const msg = String(err?.message || err);
+          this.logger.error(
+            `[products.reorder] batch commit failed: ${msg} | chunk=${JSON.stringify(
+              chunk,
+            )}`,
+            err?.stack,
+          );
+          throw new BadRequestException(
+            `Reorder failed: ${msg.replace(/\s+/g, ' ').trim()}`,
+          );
+        }
+      }
+
+      this.logger.log(`Reordered ${orderList.length} products`);
+
+      // 4) Return fresh order (id LAST)
+      const ss = await adminDb
+        .collection('products')
+        .orderBy('order', 'asc')
+        .get();
+      return ss.docs.map((d) => ({ ...d.data(), id: d.id }));
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      if (e instanceof BadRequestException || e instanceof NotFoundException) {
+        throw e;
+      }
+      this.logger.error(
+        `[products.reorder] unexpected error: ${msg}`,
+        e?.stack,
+      );
+      throw new BadRequestException(`Reorder failed: ${msg}`);
     }
-
-    this.logger.log(`Reordered ${orderList.length} products`);
-
-    const ss = await adminDb
-      .collection('products')
-      .orderBy('order', 'asc')
-      .get();
-    return ss.docs.map((d) => ({ id: d.id, ...d.data() }));
   }
 }

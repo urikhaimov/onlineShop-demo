@@ -1,4 +1,3 @@
-// src/products/products.controller.ts
 import {
   Body,
   Controller,
@@ -97,6 +96,9 @@ export class ProductsController {
   @UseGuards(FirebaseAuthGuard)
   @Put('reorder')
   reorder(@Req() req: AuthedReq, @Body() dto: ReorderProductsDto) {
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.debug(`[reorder] body: ${JSON.stringify(dto)}`);
+    }
     const actorName = req.user?.name || req.user?.email;
     return this.svc.reorder(req.user!.uid, actorName, dto.orderList);
   }

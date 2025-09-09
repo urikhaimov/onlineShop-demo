@@ -2,14 +2,45 @@
   "kind": "identitytoolkit#DownloadAccountResponse",
   "users": [
     {
+      "localId": "3Hqv2f5kNQee9pPuiMnZjaM323D0",
+      "lastLoginAt": "1757350157755",
+      "displayName": "SanityExample",
+      "photoUrl": "",
+      "emailVerified": false,
+      "phoneNumber": "+972547401812",
+      "email": "admin@demo.local",
+      "salt": "fakeSaltCDB5TdXAGI5xNFxtbOB2",
+      "passwordHash": "fakeHash:salt=fakeSaltCDB5TdXAGI5xNFxtbOB2:password=secret123",
+      "passwordUpdatedAt": 1757350141769,
+      "validSince": "1757350141",
+      "mfaInfo": [],
+      "createdAt": "1757350141762",
+      "providerUserInfo": [
+        {
+          "providerId": "password",
+          "email": "admin@demo.local",
+          "federatedId": "admin@demo.local",
+          "rawId": "admin@demo.local",
+          "displayName": "SanityExample",
+          "photoUrl": ""
+        },
+        {
+          "providerId": "phone",
+          "phoneNumber": "+972547401812",
+          "rawId": "+972547401812"
+        }
+      ],
+      "lastRefreshAt": "2025-09-08T16:49:17.755Z"
+    },
+    {
       "localId": "Q7swm4r5h7xDHGziMGnsT9F8R7jl",
       "createdAt": "1757337343408",
-      "lastLoginAt": "1757345589100",
+      "lastLoginAt": "1757347210326",
       "displayName": "Uri Khaimov",
       "photoUrl": "",
       "passwordHash": "fakeHash:salt=fakeSaltBDPINziOSx1YDwynYUV4:password=admin777",
       "salt": "fakeSaltBDPINziOSx1YDwynYUV4",
-      "passwordUpdatedAt": 1757341568627,
+      "passwordUpdatedAt": 1757345865363,
       "customAttributes": "{\"role\":\"admin\"}",
       "providerUserInfo": [
         {
@@ -27,17 +58,19 @@
         }
       ],
       "phoneNumber": "+972547401813",
-      "validSince": "1757341568",
+      "validSince": "1757345865",
       "email": "urikhaimov@gmail.com",
       "emailVerified": false,
       "disabled": false,
-      "lastRefreshAt": "2025-09-08T15:33:09.100Z"
+      "lastRefreshAt": "2025-09-08T16:00:10.326Z"
     },
     {
       "localId": "otJM1cq10GnrFiz3f8y762X7zle9",
-      "lastLoginAt": "1757344108697",
       "createdAt": "1757344108697",
-      "lastRefreshAt": "2025-09-08T15:08:28.710Z"
+      "lastLoginAt": "1757344108697",
+      "validSince": "1757345865",
+      "emailVerified": false,
+      "disabled": false
     }
   ]
 }
