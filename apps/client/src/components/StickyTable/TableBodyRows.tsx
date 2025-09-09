@@ -1,4 +1,3 @@
-// src/components/StickyTable/TableBodyRows.tsx
 import * as React from 'react';
 import {
   TableBody,
@@ -26,6 +25,7 @@ import { useThemeStore } from '../../stores/useThemeStore';
 
 // dnd-kit
 import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 type Props<T extends object> = {
   table: ReactTable<T>;
@@ -57,8 +57,11 @@ type Props<T extends object> = {
   /** Optional class for the handle button. */
   dragHandleClassName?: string;
 
-  /** 🔹 NEW: id of the row currently being dragged (for fading source row). */
+  /** 🔹 id of the row currently being dragged (for fading source row). */
   activeId?: string | null;
+
+  /** 🔹 Returns the business id for a row.original (e.g., product.id). */
+  getItemId?: (row: T) => string;
 };
 
 function getGroupLabelSafe<T extends object>(
@@ -92,7 +95,7 @@ function toSxArray(
   return [sx as any];
 }
 
-/** Leaf row (no transforms on <tr>; listeners sit on the handle button). */
+/** Leaf row (apply transform on <tr>; listeners sit on the handle button). */
 function LeafRow<T extends object>({
   row,
   columnsLength,
@@ -104,8 +107,9 @@ function LeafRow<T extends object>({
   dragHandleClassName = 'drag-handle',
   isExpanded,
   toggleRowExpand,
-  /** NEW: fade when active */
+  /** fade when active */
   active = false,
+  getItemId,
 }: {
   row: ReactRow<T>;
   columnsLength: number;
@@ -118,14 +122,30 @@ function LeafRow<T extends object>({
   isExpanded: boolean;
   toggleRowExpand: (id: string) => void;
   active?: boolean;
+  getItemId?: (row: T) => string;
 }) {
   const theme = useTheme();
 
-  // Don’t use transform on <tr>; just provide attributes for a11y and listeners on handle
-  const { attributes, listeners, setNodeRef } = useSortable({
-    id: String(row.id),
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: getItemId ? getItemId(row.original as T) : String(row.id),
     disabled: !enableRowDrag,
   });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 5 : undefined,
+    position: isDragging ? 'relative' : undefined,
+    opacity: active ? 0.5 : 1,
+  };
 
   return (
     <>
@@ -133,7 +153,8 @@ function LeafRow<T extends object>({
         ref={setNodeRef}
         {...(enableRowDrag ? attributes : {})}
         hover
-        sx={{ opacity: active ? 0.5 : 1, transition: 'opacity 120ms ease' }}
+        style={style}
+        data-rowid={getItemId ? getItemId(row.original as T) : String(row.id)}
       >
         {row.getVisibleCells().map((cell) => {
           // Special left sticky reorder column: render the grip
@@ -162,14 +183,18 @@ function LeafRow<T extends object>({
                 ]}
               >
                 <IconButton
+                  ref={setActivatorNodeRef}
                   size="small"
                   className={dragHandleClassName}
                   sx={{
-                    cursor: enableRowDrag ? 'grab !important' : 'default',
-                    '&:active': {
+                    // Force cursor on the button AND its children (svg/path)
+                    '&, & *': {
+                      cursor: enableRowDrag ? 'grab !important' : 'default',
+                    },
+                    '&:active, &:active *': {
                       cursor: enableRowDrag ? 'grabbing !important' : 'default',
                     },
-                    touchAction: 'none',
+                    touchAction: 'none', // important for PointerSensor
                   }}
                   aria-label="Drag row"
                   disabled={!enableRowDrag}
@@ -287,8 +312,10 @@ export default function TableBodyRows<T extends object>({
   toggleRowExpand,
   enableRowDrag = false,
   dragHandleClassName = 'drag-handle',
-  /** NEW: from StickyTable DragOverlay */
+  /** from StickyTable DragOverlay */
   activeId = null,
+  /** product-id getter from StickyTable */
+  getItemId,
 }: Props<T>) {
   const theme = useTheme();
   const { themeSettings } = useThemeStore();
@@ -358,6 +385,9 @@ export default function TableBodyRows<T extends object>({
               {isOpen &&
                 row.subRows.map((child) => {
                   const isExpanded = expandedRows[child.id] ?? false;
+                  const id = getItemId
+                    ? getItemId(child.original as T)
+                    : String(child.id);
                   return (
                     <LeafRow<T>
                       key={child.id}
@@ -371,7 +401,8 @@ export default function TableBodyRows<T extends object>({
                       dragHandleClassName={dragHandleClassName}
                       isExpanded={isExpanded}
                       toggleRowExpand={toggleRowExpand}
-                      active={activeId === String(child.id)}
+                      active={activeId === id}
+                      getItemId={getItemId}
                     />
                   );
                 })}
@@ -382,6 +413,7 @@ export default function TableBodyRows<T extends object>({
         // Normal top-level leaf rows
         if (row.depth === 0) {
           const isExpanded = expandedRows[row.id] ?? false;
+          const id = getItemId ? getItemId(row.original as T) : String(row.id);
           return (
             <LeafRow<T>
               key={row.id}
@@ -395,7 +427,8 @@ export default function TableBodyRows<T extends object>({
               dragHandleClassName={dragHandleClassName}
               isExpanded={isExpanded}
               toggleRowExpand={toggleRowExpand}
-              active={activeId === String(row.id)}
+              active={activeId === id}
+              getItemId={getItemId}
             />
           );
         }

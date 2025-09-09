@@ -187,15 +187,26 @@ export default function AdminProductsPage() {
   // Filters ↔ URL
   useAdminProductFiltersQuerySync();
 
+  // Reorder mode toggle
+  const [reorderMode, setReorderMode] = React.useState(false);
+
+  // While in reorder mode, clear header sorting (so server + UI don't fight you)
+  useEffect(() => {
+    if (reorderMode && sorting.length) setSorting([]);
+  }, [reorderMode, sorting, setSorting]);
+
   // Build server query params from current UI state
   const serverParams = useMemo(() => {
     // Use the first sort rule (if any) to ask the API for server sort.
     const firstSort =
       Array.isArray(sorting) && sorting.length ? sorting[0] : null;
-    const sort =
-      firstSort && firstSort.id
+
+    // Lock server sorting to order:asc during reorder; otherwise use UI sort or default to order:asc
+    const sort = reorderMode
+      ? 'order:asc'
+      : firstSort && firstSort.id
         ? `${firstSort.id}:${firstSort.desc ? 'desc' : 'asc'}`
-        : undefined;
+        : 'order:asc';
 
     return {
       q: searchTerm || undefined,
@@ -217,6 +228,7 @@ export default function AdminProductsPage() {
     minStock,
     maxStock,
     sorting,
+    reorderMode, // 👈 include
   ]);
 
   // 🔎 Query the API (defaults to /products/public with automatic fallback)
@@ -251,9 +263,6 @@ export default function AdminProductsPage() {
     }
   }, [isError, error, enqueueSnackbar, t]);
 
-  // Reorder mode toggle
-  const [reorderMode, setReorderMode] = React.useState(false);
-
   // ---- Reorder wiring (called by StickyTable with visible ordered IDs)
   const byId = useMemo(() => {
     const m = new Map<string, IProduct>();
@@ -262,12 +271,30 @@ export default function AdminProductsPage() {
   }, [products]);
 
   const handleReorder = async (orderedIds: string[]) => {
-    const visibleSet = new Set(orderedIds);
-    const nextVisible = orderedIds.map((id) => byId.get(id)!).filter(Boolean);
-    const rest = products.filter((p) => !visibleSet.has(p.id));
+    // Build id -> index map from the full products array
+    const idToIndex = new Map<string, number>(
+      products.map((p, i) => [p.id, i]),
+    );
 
-    const nextAll = [...nextVisible, ...rest];
-    setProducts(nextAll); // optimistic
+    // Positions of the visible set in the original array (ascending)
+    const positions = orderedIds
+      .map((id) => idToIndex.get(id))
+      .filter((i): i is number => typeof i === 'number')
+      .sort((a, b) => a - b);
+
+    // Visible products in their new order
+    const reorderedVisible = orderedIds
+      .map((id) => byId.get(id))
+      .filter((p): p is IProduct => Boolean(p));
+
+    // Splice reordered visibles back into their original slots
+    const nextAll = products.slice();
+    positions.forEach((pos, i) => {
+      nextAll[pos] = reorderedVisible[i];
+    });
+
+    // optimistic update
+    setProducts(nextAll);
 
     const orderList = nextAll.map((p, i) => ({ id: p.id, order: i }));
     const token = await auth.currentUser?.getIdToken();
@@ -477,10 +504,10 @@ export default function AdminProductsPage() {
             onColumnFiltersChange={setColumnFilters}
             renderGroupHeader={createCategoryGroupHeader(categories)}
             enablePagination
-            enableSorting
+            enableSorting={!reorderMode}
             enableColumnFilters={false}
             groupById="categoryId"
-            disableDrag={!reorderMode}
+            disableDrag={false}
             enableRowExpansion
             renderExpandedRow={(product) => (
               <ProductExpandedRow
