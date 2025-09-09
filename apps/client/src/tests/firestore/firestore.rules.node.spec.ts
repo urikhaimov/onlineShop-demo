@@ -2,18 +2,13 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
+  assertFails,
 } from '@firebase/rules-unit-testing';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-} from 'firebase/firestore/lite';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 // resolve repo root
 const __dirnameFile = path.dirname(url.fileURLToPath(import.meta.url));
@@ -74,9 +69,9 @@ describe('Firestore security rules', () => {
 
     it('non-admin cannot create', async () => {
       const db = authedDb('u1', { role: 'user' });
-      await expect(
+      await assertFails(
         setDoc(doc(db, 'products', `deny_${Date.now()}`), { name: 'X' }),
-      ).rejects.toThrow(/permission/i);
+      );
     });
 
     it('admin can create/update/delete', async () => {
@@ -102,9 +97,9 @@ describe('Firestore security rules', () => {
 
       it(`${coll}: non-admin cannot create`, async () => {
         const db = authedDb('u1', { role: 'user' });
-        await expect(
+        await assertFails(
           setDoc(doc(db, coll, `deny_${Date.now()}`), { name: 'Y' }),
-        ).rejects.toThrow(/permission/i);
+        );
       });
 
       it(`${coll}: admin can create/update/delete`, async () => {
@@ -139,9 +134,7 @@ describe('Firestore security rules', () => {
         await setDoc(doc(db, 'users', uidA), { name: 'A' });
       });
       const dbB = authedDb(uidB, { role: 'user' });
-      await expect(getDoc(doc(dbB, 'users', uidA))).rejects.toThrow(
-        /permission/i,
-      );
+      await assertFails(getDoc(doc(dbB, 'users', uidA)));
     });
   });
 
@@ -169,11 +162,11 @@ describe('Firestore security rules', () => {
       });
 
       const dbUser = authedDb(uid, { role: 'user' });
-      await expect(
+      await assertFails(
         updateDoc(doc(dbUser, 'orders', orderId), {
           payment: { status: 'paid' },
         }),
-      ).rejects.toThrow(/permission/i);
+      );
 
       const dbAdmin = authedDb('adm', { role: 'admin' });
       await updateDoc(doc(dbAdmin, 'orders', orderId), {
@@ -197,9 +190,7 @@ describe('Firestore security rules', () => {
       await deleteDoc(ref);
 
       const otherDb = authedDb('other', { role: 'user' });
-      await expect(
-        getDoc(doc(otherDb, 'abandonedCarts', clientSecret)),
-      ).rejects.toThrow(/permission/i);
+      await assertFails(getDoc(doc(otherDb, 'abandonedCarts', clientSecret)));
     });
   });
 });

@@ -17,7 +17,7 @@ service firebase.storage {
     }
 
     function isImage() {
-      // request.resource is only available on write
+      // request.resource is only available on writes
       return request.resource != null &&
              request.resource.contentType.matches('image/.*');
     }
@@ -33,13 +33,12 @@ service firebase.storage {
     }
 
     // === Public user avatars ===
-    // Use a path that encodes the UID explicitly to avoid "startsWith" pitfalls.
-    // Example object path: avatars/{uid}/avatar.jpg
+    // Example: avatars/{uid}/avatar.jpg
     match /avatars/{uid}/{file=**} {
       // Publicly readable avatars
       allow read: if true;
 
-      // Only the owner can write their avatar, must be an image and < 10MB
+      // Only the owner can write; must be image and < 10MB
       allow write: if authed() &&
                    request.auth.uid == uid &&
                    isImage() &&
@@ -47,7 +46,7 @@ service firebase.storage {
     }
 
     // === Product images ===
-    // Path example: products/{productId}/image.png
+    // Example: products/{productId}/image.png
     match /products/{productId}/{file=**} {
       // Publicly readable product images
       allow read: if true;
@@ -59,13 +58,12 @@ service firebase.storage {
     }
 
     // === Temporary uploads ===
-    // Path example: temp/{uid}/anything.tmp
+    // Example: temp/{uid}/anything.tmp
     match /temp/{uid}/{file=**} {
-      // Only the authenticated user can access their own temp files
-      allow read, write: if authed() &&
-                         request.auth.uid == uid &&
-                         max20mb();
-      // If you want images-only here too, swap max20mb() with (isImage() && max20mb()).
+      // Owner can read/write. Only check size on writes (request.resource is null on reads).
+      allow read:  if authed() && request.auth.uid == uid;
+      allow write: if authed() && request.auth.uid == uid && max20mb();
+      // If you want images-only here too, replace max20mb() with (isImage() && max20mb()).
     }
 
     // === Fallback: deny all other paths ===

@@ -1,19 +1,27 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2020",
+    "ignoreDeprecations": "6.0",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
     "allowJs": true,
     "outDir": "../../dist/apps/client-e2e",
     "sourceMap": false,
-    "module": "commonjs"
+    "types": ["node", "playwright"]
   },
   "include": [
-    "**/*.ts",
-    "**/*.js",
     "playwright.config.ts",
+    "src/e2e/**/*.pw.spec.ts",
     "src/**/*.spec.ts",
     "src/**/*.spec.js",
     "src/**/*.test.ts",
     "src/**/*.test.js",
-    "src/**/*.d.ts"
+    "src/**/*.d.ts",
+    "**/*.ts",
+    "**/*.js",
+    "src/e2e/checkout.pw.spec.cts"
   ]
 }

@@ -126,12 +126,13 @@ export function buildUserProductColumns(
       meta: { align: 'right' as const, sticky: 'right' as const },
       cell: ({ row }) => {
         const product = row.original;
+        const label = t('actions.addToCart', { defaultValue: 'Add to cart' });
         return (
-          <Tooltip
-            title={t('actions.addToCart', { defaultValue: 'Add to cart' })}
-          >
+          <Tooltip title={label}>
             <IconButton
               size="small"
+              aria-label={label}
+              data-testid="add-to-cart"
               onClick={() => {
                 // add minimal required fields for your cart item
                 useCartStore.getState().addToCart({

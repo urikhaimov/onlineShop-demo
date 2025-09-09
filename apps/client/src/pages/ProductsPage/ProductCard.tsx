@@ -75,6 +75,7 @@ export default function ProductCard({
 
   return (
     <Card
+      data-testid="product-card"
       variant="outlined"
       sx={{
         width: '100%',
@@ -182,6 +183,8 @@ export default function ProductCard({
       {/* Actions */}
       <CardActions sx={{ width: '100%', pb: gapY * 0.8 }}>
         <Button
+          data-testid="add-to-cart"
+          aria-label={t('table.addToCart', { defaultValue: 'Add to Cart' })}
           size="small"
           onClick={handleAddToCart}
           disabled={disabled}

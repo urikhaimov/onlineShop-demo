@@ -1,4 +1,3 @@
-// apps/client/vite.config.ts
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 import { defineConfig } from 'vite';
@@ -14,8 +13,14 @@ export default defineConfig(async () => {
   // @ts-expect-error - Vite's dynamic import + default export
   const { default: react } = await import('@vitejs/plugin-react');
 
+  // When E2E=1 (set by Playwright), disable API proxy to avoid ECONNREFUSED
+  const isE2E = process.env.E2E === '1';
+
   // Print CSP once so you can confirm emulator hosts / scheme-level policy in dev
   console.log('\n[CSP header that Vite will send]\n' + csp + '\n');
+  console.log(
+    `[vite] E2E mode: ${isE2E ? 'ON (proxy disabled)' : 'OFF (proxy enabled)'}`,
+  );
 
   return {
     cacheDir: '../../node_modules/.vite/apps/client',
@@ -33,30 +38,25 @@ export default defineConfig(async () => {
       host: '127.0.0.1',
       port: 5173,
       headers: { 'Content-Security-Policy': csp },
-      proxy: {
-        // forward /api -> http://localhost:3000/api (Nest)
-        '/api': {
-          target: 'http://localhost:3000',
-          changeOrigin: true,
-          secure: false,
-          ws: true, // if your API exposes websockets
-        },
-      },
-      // open: true,
-      // strictPort: true,
+      proxy: isE2E
+        ? undefined
+        : {
+            // forward /api -> http://localhost:3000/api (Nest)
+            '/api': {
+              target: 'http://localhost:3000',
+              changeOrigin: true,
+              secure: false,
+              ws: true,
+            },
+          },
     },
 
     css: {
-      preprocessorOptions: {
-        less: { javascriptEnabled: true },
-      },
+      preprocessorOptions: { less: { javascriptEnabled: true } },
     },
 
     build: {
-      rollupOptions: {
-        // keep if you're not importing it directly to avoid bundling
-        external: ['motion-dom'],
-      },
+      rollupOptions: { external: ['motion-dom'] },
       emptyOutDir: true,
       outDir: '../../dist/apps/client',
       reportCompressedSize: true,
@@ -73,7 +73,9 @@ export default defineConfig(async () => {
         'src/**/*.{test,spec}.{ts,tsx}',
         'tests/**/*.{test,spec}.{ts,tsx}',
       ],
-      // ✅ use server.deps.inline
+      // ✅ ESM for tests (fixes "Vitest cannot be imported in a CommonJS module")
+      tsconfig: path.resolve(__dirname, './tsconfig.vitest.json'),
+      // ✅ inline Firebase deps for Vitest
       server: { deps: { inline: [/firebase\/.*/] } },
       passWithNoTests: true,
       environmentMatchGlobs: [

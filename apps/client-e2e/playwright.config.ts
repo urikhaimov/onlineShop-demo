@@ -1,68 +1,27 @@
 import { defineConfig, devices } from '@playwright/test';
-import { nxE2EPreset } from '@nx/playwright/preset';
-import { workspaceRoot } from '@nx/devkit';
 
-// For CI, you may want to set BASE_URL to the deployed application.
-const baseURL = process.env['BASE_URL'] || 'http://localhost:4200';
-
-/**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// require('dotenv').config();
-
-/**
- * See https://playwright.dev/docs/test-configuration.
- */
 export default defineConfig({
-  ...nxE2EPreset(__filename, { testDir: './src' }),
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  testDir: './src/e2e',
+  testMatch: ['**/*.pw.spec.ts', '**/*.pw.spec.cts'],
+  timeout: 60_000,
+  retries: 0,
   use: {
-    baseURL,
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
+    baseURL: process.env.PW_BASE_URL ?? 'http://127.0.0.1:5173',
+    trace: 'retain-on-failure',
+    headless: true,
   },
-  /* Run your local dev server before starting the tests */
+
+  // Start the client directly with Vite from the WORKSPACE ROOT,
+  // and pass E2E=1 so the proxy is disabled in your Vite config.
   webServer: {
-    command: 'npx nx run client:preview',
-    url: 'http://localhost:4200',
+    command:
+      process.env.PW_DEV ?? 'npx vite --config apps/client/vite.config.mts',
+    port: 5173,
     reuseExistingServer: true,
-    cwd: workspaceRoot,
+    timeout: 120_000,
+    cwd: '../../', // 👈 ensure we run from repo root
+    env: { E2E: '1' }, // 👈 turns off /api proxy in Vite during e2e
   },
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-
-    // Uncomment for mobile browsers support
-    /* {
-      name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
-    },
-    {
-      name: 'Mobile Safari',
-      use: { ...devices['iPhone 12'] },
-    }, */
-
-    // Uncomment for branded browsers
-    /* {
-      name: 'Microsoft Edge',
-      use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    },
-    {
-      name: 'Google Chrome',
-      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    } */
-  ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

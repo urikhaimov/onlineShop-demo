@@ -9,7 +9,7 @@ import url from 'node:url';
 
 import { ref as sref, uploadBytes, getBytes } from 'firebase/storage';
 
-// resolve repo root
+// ── repo root ──────────────────────────────────────────────────────────────────
 const __dirnameFile = path.dirname(url.fileURLToPath(import.meta.url));
 function findRepoRoot(startDir: string): string {
   let dir = startDir;
@@ -23,9 +23,36 @@ function findRepoRoot(startDir: string): string {
 }
 const REPO_ROOT = findRepoRoot(__dirnameFile);
 
+// ── config & rules ─────────────────────────────────────────────────────────────
 const PROJECT_ID = process.env.PROJECT_ID || 'onlinestoretemplate-59d3e';
+const FIREBASE_JSON_PATH = path.join(REPO_ROOT, 'firebase.json');
 const STORAGE_RULES_PATH = path.join(REPO_ROOT, 'storage.rules');
 const STORAGE_RULES = fs.readFileSync(STORAGE_RULES_PATH, 'utf8');
+
+function parseHostPort(raw?: string, defHost = '127.0.0.1', defPort = 9199) {
+  if (!raw) return { host: defHost, port: defPort };
+  const stripped = raw.replace(/^https?:\/\//i, '');
+  const [hostPart, portPart] = stripped.split(':');
+  const host = hostPart || defHost;
+  const port = Number(portPart) || defPort;
+  return { host, port };
+}
+function resolveStorageEmu() {
+  // common env vars set by emulators:exec or manually
+  const env =
+    process.env.FIREBASE_STORAGE_EMULATOR_HOST ||
+    process.env.STORAGE_EMULATOR_HOST;
+  if (env) return parseHostPort(env, '127.0.0.1', 9199);
+  // fallback to firebase.json
+  try {
+    const fb = JSON.parse(fs.readFileSync(FIREBASE_JSON_PATH, 'utf8'));
+    const host = fb?.emulators?.storage?.host ?? '127.0.0.1';
+    const port = fb?.emulators?.storage?.port ?? 9199;
+    return { host, port };
+  } catch {
+    return { host: '127.0.0.1', port: 9199 };
+  }
+}
 
 let testEnv: RulesTestEnvironment;
 
@@ -37,19 +64,20 @@ function unauthStorage() {
 }
 
 beforeAll(async () => {
+  const { host, port } = resolveStorageEmu();
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT_ID,
-    storage: { rules: STORAGE_RULES },
+    storage: { host, port, rules: STORAGE_RULES },
   });
 });
 
 afterAll(async () => {
-  await testEnv.cleanup();
+  if (testEnv) await testEnv.cleanup();
 });
 
 describe('Storage security rules', () => {
   it('product images: public read, only admin/superadmin write & <10MB & image/*', async () => {
-    const objectPath = `products/p_${Date.now()}.png`;
+    const objectPath = `products/p_${Date.now()}/image.png`; // match /products/{productId}/{file=**}
     const png = new Uint8Array([137, 80, 78, 71]);
 
     const stAdmin = authedStorage('adm', { role: 'admin' });
@@ -63,7 +91,7 @@ describe('Storage security rules', () => {
 
     const stUser = authedStorage('u1', { role: 'user' });
     await expect(
-      uploadBytes(sref(stUser, `products/deny_${Date.now()}.png`), png, {
+      uploadBytes(sref(stUser, `products/deny_${Date.now()}/image.png`), png, {
         contentType: 'image/png',
       }),
     ).rejects.toThrow(/permission/i);
@@ -98,5 +126,27 @@ describe('Storage security rules', () => {
 
     const got = await getBytes(sref(st, `temp/${uid}/file.bin`));
     expect(got.byteLength).toBe(1024);
+  });
+
+  // Negative cases for stricter coverage
+  it('product images: non-image content type is rejected', async () => {
+    const objectPath = `products/p_${Date.now()}/not-image.bin`;
+    const bytes = new Uint8Array([0, 1, 2, 3]);
+
+    const stAdmin = authedStorage('adm', { role: 'admin' });
+    await expect(
+      uploadBytes(sref(stAdmin, objectPath), bytes, {
+        contentType: 'text/plain',
+      }),
+    ).rejects.toThrow(/permission/i);
+  });
+
+  it('product images: >10MB payload is rejected', async () => {
+    const objectPath = `products/p_${Date.now()}/big.png`;
+    const big = new Uint8Array(10 * 1024 * 1024 + 1); // 10MB + 1 byte
+    const stAdmin = authedStorage('adm', { role: 'admin' });
+    await expect(
+      uploadBytes(sref(stAdmin, objectPath), big, { contentType: 'image/png' }),
+    ).rejects.toThrow(/permission/i);
   });
 });
