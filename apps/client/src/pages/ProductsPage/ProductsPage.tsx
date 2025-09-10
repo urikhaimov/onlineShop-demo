@@ -51,7 +51,7 @@ import { useSnackbar } from 'notistack';
 import { createCategoryGroupHeader } from './CategoryGroupHeader';
 
 // 👇 NEW: gate queries on auth readiness to avoid 401s
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function ProductsPage() {
   const { t } = useTranslation();
@@ -247,7 +247,7 @@ export default function ProductsPage() {
   }, [inView, visibleCount, filteredProducts.length]);
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
-
+  console.log('visibleProducts  ', visibleProducts);
   // ✅ Proper () => void callback for columns to trigger a toast
   const showAddedToast = React.useCallback(() => {
     enqueueSnackbar(t('toasts.addedToCart'), {

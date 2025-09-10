@@ -44,13 +44,18 @@ export default function ProductCard({
     borderRadius: 1,
   };
 
+  const hasImage =
+    (product.images && product.images.length > 0) || product.imageUrl;
+
   return (
-    <Card sx={cardSx}>
-      {product.imageUrl && product.images && (
+    <Card sx={cardSx} data-testid="product-card" data-test="product-card">
+      {hasImage && (
         <CardMedia
           component="img"
           image={
-            product.images.length > 0 ? product.images[0] : product.imageUrl
+            product.images && product.images.length > 0
+              ? product.images[0]
+              : product.imageUrl
           }
           alt={product.name}
           sx={mediaSx}
@@ -81,6 +86,8 @@ export default function ProductCard({
               variant="outlined"
               fullWidth={isMobile}
               onClick={onAddToCart}
+              data-testid="add-to-cart"
+              aria-label="Add to cart"
             >
               Add to Cart
             </Button>

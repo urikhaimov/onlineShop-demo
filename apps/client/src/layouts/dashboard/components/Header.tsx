@@ -47,9 +47,18 @@ export default function Header() {
         </MenuButton> */}
 
         {/* 🛒 Cart Badge with click to open drawer */}
-        <IconButton onClick={openCartDrawer} aria-label="Open cart">
-          <Badge badgeContent={cartCount} color="secondary">
-            <ShoppingCartIcon />
+        <IconButton
+          onClick={openCartDrawer}
+          aria-label="Open cart"
+          title="Open cart"
+          data-testid="open-cart"
+        >
+          <Badge
+            data-testid="cart-count"
+            badgeContent={cartCount}
+            color="secondary"
+          >
+            <ShoppingCartIcon data-testid="cart-icon" />
           </Badge>
         </IconButton>
 

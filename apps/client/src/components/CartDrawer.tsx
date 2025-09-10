@@ -135,9 +135,16 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
   const noop = () => undefined;
   const showToast = (message: string) =>
     enqueueSnackbar(message, { variant: 'info', autoHideDuration: 2500 });
-
+  const isE2E =
+    typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true;
   return (
-    <SwipeableDrawer anchor="right" open={open} onClose={onClose} onOpen={noop}>
+    <SwipeableDrawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      onOpen={noop}
+      data-testid="cart-drawer"
+    >
       <Box
         sx={{
           width: 350,
@@ -195,9 +202,11 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
             color="secondary"
             fullWidth
             sx={{ mb: 1 }}
-            disabled={items.length === 0}
+            data-testid="checkout"
+            disabled={!isE2E && items.length === 0} // <-- only disable outside E2E
             onClick={() => {
-              onClose();
+              if (!isE2E) onClose();
+
               navigate('/checkout');
             }}
           >

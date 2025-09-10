@@ -13,13 +13,17 @@ export default defineConfig(async () => {
   // @ts-expect-error - Vite's dynamic import + default export
   const { default: react } = await import('@vitejs/plugin-react');
 
-  // When E2E=1 (set by Playwright), disable API proxy to avoid ECONNREFUSED
+  // When E2E=1 (set by Playwright), disable API proxy AND CSP headers
   const isE2E = process.env.E2E === '1';
 
   // Print CSP once so you can confirm emulator hosts / scheme-level policy in dev
-  console.log('\n[CSP header that Vite will send]\n' + csp + '\n');
   console.log(
-    `[vite] E2E mode: ${isE2E ? 'ON (proxy disabled)' : 'OFF (proxy enabled)'}`,
+    '\n[CSP header that Vite will send]\n' +
+      (isE2E ? '(disabled in E2E)' : csp) +
+      '\n',
+  );
+  console.log(
+    `[vite] E2E mode: ${isE2E ? 'ON (proxy disabled, CSP off)' : 'OFF (proxy enabled, CSP on)'}`,
   );
 
   return {
@@ -37,7 +41,9 @@ export default defineConfig(async () => {
     server: {
       host: '127.0.0.1',
       port: 5173,
-      headers: { 'Content-Security-Policy': csp },
+      strictPort: true, // ensure Playwright hits the exact port
+      // ✅ Turn CSP OFF in E2E to avoid blocking Vite dev scripts
+      headers: isE2E ? undefined : { 'Content-Security-Policy': csp },
       proxy: isE2E
         ? undefined
         : {
@@ -51,6 +57,14 @@ export default defineConfig(async () => {
           },
     },
 
+    // ✅ Preview server mirrors dev host/port and sends no CSP
+    preview: {
+      host: '127.0.0.1',
+      port: 5173,
+      strictPort: true,
+      headers: undefined, // no CSP on preview
+    },
+
     css: {
       preprocessorOptions: { less: { javascriptEnabled: true } },
     },
@@ -61,6 +75,11 @@ export default defineConfig(async () => {
       outDir: '../../dist/apps/client',
       reportCompressedSize: true,
       commonjsOptions: { transformMixedEsModules: true },
+    },
+
+    // 👇 Expose E2E flag to the client code
+    define: {
+      'import.meta.env.VITE_E2E': JSON.stringify(isE2E ? '1' : ''),
     },
 
     // 🔧 Vitest

@@ -1,4 +1,9 @@
+// apps/client-e2e/playwright.config.ts
 import { defineConfig, devices } from '@playwright/test';
+import * as path from 'node:path';
+
+const usePreview = !!process.env.PW_PREVIEW;
+const cwdRoot = path.resolve(__dirname, '../../'); // repo root
 
 export default defineConfig({
   testDir: './src/e2e',
@@ -11,17 +16,30 @@ export default defineConfig({
     headless: true,
   },
 
-  // Start the client directly with Vite from the WORKSPACE ROOT,
-  // and pass E2E=1 so the proxy is disabled in your Vite config.
-  webServer: {
-    command:
-      process.env.PW_DEV ?? 'npx vite --config apps/client/vite.config.mts',
-    port: 5173,
-    reuseExistingServer: true,
-    timeout: 120_000,
-    cwd: '../../', // 👈 ensure we run from repo root
-    env: { E2E: '1' }, // 👈 turns off /api proxy in Vite during e2e
-  },
+  webServer: usePreview
+    ? {
+        // ✅ Build + preview (serves built /dist/apps/client)
+        command: [
+          'npx nx build client --skip-nx-cache',
+          // Serve with same host/port as dev so baseURL stays valid
+          'npx vite preview --host 127.0.0.1 --port 5173 --strictPort --config apps/client/vite.config.mts',
+        ].join(' && '),
+        port: 5173,
+        reuseExistingServer: true,
+        timeout: 180_000,
+        cwd: cwdRoot,
+        env: { E2E: '1' }, // turns off proxy & CSP in your vite config
+      }
+    : {
+        // Dev server for local debugging
+        command:
+          'npx vite --host 127.0.0.1 --port 5173 --strictPort --config apps/client/vite.config.mts',
+        port: 5173,
+        reuseExistingServer: true,
+        timeout: 120_000,
+        cwd: cwdRoot,
+        env: { E2E: '1' },
+      },
 
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

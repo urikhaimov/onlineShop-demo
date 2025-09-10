@@ -2,7 +2,7 @@
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { IProduct } from '@common/types';
-import { Typography, IconButton, Tooltip } from '@mui/material';
+import { Typography, IconButton, Tooltip, Button } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -129,7 +129,7 @@ export function buildUserProductColumns(
         const label = t('actions.addToCart', { defaultValue: 'Add to cart' });
         return (
           <Tooltip title={label}>
-            <IconButton
+            <Button
               size="small"
               aria-label={label}
               data-testid="add-to-cart"
@@ -148,7 +148,7 @@ export function buildUserProductColumns(
               }}
             >
               <AddShoppingCartIcon fontSize="small" />
-            </IconButton>
+            </Button>
           </Tooltip>
         );
       },

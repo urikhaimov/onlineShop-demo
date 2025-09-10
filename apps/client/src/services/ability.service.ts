@@ -1,7 +1,14 @@
+// src/services/ability.service.ts
 import { AbilityBuilder, createMongoAbility } from '@casl/ability';
 import { EUserRole } from '@common/types';
 import type { User } from 'firebase/auth';
-import { isAdmin } from '../context/AuthContext';
+
+// ✨ Drop this (it causes the runtime error):
+// import { isAdmin } from '../context/AuthContext';
+
+// ✅ Local, resilient admin check
+const isAdmin = (role: EUserRole | string | null | undefined): boolean =>
+  role === EUserRole.ADMIN || role === 'admin' || role === 'ADMIN';
 
 export enum EAbilityActions {
   READ = 'read',
@@ -37,10 +44,10 @@ export function defineAbilityFor({
   const { can, cannot, build } = new AbilityBuilder(createMongoAbility);
 
   if (user) {
-    if (isAdmin(role as EUserRole)) {
+    if (isAdmin(role)) {
       can([EAbilityActions.MANAGE], EAbilitySubjects.ALL);
     } else {
-      can([EAbilityActions.MANAGE], user?.uid);
+      can([EAbilityActions.MANAGE], user.uid);
       can([EAbilityActions.MANAGE], EAbilitySubjects.PROFILE);
       can([EAbilityActions.READ], EAbilitySubjects.HOME);
       can([EAbilityActions.MANAGE], EAbilitySubjects.PRODUCTS);
@@ -53,6 +60,8 @@ export function defineAbilityFor({
     cannot([EAbilityActions.READ], EAbilitySubjects.LOGIN);
   } else {
     can([EAbilityActions.READ], EAbilitySubjects.LOGIN);
+    // If product page is public, uncomment:
+    // can([EAbilityActions.READ], EAbilitySubjects.PRODUCT);
   }
 
   can([EAbilityActions.READ], EAbilitySubjects.HOME);

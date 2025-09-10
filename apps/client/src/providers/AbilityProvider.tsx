@@ -2,7 +2,7 @@
 import React from 'react';
 import { AbilityContext } from '../context/AbilityContext';
 import { defineAbilityFor } from '../services/ability.service';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 export function AbilityProvider({ children }: { children: React.ReactNode }) {
   const { user, role } = useAuth();

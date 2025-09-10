@@ -34,7 +34,6 @@ export default function CheckoutSuccessPage() {
         ),
         { variant: 'error', autoHideDuration: 6000 },
       );
-      // if your hook controls a "toast open" flag, close/reset it
       setToastOpen(false);
     }
   }, [error, enqueueSnackbar, setToastOpen, t]);
@@ -63,6 +62,7 @@ export default function CheckoutSuccessPage() {
             maxWidth: 480,
             borderRadius: radius,
           }}
+          data-testid="order-success" // ✅ marker for e2e tests
         >
           <Stack
             spacing={2 * spacingScale}
@@ -82,7 +82,6 @@ export default function CheckoutSuccessPage() {
               })}
             </Typography>
 
-            {/* Buttons match checkout card proportions; full-width on mobile */}
             <Stack
               direction={{ xs: 'column', sm: 'row' }}
               spacing={1.25 * spacingScale}

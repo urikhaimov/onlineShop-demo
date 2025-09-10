@@ -82,8 +82,10 @@ export default function ProductPage() {
       action={EAbilityActions.READ}
       subject={EAbilitySubjects.PRODUCT}
     >
-      {/* ✅ Reusable outer container */}
-      <Box sx={contentBoxSx(headerHeight, footerHeight)}>
+      <Box
+        sx={contentBoxSx(headerHeight, footerHeight)}
+        data-testid="product-page"
+      >
         {/* Centered content using contentMax from tokens */}
         <Box
           sx={{
@@ -190,6 +192,7 @@ export default function ProductPage() {
                     fullWidth={isMobile}
                     disableElevation
                     disabled={stockCount <= 0}
+                    data-testid="add-to-cart"
                     onClick={() => addToCart(product)}
                     sx={{
                       height: 44,
