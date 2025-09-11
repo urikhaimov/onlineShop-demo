@@ -43,6 +43,7 @@ import { PaymentsModule } from '../payments/payments.module'; // ✅ NEW
     ThemeSettingsModule,
     SecurityLogsModule,
     SearchModule,
+
     StripeModule,
     PaymentsModule, // ✅ add here so /payments/* routes are registered
   ],

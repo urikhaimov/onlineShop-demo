@@ -285,4 +285,144 @@ describe('PaymentsController (e2e)', () => {
 
     expect(res.status).toBe(400);
   });
+  it('create-intent is idempotent per cartId (same idempotencyKey)', async () => {
+    const spy = jest
+      .spyOn((ctrl as any).stripe.paymentIntents, 'create')
+      .mockResolvedValueOnce({ id: 'pi_A', client_secret: 'cs_A' } as any)
+      .mockResolvedValueOnce({ id: 'pi_B', client_secret: 'cs_B' } as any);
+
+    const payload = {
+      cartId: 'cart-42',
+      items: [{ id: '1', qty: 1 }],
+      currency: 'ILS',
+      customerEmail: 'u@x.com',
+    };
+
+    const r1 = await request(app.getHttpServer())
+      .post(createIntentPath)
+      .send(payload);
+    const r2 = await request(app.getHttpServer())
+      .post(createIntentPath)
+      .send(payload);
+
+    expect([200, 201]).toContain(r1.status);
+    expect([200, 201]).toContain(r2.status);
+
+    // both Stripe calls must reuse the same idempotency key
+    const idks = spy.mock.calls.map(
+      ([, opts]: [unknown, { idempotencyKey?: string }]) =>
+        opts?.idempotencyKey,
+    );
+    expect(new Set(idks).size).toBe(1);
+    expect(idks[0]).toBe('pi_cart-42');
+  });
+
+  it('webhook is idempotent (duplicate delivery does not create twice)', async () => {
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+
+    let exists = false;
+    let setCallsTotal = 0;
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists, get: () => null })),
+        set: jest.fn(() => {
+          setCallsTotal++;
+        }),
+        update: jest.fn(),
+      };
+      await fn(tx);
+      exists = true; // next time behave as "already processed / existing order"
+      return true;
+    });
+
+    const eventPayload = {
+      id: 'evt_same',
+      object: 'event',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_same',
+          object: 'payment_intent',
+          amount: 100,
+          currency: 'ils',
+          metadata: { cartId: 'cart-dup' },
+        },
+      },
+    };
+    const raw = JSON.stringify(eventPayload);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    // first delivery -> creates
+    await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('stripe-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw)
+      .expect(200);
+
+    // duplicate delivery -> should be 200 but not create again
+    await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('stripe-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw)
+      .expect(200);
+
+    expect(setCallsTotal).toBe(1);
+  });
+
+  it('payment_intent.payment_failed does NOT create order (friendly fail path)', async () => {
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+    let setCalls = 0;
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists: false, get: () => null })),
+        set: jest.fn(() => {
+          setCalls++;
+        }),
+        update: jest.fn(),
+      };
+      await fn(tx);
+      return true;
+    });
+
+    const failed = {
+      id: 'evt_fail_1',
+      object: 'event',
+      type: 'payment_intent.payment_failed',
+      data: {
+        object: {
+          id: 'pi_fail',
+          object: 'payment_intent',
+          amount: 100,
+          currency: 'ils',
+          last_payment_error: { code: 'insufficient_funds' },
+        },
+      },
+    };
+    const raw = JSON.stringify(failed);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('stripe-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect([200, 204]).toContain(res.status);
+    expect(setCalls).toBe(0);
+  });
 });
