@@ -425,4 +425,116 @@ describe('PaymentsController (e2e)', () => {
     expect([200, 204]).toContain(res.status);
     expect(setCalls).toBe(0);
   });
+  it('charge.refunded (full) updates order to refunded with amount', async () => {
+    // Arrange Firestore tx mock: capture the update payload we write
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+
+    let lastUpdate: any = null;
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists: true, get: () => null })), // already has an order
+        set: jest.fn(),
+        update: jest.fn((_ref: any, payload: any) => {
+          lastUpdate = payload;
+        }),
+      };
+      await fn(tx);
+      return true;
+    });
+
+    const chargePayload = {
+      id: 'ch_1',
+      object: 'charge',
+      amount: 12000,
+      amount_refunded: 12000,
+      currency: 'ils',
+      payment_intent: 'pi_abc',
+      refunds: {
+        data: [{ id: 're_1', amount: 12000 }],
+        total_count: 1,
+        object: 'list',
+        url: '',
+      },
+    };
+    const raw = JSON.stringify({
+      id: 'evt_ref_full',
+      object: 'event',
+      type: 'charge.refunded',
+      data: { object: chargePayload },
+    });
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('stripe-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect([200, 204]).toContain(res.status);
+    expect(lastUpdate).toBeTruthy();
+    expect(lastUpdate.status).toBe('refunded');
+    expect(lastUpdate.refundedAmount).toBe(12000);
+  });
+
+  it('charge.refunded (partial) updates order to partially_refunded with amount', async () => {
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+
+    let lastUpdate: any = null;
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists: true, get: () => null })),
+        set: jest.fn(),
+        update: jest.fn((_ref: any, payload: any) => {
+          lastUpdate = payload;
+        }),
+      };
+      await fn(tx);
+      return true;
+    });
+
+    const chargePayload = {
+      id: 'ch_2',
+      object: 'charge',
+      amount: 12000,
+      amount_refunded: 3000,
+      currency: 'ils',
+      payment_intent: 'pi_def',
+      refunds: {
+        data: [{ id: 're_2', amount: 3000 }],
+        total_count: 1,
+        object: 'list',
+        url: '',
+      },
+    };
+    const raw = JSON.stringify({
+      id: 'evt_ref_partial',
+      object: 'event',
+      type: 'charge.refunded',
+      data: { object: chargePayload },
+    });
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('stripe-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect([200, 204]).toContain(res.status);
+    expect(lastUpdate).toBeTruthy();
+    expect(lastUpdate.status).toBe('partially_refunded');
+    expect(lastUpdate.refundedAmount).toBe(3000);
+  });
 });

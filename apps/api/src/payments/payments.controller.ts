@@ -157,35 +157,83 @@ export class PaymentsController {
       });
     };
 
-    switch (event.type as string) {
-      case 'payment_intent.succeeded':
+    switch (event.type) {
+      case 'payment_intent.succeeded': {
         await handleSucceeded(event.data.object as Stripe.PaymentIntent);
         break;
+      }
 
-      case 'payment_intent.payment_failed':
+      case 'payment_intent.payment_failed': {
         await handleNonSuccess(
           event.data.object as Stripe.PaymentIntent,
           'payment_failed',
         );
         break;
+      }
 
-      case 'payment_intent.canceled':
+      case 'payment_intent.canceled': {
         await handleNonSuccess(
           event.data.object as Stripe.PaymentIntent,
           'canceled',
         );
         break;
+      }
 
-      case 'payment_intent.requires_payment_method':
-        await handleNonSuccess(
-          event.data.object as Stripe.PaymentIntent,
-          'requires_payment_method',
-        );
+      case 'charge.refunded': {
+        const ch = event.data.object as Stripe.Charge;
+
+        // PaymentIntent id can be a string or object on older types
+        const piId =
+          typeof ch.payment_intent === 'string'
+            ? ch.payment_intent
+            : (ch.payment_intent as any)?.id;
+
+        const total = Number(ch.amount ?? 0);
+        const refunded = Number(ch.amount_refunded ?? 0);
+        const status = refunded >= total ? 'refunded' : 'partially_refunded';
+
+        await adminDb.runTransaction(async (tx) => {
+          // Try by PI id; if you also store by cartId, try that too
+          const candidates: string[] = [];
+          if (piId) candidates.push(String(piId));
+          const cartIdFromCharge = (ch.metadata as any)?.cartId;
+          if (cartIdFromCharge) candidates.push(String(cartIdFromCharge));
+
+          for (const oid of candidates) {
+            const ref = adminDb.collection('orders').doc(oid);
+            const snap = await tx.get(ref);
+            if (snap.exists) {
+              tx.update(ref, {
+                status,
+                refundedAmount: refunded,
+                refundIds: Array.isArray(ch.refunds?.data)
+                  ? ch.refunds!.data.map((r: any) => r.id)
+                  : [],
+                updatedAt: new Date(),
+              });
+              break; // updated one — stop
+            }
+          }
+          // No-op if no matching order doc exists
+        });
         break;
+      }
 
-      default:
+      default: {
+        // Fallback: for any other payment_intent.* event, if the PI status
+        // is "requires_payment_method", treat as a non-success update-only path.
+        if (
+          typeof event.type === 'string' &&
+          event.type.startsWith('payment_intent.')
+        ) {
+          const pi = event.data.object as Stripe.PaymentIntent;
+          if (pi?.status === 'requires_payment_method') {
+            await handleNonSuccess(pi, 'requires_payment_method');
+          }
+        }
         this.logger.log(`Unhandled event: ${event.type}`);
         break;
+      }
     }
 
     return { received: true };
