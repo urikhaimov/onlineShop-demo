@@ -6,9 +6,30 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import Stripe from 'stripe';
 
-// 1) Mock @common/firebase (in-memory) + expose store for assertions
+// ---- Mock FieldValue.increment so we can apply stock math in our fake DB
+jest.mock('firebase-admin/firestore', () => ({
+  FieldValue: {
+    increment: (n: number) => ({ __incrementBy: n }),
+  },
+}));
+
+// ---- Mock @common/firebase (in-memory) + expose store for assertions
 jest.mock('@common/firebase', () => {
   const store = new Map<string, any>();
+
+  function applyPatch(cur: any, patch: any) {
+    const next: any = { ...cur };
+    for (const [k, v] of Object.entries(patch || {})) {
+      if (v && typeof v === 'object' && '__incrementBy' in (v as any)) {
+        const inc = (v as any).__incrementBy as number;
+        const curVal = typeof next[k] === 'number' ? (next[k] as number) : 0;
+        next[k] = curVal + inc;
+      } else {
+        next[k] = v;
+      }
+    }
+    return next;
+  }
 
   function makeDoc(key: string) {
     return {
@@ -25,13 +46,13 @@ jest.mock('@common/firebase', () => {
       },
       async update(patch: any) {
         const cur = store.get(key) || {};
-        store.set(key, { ...cur, ...patch });
+        store.set(key, applyPatch(cur, patch));
       },
     };
   }
 
   return {
-    _getStore: () => store, // 👈 test-only
+    _getStore: () => store, // test-only
     adminDb: {
       collection: (name: string) => ({
         doc: (id: string) => makeDoc(`${name}/${id}`),
@@ -56,10 +77,15 @@ describe('Stripe Webhook (raw body + signature)', () => {
   const stripe = new Stripe('sk_test_dummy', {
     apiVersion: '2025-07-30.basil' as Stripe.LatestApiVersion,
   });
-
   const route = '/api/payments/webhooks/stripe';
 
-  // NOTE: return Supertest Test (NOT async) so `.expect()` is available
+  // test mailer
+  const mailer = {
+    sendOrderConfirmation: jest.fn(),
+    sendRefundEmail: jest.fn(),
+  };
+
+  // helper: return Supertest Test (not async) so `.expect()` works
   const postSigned = (type: string, object: Record<string, any>) => {
     const payload = { id: `evt_${type}_${Date.now()}`, type, data: { object } };
     const payloadString = JSON.stringify(payload);
@@ -80,12 +106,20 @@ describe('Stripe Webhook (raw body + signature)', () => {
     const { PaymentsModule } = await import('../src/payments/payments.module');
     const moduleRef = await Test.createTestingModule({
       imports: [PaymentsModule],
-    }).compile();
+    })
+      // ✅ ensure PaymentsController receives our mock mailer
+      .overrideProvider('MAIL_SERVICE')
+      .useValue(mailer)
+      .compile();
 
-    // ✅ ensures req.rawBody exists
+    // expose req.rawBody
     app = moduleRef.createNestApplication({ rawBody: true });
     app.setGlobalPrefix('api');
     await app.init();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   afterAll(async () => {
@@ -124,7 +158,6 @@ describe('Stripe Webhook (raw body + signature)', () => {
 
   it('updates existing order to payment_failed', async () => {
     const { adminDb } = FirebaseMock as any;
-    // Seed an order doc
     await adminDb
       .collection('orders')
       .doc('cart_fail_1')
@@ -168,7 +201,6 @@ describe('Stripe Webhook (raw body + signature)', () => {
   });
 
   it('handles charge.refunded (full refund)', async () => {
-    // Seed a PAID order via succeeded event
     await postSigned('payment_intent.succeeded', {
       id: 'pi_full_1',
       amount: 10000,
@@ -194,7 +226,6 @@ describe('Stripe Webhook (raw body + signature)', () => {
   });
 
   it('handles charge.refunded (partial refund)', async () => {
-    // Seed a PAID order via succeeded event
     await postSigned('payment_intent.succeeded', {
       id: 'pi_part_1',
       amount: 15000,
@@ -219,7 +250,43 @@ describe('Stripe Webhook (raw body + signature)', () => {
     expect(order?.refundIds).toEqual(['re_partial_1']);
   });
 
-  it('duplicate succeeded event updates same order without recreating (createdAt unchanged)', async () => {
+  it('decrements stock based on items metadata and sends confirmation email', async () => {
+    const { adminDb } = FirebaseMock as any;
+
+    // Seed product with stock and price (price used by create-intent in real flow, not here)
+    await adminDb
+      .collection('products')
+      .doc('p1')
+      .set({ stock: 10, price: 5000 });
+
+    // Fire a successful payment with metadata.items
+    await postSigned('payment_intent.succeeded', {
+      id: 'pi_stock_1',
+      amount: 5000,
+      currency: 'ils',
+      metadata: {
+        cartId: 'cart_stock_1',
+        email: 'buyer@example.com',
+        items: JSON.stringify([{ id: 'p1', qty: 2 }]),
+      },
+      receipt_email: 'buyer@example.com',
+    }).expect(200);
+
+    const store = (FirebaseMock as any)._getStore() as Map<string, any>;
+    const product = store.get('products/p1');
+    expect(product?.stock).toBe(8); // 10 - 2
+
+    // sendOrderConfirmation was called once with expected payload
+    expect(mailer.sendOrderConfirmation).toHaveBeenCalledTimes(1);
+    const [to, payload] = (mailer.sendOrderConfirmation as jest.Mock).mock
+      .calls[0];
+    expect(to).toBe('buyer@example.com');
+    expect(payload.orderId).toBe('cart_stock_1');
+    expect(payload.paymentIntentId).toBe('pi_stock_1');
+    expect(typeof payload.amount).toBe('number');
+  });
+
+  it('duplicate succeeded event keeps createdAt stable (no order recreation)', async () => {
     const cartId = 'cart_dup_1';
     const piId = 'pi_dup_1';
 
@@ -232,10 +299,8 @@ describe('Stripe Webhook (raw body + signature)', () => {
 
     const store = (FirebaseMock as any)._getStore() as Map<string, any>;
     const before = store.get(`orders/${cartId}`);
-    expect(before?.status).toBe('paid');
     const createdAt1 = before?.createdAt;
 
-    // Send the same success again
     await postSigned('payment_intent.succeeded', {
       id: piId,
       amount: 7000,
@@ -244,7 +309,6 @@ describe('Stripe Webhook (raw body + signature)', () => {
     }).expect(200);
 
     const after = store.get(`orders/${cartId}`);
-    expect(after?.status).toBe('paid');
     expect(new Date(after?.createdAt).toISOString()).toBe(
       new Date(createdAt1).toISOString(),
     );

@@ -12,6 +12,11 @@ import { raw } from 'express';
   // If ConfigModule is not global elsewhere, switch to ConfigModule.forRoot({ isGlobal: true })
   imports: [ConfigModule],
   controllers: [PaymentsController],
+  providers: [
+    // Stub mailer so the DI token exists; tests/prod can override/replace it
+    { provide: 'MAIL_SERVICE', useValue: {} },
+  ],
+  exports: ['MAIL_SERVICE'],
 })
 export class PaymentsModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
