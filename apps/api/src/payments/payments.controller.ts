@@ -12,6 +12,8 @@ import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { adminDb } from '@common/firebase';
+// 👇 add FieldValue for atomic increments
+import { FieldValue } from 'firebase-admin/firestore';
 
 type CreateIntentDto = {
   cartId: string;
@@ -52,7 +54,6 @@ export class PaymentsController {
     }
 
     // 2) Settings (shipping/tax/discount)
-    // The tests stub three sequential gets: shipping, taxRate, discount
     const settingsSnap = await adminDb
       .collection('settings')
       .doc('payments')
@@ -65,13 +66,24 @@ export class PaymentsController {
     const total = Math.max(0, subtotal + shipping + taxAmount - discount);
     const amount = Math.round(total * 100); // to smallest currency unit
 
-    // 3) Stripe PaymentIntent with idempotency per-cart
+    // 3) Compact items metadata for stock decrement on success
+    const itemsMeta = JSON.stringify(
+      (dto.items ?? []).map((i) => ({
+        id: String(i.id),
+        qty: Number(i.qty || 0),
+      })),
+    );
+    // Stripe metadata values are limited (~500 chars). Keep a safe margin.
+    const itemsMetaSafe =
+      itemsMeta.length > 450 ? itemsMeta.slice(0, 450) : itemsMeta;
+
+    // 4) Stripe PaymentIntent with idempotency per-cart
     const intent = await this.stripe.paymentIntents.create(
       {
         amount,
         currency,
         automatic_payment_methods: { enabled: true },
-        metadata: { cartId },
+        metadata: { cartId, items: itemsMetaSafe },
         receipt_email: dto.customerEmail || undefined,
       },
       { idempotencyKey: `pi_${cartId}` },
@@ -112,6 +124,15 @@ export class PaymentsController {
 
     const handleSucceeded = async (pi: Stripe.PaymentIntent) => {
       const orderId = String(pi.metadata?.cartId ?? pi.id);
+
+      // Parse items to decrement stock atomically
+      let items: Array<{ id: string; qty: number }> = [];
+      try {
+        if (pi.metadata?.items) items = JSON.parse(String(pi.metadata.items));
+      } catch {
+        items = [];
+      }
+
       await adminDb.runTransaction(async (tx) => {
         const ref = adminDb.collection('orders').doc(orderId);
         const snap = await tx.get(ref);
@@ -134,6 +155,15 @@ export class PaymentsController {
             createdAt: new Date(),
             updatedAt: new Date(),
           });
+        }
+
+        // 🔻 decrement product stock in the same transaction
+        for (const it of items) {
+          const pid = String(it.id);
+          const qty = Math.max(0, Number(it.qty || 0));
+          if (!pid || qty <= 0) continue;
+          const pRef = adminDb.collection('products').doc(pid);
+          tx.update(pRef, { stock: FieldValue.increment(-qty) });
         }
       });
     };
@@ -220,8 +250,7 @@ export class PaymentsController {
       }
 
       default: {
-        // Fallback: for any other payment_intent.* event, if the PI status
-        // is "requires_payment_method", treat as a non-success update-only path.
+        // For other payment_intent.* events: if PI status is requires_payment_method, update-only
         if (
           typeof event.type === 'string' &&
           event.type.startsWith('payment_intent.')

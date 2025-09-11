@@ -537,4 +537,70 @@ describe('PaymentsController (e2e)', () => {
     expect(lastUpdate.status).toBe('partially_refunded');
     expect(lastUpdate.refundedAmount).toBe(3000);
   });
+  it('succeeded webhook decrements stock atomically with order write', async () => {
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+
+    let setCalled = false;
+    let stockUpdates = 0;
+
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists: false, get: () => null })), // order does not exist yet
+        set: jest.fn(() => {
+          setCalled = true;
+        }),
+        update: jest.fn((_ref: any, payload: any) => {
+          // count product stock updates by looking for a 'stock' field
+          if (
+            payload &&
+            Object.prototype.hasOwnProperty.call(payload, 'stock')
+          ) {
+            stockUpdates++;
+          }
+        }),
+      };
+      await fn(tx);
+      return true;
+    });
+
+    const eventPayload = {
+      id: 'evt_stock_1',
+      object: 'event',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_stock_1',
+          object: 'payment_intent',
+          amount: 12000,
+          amount_received: 12000,
+          currency: 'ils',
+          metadata: {
+            cartId: 'cart-stock',
+            items: JSON.stringify([
+              { id: '1', qty: 1 },
+              { id: '2', qty: 2 },
+            ]),
+          },
+        },
+      },
+    };
+    const raw = JSON.stringify(eventPayload);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('stripe-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect([200, 204]).toContain(res.status);
+    expect(setCalled).toBe(true); // order created
+    expect(stockUpdates).toBeGreaterThan(0); // stock decremented
+  });
 });
