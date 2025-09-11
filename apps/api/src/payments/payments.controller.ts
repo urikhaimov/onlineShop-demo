@@ -12,6 +12,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Param, // 👈 added
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -188,8 +189,7 @@ export class PaymentsController {
 
   // ----------------------------------------------------------------------------
   // POST /payments/webhooks/stripe
-  // IMPORTANT: ensure route-scoped raw() middleware is applied to this exact path:
-  // consumer.apply(raw({ type: 'application/json' })).forRoutes({ path: 'payments/webhooks/stripe', method: RequestMethod.POST })
+  // IMPORTANT: ensure route-scoped raw() middleware is applied to this exact path.
   // ----------------------------------------------------------------------------
   @Post('webhooks/stripe')
   @HttpCode(200)
@@ -198,7 +198,7 @@ export class PaymentsController {
     @Headers('stripe-signature') sigLower?: string,
     @Headers('Stripe-Signature') sigTitle?: string,
   ) {
-    // Express normalizes header names to lowercase, but handle both just in case:
+    // Express normalizes headers to lowercase; handle both just in case:
     const signature =
       sigLower ?? sigTitle ?? (req.headers['stripe-signature'] as string) ?? '';
 
@@ -256,24 +256,24 @@ export class PaymentsController {
       await adminDb.runTransaction(async (tx) => {
         const ref = adminDb.collection('orders').doc(orderId);
         const snap = await tx.get(ref);
+
+        const base = {
+          status: 'paid',
+          amount: pi.amount_received ?? pi.amount,
+          currency: pi.currency,
+          paymentIntentId: pi.id,
+          updatedAt: new Date(),
+          email: emailToNotify ?? null, // 👈 persist buyer email for resends
+        };
+
         if (snap.exists) {
-          tx.update(ref, {
-            status: 'paid',
-            amount: pi.amount_received ?? pi.amount,
-            currency: pi.currency,
-            paymentIntentId: pi.id,
-            updatedAt: new Date(),
-          });
+          tx.update(ref, base);
         } else {
           createdNow = true;
           tx.set(ref, {
-            status: 'paid',
-            amount: pi.amount_received ?? pi.amount,
-            currency: pi.currency,
-            paymentIntentId: pi.id,
+            ...base,
             cartId: pi.metadata?.cartId ?? null,
             createdAt: new Date(),
-            updatedAt: new Date(),
           });
         }
 
@@ -426,5 +426,41 @@ export class PaymentsController {
     }
 
     return { received: true };
+  }
+
+  // ----------------------------------------------------------------------------
+  // POST /payments/orders/:orderId/resend-receipt
+  // Resend the order confirmation to the stored email or an override.
+  // ----------------------------------------------------------------------------
+  @Post('orders/:orderId/resend-receipt')
+  @HttpCode(200)
+  async resendReceipt(
+    @Param('orderId') orderId: string,
+    @Body() body?: { email?: string },
+  ) {
+    const snap = await adminDb.collection('orders').doc(orderId).get();
+    if (!snap.exists) {
+      throw new BadRequestException('Order not found');
+    }
+    const order = snap.data() as any;
+
+    const to: string | undefined = body?.email || order?.email || undefined;
+    if (!to) {
+      throw new BadRequestException('No email on order; provide { email }');
+    }
+
+    if (this.mailer?.sendOrderConfirmation) {
+      await this.mailer.sendOrderConfirmation(to, {
+        orderId,
+        amount: Number(order?.amount || 0),
+        currency: (order?.currency as string) || null,
+        paymentIntentId: String(order?.paymentIntentId || ''),
+        created: false, // resend flag
+      });
+    } else {
+      this.logger.warn('MAIL_SERVICE not configured');
+    }
+
+    return { ok: true };
   }
 }

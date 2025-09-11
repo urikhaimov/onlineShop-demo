@@ -7,10 +7,10 @@ import {
 import { ConfigModule } from '@nestjs/config';
 import { PaymentsController } from './payments.controller';
 import { raw } from 'express';
-import { MailerModule } from '../mailer/mailer.module'; // ⬅ adjust path if needed
+import { MailerModule } from '../mailer/mailer.module'; // path from src/payments -> src/mailer
 
 @Module({
-  // If ConfigModule is not global elsewhere, switch to ConfigModule.forRoot({ isGlobal: true })
+  // If ConfigModule isn’t global elsewhere, switch to ConfigModule.forRoot({ isGlobal: true })
   imports: [ConfigModule, MailerModule],
   controllers: [PaymentsController],
 })
@@ -21,7 +21,7 @@ export class PaymentsModule implements NestModule {
       // ✅ must match @Post('webhooks/stripe') in PaymentsController
       { path: 'payments/webhooks/stripe', method: RequestMethod.POST },
 
-      // (optional) keep an alias if you previously called /payments/webhook
+      // (optional) legacy alias if you previously used /payments/webhook
       { path: 'payments/webhook', method: RequestMethod.POST },
     );
   }
