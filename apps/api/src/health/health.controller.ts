@@ -1,20 +1,35 @@
-// apps/api/src/health/health.controller.ts
 import { Controller, Get } from '@nestjs/common';
-import { adminDb } from '@common/firebase';
+import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
 
-@Controller('health')
+@Controller('_health')
 export class HealthController {
-  @Get('live') live() {
-    return { ok: true };
+  private stripe?: Stripe;
+
+  constructor(private readonly config: ConfigService) {
+    const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
+    if (key) {
+      this.stripe = new Stripe(key, {
+        apiVersion: '2024-06-20' as any,
+        timeout: 5000,
+      });
+    }
   }
 
-  @Get('ready') async ready() {
+  @Get()
+  ok() {
+    return { ok: true, ts: Date.now() };
+  }
+
+  @Get('stripe')
+  async stripePing() {
     try {
-      // cheap Firestore read to ensure creds/connectivity
-      await adminDb.collection('__meta').limit(1).get();
+      if (!this.stripe) return { ok: false, error: 'no_key' };
+      // lightweight call; balance is fine here
+      await this.stripe.balance.retrieve();
       return { ok: true };
-    } catch (e) {
-      return { ok: false, error: (e as Error).message };
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? 'err' };
     }
   }
 }

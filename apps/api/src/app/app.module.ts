@@ -15,9 +15,13 @@ import { SecurityLogsModule } from '../security-logs/security-logs.module';
 import { AuthClientModule } from 'auth-client';
 import { AuthModule } from '../auth/auth.module';
 import { SearchModule } from '../search/search.module';
-import { HealthController } from '../health.controller';
+import { HealthController } from '../health/health.controller';
+
 import { StripeModule } from '../stripe/stripe.module';
-import { PaymentsModule } from '../payments/payments.module'; // ✅ NEW
+import { PaymentsModule } from '../payments/payments.module';
+
+// ✅ new modules from previous steps
+import { MailerModule } from '../mailer/mailer.module';
 
 @Module({
   imports: [
@@ -44,8 +48,10 @@ import { PaymentsModule } from '../payments/payments.module'; // ✅ NEW
     SecurityLogsModule,
     SearchModule,
 
+    // infra / integrations
+    MailerModule, // provides token 'MAIL_SERVICE' for PaymentsController
     StripeModule,
-    PaymentsModule, // ✅ add here so /payments/* routes are registered
+    PaymentsModule, // /payments/* routes
   ],
   controllers: [ImageProxyController, HealthController],
 })
