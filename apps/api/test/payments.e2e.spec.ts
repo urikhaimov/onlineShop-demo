@@ -99,6 +99,9 @@ describe('PaymentsController (e2e)', () => {
     const cfg = new Map<string, any>([
       ['STRIPE_SECRET_KEY', 'sk_test_dummy'],
       ['STRIPE_WEBHOOK_SECRET', webhookSecret],
+      // 👇 added for public config test
+      ['STRIPE_PUBLISHABLE_KEY', 'pk_live_ABCDEF1234567890'],
+      ['DEFAULT_CURRENCY', 'ILS'],
     ]);
     const configMock: Pick<ConfigService, 'get'> = {
       get: (k: string) => cfg.get(k),
@@ -743,5 +746,71 @@ describe('PaymentsController (e2e)', () => {
         refundIds: ['re_200'],
       }),
     );
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // NEW: Public config, rate-limit, and prod-key guard
+  // ────────────────────────────────────────────────────────────────────────────
+
+  it('GET /payments/config/public returns masked publishable key', async () => {
+    const pref = process.env.API_PREFIX ?? 'api';
+    const res = await request(app.getHttpServer()).get(
+      `/${pref}/payments/config/public`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        publishableKeyMasked: expect.any(String),
+        defaultCurrency: expect.any(String),
+      }),
+    );
+    // Should end with the last 4 of our fake key and include the ellipsis
+    expect(res.body.publishableKeyMasked).toContain('…7890');
+    expect(res.body.publishableKeyMasked.length).toBeGreaterThanOrEqual(11);
+  });
+
+  it('rate-limits create-intent bursts (10/min/IP)', async () => {
+    // Avoid network; cheap Stripe + Firestore mocks
+    jest
+      .spyOn((ctrl as any).stripe.paymentIntents, 'create')
+      .mockResolvedValue({ id: 'pi_rate', client_secret: 'cs_rate' } as any);
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+    db.get = jest.fn().mockResolvedValue({ get: () => null }); // settings lookups return 0s
+
+    const ip = '1.1.1.1';
+    const statuses: number[] = [];
+    for (let i = 0; i < 11; i++) {
+      const r = await request(app.getHttpServer())
+        .post(createIntentPath)
+        .set('X-Forwarded-For', ip)
+        .send({ cartId: `burst-${i}`, items: [], currency: 'ILS' });
+      statuses.push(r.status);
+    }
+    expect(statuses.slice(0, 10).every((s) => [200, 201].includes(s))).toBe(
+      true,
+    );
+    expect(statuses[10]).toBe(429);
+  });
+
+  it('throws in production when STRIPE_SECRET_KEY is a test key', async () => {
+    const oldEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const cfg = new Map<string, any>([
+      ['STRIPE_SECRET_KEY', 'sk_test_abc123'],
+      ['STRIPE_WEBHOOK_SECRET', 'whsec_abc'],
+    ]);
+    const configMock: Pick<ConfigService, 'get'> = {
+      get: (k: string) => cfg.get(k),
+    };
+
+    await expect(
+      Test.createTestingModule({
+        controllers: [PaymentsController],
+        providers: [{ provide: ConfigService, useValue: configMock }],
+      }).compile(),
+    ).rejects.toThrow(/Test key used in production/i);
+
+    process.env.NODE_ENV = oldEnv;
   });
 });

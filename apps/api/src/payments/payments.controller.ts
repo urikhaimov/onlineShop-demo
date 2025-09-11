@@ -9,12 +9,14 @@ import {
   Body,
   Inject,
   Optional,
+  Get,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { adminDb } from '@common/firebase';
-// 👇 add FieldValue for atomic increments
 import { FieldValue } from 'firebase-admin/firestore';
 
 type CreateIntentDto = {
@@ -48,6 +50,36 @@ type MailerLike = {
   ) => Promise<any> | any;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Simple in-memory rate limiter (10 requests/min per IP) for create-intent
+// ─────────────────────────────────────────────────────────────────────────────
+const RATE_LIMIT_PER_MIN = 10;
+const rateBuckets = new Map<string, { count: number; windowStart: number }>();
+
+function clientIp(req: Request): string {
+  const xff = (req.headers['x-forwarded-for'] as string) || '';
+  return xff.split(',')[0]?.trim() || (req.socket?.remoteAddress ?? 'unknown');
+}
+function shouldThrottle(ip: string): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now - bucket.windowStart >= 60_000) {
+    rateBuckets.set(ip, { count: 1, windowStart: now });
+    return false;
+  }
+  if (bucket.count >= RATE_LIMIT_PER_MIN) return true;
+  bucket.count++;
+  return false;
+}
+
+// Mask publishable key like: pk_live_…7890
+function maskPublishableKey(pk: string): string {
+  if (!pk) return '';
+  const last4 = pk.slice(-4);
+  const keep = Math.min(pk.length - 4, 8); // keep up to first 8 chars
+  return `${pk.slice(0, keep)}…${last4}`;
+}
+
 @Controller('payments')
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
@@ -58,9 +90,28 @@ export class PaymentsController {
     private readonly config: ConfigService,
     @Optional() @Inject('MAIL_SERVICE') private readonly mailer?: MailerLike,
   ) {
-    const key = this.config.get<string>('STRIPE_SECRET_KEY')!;
-    this.webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET')!;
+    const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
+    // 🚫 Guard: never allow test keys in production
+    if (process.env.NODE_ENV === 'production' && key.startsWith('sk_test_')) {
+      throw new Error('Test key used in production');
+    }
+    this.webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET') ?? '';
     this.stripe = new Stripe(key, { apiVersion: '2024-06-20' as any });
+  }
+
+  // ----------------------------------------------------------------------------
+  // GET /payments/config/public — minimal public config for the client
+  // ----------------------------------------------------------------------------
+  @Get('config/public')
+  @HttpCode(200)
+  getPublicConfig() {
+    const pk = this.config.get<string>('STRIPE_PUBLISHABLE_KEY') ?? '';
+    const defaultCurrency =
+      this.config.get<string>('DEFAULT_CURRENCY') ?? 'USD';
+    return {
+      publishableKeyMasked: maskPublishableKey(pk),
+      defaultCurrency,
+    };
   }
 
   // ----------------------------------------------------------------------------
@@ -68,7 +119,16 @@ export class PaymentsController {
   // ----------------------------------------------------------------------------
   @Post('create-intent')
   @HttpCode(201)
-  async createPaymentIntent(@Body() dto: CreateIntentDto) {
+  async createPaymentIntent(@Req() req: Request, @Body() dto: CreateIntentDto) {
+    // ⏱️ rate-limit per IP (10/min)
+    const ip = clientIp(req);
+    if (shouldThrottle(ip)) {
+      throw new HttpException(
+        'Too many requests',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const cartId = String(dto.cartId ?? '');
     const currency = String(dto.currency ?? 'ILS').toLowerCase();
 
@@ -102,7 +162,6 @@ export class PaymentsController {
         qty: Number(i.qty || 0),
       })),
     );
-    // Stripe metadata values are limited (~500 chars). Keep a safe margin.
     const itemsMetaSafe =
       itemsMeta.length > 450 ? itemsMeta.slice(0, 450) : itemsMeta;
     const emailMeta = dto.customerEmail ? String(dto.customerEmail) : undefined;
@@ -113,7 +172,7 @@ export class PaymentsController {
         amount,
         currency,
         automatic_payment_methods: { enabled: true },
-        metadata: { cartId, items: itemsMetaSafe, email: emailMeta }, // 👈 include email for webhook
+        metadata: { cartId, items: itemsMetaSafe, email: emailMeta },
         receipt_email: dto.customerEmail || undefined,
       },
       { idempotencyKey: `pi_${cartId}` },
@@ -183,7 +242,6 @@ export class PaymentsController {
           });
         } else {
           createdNow = true;
-          // ✅ create ONLY on success
           tx.set(ref, {
             status: 'paid',
             amount: pi.amount_received ?? pi.amount,
@@ -228,7 +286,6 @@ export class PaymentsController {
       status: 'payment_failed' | 'canceled' | 'requires_payment_method',
     ) => {
       const orderId = String(pi.metadata?.cartId ?? pi.id);
-      // ❌ never create on non-success; only update if exists
       await adminDb.runTransaction(async (tx) => {
         const ref = adminDb.collection('orders').doc(orderId);
         const snap = await tx.get(ref);
@@ -247,7 +304,6 @@ export class PaymentsController {
         await handleSucceeded(event.data.object as Stripe.PaymentIntent);
         break;
       }
-
       case 'payment_intent.payment_failed': {
         await handleNonSuccess(
           event.data.object as Stripe.PaymentIntent,
@@ -255,7 +311,6 @@ export class PaymentsController {
         );
         break;
       }
-
       case 'payment_intent.canceled': {
         await handleNonSuccess(
           event.data.object as Stripe.PaymentIntent,
@@ -263,11 +318,11 @@ export class PaymentsController {
         );
         break;
       }
-
       case 'charge.refunded': {
         const ch = event.data.object as Stripe.Charge;
 
-        // PaymentIntent id can be a string or object on older types
+        // Prefer cartId from metadata for both lookup and email
+        const cartIdFromCharge = (ch.metadata as any)?.cartId;
         const piId =
           typeof ch.payment_intent === 'string'
             ? ch.payment_intent
@@ -277,15 +332,19 @@ export class PaymentsController {
         const refunded = Number(ch.amount_refunded ?? 0);
         const status = refunded >= total ? 'refunded' : 'partially_refunded';
 
-        // capture for email after tx
-        let orderIdForEmail: string | undefined;
+        // capture for email after tx – default to cartId if present
+        let orderIdForEmail: string | undefined = cartIdFromCharge
+          ? String(cartIdFromCharge)
+          : piId
+            ? String(piId)
+            : undefined;
+
         const emailFromMeta: string | undefined =
           ((ch.metadata as any)?.email as string) || undefined;
 
         await adminDb.runTransaction(async (tx) => {
-          // ✅ Prefer cartId first, then PI id (fixes test expectation)
+          // 🔎 Try updating by cartId first, then by PI id
           const candidates: string[] = [];
-          const cartIdFromCharge = (ch.metadata as any)?.cartId;
           if (cartIdFromCharge) candidates.push(String(cartIdFromCharge));
           if (piId) candidates.push(String(piId));
 
@@ -301,11 +360,11 @@ export class PaymentsController {
                   : [],
                 updatedAt: new Date(),
               });
-              orderIdForEmail = oid; // updated one — remember for email
+              // keep cartId-preferred orderIdForEmail if present; otherwise use the updated id
+              if (!cartIdFromCharge) orderIdForEmail = oid;
               break;
             }
           }
-          // No-op if no matching order doc exists
         });
 
         // 📧 send refund email after the transaction
@@ -325,12 +384,9 @@ export class PaymentsController {
             this.logger.warn(`sendRefundEmail failed: ${(e as Error).message}`);
           }
         }
-
         break;
       }
-
       default: {
-        // For other payment_intent.* events: if PI status is requires_payment_method, update-only
         if (
           typeof event.type === 'string' &&
           event.type.startsWith('payment_intent.')
