@@ -7,9 +7,10 @@ import {
   Res,
   HttpCode,
   Logger,
+  Headers,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
 import { adminDb } from '@common/firebase';
@@ -24,17 +25,14 @@ type CreateIntentDto = {
 };
 
 type CurrencyCode = 'ILS' | 'USD' | 'EUR' | string;
+type RawRequest = Request & { rawBody?: Buffer | string };
 
-/**
- * Helper to safely get a number (minor units) or undefined.
- */
+/** Helper to safely get a number (minor units) or undefined. */
 function asNumber(x: unknown): number | undefined {
   return typeof x === 'number' && Number.isFinite(x) ? x : undefined;
 }
 
-/**
- * Extract PaymentIntent ID from a Stripe event/object in a type-safe way.
- */
+/** Extract PaymentIntent ID from a Stripe event/object in a type-safe way. */
 function getPaymentIntentIdFromEvent(event: Stripe.Event): string | undefined {
   const obj = event.data.object as
     | Stripe.PaymentIntent
@@ -45,21 +43,15 @@ function getPaymentIntentIdFromEvent(event: Stripe.Event): string | undefined {
       return (obj as Stripe.PaymentIntent).id;
     }
     if (obj.object === 'charge') {
-      // charge events carry payment_intent as string | null
       const pi = (obj as Stripe.Charge).payment_intent;
       return typeof pi === 'string' ? pi : undefined;
     }
   }
-  // Fallback for any custom/testing payloads
   const anyObj = obj as any;
   return anyObj?.payment_intent ?? anyObj?.id ?? undefined;
 }
 
-/**
- * Extract amount (minor units) and currency from a Stripe event/object.
- * Stripe PaymentIntent: amount or amount_received
- * Stripe Charge: amount & currency
- */
+/** Extract amount (minor units) and currency from a Stripe event/object. */
 function getAmountAndCurrencyFromEvent(event: Stripe.Event): {
   amountMinor?: number;
   currencyUpper?: CurrencyCode;
@@ -69,7 +61,6 @@ function getAmountAndCurrencyFromEvent(event: Stripe.Event): {
     | Stripe.Charge
     | Record<string, any>;
 
-  // PaymentIntent
   if ('object' in obj && obj.object === 'payment_intent') {
     const pi = obj as Stripe.PaymentIntent;
     const amountMinor =
@@ -80,7 +71,6 @@ function getAmountAndCurrencyFromEvent(event: Stripe.Event): {
     return { amountMinor, currencyUpper };
   }
 
-  // Charge
   if ('object' in obj && obj.object === 'charge') {
     const ch = obj as Stripe.Charge;
     const amountMinor = asNumber(ch.amount);
@@ -90,7 +80,6 @@ function getAmountAndCurrencyFromEvent(event: Stripe.Event): {
     return { amountMinor, currencyUpper };
   }
 
-  // Fallback (unknown/testing)
   const anyObj = obj as any;
   const amountMinor =
     asNumber(anyObj?.amount_received) ?? asNumber(anyObj?.amount) ?? undefined;
@@ -110,13 +99,20 @@ export class PaymentsController {
     const sk = cfg.get<string>('STRIPE_SECRET_KEY');
     this.webhookSecret = cfg.get<string>('STRIPE_WEBHOOK_SECRET'); // from Stripe Dashboard/CLI
     if (!sk) throw new Error('Missing STRIPE_SECRET_KEY');
-    this.stripe = new Stripe(sk);
+
+    // ✅ Pin a stable API version to avoid silent behavior changes
+    this.stripe = new Stripe(sk, {
+      apiVersion: '2025-07-30.basil' as Stripe.LatestApiVersion,
+      appInfo: { name: 'Shop API', version: '1.0.0' },
+      maxNetworkRetries: 2, // tests only; consider 2 in prod
+    });
   }
 
   /**
    * Create a PaymentIntent on the server, using idempotency and recomputed totals.
    */
   @Post('create-intent')
+  @HttpCode(201)
   async createIntent(
     @Body() dto: CreateIntentDto,
   ): Promise<{ clientSecret: string | null; paymentIntentId: string }> {
@@ -154,28 +150,41 @@ export class PaymentsController {
 
   /**
    * Webhook endpoint for Stripe events.
-   * IMPORTANT: ensure raw-body is mounted for this exact route in main.ts:
-   * app.use(`/${apiPrefix}/payments/webhooks/stripe`, bodyParser.raw({ type: 'application/json' }));
+   * ✅ Relies on Nest app created with { rawBody: true } so `req.rawBody` is available.
    */
   @Post('/webhooks/stripe')
   @HttpCode(200)
   async stripeWebhook(
-    @Req() req: Request,
+    @Req() req: RawRequest,
     @Res() res: Response,
+    @Headers('stripe-signature') signature?: string,
   ): Promise<Response> {
     let event: Stripe.Event;
 
     try {
       if (!this.webhookSecret) throw new Error('Missing STRIPE_WEBHOOK_SECRET');
-      const sig = req.headers['stripe-signature'] as string;
+      if (!signature) return res.status(400).send('Missing signature');
+
+      // Use the exact raw payload — do NOT stringify/parse before verification
+      const rawBody: Buffer | string =
+        req.rawBody ??
+        (Buffer.isBuffer((req as any).body)
+          ? (req as any).body
+          : typeof (req as any).body === 'string'
+            ? (req as any).body
+            : Buffer.from(JSON.stringify((req as any).body ?? {})));
+
       event = this.stripe.webhooks.constructEvent(
-        // rawBody is provided by NestFactory({ rawBody: true }) + route-scoped raw parser
-        (req as any).rawBody,
-        sig,
+        rawBody,
+        signature,
         this.webhookSecret,
       );
     } catch (err) {
-      this.logger.error(`Webhook signature verification failed: ${err}`);
+      this.logger.error(
+        `Webhook signature verification failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
       return res.status(400).send('Bad signature');
     }
 
@@ -215,7 +224,6 @@ export class PaymentsController {
           break;
 
         case 'charge.refunded':
-          // Optional for V1: mark refunded (maps to the PI)
           await this.markRefunded(paymentIntentId);
           break;
 
@@ -227,51 +235,56 @@ export class PaymentsController {
       this.logger.error(
         `Webhook handling error: ${e instanceof Error ? e.message : String(e)}`,
       );
-      // Intentionally fall through to 200 OK to prevent infinite retries while non-fatal issues are addressed
+      // Intentionally return 200 to avoid perpetual Stripe retries while you fix non-fatal issues.
     }
 
     return res.send({ received: true });
   }
 
-  /**
-   * Server-side total computation from authoritative product prices and order settings.
-   */
+  /** Server-side total computation from authoritative product prices and order settings. */
   private async computeAmount(
     items: CartItem[],
     currency: CurrencyCode,
   ): Promise<{ amountMinor: number; currency: CurrencyCode }> {
-    let sumMajor = 0; // major units (e.g., ₪)
+    let sumMinor = 0;
 
-    for (const it of items) {
-      const snap = await adminDb.collection('products').doc(it.id).get();
-      const price = Number(snap.get('price') ?? 0); // assume stored in major units
-      const qty = Number(it.qty ?? 0);
-      if (Number.isFinite(price) && Number.isFinite(qty)) {
-        sumMajor += price * qty;
-      }
-    }
+    // Load product prices and accumulate in minor units
+    await Promise.all(
+      (items || []).map(async (it) => {
+        const snap = await adminDb.collection('products').doc(it.id).get();
+        const priceMajor = Number(snap?.get?.('price') ?? 0); // stored in major units
+        const qty = Number(it.qty ?? 0);
+        if (Number.isFinite(priceMajor) && Number.isFinite(qty) && qty > 0) {
+          const priceMinor = Math.round(priceMajor * 100);
+          sumMinor += priceMinor * qty;
+        }
+      }),
+    );
 
     // Settings (shipping / tax / discount), stored in major units
     const settingsSnap = await adminDb
       .collection('settings')
       .doc('order')
       .get();
-    const shipping = Number(settingsSnap.get('shipping') ?? 0);
-    const taxRate = Number(settingsSnap.get('taxRate') ?? 0); // percent
-    const discount = Number(settingsSnap.get('discount') ?? 0);
 
-    const grossMajor = Math.max(
-      0,
-      Math.round((sumMajor + shipping) * (1 + taxRate / 100) - discount),
+    const shippingMinor = Math.round(
+      Number(settingsSnap?.get?.('shipping') ?? 0) * 100,
     );
+    const discountMinor = Math.round(
+      Number(settingsSnap?.get?.('discount') ?? 0) * 100,
+    );
+    const taxRate = Number(settingsSnap?.get?.('taxRate') ?? 0); // percent
 
-    const amountMinor = Math.max(0, grossMajor * 100); // convert to minor
+    const subtotalWithShippingMinor = Math.max(0, sumMinor + shippingMinor);
+    const taxedMinor = Math.round(
+      subtotalWithShippingMinor * (1 + taxRate / 100),
+    );
+    const amountMinor = Math.max(0, taxedMinor - discountMinor);
+
     return { amountMinor, currency };
   }
 
-  /**
-   * Idempotent upsert of an order document keyed by PaymentIntent ID.
-   */
+  /** Idempotent upsert of an order document keyed by PaymentIntent ID. */
   private async upsertOrder(
     paymentIntentId: string | undefined,
     status: 'processing' | 'succeeded' | 'failed',
@@ -349,9 +362,7 @@ export class PaymentsController {
     });
   }
 
-  /**
-   * Mark an order refunded by PaymentIntent ID (optional for V1).
-   */
+  /** Mark an order refunded by PaymentIntent ID (optional for V1). */
   private async markRefunded(paymentIntentId?: string): Promise<void> {
     if (!paymentIntentId) return;
     const ref = adminDb.collection('orders').doc(paymentIntentId);

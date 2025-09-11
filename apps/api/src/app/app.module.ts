@@ -1,10 +1,9 @@
-// apps/api/src/app/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { I18nModule } from 'nestjs-i18n';
 import { join } from 'path';
 
-import { DatabaseModule } from '../database/database.module'; // ✅ add this
+import { DatabaseModule } from '../database/database.module';
 import { ProductsModule } from '../products/products.module';
 import { OrdersModule } from '../orders/orders.module';
 import { UsersModule } from '../users/users.module';
@@ -18,6 +17,7 @@ import { AuthModule } from '../auth/auth.module';
 import { SearchModule } from '../search/search.module';
 import { HealthController } from '../health.controller';
 import { StripeModule } from '../stripe/stripe.module';
+import { PaymentsModule } from '../payments/payments.module'; // ✅ NEW
 
 @Module({
   imports: [
@@ -26,13 +26,12 @@ import { StripeModule } from '../stripe/stripe.module';
     I18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {
-        // make sure i18n files are copied to dist on build
         path: join(__dirname, 'i18n'),
         watch: process.env.NODE_ENV !== 'production',
       },
     }),
 
-    DatabaseModule, // ✅ Firestore available to feature modules
+    DatabaseModule,
 
     AuthClientModule,
     AuthModule,
@@ -45,6 +44,7 @@ import { StripeModule } from '../stripe/stripe.module';
     SecurityLogsModule,
     SearchModule,
     StripeModule,
+    PaymentsModule, // ✅ add here so /payments/* routes are registered
   ],
   controllers: [ImageProxyController, HealthController],
 })
