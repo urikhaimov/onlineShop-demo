@@ -5,6 +5,7 @@ import request from 'supertest';
 import Stripe from 'stripe';
 import nock from 'nock';
 import { ConfigService } from '@nestjs/config';
+import * as bodyParser from 'body-parser';
 
 // ✅ Only the controller — avoid full AppModule to prevent long init/hangs
 import { PaymentsController } from '../src/payments/payments.controller';
@@ -103,7 +104,20 @@ describe('PaymentsController (e2e)', () => {
       providers: [{ provide: ConfigService, useValue: configMock }],
     }).compile();
 
-    app = moduleRef.createNestApplication({ rawBody: true } as any);
+    const apiPrefix = process.env.API_PREFIX ?? 'api';
+    app = moduleRef.createNestApplication({ rawBody: true });
+    app.setGlobalPrefix(apiPrefix);
+
+    // 🔐 Ensure Stripe webhook sees the exact raw body (mirror main.ts)
+    // Use type '*/*' so Express gives us the raw Buffer for any content-type.
+    const stripeRaw = bodyParser.raw({ type: '*/*', limit: '2mb' });
+    const ensureRawBody = (req: any, _res: any, next: any) => {
+      if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
+      next();
+    };
+    // Mount on the expected prefixed path before init
+    app.use(`/${apiPrefix}/payments/webhooks/stripe`, stripeRaw, ensureRawBody);
+
     await app.init();
 
     // discover the two routes we need
@@ -124,6 +138,19 @@ describe('PaymentsController (e2e)', () => {
           /stripe/i.test(r.path) &&
           /webhooks?/i.test(r.path),
       )?.path ?? '/payments/webhooks/stripe';
+
+    // 🔧 ensure discovered paths include the global prefix
+    const withPrefix = (p: string) => {
+      const norm = p.startsWith('/') ? p : `/${p}`;
+      return norm.startsWith(`/${apiPrefix}/`) || norm === `/${apiPrefix}`
+        ? norm
+        : `/${apiPrefix}${norm}`;
+    };
+    createIntentPath = withPrefix(createIntentPath);
+    webhookPath = withPrefix(webhookPath);
+
+    // Also mount on the discovered path (in case it differs)
+    app.use(webhookPath, stripeRaw, ensureRawBody);
 
     // get controller instance so we can spy on Stripe client methods
     ctrl = app.get(PaymentsController) as any;
@@ -241,10 +268,11 @@ describe('PaymentsController (e2e)', () => {
     });
 
     await request(app.getHttpServer())
-      .post(`/${apiPrefix}/payments/webhooks/stripe`)
+      .post(webhookPath) // ✅ normalized & prefixed
       .set('Stripe-Signature', header)
+      .set('stripe-signature', header) // some code reads lowercase key
       .set('Content-Type', 'application/json')
-      .send(Buffer.from(payloadRaw)) // raw buffer so raw-body parser keeps signature valid
+      .send(payloadRaw) // send exact string so signature matches
       .expect(200);
   });
 

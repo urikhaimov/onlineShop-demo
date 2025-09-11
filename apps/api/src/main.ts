@@ -20,9 +20,7 @@ async function bootstrap() {
   const appPort = Number(
     getEnv('APP_PORT', { defaultValue: 3000, env: process.env }),
   );
-  const apiPrefix = String(
-    getEnv('API_PREFIX', { defaultValue: 'api', env: process.env }),
-  );
+  const apiPrefix = process.env.API_PREFIX ?? 'api';
   const frontendOrigin = String(
     getEnv('FRONTEND_ORIGIN', {
       defaultValue: 'http://localhost:5173',
@@ -45,24 +43,22 @@ async function bootstrap() {
   webhookPaths.forEach((p) => app.use(p, stripeRaw, ensureRawBody));
   // --------------------------------------------------------------------------------------------
 
-  // Standard parsers for the rest of the app (increase limits if you need)
+  // Standard parsers for the rest of the app
   app.use(bodyParser.json({ limit: '1mb' }));
   app.use(bodyParser.urlencoded({ extended: true, limit: '1mb' }));
 
-  // Class-validator (via i18n pipe) — strict by default
+  // Class-validator (via i18n pipe)
   app.useGlobalPipes(
     new I18nValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
-      transform: true, // honors @Type(() => Number) etc. in your DTOs
-      // transformOptions: { enableImplicitConversion: true },
+      transform: true,
     }),
   );
 
-  // Helmet + CSP (adjusted for Firebase Storage & Stripe)
+  // Helmet + CSP (allow Stripe/Firebase and local dev)
   app.use(
     helmet({
-      // Avoid COEP headaches in dev (e.g., with Stripe, Firebase)
       crossOriginEmbedderPolicy: false,
       contentSecurityPolicy: {
         useDefaults: true,
@@ -88,8 +84,16 @@ async function bootstrap() {
             'https://storage.googleapis.com',
             'https://*.googleapis.com',
             'https://*.googleusercontent.com',
+            // Stripe
+            'https://api.stripe.com',
+            'https://hooks.stripe.com',
           ],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            "'unsafe-eval'",
+            'https://js.stripe.com',
+          ],
           styleSrc: ["'self'", "'unsafe-inline'"],
           fontSrc: ["'self'", 'data:'],
           frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com'],
@@ -110,12 +114,11 @@ async function bootstrap() {
       'x-lang',
       'stripe-signature', // keep lowercase
     ],
-    // Let the client read totals for pagination
     exposedHeaders: ['X-Total-Count', 'X-Total', 'X-Total-Results'],
   });
 
   // If behind a proxy (Heroku/Render/Nginx/etc.)
-  (app as any).set?.('trust proxy', 1);
+  app.getHttpAdapter().getInstance().set?.('trust proxy', 1);
 
   if (!isProd()) {
     setupSwagger(app, {
