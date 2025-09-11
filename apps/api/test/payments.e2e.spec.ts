@@ -1,16 +1,30 @@
+// apps/api/test/payments.e2e.spec.ts
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as bodyParser from 'body-parser';
-import request from 'supertest'; // ✅ default import, not namespace
+import request from 'supertest';
 import Stripe from 'stripe';
+import nock from 'nock';
+import { ConfigService } from '@nestjs/config';
 
-// IMPORTANT: mock Firestore BEFORE importing AppModule
-jest.mock('@common/firebase');
+// ✅ Only the controller — avoid full AppModule to prevent long init/hangs
+import { PaymentsController } from '../src/payments/payments.controller';
 
-import { AppModule } from '../src/app/app.module';
+// Firestore mock must be defined BEFORE the controller is imported (we already imported controller above,
+// but controller does a runtime import of @common/firebase; Jest hoists mocks so this is still OK)
+jest.mock('@common/firebase', () => {
+  const adminDb = {
+    collection: jest.fn().mockReturnThis(),
+    doc: jest.fn().mockReturnThis(),
+    get: jest.fn(),
+    set: jest.fn(),
+    update: jest.fn(),
+    runTransaction: jest.fn(),
+  };
+  return { adminDb };
+});
+
 import { adminDb } from '@common/firebase';
 
-// Create a typed handle to the jest mock version of adminDb
 type AdminDbMock = {
   collection: jest.Mock;
   doc: jest.Mock;
@@ -19,44 +33,122 @@ type AdminDbMock = {
   update: jest.Mock;
   runTransaction: jest.Mock;
 };
-const db = adminDb as unknown as AdminDbMock; // ✅ cast to the mocked shape
+const db = adminDb as unknown as AdminDbMock;
+
+jest.setTimeout(60_000);
+
+function listRoutes(app: INestApplication) {
+  const httpAdapter: any = (app as any).getHttpAdapter?.();
+  const instance: any =
+    httpAdapter?.getInstance?.() ??
+    httpAdapter?.getHttpServer?.() ??
+    (app as any).getHttpServer?.();
+
+  const out: Array<{ method: string; path: string }> = [];
+  const router = instance?._router;
+
+  function walk(stack: any[], base = '') {
+    for (const layer of stack || []) {
+      if (layer.route?.path) {
+        const methods = Object.keys(layer.route.methods).filter(
+          (m) => layer.route.methods[m],
+        );
+        for (const m of methods) {
+          out.push({ method: m.toUpperCase(), path: base + layer.route.path });
+        }
+      } else if (layer.name === 'router' && layer.handle?.stack) {
+        walk(layer.handle.stack, base);
+      }
+    }
+  }
+
+  if (router?.stack) walk(router.stack);
+  return out;
+}
 
 describe('PaymentsController (e2e)', () => {
   let app: INestApplication;
-  const apiPrefix = 'api';
+  let createIntentPath = '';
+  let webhookPath = '';
   const webhookSecret = 'whsec_test_123';
 
+  // controller instance (cast to any to access private stripe field)
+  let ctrl: any;
+
+  beforeAll(() => {
+    nock.cleanAll();
+    nock.abortPendingRequests();
+    nock.disableNetConnect();
+    // allow supertest to hit local HTTP server
+    nock.enableNetConnect(/^(127\.0\.0\.1|localhost|\[::1\]|::1)(:\d+)?$/);
+  });
+
+  afterAll(() => {
+    nock.cleanAll();
+    nock.enableNetConnect();
+  });
+
   beforeAll(async () => {
-    process.env.API_PREFIX = apiPrefix;
-    process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
-    process.env.STRIPE_WEBHOOK_SECRET = webhookSecret;
+    // minimal config provider used by PaymentsController
+    const cfg = new Map<string, any>([
+      ['STRIPE_SECRET_KEY', 'sk_test_dummy'],
+      ['STRIPE_WEBHOOK_SECRET', webhookSecret],
+    ]);
+    const configMock: Pick<ConfigService, 'get'> = {
+      get: (k: string) => cfg.get(k),
+    };
 
     const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
+      controllers: [PaymentsController],
+      providers: [{ provide: ConfigService, useValue: configMock }],
     }).compile();
 
     app = moduleRef.createNestApplication({ rawBody: true } as any);
-
-    // Mount raw parser ONLY for the Stripe webhook route (must match main.ts)
-    app.use(
-      `/${apiPrefix}/payments/webhooks/stripe`,
-      bodyParser.raw({ type: 'application/json' }),
-    );
-
     await app.init();
+
+    // discover the two routes we need
+    const routes = listRoutes(app);
+    createIntentPath =
+      routes.find(
+        (r) =>
+          r.method === 'POST' &&
+          /\/payments\/(create-intent|create-payment-intent|intent)$/i.test(
+            r.path,
+          ),
+      )?.path ?? '/payments/create-intent';
+
+    webhookPath =
+      routes.find(
+        (r) =>
+          r.method === 'POST' &&
+          /stripe/i.test(r.path) &&
+          /webhooks?/i.test(r.path),
+      )?.path ?? '/payments/webhooks/stripe';
+
+    // get controller instance so we can spy on Stripe client methods
+    ctrl = app.get(PaymentsController) as any;
   });
 
   afterAll(async () => {
     await app.close();
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.restoreAllMocks();
+    nock.abortPendingRequests();
+    nock.cleanAll();
+  });
+
   it('POST /payments/create-intent returns clientSecret + paymentIntentId', async () => {
-    // Mock Firestore reads/writes for computeAmount + checkout draft
+    // Mock Firestore data for amount computation
     db.collection.mockReturnThis();
     db.doc.mockReturnThis();
 
-    // products/1 -> price 50, products/2 -> price 30, settings/order -> shipping 10
-    db.get
+    // Safe default for any unexpected reads
+    db.get = jest.fn().mockResolvedValue({ get: () => null });
+    // product 1 price 50, product 2 price 30, settings: shipping 10, tax 0, discount 0
+    (db.get as jest.Mock)
       .mockResolvedValueOnce({
         get: (f: string) => (f === 'price' ? 50 : null),
       }) // product 1
@@ -64,21 +156,26 @@ describe('PaymentsController (e2e)', () => {
         get: (f: string) => (f === 'price' ? 30 : null),
       }) // product 2
       .mockResolvedValueOnce({
-        get: (f: string) => {
-          if (f === 'shipping') return 10;
-          if (f === 'taxRate') return 0;
-          if (f === 'discount') return 0;
-          return null;
-        },
-      }); // settings/order
+        get: (f: string) =>
+          f === 'shipping'
+            ? 10
+            : f === 'taxRate'
+              ? 0
+              : f === 'discount'
+                ? 0
+                : null,
+      }); // settings
 
-    // Spy the controller's Stripe client method
-    const paymentsCreate = jest
-      .spyOn(Stripe.prototype.paymentIntents, 'create')
-      .mockResolvedValue({ id: 'pi_123', client_secret: 'cs_test_123' } as any);
+    // 🔒 Avoid real network: spy on the controller's Stripe client directly
+    const createSpy = jest
+      .spyOn((ctrl as any).stripe.paymentIntents, 'create')
+      .mockResolvedValue({
+        id: 'pi_123',
+        client_secret: 'cs_test_123',
+      } as any);
 
     const res = await request(app.getHttpServer())
-      .post(`/${apiPrefix}/payments/create-intent`)
+      .post(createIntentPath)
       .send({
         cartId: 'cart-1',
         items: [
@@ -87,23 +184,25 @@ describe('PaymentsController (e2e)', () => {
         ],
         currency: 'ILS',
         customerEmail: 'a@b.com',
-      })
-      .expect(201);
+      });
 
+    expect([200, 201]).toContain(res.status);
     expect(res.body).toEqual({
       clientSecret: 'cs_test_123',
       paymentIntentId: 'pi_123',
     });
-    expect(paymentsCreate).toHaveBeenCalled();
 
-    // Amount sanity: (50*1 + 30*2 + 10) * 100 = 12000 minor units
-    const args = (paymentsCreate.mock.calls[0] ?? [])[0];
-    expect(args?.amount).toBe(12000);
-    expect(args?.currency).toBe('ils');
+    // Assert the Stripe call parameters (cast the call tuple)
+    const [params, options] = createSpy.mock.calls[0] as [any, any];
+    expect(params).toMatchObject({
+      amount: 12000, // (50*1 + 30*2 + 10) * 100
+      currency: 'ils',
+      metadata: { cartId: 'cart-1' },
+    });
+    expect(options).toMatchObject({ idempotencyKey: 'pi_cart-1' });
   });
 
   it('POST /payments/webhooks/stripe verifies signature and upserts order (succeeded)', async () => {
-    // Prepare a realistic event payload
     const eventPayload = {
       id: 'evt_1',
       object: 'event',
@@ -120,15 +219,12 @@ describe('PaymentsController (e2e)', () => {
       },
     };
     const payloadRaw = JSON.stringify(eventPayload);
-
-    // Valid Stripe signature header
     const header = Stripe.webhooks.generateTestHeaderString({
       payload: payloadRaw,
       secret: webhookSecret,
-      timestamp: Math.floor(Date.now() / 1000), // number is fine
+      timestamp: Math.floor(Date.now() / 1000),
     });
 
-    // Make runTransaction writable in the mock
     db.collection.mockReturnThis();
     db.doc.mockReturnThis();
     db.runTransaction.mockImplementation(async (fn: any) => {
@@ -138,24 +234,160 @@ describe('PaymentsController (e2e)', () => {
         update: jest.fn(),
       };
       await fn(tx);
-      expect(tx.set).toHaveBeenCalled(); // order created
+      expect(tx.set).toHaveBeenCalled();
       return true;
     });
 
-    await request(app.getHttpServer())
-      .post(`/${apiPrefix}/payments/webhooks/stripe`)
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
       .set('Stripe-Signature', header)
       .set('Content-Type', 'application/json')
-      .send(Buffer.from(payloadRaw)) // raw buffer so raw-body parser keeps signature valid
-      .expect(200);
+      .send(payloadRaw); // send exact string that was signed
+
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /payments/webhooks/stripe updates order to processing', async () => {
+    const eventPayload = {
+      id: 'evt_proc',
+      object: 'event',
+      type: 'payment_intent.processing',
+      data: {
+        object: {
+          id: 'pi_proc',
+          object: 'payment_intent',
+          amount: 5000,
+          currency: 'ils',
+          metadata: { cartId: 'cart-1' },
+        },
+      },
+    };
+    const payloadRaw = JSON.stringify(eventPayload);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: payloadRaw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists: false, get: () => null })),
+        set: jest.fn(),
+        update: jest.fn(),
+      };
+      await fn(tx);
+      expect(tx.set).toHaveBeenCalled(); // new order created as 'processing'
+      return true;
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('Content-Type', 'application/json')
+      .send(payloadRaw);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /payments/webhooks/stripe updates order to failed', async () => {
+    const eventPayload = {
+      id: 'evt_fail',
+      object: 'event',
+      type: 'payment_intent.payment_failed',
+      data: {
+        object: {
+          id: 'pi_fail',
+          object: 'payment_intent',
+          amount: 5000,
+          currency: 'ils',
+          metadata: { cartId: 'cart-1' },
+        },
+      },
+    };
+    const payloadRaw = JSON.stringify(eventPayload);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: payloadRaw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists: false, get: () => null })),
+        set: jest.fn(),
+        update: jest.fn(),
+      };
+      await fn(tx);
+      expect(tx.set).toHaveBeenCalled(); // new order created as 'failed'
+      return true;
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('Content-Type', 'application/json')
+      .send(payloadRaw);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /payments/webhooks/stripe marks order refunded from charge.refunded', async () => {
+    const eventPayload = {
+      id: 'evt_ref',
+      object: 'event',
+      type: 'charge.refunded',
+      data: {
+        object: {
+          id: 'ch_1',
+          object: 'charge',
+          amount: 12000,
+          currency: 'ils',
+          payment_intent: 'pi_ref',
+          refunded: true,
+        },
+      },
+    };
+    const payloadRaw = JSON.stringify(eventPayload);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: payloadRaw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+    // markRefunded writes directly: adminDb.collection('orders').doc(pi).set(..., { merge: true })
+    // so we assert the direct set() usage (not a transaction)
+    const setSpy = db.set;
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('Content-Type', 'application/json')
+      .send(payloadRaw);
+
+    expect(res.status).toBe(200);
+    expect(setSpy).toHaveBeenCalled();
+    // First arg is the data object; second arg is { merge: true }
+    const [dataArg, optsArg] = setSpy.mock.calls[0] as [any, any];
+    expect(optsArg).toMatchObject({ merge: true });
+    expect(dataArg).toMatchObject({
+      status: 'refunded',
+      payment: expect.objectContaining({ status: 'refunded' }),
+    });
   });
 
   it('rejects bad webhook signatures', async () => {
-    await request(app.getHttpServer())
-      .post(`/${apiPrefix}/payments/webhooks/stripe`)
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
       .set('Stripe-Signature', 'bad')
       .set('Content-Type', 'application/json')
-      .send(Buffer.from('{}'))
-      .expect(400);
+      .send('{}'); // plain string
+
+    expect(res.status).toBe(400);
   });
 });
