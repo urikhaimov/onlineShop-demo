@@ -96,7 +96,9 @@ export class PaymentsController {
       throw new Error('Test key used in production');
     }
     this.webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET') ?? '';
-    this.stripe = new Stripe(key, { apiVersion: '2024-06-20' as any });
+    this.stripe = new Stripe(key || 'sk_test_dummy', {
+      apiVersion: '2024-06-20' as any,
+    });
   }
 
   // ----------------------------------------------------------------------------
@@ -186,6 +188,8 @@ export class PaymentsController {
 
   // ----------------------------------------------------------------------------
   // POST /payments/webhooks/stripe
+  // IMPORTANT: ensure route-scoped raw() middleware is applied to this exact path:
+  // consumer.apply(raw({ type: 'application/json' })).forRoutes({ path: 'payments/webhooks/stripe', method: RequestMethod.POST })
   // ----------------------------------------------------------------------------
   @Post('webhooks/stripe')
   @HttpCode(200)
@@ -194,13 +198,33 @@ export class PaymentsController {
     @Headers('stripe-signature') sigLower?: string,
     @Headers('Stripe-Signature') sigTitle?: string,
   ) {
-    const signature = sigLower ?? sigTitle ?? '';
-    let event: Stripe.Event;
+    // Express normalizes header names to lowercase, but handle both just in case:
+    const signature =
+      sigLower ?? sigTitle ?? (req.headers['stripe-signature'] as string) ?? '';
 
+    if (!this.webhookSecret) {
+      throw new BadRequestException('Missing webhook secret');
+    }
+    if (!signature) {
+      throw new BadRequestException('Missing Stripe-Signature');
+    }
+
+    // ✅ Use the exact raw bytes. If this is missing, signature verification will fail.
+    const rawBody: Buffer | undefined =
+      (req as any).rawBody ||
+      (Buffer.isBuffer(req.body) ? (req.body as Buffer) : undefined);
+
+    if (!rawBody) {
+      this.logger.error(
+        'Raw body not available. Ensure express.raw({ type: "application/json" }) is applied to /payments/webhooks/stripe',
+      );
+      throw new BadRequestException('Invalid signature');
+    }
+
+    let event: Stripe.Event;
     try {
-      const raw = (req as any).rawBody ?? (req.body as any);
       event = this.stripe.webhooks.constructEvent(
-        raw,
+        rawBody, // Buffer
         signature,
         this.webhookSecret,
       );
