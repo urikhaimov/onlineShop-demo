@@ -12,7 +12,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
-  Param, // 👈 added
+  Param,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -73,18 +73,33 @@ function shouldThrottle(ip: string): boolean {
   return false;
 }
 
+// 🔁 Separate limiter for resend-receipt (5/min per IP by default)
+const RESEND_RATE_LIMIT_PER_MIN = 5;
+const resendBuckets = new Map<string, { count: number; windowStart: number }>();
+function shouldThrottleResend(ip: string): boolean {
+  const now = Date.now();
+  const bucket = resendBuckets.get(ip);
+  if (!bucket || now - bucket.windowStart >= 60_000) {
+    resendBuckets.set(ip, { count: 1, windowStart: now });
+    return false;
+  }
+  if (bucket.count >= RESEND_RATE_LIMIT_PER_MIN) return true;
+  bucket.count++;
+  return false;
+}
+
 // Mask publishable key like: pk_live_…7890
 function maskPublishableKey(pk: string): string {
   if (!pk) return '';
   const last4 = pk.slice(-4);
-  const keep = Math.min(pk.length - 4, 8); // keep up to first 8 chars
+  const keep = Math.min(pk.length - 4, 8);
   return `${pk.slice(0, keep)}…${last4}`;
 }
 
 @Controller('payments')
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
-  public readonly stripe: Stripe; // public for tests to spy
+  public readonly stripe: Stripe;
   private readonly webhookSecret: string;
 
   constructor(
@@ -92,7 +107,6 @@ export class PaymentsController {
     @Optional() @Inject('MAIL_SERVICE') private readonly mailer?: MailerLike,
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
-    // 🚫 Guard: never allow test keys in production
     if (process.env.NODE_ENV === 'production' && key.startsWith('sk_test_')) {
       throw new Error('Test key used in production');
     }
@@ -123,7 +137,6 @@ export class PaymentsController {
   @Post('create-intent')
   @HttpCode(201)
   async createPaymentIntent(@Req() req: Request, @Body() dto: CreateIntentDto) {
-    // ⏱️ rate-limit per IP (10/min)
     const ip = clientIp(req);
     if (shouldThrottle(ip)) {
       throw new HttpException(
@@ -151,14 +164,14 @@ export class PaymentsController {
       .doc('payments')
       .get();
     const shipping = Number(settingsSnap.get('shipping') ?? 0);
-    const taxRate = Number(settingsSnap.get('taxRate') ?? 0); // percent
+    const taxRate = Number(settingsSnap.get('taxRate') ?? 0);
     const discount = Number(settingsSnap.get('discount') ?? 0);
     const taxAmount = Math.round(subtotal * (taxRate / 100));
 
     const total = Math.max(0, subtotal + shipping + taxAmount - discount);
-    const amount = Math.round(total * 100); // to smallest currency unit
+    const amount = Math.round(total * 100);
 
-    // 3) Compact items metadata for stock decrement on success
+    // 3) Items metadata
     const itemsMeta = JSON.stringify(
       (dto.items ?? []).map((i) => ({
         id: String(i.id),
@@ -169,7 +182,7 @@ export class PaymentsController {
       itemsMeta.length > 450 ? itemsMeta.slice(0, 450) : itemsMeta;
     const emailMeta = dto.customerEmail ? String(dto.customerEmail) : undefined;
 
-    // 4) Stripe PaymentIntent with idempotency per-cart
+    // 4) Stripe PaymentIntent
     const intent = await this.stripe.paymentIntents.create(
       {
         amount,
@@ -189,7 +202,6 @@ export class PaymentsController {
 
   // ----------------------------------------------------------------------------
   // POST /payments/webhooks/stripe
-  // IMPORTANT: ensure route-scoped raw() middleware is applied to this exact path.
   // ----------------------------------------------------------------------------
   @Post('webhooks/stripe')
   @HttpCode(200)
@@ -198,18 +210,13 @@ export class PaymentsController {
     @Headers('stripe-signature') sigLower?: string,
     @Headers('Stripe-Signature') sigTitle?: string,
   ) {
-    // Express normalizes headers to lowercase; handle both just in case:
     const signature =
       sigLower ?? sigTitle ?? (req.headers['stripe-signature'] as string) ?? '';
 
-    if (!this.webhookSecret) {
+    if (!this.webhookSecret)
       throw new BadRequestException('Missing webhook secret');
-    }
-    if (!signature) {
-      throw new BadRequestException('Missing Stripe-Signature');
-    }
+    if (!signature) throw new BadRequestException('Missing Stripe-Signature');
 
-    // ✅ Use the exact raw bytes. If this is missing, signature verification will fail.
     const rawBody: Buffer | undefined =
       (req as any).rawBody ||
       (Buffer.isBuffer(req.body) ? (req.body as Buffer) : undefined);
@@ -224,7 +231,7 @@ export class PaymentsController {
     let event: Stripe.Event;
     try {
       event = this.stripe.webhooks.constructEvent(
-        rawBody, // Buffer
+        rawBody,
         signature,
         this.webhookSecret,
       );
@@ -238,7 +245,6 @@ export class PaymentsController {
     const handleSucceeded = async (pi: Stripe.PaymentIntent) => {
       const orderId = String(pi.metadata?.cartId ?? pi.id);
 
-      // Parse items to decrement stock atomically
       let items: Array<{ id: string; qty: number }> = [];
       try {
         if (pi.metadata?.items) items = JSON.parse(String(pi.metadata.items));
@@ -246,7 +252,6 @@ export class PaymentsController {
         items = [];
       }
 
-      // capture for email after tx
       const emailToNotify: string | undefined =
         (pi.metadata?.email as string) ||
         (pi.receipt_email as string) ||
@@ -263,7 +268,7 @@ export class PaymentsController {
           currency: pi.currency,
           paymentIntentId: pi.id,
           updatedAt: new Date(),
-          email: emailToNotify ?? null, // 👈 persist buyer email for resends
+          email: emailToNotify ?? null, // persist for resends
         };
 
         if (snap.exists) {
@@ -277,7 +282,6 @@ export class PaymentsController {
           });
         }
 
-        // 🔻 decrement product stock in the same transaction
         for (const it of items) {
           const pid = String(it.id);
           const qty = Math.max(0, Number(it.qty || 0));
@@ -287,7 +291,6 @@ export class PaymentsController {
         }
       });
 
-      // 📧 send confirmation outside the transaction
       if (emailToNotify && this.mailer?.sendOrderConfirmation) {
         try {
           await this.mailer.sendOrderConfirmation(emailToNotify, {
@@ -324,28 +327,23 @@ export class PaymentsController {
     };
 
     switch (event.type) {
-      case 'payment_intent.succeeded': {
+      case 'payment_intent.succeeded':
         await handleSucceeded(event.data.object as Stripe.PaymentIntent);
         break;
-      }
-      case 'payment_intent.payment_failed': {
+      case 'payment_intent.payment_failed':
         await handleNonSuccess(
           event.data.object as Stripe.PaymentIntent,
           'payment_failed',
         );
         break;
-      }
-      case 'payment_intent.canceled': {
+      case 'payment_intent.canceled':
         await handleNonSuccess(
           event.data.object as Stripe.PaymentIntent,
           'canceled',
         );
         break;
-      }
       case 'charge.refunded': {
         const ch = event.data.object as Stripe.Charge;
-
-        // Prefer cartId from metadata for both lookup and email
         const cartIdFromCharge = (ch.metadata as any)?.cartId;
         const piId =
           typeof ch.payment_intent === 'string'
@@ -356,7 +354,6 @@ export class PaymentsController {
         const refunded = Number(ch.amount_refunded ?? 0);
         const status = refunded >= total ? 'refunded' : 'partially_refunded';
 
-        // capture for email after tx – default to cartId if present
         let orderIdForEmail: string | undefined = cartIdFromCharge
           ? String(cartIdFromCharge)
           : piId
@@ -367,7 +364,6 @@ export class PaymentsController {
           ((ch.metadata as any)?.email as string) || undefined;
 
         await adminDb.runTransaction(async (tx) => {
-          // 🔎 Try updating by cartId first, then by PI id
           const candidates: string[] = [];
           if (cartIdFromCharge) candidates.push(String(cartIdFromCharge));
           if (piId) candidates.push(String(piId));
@@ -384,14 +380,12 @@ export class PaymentsController {
                   : [],
                 updatedAt: new Date(),
               });
-              // keep cartId-preferred orderIdForEmail if present; otherwise use the updated id
               if (!cartIdFromCharge) orderIdForEmail = oid;
               break;
             }
           }
         });
 
-        // 📧 send refund email after the transaction
         if (emailFromMeta && orderIdForEmail && this.mailer?.sendRefundEmail) {
           try {
             await this.mailer.sendRefundEmail(emailFromMeta, {
@@ -430,24 +424,30 @@ export class PaymentsController {
 
   // ----------------------------------------------------------------------------
   // POST /payments/orders/:orderId/resend-receipt
-  // Resend the order confirmation to the stored email or an override.
   // ----------------------------------------------------------------------------
   @Post('orders/:orderId/resend-receipt')
   @HttpCode(200)
   async resendReceipt(
     @Param('orderId') orderId: string,
-    @Body() body?: { email?: string },
+    @Body() body: { email?: string } = {},
+    @Req() req: Request,
   ) {
-    const snap = await adminDb.collection('orders').doc(orderId).get();
-    if (!snap.exists) {
-      throw new BadRequestException('Order not found');
+    // ⏱️ rate-limit per IP for resend
+    const ip = clientIp(req);
+    if (shouldThrottleResend(ip)) {
+      throw new HttpException(
+        'Too many requests',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
-    const order = snap.data() as any;
 
-    const to: string | undefined = body?.email || order?.email || undefined;
-    if (!to) {
+    const snap = await adminDb.collection('orders').doc(orderId).get();
+    if (!snap.exists) throw new BadRequestException('Order not found');
+
+    const order = snap.data() as any;
+    const to: string | undefined = body.email || order?.email || undefined;
+    if (!to)
       throw new BadRequestException('No email on order; provide { email }');
-    }
 
     if (this.mailer?.sendOrderConfirmation) {
       await this.mailer.sendOrderConfirmation(to, {
@@ -455,7 +455,7 @@ export class PaymentsController {
         amount: Number(order?.amount || 0),
         currency: (order?.currency as string) || null,
         paymentIntentId: String(order?.paymentIntentId || ''),
-        created: false, // resend flag
+        created: false,
       });
     } else {
       this.logger.warn('MAIL_SERVICE not configured');
