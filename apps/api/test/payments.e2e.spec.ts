@@ -1,4 +1,3 @@
-// apps/api/test/payments.e2e.spec.ts
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -76,6 +75,12 @@ describe('PaymentsController (e2e)', () => {
   // controller instance (cast to any to access private stripe field)
   let ctrl: any;
 
+  // 📧 mailer mock so we can assert emails are sent on success/refund
+  const mailerMock = {
+    sendOrderConfirmation: jest.fn(),
+    sendRefundEmail: jest.fn(),
+  };
+
   beforeAll(() => {
     nock.cleanAll();
     nock.abortPendingRequests();
@@ -101,7 +106,10 @@ describe('PaymentsController (e2e)', () => {
 
     const moduleRef = await Test.createTestingModule({
       controllers: [PaymentsController],
-      providers: [{ provide: ConfigService, useValue: configMock }],
+      providers: [
+        { provide: ConfigService, useValue: configMock },
+        { provide: 'MAIL_SERVICE', useValue: mailerMock }, // 👈 provide optional mailer
+      ],
     }).compile();
 
     const apiPrefix = process.env.API_PREFIX ?? 'api';
@@ -285,6 +293,7 @@ describe('PaymentsController (e2e)', () => {
 
     expect(res.status).toBe(400);
   });
+
   it('create-intent is idempotent per cartId (same idempotencyKey)', async () => {
     const spy = jest
       .spyOn((ctrl as any).stripe.paymentIntents, 'create')
@@ -425,6 +434,7 @@ describe('PaymentsController (e2e)', () => {
     expect([200, 204]).toContain(res.status);
     expect(setCalls).toBe(0);
   });
+
   it('charge.refunded (full) updates order to refunded with amount', async () => {
     // Arrange Firestore tx mock: capture the update payload we write
     db.collection.mockReturnThis();
@@ -537,6 +547,7 @@ describe('PaymentsController (e2e)', () => {
     expect(lastUpdate.status).toBe('partially_refunded');
     expect(lastUpdate.refundedAmount).toBe(3000);
   });
+
   it('succeeded webhook decrements stock atomically with order write', async () => {
     db.collection.mockReturnThis();
     db.doc.mockReturnThis();
@@ -602,5 +613,135 @@ describe('PaymentsController (e2e)', () => {
     expect([200, 204]).toContain(res.status);
     expect(setCalled).toBe(true); // order created
     expect(stockUpdates).toBeGreaterThan(0); // stock decremented
+  });
+
+  // 📧 EMAIL TESTS
+  it('success webhook sends order confirmation email when metadata.email is present', async () => {
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+
+    // create order in tx; email sending is outside tx
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists: false, get: () => null })),
+        set: jest.fn(),
+        update: jest.fn(),
+      };
+      await fn(tx);
+      return true;
+    });
+
+    mailerMock.sendOrderConfirmation.mockClear();
+
+    const eventPayload = {
+      id: 'evt_mail_ok',
+      object: 'event',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_mail_1',
+          object: 'payment_intent',
+          amount: 12000,
+          amount_received: 12000,
+          currency: 'ils',
+          metadata: {
+            cartId: 'cart-mail',
+            items: JSON.stringify([{ id: '1', qty: 1 }]),
+            email: 'buyer@example.com',
+          },
+        },
+      },
+    };
+    const raw = JSON.stringify(eventPayload);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('stripe-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect([200, 204]).toContain(res.status);
+    expect(mailerMock.sendOrderConfirmation).toHaveBeenCalledTimes(1);
+    expect(mailerMock.sendOrderConfirmation).toHaveBeenCalledWith(
+      'buyer@example.com',
+      expect.objectContaining({
+        orderId: 'cart-mail',
+        amount: 12000,
+        currency: 'ils',
+        paymentIntentId: 'pi_mail_1',
+      }),
+    );
+  });
+
+  it('refund webhook sends refund email when charge.metadata.email is present', async () => {
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+
+    // order exists, so tx updates it
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => ({ exists: true, get: () => null })),
+        set: jest.fn(),
+        update: jest.fn(),
+      };
+      await fn(tx);
+      return true;
+    });
+
+    mailerMock.sendRefundEmail.mockClear();
+
+    const chargePayload = {
+      id: 'ch_mail_2',
+      object: 'charge',
+      amount: 12000,
+      amount_refunded: 3000,
+      currency: 'ils',
+      payment_intent: 'pi_mail_2',
+      metadata: { email: 'buyer@example.com', cartId: 'cart-mail' },
+      refunds: {
+        data: [{ id: 're_200', amount: 3000 }],
+        total_count: 1,
+        object: 'list',
+        url: '',
+      },
+    };
+    const raw = JSON.stringify({
+      id: 'evt_mail_refund',
+      object: 'event',
+      type: 'charge.refunded',
+      data: { object: chargePayload },
+    });
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('stripe-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect([200, 204]).toContain(res.status);
+    expect(mailerMock.sendRefundEmail).toHaveBeenCalledTimes(1);
+    expect(mailerMock.sendRefundEmail).toHaveBeenCalledWith(
+      'buyer@example.com',
+      expect.objectContaining({
+        orderId: 'cart-mail',
+        amount: 3000,
+        currency: 'ils',
+        chargeId: 'ch_mail_2',
+        full: false,
+        refundIds: ['re_200'],
+      }),
+    );
   });
 });

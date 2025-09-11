@@ -7,6 +7,8 @@ import {
   Post,
   Req,
   Body,
+  Inject,
+  Optional,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -22,13 +24,40 @@ type CreateIntentDto = {
   customerEmail?: string;
 };
 
+type MailerLike = {
+  sendOrderConfirmation?: (
+    to: string,
+    payload: {
+      orderId: string;
+      amount: number;
+      currency: string | null;
+      paymentIntentId: string;
+      created: boolean;
+    },
+  ) => Promise<any> | any;
+  sendRefundEmail?: (
+    to: string,
+    payload: {
+      orderId: string;
+      amount: number;
+      currency: string | null;
+      chargeId: string;
+      full: boolean;
+      refundIds: string[];
+    },
+  ) => Promise<any> | any;
+};
+
 @Controller('payments')
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
   public readonly stripe: Stripe; // public for tests to spy
   private readonly webhookSecret: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() @Inject('MAIL_SERVICE') private readonly mailer?: MailerLike,
+  ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY')!;
     this.webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET')!;
     this.stripe = new Stripe(key, { apiVersion: '2024-06-20' as any });
@@ -76,6 +105,7 @@ export class PaymentsController {
     // Stripe metadata values are limited (~500 chars). Keep a safe margin.
     const itemsMetaSafe =
       itemsMeta.length > 450 ? itemsMeta.slice(0, 450) : itemsMeta;
+    const emailMeta = dto.customerEmail ? String(dto.customerEmail) : undefined;
 
     // 4) Stripe PaymentIntent with idempotency per-cart
     const intent = await this.stripe.paymentIntents.create(
@@ -83,7 +113,7 @@ export class PaymentsController {
         amount,
         currency,
         automatic_payment_methods: { enabled: true },
-        metadata: { cartId, items: itemsMetaSafe },
+        metadata: { cartId, items: itemsMetaSafe, email: emailMeta }, // 👈 include email for webhook
         receipt_email: dto.customerEmail || undefined,
       },
       { idempotencyKey: `pi_${cartId}` },
@@ -133,6 +163,13 @@ export class PaymentsController {
         items = [];
       }
 
+      // capture for email after tx
+      const emailToNotify: string | undefined =
+        (pi.metadata?.email as string) ||
+        (pi.receipt_email as string) ||
+        undefined;
+      let createdNow = false;
+
       await adminDb.runTransaction(async (tx) => {
         const ref = adminDb.collection('orders').doc(orderId);
         const snap = await tx.get(ref);
@@ -145,6 +182,7 @@ export class PaymentsController {
             updatedAt: new Date(),
           });
         } else {
+          createdNow = true;
           // ✅ create ONLY on success
           tx.set(ref, {
             status: 'paid',
@@ -166,6 +204,23 @@ export class PaymentsController {
           tx.update(pRef, { stock: FieldValue.increment(-qty) });
         }
       });
+
+      // 📧 send confirmation outside the transaction
+      if (emailToNotify && this.mailer?.sendOrderConfirmation) {
+        try {
+          await this.mailer.sendOrderConfirmation(emailToNotify, {
+            orderId,
+            amount: (pi.amount_received ?? pi.amount) || 0,
+            currency: pi.currency ?? null,
+            paymentIntentId: pi.id,
+            created: createdNow,
+          });
+        } catch (e) {
+          this.logger.warn(
+            `sendOrderConfirmation failed: ${(e as Error).message}`,
+          );
+        }
+      }
     };
 
     const handleNonSuccess = async (
@@ -222,12 +277,17 @@ export class PaymentsController {
         const refunded = Number(ch.amount_refunded ?? 0);
         const status = refunded >= total ? 'refunded' : 'partially_refunded';
 
+        // capture for email after tx
+        let orderIdForEmail: string | undefined;
+        const emailFromMeta: string | undefined =
+          ((ch.metadata as any)?.email as string) || undefined;
+
         await adminDb.runTransaction(async (tx) => {
-          // Try by PI id; if you also store by cartId, try that too
+          // ✅ Prefer cartId first, then PI id (fixes test expectation)
           const candidates: string[] = [];
-          if (piId) candidates.push(String(piId));
           const cartIdFromCharge = (ch.metadata as any)?.cartId;
           if (cartIdFromCharge) candidates.push(String(cartIdFromCharge));
+          if (piId) candidates.push(String(piId));
 
           for (const oid of candidates) {
             const ref = adminDb.collection('orders').doc(oid);
@@ -241,11 +301,31 @@ export class PaymentsController {
                   : [],
                 updatedAt: new Date(),
               });
-              break; // updated one — stop
+              orderIdForEmail = oid; // updated one — remember for email
+              break;
             }
           }
           // No-op if no matching order doc exists
         });
+
+        // 📧 send refund email after the transaction
+        if (emailFromMeta && orderIdForEmail && this.mailer?.sendRefundEmail) {
+          try {
+            await this.mailer.sendRefundEmail(emailFromMeta, {
+              orderId: orderIdForEmail,
+              amount: refunded,
+              currency: ch.currency ?? null,
+              chargeId: ch.id,
+              full: status === 'refunded',
+              refundIds: Array.isArray(ch.refunds?.data)
+                ? ch.refunds!.data.map((r: any) => r.id)
+                : [],
+            });
+          } catch (e) {
+            this.logger.warn(`sendRefundEmail failed: ${(e as Error).message}`);
+          }
+        }
+
         break;
       }
 
