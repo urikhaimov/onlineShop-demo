@@ -7,7 +7,12 @@ const cwdRoot = path.resolve(__dirname, '../../'); // repo root
 
 export default defineConfig({
   testDir: './src/e2e',
-  testMatch: ['**/*.pw.spec.ts', '**/*.pw.spec.cts'],
+  testMatch: [
+    '**/*.pw.spec.ts',
+    '**/*.pw.spec.cts',
+    '**/*.pw.spec.*',
+    '**/*.spec.*',
+  ],
   timeout: 60_000,
   retries: 0,
   use: {

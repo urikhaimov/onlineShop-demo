@@ -11,6 +11,15 @@ import * as bodyParser from 'body-parser';
 
 dotenv.config();
 
+function parseOrigins(v?: string): (string | RegExp)[] {
+  if (!v) return [];
+  if (v.trim() === '*') return [/^.*$/];
+  return v
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 async function bootstrap() {
   // Keep a copy of the original raw body (needed for Stripe webhooks)
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -27,11 +36,27 @@ async function bootstrap() {
       env: process.env,
     }),
   );
+  const extraOrigins = parseOrigins(process.env.ALLOWED_ORIGINS);
 
   app.setGlobalPrefix(apiPrefix);
 
+  // If behind a proxy (Heroku/Render/Nginx/etc.)
+  app.getHttpAdapter().getInstance().set?.('trust proxy', 1);
+
+  // ── Enforce HTTPS in production (respects X-Forwarded-Proto) ────────────────
+  app.use((req, res, next) => {
+    if (isProd()) {
+      const xfp = (req.headers['x-forwarded-proto'] as string) || '';
+      const secure =
+        (req as any).secure || xfp.split(',')[0]?.trim()?.includes('https');
+      if (!secure) return res.status(403).send('HTTPS required');
+    }
+    next();
+  });
+
   // --- Stripe webhook raw body (must be BEFORE any JSON/urlencoded parser for those paths) ---
-  const stripeRaw = bodyParser.raw({ type: 'application/json', limit: '2mb' });
+  // Use '*/*' to be robust to proxies that tweak content-type params.
+  const stripeRaw = bodyParser.raw({ type: '*/*', limit: '2mb' });
   const ensureRawBody = (req: any, _res: any, next: any) => {
     if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
     next();
@@ -56,10 +81,13 @@ async function bootstrap() {
     }),
   );
 
-  // Helmet + CSP (allow Stripe/Firebase and local dev)
+  // Helmet + CSP (allow Stripe/Firebase and local dev) + HSTS in prod
   app.use(
     helmet({
       crossOriginEmbedderPolicy: false,
+      hsts: isProd()
+        ? { maxAge: 31536000, includeSubDomains: true, preload: false }
+        : false,
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
@@ -99,12 +127,18 @@ async function bootstrap() {
           frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com'],
         },
       },
+      referrerPolicy: { policy: 'no-referrer' },
     }),
   );
 
   // CORS for your client
   app.enableCors({
-    origin: [frontendOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: [
+      frontendOrigin,
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      ...extraOrigins,
+    ],
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -112,13 +146,12 @@ async function bootstrap() {
       'Authorization',
       'Accept-Language',
       'x-lang',
-      'stripe-signature', // keep lowercase
+      'stripe-signature',
+      'Stripe-Signature',
     ],
     exposedHeaders: ['X-Total-Count', 'X-Total', 'X-Total-Results'],
+    maxAge: 600,
   });
-
-  // If behind a proxy (Heroku/Render/Nginx/etc.)
-  app.getHttpAdapter().getInstance().set?.('trust proxy', 1);
 
   if (!isProd()) {
     setupSwagger(app, {
