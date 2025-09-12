@@ -1,13 +1,10 @@
-import { Module } from '@nestjs/common';
+// mailer.module.ts
+import { Global, Module } from '@nestjs/common';
 import { MailerService } from './mailer.service';
 
+@Global()
 @Module({
-  providers: [
-    {
-      provide: 'MAIL_SERVICE',
-      useFactory: () => new MailerService(),
-    },
-  ],
-  exports: ['MAIL_SERVICE'],
+  providers: [MailerService],
+  exports: [MailerService],
 })
 export class MailerModule {}

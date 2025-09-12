@@ -1,9 +1,10 @@
+// src/mailer/mailer.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import nodemailer, { Transporter } from 'nodemailer';
 
 type OrderEmailPayload = {
   orderId: string;
-  amount: number; // in minor units (e.g., 12000 agorot)
+  amount: number; // minor units
   currency: string | null; // e.g., "ils"
   paymentIntentId: string;
   created: boolean;
@@ -11,8 +12,8 @@ type OrderEmailPayload = {
 
 type RefundEmailPayload = {
   orderId: string;
-  amount: number; // in minor units
-  currency: string | null; // e.g., "ils"
+  amount: number;
+  currency: string | null;
   chargeId: string;
   full: boolean;
   refundIds: string[];
@@ -25,7 +26,6 @@ export class MailerService {
   private readonly fromAddress: string;
 
   constructor() {
-    // 1) Build transporter from env (SMTP_URL or host/port/user/pass)
     const {
       SMTP_URL,
       SMTP_HOST,
@@ -39,22 +39,36 @@ export class MailerService {
       NODE_ENV,
     } = process.env;
 
+    const baseOpts: any = {
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
+      connectionTimeout: 15_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 30_000,
+    };
+
     if (MAIL_MODE === 'json' || NODE_ENV === 'test') {
-      // log-only “transport” (no real sends) — great for dev
       this.transporter = nodemailer.createTransport({ jsonTransport: true });
     } else if (SMTP_URL) {
-      this.transporter = nodemailer.createTransport(SMTP_URL);
-    } else if (SMTP_HOST) {
+      // URL-based config (works with SendGrid, etc.)
       this.transporter = nodemailer.createTransport({
+        ...baseOpts,
+        url: SMTP_URL,
+      });
+    } else if (SMTP_HOST) {
+      // Host/port config
+      this.transporter = nodemailer.createTransport({
+        ...baseOpts,
         host: SMTP_HOST,
         port: Number(SMTP_PORT ?? 587),
-        secure: String(SMTP_SECURE ?? '').toLowerCase() === 'true', // true for 465, false for 587
+        secure: String(SMTP_SECURE ?? '').toLowerCase() === 'true',
         auth: SMTP_USER
           ? { user: SMTP_USER, pass: SMTP_PASS ?? '' }
           : undefined,
       });
     } else {
-      // Fallback to jsonTransport if nothing configured
+      // Fallback for local/dev
       this.logger.warn(
         'No SMTP configured. Falling back to jsonTransport (logs only).',
       );
@@ -66,9 +80,9 @@ export class MailerService {
     this.fromAddress = name ? `${name} <${from}>` : from;
   }
 
-  // --------------------------------------------------------------------------
-  // Called by PaymentsController on payment_intent.succeeded
-  // --------------------------------------------------------------------------
+  // ────────────────────────────────────────────────────────────────────────────
+  // Order confirmation
+  // ────────────────────────────────────────────────────────────────────────────
   async sendOrderConfirmation(to: string, payload: OrderEmailPayload) {
     const { orderId, amount, currency, paymentIntentId, created } = payload;
     const fmt = this.formatMoney(amount, currency);
@@ -85,28 +99,23 @@ export class MailerService {
           <li>מטבע: <strong>${(currency || 'ILS').toUpperCase()}</strong></li>
           <li>Payment Intent: <code>${this.escape(paymentIntentId)}</code></li>
         </ul>
-        <p style="margin:16px 0 0">אם יש לך שאלות, נשמח לעזור — פשוט השב/י למייל זה.</p>
+        <p style="margin:16px 0 0">אם יש לך שאלות, פשוט השב/י למייל זה.</p>
       </div>
     `;
+    const text = [
+      'תודה על ההזמנה!',
+      `הזמנה: ${orderId}`,
+      `סכום: ${fmt}`,
+      `מטבע: ${(currency || 'ILS').toUpperCase()}`,
+      `Payment Intent: ${paymentIntentId}`,
+    ].join('\n');
 
-    const text =
-      'תודה על ההזמנה!\n' +
-      `הזמנה: ${orderId}\n` +
-      `סכום: ${fmt}\n` +
-      `מטבע: ${(currency || 'ILS').toUpperCase()}\n` +
-      `Payment Intent: ${paymentIntentId}\n`;
-
-    await this.safeSend({
-      to,
-      subject,
-      html,
-      text,
-    });
+    return this.safeSend({ to, subject, html, text });
   }
 
-  // --------------------------------------------------------------------------
-  // Called by PaymentsController on charge.refunded (full/partial)
-  // --------------------------------------------------------------------------
+  // ────────────────────────────────────────────────────────────────────────────
+  // Refund email (full or partial)
+  // ────────────────────────────────────────────────────────────────────────────
   async sendRefundEmail(to: string, payload: RefundEmailPayload) {
     const { orderId, amount, currency, chargeId, full, refundIds } = payload;
     const fmt = this.formatMoney(amount, currency);
@@ -121,35 +130,30 @@ export class MailerService {
         <ul style="margin:0 0 12px;padding-left:18px">
           <li>סכום ההחזר: <strong>${fmt}</strong></li>
           <li>Charge ID: <code>${this.escape(chargeId)}</code></li>
-          <li>Refund IDs: <code>${refundIds.map(this.escape).join(', ') || '-'}</code></li>
+          <li>Refund IDs: <code>${(refundIds || []).map(this.escape).join(', ') || '-'}</code></li>
         </ul>
         <p style="margin:16px 0 0">נשמח לסייע בכל שאלה.</p>
       </div>
     `;
-
     const text =
       `${full ? 'החזר הושלם' : 'החזר חלקי'} להזמנה ${orderId}\n` +
       `סכום: ${fmt}\n` +
       `Charge: ${chargeId}\n` +
-      `Refund IDs: ${refundIds.join(', ') || '-'}\n`;
+      `Refund IDs: ${(refundIds || []).join(', ') || '-'}`;
 
-    await this.safeSend({
-      to,
-      subject,
-      html,
-      text,
-    });
+    return this.safeSend({ to, subject, html, text });
   }
 
-  // --------------------------------------------------------------------------
-  // helpers
-  // --------------------------------------------------------------------------
+  // ────────────────────────────────────────────────────────────────────────────
+  // Helpers
+  // ────────────────────────────────────────────────────────────────────────────
   private async safeSend(opts: {
     to: string;
     subject: string;
     html: string;
     text: string;
-  }) {
+    replyTo?: string;
+  }): Promise<{ ok: boolean; id?: string }> {
     try {
       const info = await this.transporter.sendMail({
         from: this.fromAddress,
@@ -157,17 +161,20 @@ export class MailerService {
         subject: opts.subject,
         text: opts.text,
         html: opts.html,
+        replyTo: opts.replyTo,
+        // headers: { 'List-Unsubscribe': '<mailto:unsubscribe@bundershop.is-a.dev>' },
       });
       this.logger.log(`Email sent to ${opts.to}: ${info.messageId ?? ''}`);
+      return { ok: true, id: info.messageId as string | undefined };
     } catch (e) {
       this.logger.error(`Email send failed: ${(e as Error).message}`);
+      return { ok: false };
     }
   }
 
   private formatMoney(amountMinor: number, currency: string | null) {
     const curr = (currency || 'ILS').toUpperCase();
     const major = (amountMinor ?? 0) / 100;
-    // he-IL displays ₪ nicely; fallback to en if needed
     try {
       return new Intl.NumberFormat('he-IL', {
         style: 'currency',
@@ -182,18 +189,13 @@ export class MailerService {
   }
 
   private escape(s: string) {
-    return String(s).replace(
-      /[&<>"']/g,
-      (m) =>
-        (
-          ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;',
-          }) as any
-        )[m],
-    );
+    const map: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return String(s).replace(/[&<>"']/g, (m) => map[m]);
   }
 }

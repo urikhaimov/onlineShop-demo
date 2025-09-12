@@ -7,7 +7,6 @@ import {
   Post,
   Req,
   Body,
-  Inject,
   Optional,
   Get,
   HttpException,
@@ -19,36 +18,13 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { adminDb } from '@common/firebase';
 import { FieldValue } from 'firebase-admin/firestore';
+import { MailerService } from '../mailer/mailer.service';
 
 type CreateIntentDto = {
   cartId: string;
   items: Array<{ id: string; qty: number }>;
   currency: string; // e.g. "ILS"
   customerEmail?: string;
-};
-
-type MailerLike = {
-  sendOrderConfirmation?: (
-    to: string,
-    payload: {
-      orderId: string;
-      amount: number;
-      currency: string | null;
-      paymentIntentId: string;
-      created: boolean;
-    },
-  ) => Promise<any> | any;
-  sendRefundEmail?: (
-    to: string,
-    payload: {
-      orderId: string;
-      amount: number;
-      currency: string | null;
-      chargeId: string;
-      full: boolean;
-      refundIds: string[];
-    },
-  ) => Promise<any> | any;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,6 +64,10 @@ function shouldThrottleResend(ip: string): boolean {
   return false;
 }
 
+// ✅ allow disabling rate limit in tests/locally
+const RATE_LIMIT_ENABLED =
+  process.env.DISABLE_RATE_LIMIT !== 'true' && process.env.NODE_ENV !== 'test';
+
 // Mask publishable key like: pk_live_…7890
 function maskPublishableKey(pk: string): string {
   if (!pk) return '';
@@ -104,7 +84,7 @@ export class PaymentsController {
 
   constructor(
     private readonly config: ConfigService,
-    @Optional() @Inject('MAIL_SERVICE') private readonly mailer?: MailerLike,
+    @Optional() private readonly mailer?: MailerService, // ⬅️ global MailerService
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
     if (process.env.NODE_ENV === 'production' && key.startsWith('sk_test_')) {
@@ -126,6 +106,7 @@ export class PaymentsController {
     const defaultCurrency =
       this.config.get<string>('DEFAULT_CURRENCY') ?? 'USD';
     return {
+      publishableKey: pk, // ← client expects this
       publishableKeyMasked: maskPublishableKey(pk),
       defaultCurrency,
     };
@@ -138,7 +119,7 @@ export class PaymentsController {
   @HttpCode(201)
   async createPaymentIntent(@Req() req: Request, @Body() dto: CreateIntentDto) {
     const ip = clientIp(req);
-    if (shouldThrottle(ip)) {
+    if (RATE_LIMIT_ENABLED && shouldThrottle(ip)) {
       throw new HttpException(
         'Too many requests',
         HttpStatus.TOO_MANY_REQUESTS,
@@ -223,7 +204,7 @@ export class PaymentsController {
 
     if (!rawBody) {
       this.logger.error(
-        'Raw body not available. Ensure express.raw({ type: "application/json" }) is applied to /payments/webhooks/stripe',
+        'Raw body not available. Ensure bodyParser.raw() is applied before JSON for /payments/webhooks/stripe',
       );
       throw new BadRequestException('Invalid signature');
     }
@@ -434,7 +415,7 @@ export class PaymentsController {
   ) {
     // ⏱️ rate-limit per IP for resend
     const ip = clientIp(req);
-    if (shouldThrottleResend(ip)) {
+    if (RATE_LIMIT_ENABLED && shouldThrottleResend(ip)) {
       throw new HttpException(
         'Too many requests',
         HttpStatus.TOO_MANY_REQUESTS,
@@ -458,7 +439,7 @@ export class PaymentsController {
         created: false,
       });
     } else {
-      this.logger.warn('MAIL_SERVICE not configured');
+      this.logger.warn('MailerService not configured');
     }
 
     return { ok: true };

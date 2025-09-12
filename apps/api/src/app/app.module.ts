@@ -20,8 +20,13 @@ import { HealthController } from '../health/health.controller';
 import { StripeModule } from '../stripe/stripe.module';
 import { PaymentsModule } from '../payments/payments.module';
 
-// ✅ new modules from previous steps
+// ✅ Mailer
 import { MailerModule } from '../mailer/mailer.module';
+
+// ✅ Dev-only test endpoints (email test etc.)
+import { DevModule } from '../dev/dev.module';
+
+const devOnlyModules = process.env.NODE_ENV === 'production' ? [] : [DevModule];
 
 @Module({
   imports: [
@@ -49,9 +54,12 @@ import { MailerModule } from '../mailer/mailer.module';
     SearchModule,
 
     // infra / integrations
-    MailerModule, // provides token 'MAIL_SERVICE' for PaymentsController
+    MailerModule, // provides MailerService used by Payments / Dev test
     StripeModule,
     PaymentsModule, // /payments/* routes
+
+    // 🚧 loaded only in non-prod
+    ...devOnlyModules,
   ],
   controllers: [ImageProxyController, HealthController],
 })
