@@ -9,6 +9,7 @@ import ListItemText from '@mui/material/ListItemText';
 import ListItemIcon, { listItemIconClasses } from '@mui/material/ListItemIcon';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import CircularProgress from '@mui/material/CircularProgress'; // ✨ NEW
 import MenuButton from './MenuButton';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
@@ -31,6 +32,7 @@ export default function OptionsMenu() {
   const { t } = useTranslation();
   const { logout } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [busy, setBusy] = React.useState(false); // ✨ NEW
   const location = useLocation();
   const navigate = useNavigate();
   const open = Boolean(anchorEl);
@@ -47,11 +49,15 @@ export default function OptionsMenu() {
   };
 
   const handleLogout = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       await logout();
-      navigate(ROUTES.LOGIN, { replace: true }); // ← important
+      // logout() already clears state; navigate is a nice extra
+      navigate(ROUTES.LOGIN, { replace: true });
     } catch (error) {
       console.error('Logout failed:', error);
+      setBusy(false); // in case logout threw without redirect
     } finally {
       setAnchorEl(null);
     }
@@ -83,6 +89,7 @@ export default function OptionsMenu() {
         <StyledListItemButton
           selected={isSelected(ROUTES.PROFILE)}
           onClick={handleNavigate(ROUTES.PROFILE)}
+          disabled={busy} // prevent actions while logging out
         >
           <ListItemText
             primary={t('menu.profile', { defaultValue: 'Profile' })}
@@ -93,15 +100,24 @@ export default function OptionsMenu() {
 
         <StyledListItemButton
           onClick={handleLogout}
+          disabled={busy} // ✨ NEW
           sx={{
             [`& .${listItemIconClasses.root}`]: { ml: 'auto', minWidth: 0 },
           }}
         >
           <ListItemText
-            primary={t('menu.logout', { defaultValue: 'Logout' })}
+            primary={
+              busy
+                ? t('menu.loggingOut', { defaultValue: 'Logging out…' })
+                : t('menu.logout', { defaultValue: 'Logout' })
+            }
           />
           <ListItemIcon>
-            <LogoutRoundedIcon fontSize="small" />
+            {busy ? (
+              <CircularProgress size={16} thickness={5} />
+            ) : (
+              <LogoutRoundedIcon fontSize="small" />
+            )}
           </ListItemIcon>
         </StyledListItemButton>
       </Menu>
