@@ -2,5 +2,6 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "testEnvironment": "node",
   "transform": { "^.+\\.(t|j)s$": "ts-jest" },
-  "testRegex": ".*\\.e2e[-\\.]?(spec|test)\\.ts$"
+  "testRegex": ".*\\.e2e[-\\.]?(spec|test)\\.ts$",
+  "setupFiles": ["<rootDir>/apps/api/test/jest.setup.ts"]
 }

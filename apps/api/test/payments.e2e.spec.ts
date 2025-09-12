@@ -10,6 +10,19 @@ import * as bodyParser from 'body-parser';
 import { PaymentsController } from '../src/payments/payments.controller';
 import { MailerService } from '../src/mailer/mailer.service'; // 👈 FIX: import real token
 
+// 🔒 Local alias (with fallback) for rate-limit toggling; works with or without jest.setup.ts
+const withRateLimitEnabled: <T>(fn: () => Promise<T> | T) => Promise<T> =
+  (global as any).withRateLimitEnabled ??
+  (async (fn) => {
+    const prev = process.env.DISABLE_RATE_LIMIT;
+    try {
+      process.env.DISABLE_RATE_LIMIT = 'false';
+      return await fn();
+    } finally {
+      process.env.DISABLE_RATE_LIMIT = prev ?? 'true';
+    }
+  });
+
 // Firestore mock must be defined BEFORE the controller is imported (we already imported controller above,
 // but controller does a runtime import of @common/firebase; Jest hoists mocks so this is still OK)
 jest.mock('@common/firebase', () => {
@@ -774,27 +787,31 @@ describe('PaymentsController (e2e)', () => {
   });
 
   it('rate-limits create-intent bursts (10/min/IP)', async () => {
-    // Avoid network; cheap Stripe + Firestore mocks
-    jest
-      .spyOn((ctrl as any).stripe.paymentIntents, 'create')
-      .mockResolvedValue({ id: 'pi_rate', client_secret: 'cs_rate' } as any);
-    db.collection.mockReturnThis();
-    db.doc.mockReturnThis();
-    db.get = jest.fn().mockResolvedValue({ get: () => null }); // settings lookups return 0s
+    await withRateLimitEnabled(async () => {
+      // Avoid network; cheap Stripe + Firestore mocks
+      jest
+        .spyOn((ctrl as any).stripe.paymentIntents, 'create')
+        .mockResolvedValue({ id: 'pi_rate', client_secret: 'cs_rate' } as any);
 
-    const ip = '1.1.1.1';
-    const statuses: number[] = [];
-    for (let i = 0; i < 11; i++) {
-      const r = await request(app.getHttpServer())
-        .post(createIntentPath)
-        .set('X-Forwarded-For', ip)
-        .send({ cartId: `burst-${i}`, items: [], currency: 'ILS' });
-      statuses.push(r.status);
-    }
-    expect(statuses.slice(0, 10).every((s) => [200, 201].includes(s))).toBe(
-      true,
-    );
-    expect(statuses[10]).toBe(429);
+      db.collection.mockReturnThis();
+      db.doc.mockReturnThis();
+      db.get = jest.fn().mockResolvedValue({ get: () => null }); // settings lookups return 0s
+
+      const ip = '1.1.1.1';
+      const statuses: number[] = [];
+      for (let i = 0; i < 11; i++) {
+        const r = await request(app.getHttpServer())
+          .post(createIntentPath)
+          .set('X-Forwarded-For', ip)
+          .send({ cartId: `burst-${i}`, items: [], currency: 'ILS' });
+        statuses.push(r.status);
+      }
+
+      expect(statuses.slice(0, 10).every((s) => [200, 201].includes(s))).toBe(
+        true,
+      );
+      expect(statuses[10]).toBe(429);
+    });
   });
 
   it('throws in production when STRIPE_SECRET_KEY is a test key', async () => {
