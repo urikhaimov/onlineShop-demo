@@ -41,15 +41,22 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 
+import { MailerService } from '../src/mailer/mailer.service'; // ✅ use class token
+
 describe('Resend receipt', () => {
   let app: INestApplication;
-  const mailer = { sendOrderConfirmation: jest.fn() };
+  const mailer = { sendOrderConfirmation: jest.fn() } as Pick<
+    MailerService,
+    'sendOrderConfirmation'
+  >;
 
   beforeAll(async () => {
     // Ensure the path and file name are correct and do not include a file extension
     const { PaymentsModule } = await import('../src/payments/payments.module');
+
     const mod = await Test.createTestingModule({ imports: [PaymentsModule] })
-      .overrideProvider('MAIL_SERVICE')
+      // ✅ override the real DI token (the class), not a string
+      .overrideProvider(MailerService)
       .useValue(mailer)
       .compile();
 

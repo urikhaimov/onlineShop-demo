@@ -8,6 +8,7 @@ import * as bodyParser from 'body-parser';
 
 // ✅ Only the controller — avoid full AppModule to prevent long init/hangs
 import { PaymentsController } from '../src/payments/payments.controller';
+import { MailerService } from '../src/mailer/mailer.service'; // 👈 FIX: import real token
 
 // Firestore mock must be defined BEFORE the controller is imported (we already imported controller above,
 // but controller does a runtime import of @common/firebase; Jest hoists mocks so this is still OK)
@@ -111,7 +112,7 @@ describe('PaymentsController (e2e)', () => {
       controllers: [PaymentsController],
       providers: [
         { provide: ConfigService, useValue: configMock },
-        { provide: 'MAIL_SERVICE', useValue: mailerMock }, // 👈 provide optional mailer
+        { provide: MailerService, useValue: mailerMock }, // 👈 FIX: provide class token, not 'MAIL_SERVICE'
       ],
     }).compile();
 
@@ -128,6 +129,9 @@ describe('PaymentsController (e2e)', () => {
     };
     // Mount on the expected prefixed path before init
     app.use(`/${apiPrefix}/payments/webhooks/stripe`, stripeRaw, ensureRawBody);
+
+    // 👇 FIX: also mount JSON parser AFTER raw for other routes (e.g., create-intent)
+    app.use(bodyParser.json()); // 👈 FIX
 
     await app.init();
 

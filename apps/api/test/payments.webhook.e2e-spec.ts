@@ -5,6 +5,8 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import Stripe from 'stripe';
+import * as bodyParser from 'body-parser';
+import { MailerService } from '../src/mailer/mailer.service'; // ✅ use class token
 
 // ---- Mock FieldValue.increment so we can apply stock math in our fake DB
 jest.mock('firebase-admin/firestore', () => ({
@@ -80,7 +82,10 @@ describe('Stripe Webhook (raw body + signature)', () => {
   const route = '/api/payments/webhooks/stripe';
 
   // test mailer
-  const mailer = {
+  const mailer: Pick<
+    MailerService,
+    'sendOrderConfirmation' | 'sendRefundEmail'
+  > = {
     sendOrderConfirmation: jest.fn(),
     sendRefundEmail: jest.fn(),
   };
@@ -107,14 +112,26 @@ describe('Stripe Webhook (raw body + signature)', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [PaymentsModule],
     })
-      // ✅ ensure PaymentsController receives our mock mailer
-      .overrideProvider('MAIL_SERVICE')
+      // ✅ ensure PaymentsController receives our mock mailer (class token)
+      .overrideProvider(MailerService)
       .useValue(mailer)
       .compile();
 
     // expose req.rawBody
     app = moduleRef.createNestApplication({ rawBody: true });
     app.setGlobalPrefix('api');
+
+    // ✅ Mount raw body parser for the webhook route BEFORE json()
+    const rawMw = bodyParser.raw({ type: '*/*', limit: '2mb' });
+    const ensureRaw = (req: any, _res: any, next: any) => {
+      if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
+      next();
+    };
+    app.use(route, rawMw, ensureRaw);
+
+    // ✅ JSON for all other routes
+    app.use(bodyParser.json());
+
     await app.init();
   });
 
