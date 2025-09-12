@@ -4,6 +4,9 @@ import * as path from 'node:path';
 
 const usePreview = !!process.env.PW_PREVIEW;
 const cwdRoot = path.resolve(__dirname, '../../'); // repo root
+const HOST = process.env.PW_HOST ?? '127.0.0.1';
+const PORT = Number(process.env.PW_PORT ?? 5173);
+const BASE_URL = process.env.PW_BASE_URL ?? `http://${HOST}:${PORT}`;
 
 export default defineConfig({
   testDir: './src/e2e',
@@ -14,32 +17,39 @@ export default defineConfig({
     '**/*.spec.*',
   ],
   timeout: 60_000,
-  retries: 0,
+  expect: { timeout: 15_000 },
+  retries: process.env.CI ? 2 : 0,
+  reporter: [['list'], ['html', { open: 'never' }]],
+
   use: {
-    baseURL: process.env.PW_BASE_URL ?? 'http://127.0.0.1:5173',
-    trace: 'retain-on-failure',
+    baseURL: BASE_URL,
     headless: true,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    testIdAttribute: 'data-testid',
+    viewport: { width: 1280, height: 900 },
   },
 
+  // Start app server for tests. Preview = build + serve /dist; else dev server.
   webServer: usePreview
     ? {
-        // ✅ Build + preview (serves built /dist/apps/client)
-        command: [
-          'npx nx build client --skip-nx-cache',
-          // Serve with same host/port as dev so baseURL stays valid
-          'npx vite preview --host 127.0.0.1 --port 5173 --strictPort --config apps/client/vite.config.mts',
-        ].join(' && '),
-        port: 5173,
+        // You can override with PW_PREVIEW_CMD if needed.
+        command:
+          process.env.PW_PREVIEW_CMD ??
+          [
+            'npx nx build client --skip-nx-cache',
+            `npx vite preview --host ${HOST} --port ${PORT} --strictPort --config apps/client/vite.config.mts`,
+          ].join(' && '),
+        port: PORT,
         reuseExistingServer: true,
         timeout: 180_000,
         cwd: cwdRoot,
-        env: { E2E: '1' }, // turns off proxy & CSP in your vite config
+        env: { E2E: '1' }, // disables proxy/CSP etc. in your vite config
       }
     : {
-        // Dev server for local debugging
-        command:
-          'npx vite --host 127.0.0.1 --port 5173 --strictPort --config apps/client/vite.config.mts',
-        port: 5173,
+        command: `npx vite --host ${HOST} --port ${PORT} --strictPort --config apps/client/vite.config.mts`,
+        port: PORT,
         reuseExistingServer: true,
         timeout: 120_000,
         cwd: cwdRoot,
