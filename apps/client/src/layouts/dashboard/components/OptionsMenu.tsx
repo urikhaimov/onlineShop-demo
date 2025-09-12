@@ -29,7 +29,7 @@ const StyledListItemButton = styled(ListItemButton)(() => ({
 
 export default function OptionsMenu() {
   const { t } = useTranslation();
-  const { signOut } = useAuth();
+  const { logout } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ export default function OptionsMenu() {
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      await logout();
       navigate(ROUTES.LOGIN, { replace: true }); // ← important
     } catch (error) {
       console.error('Logout failed:', error);

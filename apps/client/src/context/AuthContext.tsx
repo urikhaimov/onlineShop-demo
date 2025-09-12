@@ -44,7 +44,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       if (u) {
         try {
-          // ✅ FIX: define token before accessing token.claims
           const token = await u.getIdTokenResult(false);
           const claim = (token.claims.role as string | undefined) ?? null;
 
@@ -81,11 +80,34 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await auth.currentUser?.getIdToken(true);
   };
 
+  // ✅ Bullet-proof logout: sign out, clear storages, hard-redirect.
   const logout: AuthContextType['logout'] = async () => {
     try {
       await signOut(auth);
     } finally {
+      setUser(null);
       setRole(null);
+      setIsAuthReady(true);
+      // Clear persisted Firebase session + app caches
+      try {
+        indexedDB.deleteDatabase('firebaseLocalStorageDb');
+      } catch {
+        // Ignore
+      }
+      try {
+        sessionStorage.clear();
+      } catch {
+        // Ignore
+      }
+      try {
+        localStorage.clear();
+      } catch {
+        // Ignore
+      }
+      // Hard redirect to ensure no stale UI state remains
+      if (typeof window !== 'undefined') {
+        window.location.assign('/login');
+      }
     }
   };
 
