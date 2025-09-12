@@ -21,7 +21,7 @@ function parseOrigins(v?: string): (string | RegExp)[] {
 }
 
 async function bootstrap() {
-  // Keep a copy of the original raw body (needed for Stripe webhooks)
+  // Keep a copy of the original raw body (needed for webhooks)
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
@@ -54,19 +54,22 @@ async function bootstrap() {
     next();
   });
 
-  // --- Stripe webhook raw body (must be BEFORE any JSON/urlencoded parser for those paths) ---
+  // --- Webhook raw body (must be BEFORE any JSON/urlencoded parser for those paths) ---
   // Use '*/*' to be robust to proxies that tweak content-type params.
-  const stripeRaw = bodyParser.raw({ type: '*/*', limit: '2mb' });
+  const webhookRaw = bodyParser.raw({ type: '*/*', limit: '2mb' });
   const ensureRawBody = (req: any, _res: any, next: any) => {
     if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
     next();
   };
+
+  // Add your Wolt webhook path here (alongside Stripe)
   const webhookPaths = [
     `/${apiPrefix}/orders/webhook`,
     `/${apiPrefix}/payments/webhooks/stripe`,
+    `/${apiPrefix}/webhooks/wolt`, // ← Wolt webhook
   ];
-  webhookPaths.forEach((p) => app.use(p, stripeRaw, ensureRawBody));
-  // --------------------------------------------------------------------------------------------
+  webhookPaths.forEach((p) => app.use(p, webhookRaw, ensureRawBody));
+  // -------------------------------------------------------------------------------------
 
   // Standard parsers for the rest of the app
   app.use(bodyParser.json({ limit: '1mb' }));
@@ -131,7 +134,7 @@ async function bootstrap() {
     }),
   );
 
-  // CORS for your client
+  // CORS for your client (webhooks are server-to-server; this only affects browser calls)
   app.enableCors({
     origin: [
       frontendOrigin,
@@ -148,6 +151,8 @@ async function bootstrap() {
       'x-lang',
       'stripe-signature',
       'Stripe-Signature',
+      'x-signature', // common HMAC header (Wolt)
+      'X-Signature',
     ],
     exposedHeaders: ['X-Total-Count', 'X-Total', 'X-Total-Results'],
     maxAge: 600,
