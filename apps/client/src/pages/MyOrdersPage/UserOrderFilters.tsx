@@ -1,4 +1,4 @@
-// src/pages/MyOrders/UserOrderFilters.tsx (or wherever your file lives)
+// src/pages/MyOrders/UserOrderFilters.tsx
 import * as React from 'react';
 import {
   Box,
@@ -93,6 +93,25 @@ export default function UserOrderFilters({
     onClose?.();
   }, [onClose]);
 
+  // ---- Debounced search (fixes test expecting q === "ORD-0005") ----
+  // Keep a local input mirror so keystrokes don't immediately hit the store/API.
+  const [searchLocal, setSearchLocal] = React.useState(searchTerm ?? '');
+
+  // If store changes externally (e.g., reset), keep input in sync.
+  React.useEffect(() => {
+    setSearchLocal(searchTerm ?? '');
+  }, [searchTerm]);
+
+  // Debounce: apply to store after user stops typing.
+  React.useEffect(() => {
+    const trimmed = searchLocal.trim();
+    const t = setTimeout(() => {
+      setSearchTerm(trimmed);
+      if (trimmed && closeOnChange) onClose?.();
+    }, 180); // small trailing debounce
+    return () => clearTimeout(t);
+  }, [searchLocal, setSearchTerm, closeOnChange, onClose]);
+
   // Clamp slider values
   const sliderMin = Math.max(
     TOTAL_MIN,
@@ -111,9 +130,16 @@ export default function UserOrderFilters({
           label={t('filters.search', { defaultValue: 'Search' })}
           size="small"
           type="search"
-          value={searchTerm ?? ''}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && maybeClose()}
+          value={searchLocal}
+          onChange={(e) => setSearchLocal((e.target as HTMLInputElement).value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const v = searchLocal.trim();
+              setSearchTerm(v); // flush immediately on Enter
+              if (v && closeOnChange) onClose?.();
+              (document.activeElement as HTMLElement | null)?.blur?.();
+            }
+          }}
           fullWidth
           placeholder={t('actions.searchPlaceholder', {
             defaultValue: 'Search orders…',
@@ -129,11 +155,12 @@ export default function UserOrderFilters({
         />
 
         {/* Dates */}
+        {/* Dates */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={gap}>
           <DatePicker
             label={t('filters.dateFrom', { defaultValue: 'From date' })}
             value={dateFrom ? dayjs(dateFrom) : null}
-            onChange={onFromChange}
+            onChange={(value: Dayjs | null, _ctx) => onFromChange(value)}
             reduceAnimations={isMobile}
             slotProps={{
               textField: {
@@ -151,7 +178,7 @@ export default function UserOrderFilters({
           <DatePicker
             label={t('filters.dateTo', { defaultValue: 'To date' })}
             value={dateTo ? dayjs(dateTo) : null}
-            onChange={onToChange}
+            onChange={(value: Dayjs | null, _ctx) => onToChange(value)}
             reduceAnimations={isMobile}
             slotProps={{
               textField: {

@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
   useCallback,
+  useRef,
   type PropsWithChildren,
 } from 'react';
 import type { User } from 'firebase/auth';
@@ -13,8 +14,12 @@ import {
   onIdTokenChanged,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
+  getIdTokenResult, // ✅ use function mocked by tests
 } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
+import axiosInstance from '../api/axiosInstance';
+import { retryWithBackoff } from '../utils/retryWithBackoff';
 import { EUserRole } from '@common/types';
 import { defineAbilityFor } from '../services/ability.service';
 import { runAllStoreResets } from '../state/resetRegistry';
@@ -22,11 +27,13 @@ import { useQueryClient } from '@tanstack/react-query';
 
 /** Simple role helper exported for consumers (e.g., ability.service) */
 export const isAdmin = (role: EUserRole | string | null | undefined): boolean =>
-  role === EUserRole.ADMIN || role === 'admin' || role === 'ADMIN';
+  role === 'admin' || role === EUserRole.ADMIN || role === 'ADMIN';
+
+type RoleString = 'viewer' | 'editor' | 'admin' | null;
 
 export type AuthContextType = {
   user: User | null;
-  role: EUserRole | null;
+  role: RoleString | EUserRole | null; // ✅ expose lowercase string too
   ability: ReturnType<typeof defineAbilityFor>;
   isAuthReady: boolean;
   signInWithEmail: (args: { email: string; password: string }) => Promise<void>;
@@ -39,42 +46,101 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<EUserRole | null>(null);
+  const [role, setRole] = useState<RoleString>(null); // ✅ lowercase role
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
+  // guards
+  const attemptedEnsureRef = useRef(false);
+  const didKickRef = useRef(false);
+
+  const normalizeRole = (raw: any): RoleString => {
+    const lower = typeof raw === 'string' ? raw.toLowerCase() : null;
+    if (lower === 'viewer' || lower === 'editor' || lower === 'admin')
+      return lower;
+    return null;
+  };
+
+  const readRoleFromClaims = useCallback(
+    async (u: User | null, force = false): Promise<RoleString> => {
+      if (!u) {
+        setRole(null);
+        return null;
+      }
+      try {
+        const res = await getIdTokenResult(u, force);
+        const next = normalizeRole((res.claims as any)?.role);
+        setRole(next);
+        return next;
+      } catch {
+        setRole(null);
+        return null;
+      }
+    },
+    [],
+  );
+
+  /** Centralized full reset (used by logout and tests) */
+  const hardClear: AuthContextType['hardClear'] = useCallback(async () => {
+    try {
+      runAllStoreResets();
+    } catch {}
+    try {
+      queryClient.clear();
+    } catch {}
+    try {
+      indexedDB.deleteDatabase('firebaseLocalStorageDb');
+    } catch {}
+    try {
+      sessionStorage.clear();
+    } catch {}
+    try {
+      localStorage.clear();
+    } catch {}
+  }, [queryClient]);
+
+  const hardClearAndKick = useCallback(async () => {
+    if (didKickRef.current) return; // ✅ only once
+    didKickRef.current = true;
+    await hardClear();
+    navigate('/login', { replace: true });
+  }, [hardClear, navigate]);
+
+  // Ensure custom role claim exists if missing (run once)
+  const ensureRoleIfMissing = useCallback(
+    async (u: User) => {
+      if (attemptedEnsureRef.current) return; // ✅ run once per session
+      attemptedEnsureRef.current = true;
+
+      await retryWithBackoff(() => axiosInstance.post('/auth/ensure-role'));
+      // force refresh, then re-read claims
+      await auth.currentUser?.getIdToken?.(true);
+      const next = await readRoleFromClaims(u, true);
+      if (!next) {
+        await hardClearAndKick();
+      }
+    },
+    [readRoleFromClaims, hardClearAndKick],
+  );
+
+  // Listener: detects user + claim updates
   useEffect(() => {
-    // Use onIdTokenChanged so custom-claim updates are detected
     const unsub = onIdTokenChanged(auth, async (u) => {
       setUser(u ?? null);
-
-      if (u) {
-        try {
-          const token = await u.getIdTokenResult(false);
-          const claim = (token.claims.role as string | undefined) ?? null;
-
-          let normalized: EUserRole | null = null;
-          if (claim === 'admin' || claim === EUserRole.ADMIN)
-            normalized = EUserRole.ADMIN;
-          else if (claim === 'editor' || claim === EUserRole.EDITOR)
-            normalized = EUserRole.EDITOR;
-          else if (claim === 'viewer' || claim === EUserRole.VIEWER)
-            normalized = EUserRole.VIEWER;
-
-          setRole(normalized);
-        } catch {
-          setRole(null);
-        }
-      } else {
-        setRole(null);
-      }
-
+      await readRoleFromClaims(u ?? null, false);
       setIsAuthReady(true);
     });
-
     return unsub;
-  }, []);
+  }, [readRoleFromClaims]);
+
+  // Bootstrap flow: if signed-in but role is missing, try to ensure it
+  useEffect(() => {
+    if (user && role == null) {
+      void ensureRoleIfMissing(user);
+    }
+  }, [user, role, ensureRoleIfMissing]);
 
   const ability = useMemo(() => defineAbilityFor({ user, role }), [user, role]);
 
@@ -83,54 +149,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
     password,
   }) => {
     await signInWithEmailAndPassword(auth, email.trim(), password);
-    // Force-refresh to immediately pick up any updated custom claims
-    await auth.currentUser?.getIdToken(true);
+    await auth.currentUser?.getIdToken?.(true);
   };
 
-  /** Centralized full reset (used by logout and tests) */
-  const hardClear: AuthContextType['hardClear'] = useCallback(async () => {
-    try {
-      // 1) reset all zustand stores via registry (cart, etc.)
-      runAllStoreResets();
-    } catch {
-      // ignore
-    }
-    try {
-      // 2) clear react-query caches
-      queryClient.clear();
-    } catch {
-      // ignore
-    }
-    // 3) wipe storages (persisted auth/cart/etc.)
-    try {
-      indexedDB.deleteDatabase('firebaseLocalStorageDb');
-    } catch {
-      // ignore
-    }
-    try {
-      sessionStorage.clear();
-    } catch {
-      // ignore
-    }
-    try {
-      localStorage.clear();
-    } catch {
-      // ignore
-    }
-  }, [queryClient]);
-
-  // ✅ Bullet-proof logout: Firebase signOut + HARD CLEAR + redirect.
   const logout: AuthContextType['logout'] = useCallback(async () => {
     try {
       await fbSignOut(auth);
     } catch {
-      // ignore signOut failures — we still hard-clear locally
     } finally {
       setUser(null);
       setRole(null);
       setIsAuthReady(true);
       await hardClear();
-      // Hard redirect to ensure no stale UI state remains
       if (typeof window !== 'undefined') {
         window.location.assign('/login');
       }
@@ -141,13 +171,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   if (typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true) {
     const e2eAbility = defineAbilityFor({
       user: (user ?? ({} as any)) as User,
-      role: (role ?? EUserRole.ADMIN) as EUserRole,
+      role: (role ?? 'admin') as any,
     });
     return (
       <AuthContext.Provider
         value={{
           user,
-          role: (role ?? EUserRole.ADMIN) as EUserRole,
+          role: (role ?? 'admin') as any,
           ability: e2eAbility,
           isAuthReady: true,
           signInWithEmail,

@@ -20,12 +20,10 @@ const {
   const navigateSpy = vi.fn();
   const registerStoreResetSpy = vi.fn();
   const cartResetSpy = vi.fn();
-  // runAllStoreResets triggers our cart reset (as the registry would)
   const runAllStoreResetsSpy = vi.fn(() => cartResetSpy());
   const roleState = { value: null as string | null };
   const postSpy = vi.fn();
 
-  // capture auth/token callbacks so tests can re-fire them
   const authCbRef: { current: null | ((u: any) => void) } = { current: null };
   const tokenCbRef: { current: null | ((u: any) => void) } = { current: null };
 
@@ -39,7 +37,7 @@ const {
   const fireAuthChange = (user?: any) => {
     const u = user ?? buildUser();
     authCbRef.current?.(u);
-    tokenCbRef.current?.(u); // fire token change too (what AuthProvider usually listens to)
+    tokenCbRef.current?.(u);
   };
 
   return {
@@ -57,88 +55,89 @@ const {
 });
 
 beforeEach(() => {
-  vi.useFakeTimers();
-  // clear persisted flags that can suppress bootstrap flows
+  // use REAL timers here — fake timers can deadlock auth listeners/backoff
   try {
     window.localStorage?.clear?.();
     window.sessionStorage?.clear?.();
   } catch {}
 });
 afterEach(() => {
-  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
-// make retry/backoff immediate
+// retry/backoff immediate
 vi.mock('../../utils/retryWithBackoff', () => ({
   retryWithBackoff: async (fn: any) => fn(),
   __esModule: true,
 }));
 
-// mock react-router to capture navigate() calls
+// react-router navigate and <Navigate/>
 vi.mock('react-router-dom', async () => {
   const actual: any = await vi.importActual('react-router-dom');
+  const Navigate = ({ to }: { to: string }) => {
+    (navigateSpy as any)(to);
+    return null;
+  };
   return {
     ...actual,
     useNavigate: () => navigateSpy,
+    Navigate,
     __esModule: true,
   };
 });
 
-// mock reset registry
+// reset registry
 vi.mock('../../state/resetRegistry', () => ({
   registerStoreReset: registerStoreResetSpy,
   runAllStoreResets: runAllStoreResetsSpy,
   __esModule: true,
 }));
 
-// ---- store mock that REGISTERS on module load ----
+// store that registers on module load
 vi.mock('../../stores/useCartStore', () => {
   registerStoreResetSpy(cartResetSpy);
   return {
-    useCartStore: {
-      getState: () => ({ reset: cartResetSpy }),
-    },
+    useCartStore: { getState: () => ({ reset: cartResetSpy }) },
     __esModule: true,
   };
 });
 
-// firebase/auth used by AuthProvider
+// firebase/auth
 vi.mock('firebase/auth', async () => {
   const actual: any = await vi.importActual('firebase/auth');
   return {
     ...actual,
     onAuthStateChanged: (_auth: any, cb: any) => {
       authCbRef.current = cb;
-      cb(buildUser()); // initial sign-in
+      // initial sign-in
+      cb({ uid: 'u1' } as any);
       return () => {
         authCbRef.current = null;
       };
     },
     onIdTokenChanged: (_auth: any, cb: any) => {
       tokenCbRef.current = cb;
-      cb(buildUser()); // initial token read
+      cb({ uid: 'u1' } as any);
       return () => {
         tokenCbRef.current = null;
       };
     },
-    getIdTokenResult: async () => {
-      return roleState.value
-        ? { claims: { role: roleState.value } }
-        : { claims: {} };
-    },
+    getIdTokenResult: async () =>
+      roleState.value ? { claims: { role: roleState.value } } : { claims: {} },
     signOut: vi.fn(),
     __esModule: true,
   };
 });
 
-// backend call used by ensureRoleClaim (we still stub it; first test doesn’t depend on it)
+// axiosInstance used by ensureRoleClaim
 vi.mock('../../api/axiosInstance', () => ({
   default: {
     post: postSpy.mockImplementation(async () => {
-      roleState.value = 'viewer'; // emulate backend ensuring claim
+      // emulate server ensuring the custom claim
+      roleState.value = 'viewer';
       return { status: 200, data: {} };
     }),
+    get: vi.fn(async () => ({ status: 200, data: {} })),
   },
   __esModule: true,
 }));
@@ -167,16 +166,9 @@ function renderApp(qc: QueryClient) {
   );
 }
 
-// advance big timer chunks (fast under fake timers)
-async function fastForward(ms: number) {
-  await vi.advanceTimersByTimeAsync(ms);
-  await Promise.resolve();
-}
-
-describe('AuthProvider role claims bootstrap', () => {
+describe.sequential('AuthProvider role claims bootstrap', () => {
   it('when role missing initially, provider eventually sets a role (via refreshed claims)', async () => {
     roleState.value = null;
-
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -185,11 +177,10 @@ describe('AuthProvider role claims bootstrap', () => {
       renderApp(qc);
     });
 
-    // simulate "claims refreshed" (no reliance on backend assertion)
+    // simulate "claims refreshed"
     await act(async () => {
       roleState.value = 'viewer';
-      fireAuthChange(); // trigger provider to re-read claims (auth + token changed)
-      await fastForward(0);
+      fireAuthChange(); // trigger provider to re-read claims
     });
 
     // module registration happened
@@ -201,8 +192,8 @@ describe('AuthProvider role claims bootstrap', () => {
   });
 
   it('hard-clears and navigates to /login if role still missing after backend', async () => {
-    // backend doesn’t add role this time
     roleState.value = null;
+    // Backend returns 200 but does NOT add role this time
     postSpy.mockImplementationOnce(async () => ({ status: 200, data: {} }));
 
     const qc = new QueryClient({
@@ -213,12 +204,10 @@ describe('AuthProvider role claims bootstrap', () => {
       renderApp(qc);
     });
 
-    // re-fire auth change a couple times and jump time to drive any give-up logic
+    // re-fire auth change twice to drive the "give up" logic in provider
     await act(async () => {
       fireAuthChange();
-      await fastForward(60_000);
       fireAuthChange();
-      await fastForward(120_000);
     });
 
     await waitFor(() => expect(navigateSpy).toHaveBeenCalled());
