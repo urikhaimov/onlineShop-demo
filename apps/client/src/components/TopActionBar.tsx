@@ -64,6 +64,14 @@ export default function TopActionBar({
     borderColor: 'divider',
   };
 
+  // Stable accessible names for e2e + a11y (independent of UI language)
+  const a11y = {
+    openFilters: t('a11y.openFilters', { defaultValue: 'Open filters' }),
+    resetFilters: t('a11y.resetFilters', { defaultValue: 'Reset filters' }),
+    tableView: t('a11y.tableView', { defaultValue: 'Table view' }),
+    cardsView: t('a11y.cardsView', { defaultValue: 'Cards view' }),
+  };
+
   return (
     <Stack
       direction="row"
@@ -87,6 +95,9 @@ export default function TopActionBar({
           startIcon={<FilterListIcon />}
           disableElevation
           sx={inactiveBtnSx}
+          aria-label={a11y.openFilters}
+          title={a11y.openFilters}
+          data-testid="btn-open-filters"
         >
           {t('filters.open')}
         </Button>
@@ -98,6 +109,9 @@ export default function TopActionBar({
           startIcon={<RestartAltIcon />}
           disableElevation
           sx={inactiveBtnSx}
+          aria-label={a11y.resetFilters}
+          title={a11y.resetFilters}
+          data-testid="btn-reset-filters"
         >
           {t('filters.reset')}
         </Button>
@@ -117,6 +131,9 @@ export default function TopActionBar({
           disableElevation
           variant="outlined"
           sx={viewMode === 'table' ? activeBtnSx : inactiveBtnSx}
+          aria-label="Table view"
+          title="Table view"
+          data-testid="view-table"
         >
           {t('view.table')}
         </Button>
@@ -128,6 +145,9 @@ export default function TopActionBar({
           disableElevation
           variant="outlined"
           sx={viewMode === 'cards' ? activeBtnSx : inactiveBtnSx}
+          aria-label="Cards view"
+          title="Cards view"
+          data-testid="view-cards"
         >
           {t('view.cards')}
         </Button>

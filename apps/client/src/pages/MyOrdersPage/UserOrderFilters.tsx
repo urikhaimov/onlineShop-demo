@@ -1,3 +1,4 @@
+// src/pages/MyOrders/UserOrderFilters.tsx (or wherever your file lives)
 import * as React from 'react';
 import {
   Box,
@@ -17,12 +18,13 @@ import RangeFilterSlider from '../../components/RangeFilterSlider';
 import { useTranslation } from 'react-i18next';
 import { ECurrency } from '@common/types';
 import { formatCurrency } from '@common/utils';
+
 const TOTAL_MIN = 0;
 const TOTAL_MAX = 100_000;
 
 type Props = {
-  onClose?: () => void; // drawer closer (used by Apply)
-  closeOnChange?: boolean; // optional: auto-close after each change
+  onClose?: () => void;
+  closeOnChange?: boolean;
 };
 
 export default function UserOrderFilters({
@@ -33,13 +35,11 @@ export default function UserOrderFilters({
   const mui = useTheme();
   const isMobile = useMediaQuery(mui.breakpoints.down('sm'));
 
-  // ---- Theme-aware rhythm (spacing/radius/shadows) ----
+  // Theme rhythm
   const { themeSettings } = useThemeStore();
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
-
   const gapUnit = Math.max(1, Math.round(2 * spacingScale));
   const gap = mui.spacing(gapUnit);
-
   const padX = {
     xs: mui.spacing(1.5 * spacingScale),
     sm: mui.spacing(2 * spacingScale),
@@ -49,7 +49,7 @@ export default function UserOrderFilters({
     sm: mui.spacing(1.25 * spacingScale),
   };
 
-  // ---- Store state ----
+  // Store state
   const {
     searchTerm,
     status,
@@ -66,13 +66,9 @@ export default function UserOrderFilters({
     resetFilters,
   } = useOrderFilterStore();
 
-  // ---- Helpers ----
   const currency = (v: number) =>
     formatCurrency(v, ECurrency.ILS, i18n.language);
-
-  const maybeClose = () => {
-    if (closeOnChange && onClose) onClose();
-  };
+  const maybeClose = () => closeOnChange && onClose?.();
 
   const onFromChange = (d: Dayjs | null) => {
     const next = d ? d.format('YYYY-MM-DD') : null;
@@ -90,16 +86,14 @@ export default function UserOrderFilters({
 
   const handleReset = () => {
     resetFilters();
-    // keep drawer open on reset; call maybeClose() if you want auto-close
   };
 
-  // Apply: blur active element (IME/keyboard) then close the drawer
   const handleApply = React.useCallback(() => {
     (document.activeElement as HTMLElement | null)?.blur?.();
     onClose?.();
   }, [onClose]);
 
-  // Clamp slider values safely
+  // Clamp slider values
   const sliderMin = Math.max(
     TOTAL_MIN,
     Math.min(minTotal ?? TOTAL_MIN, TOTAL_MAX),
@@ -110,30 +104,26 @@ export default function UserOrderFilters({
   );
 
   return (
-    <Box
-      sx={{
-        // Give the drawer content a soft card feel and theme spacing
-
-        bgcolor: 'background.paper',
-        boxSizing: 'border-box',
-      }}
-    >
+    <Box sx={{ bgcolor: 'background.paper', boxSizing: 'border-box' }}>
       <Stack spacing={gap} sx={{ px: padX, py: padY }}>
         {/* Search */}
         <TextField
-          label={t('filters.search')}
+          label={t('filters.search', { defaultValue: 'Search' })}
           size="small"
           type="search"
           value={searchTerm ?? ''}
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && maybeClose()}
           fullWidth
-          placeholder={t('actions.searchPlaceholder')}
-          slotProps={{
-            htmlInput: {
-              inputMode: 'search',
-              'aria-label': t('filters.search') as string,
-            },
+          placeholder={t('actions.searchPlaceholder', {
+            defaultValue: 'Search orders…',
+          })}
+          inputProps={{
+            inputMode: 'search',
+            'aria-label': t('filters.search', {
+              defaultValue: 'Search',
+            }) as string,
+            'data-testid': 'orders-search',
           }}
           autoComplete="off"
         />
@@ -141,22 +131,38 @@ export default function UserOrderFilters({
         {/* Dates */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={gap}>
           <DatePicker
-            label={t('filters.dateFrom')}
+            label={t('filters.dateFrom', { defaultValue: 'From date' })}
             value={dateFrom ? dayjs(dateFrom) : null}
             onChange={onFromChange}
             reduceAnimations={isMobile}
             slotProps={{
-              textField: { fullWidth: true, size: 'small' },
+              textField: {
+                fullWidth: true,
+                size: 'small',
+                inputProps: {
+                  'aria-label': t('filters.dateFrom', {
+                    defaultValue: 'From date',
+                  }) as string,
+                },
+              },
               openPickerButton: { size: 'small' },
             }}
           />
           <DatePicker
-            label={t('filters.dateTo')}
+            label={t('filters.dateTo', { defaultValue: 'To date' })}
             value={dateTo ? dayjs(dateTo) : null}
             onChange={onToChange}
             reduceAnimations={isMobile}
             slotProps={{
-              textField: { fullWidth: true, size: 'small' },
+              textField: {
+                fullWidth: true,
+                size: 'small',
+                inputProps: {
+                  'aria-label': t('filters.dateTo', {
+                    defaultValue: 'To date',
+                  }) as string,
+                },
+              },
               openPickerButton: { size: 'small' },
             }}
           />
@@ -164,7 +170,7 @@ export default function UserOrderFilters({
 
         {/* Status */}
         <TextField
-          label={t('filters.status')}
+          label={t('filters.status', { defaultValue: 'Status' })}
           select
           size="small"
           value={status ?? ''}
@@ -173,18 +179,35 @@ export default function UserOrderFilters({
             maybeClose();
           }}
           fullWidth
+          inputProps={{
+            'aria-label': t('filters.status', {
+              defaultValue: 'Status',
+            }) as string,
+          }}
         >
-          <MenuItem value="">{t('filters.all')}</MenuItem>
-          <MenuItem value="pending">{t('orders.status.pending')}</MenuItem>
-          <MenuItem value="confirmed">{t('orders.status.confirmed')}</MenuItem>
-          <MenuItem value="shipped">{t('orders.status.shipped')}</MenuItem>
-          <MenuItem value="delivered">{t('orders.status.delivered')}</MenuItem>
-          <MenuItem value="cancelled">{t('orders.status.cancelled')}</MenuItem>
+          <MenuItem value="">
+            {t('filters.all', { defaultValue: 'All' })}
+          </MenuItem>
+          <MenuItem value="pending">
+            {t('orders.status.pending', { defaultValue: 'Pending' })}
+          </MenuItem>
+          <MenuItem value="confirmed">
+            {t('orders.status.confirmed', { defaultValue: 'Confirmed' })}
+          </MenuItem>
+          <MenuItem value="shipped">
+            {t('orders.status.shipped', { defaultValue: 'Shipped' })}
+          </MenuItem>
+          <MenuItem value="delivered">
+            {t('orders.status.delivered', { defaultValue: 'Delivered' })}
+          </MenuItem>
+          <MenuItem value="cancelled">
+            {t('orders.status.cancelled', { defaultValue: 'Cancelled' })}
+          </MenuItem>
         </TextField>
 
         {/* Total range */}
         <RangeFilterSlider
-          label={t('filters.totalRange')}
+          label={t('filters.totalRange', { defaultValue: 'Total range' })}
           min={TOTAL_MIN}
           max={TOTAL_MAX}
           step={50}
@@ -198,12 +221,11 @@ export default function UserOrderFilters({
         />
       </Stack>
 
-      {/* Footer actions (sticky within drawer, consistent spacing) */}
       <Box sx={{ px: padX, pb: padY }}>
         <FiltersFooterActions
           onReset={handleReset}
           onApply={handleApply}
-          showApply={isMobile} // show explicit Apply on mobile
+          showApply={isMobile}
           size="small"
           minButtonWidth={120}
         />

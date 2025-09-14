@@ -25,7 +25,6 @@ import type { IProduct } from '@common/types';
 import { useProductColumns } from './Columns';
 import { useCategories } from '../../../hooks/useCategories';
 import { useProductMutations } from '../../../hooks/useProductMutations';
-// ⬇️ switched to the query hook
 import { useProductsQuery } from '../../../hooks/useProductsQuery';
 import { auth } from '../../../firebase';
 import { PageLayout } from '../../../layouts/page.layout';
@@ -197,11 +196,9 @@ export default function AdminProductsPage() {
 
   // Build server query params from current UI state
   const serverParams = useMemo(() => {
-    // Use the first sort rule (if any) to ask the API for server sort.
     const firstSort =
       Array.isArray(sorting) && sorting.length ? sorting[0] : null;
 
-    // Lock server sorting to order:asc during reorder; otherwise use UI sort or default to order:asc
     const sort = reorderMode
       ? 'order:asc'
       : firstSort && firstSort.id
@@ -215,7 +212,6 @@ export default function AdminProductsPage() {
       priceMax: maxPrice ?? undefined,
       stockMin: minStock ?? undefined,
       stockMax: maxStock ?? undefined,
-      // we still do client-side pagination; grab enough to fill the table
       limit: 500,
       page: 1,
       sort,
@@ -228,10 +224,10 @@ export default function AdminProductsPage() {
     minStock,
     maxStock,
     sorting,
-    reorderMode, // 👈 include
+    reorderMode,
   ]);
 
-  // 🔎 Query the API (defaults to /products/public with automatic fallback)
+  // 🔎 Query the API
   const {
     data: productResult,
     isFetching,
@@ -244,7 +240,7 @@ export default function AdminProductsPage() {
     setLoading(isFetching);
   }, [isFetching, setLoading]);
 
-  // Push results into the store (preserves your centralized table state)
+  // Push results into the store
   useEffect(() => {
     const items = productResult?.items ?? [];
     setProductsSorted(items);
@@ -263,7 +259,7 @@ export default function AdminProductsPage() {
     }
   }, [isError, error, enqueueSnackbar, t]);
 
-  // ---- Reorder wiring (called by StickyTable with visible ordered IDs)
+  // ---- Reorder wiring
   const byId = useMemo(() => {
     const m = new Map<string, IProduct>();
     for (const p of products) m.set(p.id, p);
@@ -271,29 +267,24 @@ export default function AdminProductsPage() {
   }, [products]);
 
   const handleReorder = async (orderedIds: string[]) => {
-    // Build id -> index map from the full products array
     const idToIndex = new Map<string, number>(
       products.map((p, i) => [p.id, i]),
     );
 
-    // Positions of the visible set in the original array (ascending)
     const positions = orderedIds
       .map((id) => idToIndex.get(id))
       .filter((i): i is number => typeof i === 'number')
       .sort((a, b) => a - b);
 
-    // Visible products in their new order
     const reorderedVisible = orderedIds
       .map((id) => byId.get(id))
       .filter((p): p is IProduct => Boolean(p));
 
-    // Splice reordered visibles back into their original slots
     const nextAll = products.slice();
     positions.forEach((pos, i) => {
       nextAll[pos] = reorderedVisible[i];
     });
 
-    // optimistic update
     setProducts(nextAll);
 
     const orderList = nextAll.map((p, i) => ({ id: p.id, order: i }));
@@ -318,12 +309,11 @@ export default function AdminProductsPage() {
       );
     }
   };
-  // ---------------------------------------------
 
   const getCategoryName = (categoryId?: string | null) =>
     categories.find((c) => c.id === categoryId)?.name ?? '—';
 
-  /** Apply filters (client-side guard; server already filters as well) */
+  /** Apply filters (client-side guard) */
   const filteredProducts = useMemo<IProduct[]>(() => {
     const term = (searchTerm || '').trim().toLowerCase();
     const cat = selectedCategoryId || '';
@@ -387,11 +377,9 @@ export default function AdminProductsPage() {
 
   /** Reset table + product filters + URL */
   const resetAll = useCallback(() => {
-    // Table
     setSorting([]);
     setColumnFilters([]);
 
-    // Filters (store)
     setSearchTerm('');
     setSelectedCategoryId('');
     setMinPrice(PRICE_MIN);
@@ -401,7 +389,6 @@ export default function AdminProductsPage() {
     setUpdatedFrom(null);
     setUpdatedTo(null);
 
-    // URL
     const next = new URLSearchParams(params);
     next.delete('sort');
     next.delete('filters');
@@ -429,12 +416,25 @@ export default function AdminProductsPage() {
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
       <PageContainer>
+        {/* Updated header: uses rightActions for "Add Product" */}
         <AdminHeaderBar
           title={t('adminProductsPage.title')}
           onReset={resetAll}
+          rightActions={
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddCircleOutlineIcon />}
+              onClick={() => navigate('/admin/products/add')}
+            >
+              {t('adminProductsPage.addProduct', {
+                defaultValue: 'Add Product',
+              })}
+            </Button>
+          }
         />
 
-        {/* Controls */}
+        {/* Sticky controls: Filters + Reorder only */}
         <Box
           sx={{
             position: 'sticky',
@@ -445,44 +445,29 @@ export default function AdminProductsPage() {
             mb: 1,
           }}
         >
-          <Stack direction="row" spacing={1} justifyContent="space-between">
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<FilterListIcon />}
-                onClick={() => setFiltersOpen(true)}
-              >
-                {t('filters.open')}
-              </Button>
-
-              {/* Reorder mode toggle */}
-              <Button
-                variant={reorderMode ? 'contained' : 'outlined'}
-                size="small"
-                startIcon={<SwapVertIcon />}
-                onClick={() => setReorderMode((v) => !v)}
-              >
-                {reorderMode
-                  ? t('adminProductsPage.reorderOn', {
-                      defaultValue: 'Reorder: ON',
-                    })
-                  : t('adminProductsPage.reorderOff', {
-                      defaultValue: 'Reorder: OFF',
-                    })}
-              </Button>
-            </Stack>
-
-            {/* Add Product */}
+          <Stack direction="row" spacing={1}>
             <Button
-              variant="contained"
+              variant="outlined"
               size="small"
-              startIcon={<AddCircleOutlineIcon />}
-              onClick={() => navigate('/admin/products/add')}
+              startIcon={<FilterListIcon />}
+              onClick={() => setFiltersOpen(true)}
             >
-              {t('adminProductsPage.addProduct', {
-                defaultValue: 'Add Product',
-              })}
+              {t('filters.open')}
+            </Button>
+
+            <Button
+              variant={reorderMode ? 'contained' : 'outlined'}
+              size="small"
+              startIcon={<SwapVertIcon />}
+              onClick={() => setReorderMode((v) => !v)}
+            >
+              {reorderMode
+                ? t('adminProductsPage.reorderOn', {
+                    defaultValue: 'Reorder: ON',
+                  })
+                : t('adminProductsPage.reorderOff', {
+                    defaultValue: 'Reorder: OFF',
+                  })}
             </Button>
           </Stack>
         </Box>

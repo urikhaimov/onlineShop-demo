@@ -5,17 +5,20 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  useCallback,
   type PropsWithChildren,
 } from 'react';
 import type { User } from 'firebase/auth';
 import {
   onIdTokenChanged,
   signInWithEmailAndPassword,
-  signOut,
+  signOut as fbSignOut,
 } from 'firebase/auth';
 import { auth } from '../firebase';
 import { EUserRole } from '@common/types';
 import { defineAbilityFor } from '../services/ability.service';
+import { runAllStoreResets } from '../state/resetRegistry';
+import { useQueryClient } from '@tanstack/react-query';
 
 /** Simple role helper exported for consumers (e.g., ability.service) */
 export const isAdmin = (role: EUserRole | string | null | undefined): boolean =>
@@ -27,6 +30,8 @@ export type AuthContextType = {
   ability: ReturnType<typeof defineAbilityFor>;
   isAuthReady: boolean;
   signInWithEmail: (args: { email: string; password: string }) => Promise<void>;
+  /** Exposed so tests (and app) can trigger a full hard-clear without auth calls */
+  hardClear: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -36,6 +41,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<EUserRole | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Use onIdTokenChanged so custom-claim updates are detected
@@ -80,36 +87,55 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await auth.currentUser?.getIdToken(true);
   };
 
-  // ✅ Bullet-proof logout: sign out, clear storages, hard-redirect.
-  const logout: AuthContextType['logout'] = async () => {
+  /** Centralized full reset (used by logout and tests) */
+  const hardClear: AuthContextType['hardClear'] = useCallback(async () => {
     try {
-      await signOut(auth);
+      // 1) reset all zustand stores via registry (cart, etc.)
+      runAllStoreResets();
+    } catch {
+      // ignore
+    }
+    try {
+      // 2) clear react-query caches
+      queryClient.clear();
+    } catch {
+      // ignore
+    }
+    // 3) wipe storages (persisted auth/cart/etc.)
+    try {
+      indexedDB.deleteDatabase('firebaseLocalStorageDb');
+    } catch {
+      // ignore
+    }
+    try {
+      sessionStorage.clear();
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage.clear();
+    } catch {
+      // ignore
+    }
+  }, [queryClient]);
+
+  // ✅ Bullet-proof logout: Firebase signOut + HARD CLEAR + redirect.
+  const logout: AuthContextType['logout'] = useCallback(async () => {
+    try {
+      await fbSignOut(auth);
+    } catch {
+      // ignore signOut failures — we still hard-clear locally
     } finally {
       setUser(null);
       setRole(null);
       setIsAuthReady(true);
-      // Clear persisted Firebase session + app caches
-      try {
-        indexedDB.deleteDatabase('firebaseLocalStorageDb');
-      } catch {
-        // Ignore
-      }
-      try {
-        sessionStorage.clear();
-      } catch {
-        // Ignore
-      }
-      try {
-        localStorage.clear();
-      } catch {
-        // Ignore
-      }
+      await hardClear();
       // Hard redirect to ensure no stale UI state remains
       if (typeof window !== 'undefined') {
         window.location.assign('/login');
       }
     }
-  };
+  }, [hardClear]);
 
   // Optional E2E bypass
   if (typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true) {
@@ -125,6 +151,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           ability: e2eAbility,
           isAuthReady: true,
           signInWithEmail,
+          hardClear,
           logout,
         }}
       >
@@ -135,7 +162,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   return (
     <AuthContext.Provider
-      value={{ user, role, ability, isAuthReady, signInWithEmail, logout }}
+      value={{
+        user,
+        role,
+        ability,
+        isAuthReady,
+        signInWithEmail,
+        hardClear,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

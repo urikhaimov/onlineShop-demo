@@ -1,30 +1,21 @@
 // src/components/LoadingProgress.tsx
-import { Box, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
-import {} from '../config/themeConfig';
-import {
-  headerHeight,
-  footerHeight,
-  sidebarWidth,
-} from '../config/themeConfig';
-const LoadingProgress = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+import * as React from 'react';
+import { Box, CircularProgress, Typography } from '@mui/material';
 
+type Props = { label?: string };
+
+export default function LoadingProgress({ label = 'Loading' }: Props) {
   return (
     <Box
-      sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: `calc(100vh - ${headerHeight + footerHeight}px)`,
-        overflowX: 'hidden',
-        position: 'relative',
-        width: '100%',
-      }}
+      role="status"
+      aria-live="polite"
+      sx={{ display: 'grid', placeItems: 'center', py: 4 }}
     >
-      <CircularProgress />
+      {/* MUI already sets role="progressbar"; we add a name */}
+      <CircularProgress aria-label={label} size={60} />
+      <Typography variant="caption" sx={{ mt: 1, color: 'text.secondary' }}>
+        {label}…
+      </Typography>
     </Box>
   );
-};
-
-export default LoadingProgress;
+}

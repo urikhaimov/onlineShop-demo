@@ -1,4 +1,3 @@
-// src/components/StickyTable/StickyTable.tsx
 import * as React from 'react';
 import {
   useReactTable,
@@ -48,26 +47,30 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 
-type StickyTableWithDnDProps<T extends object> = StickyTableProps<T> & {
-  /** Called with the *visible* row IDs after a drop (top → bottom). */
-  onReorder?: (orderedIds: string[]) => void;
-  /** Optional: map a row to its unique string ID (defaults to (row as any).id). */
-  getRowId?: (row: T) => string;
-  /** Disable row drag explicitly (e.g., while persisting). */
-  disableDrag?: boolean;
-  /** Columns reorder handler: called with ordered *column ids* whenever the order changes. */
-  onColumnsReorder?: (orderedColumnIds: string[]) => void;
-  /** CSS class name for the drag handle element inside each row. */
-  dragHandleClassName?: string;
-
-  /** Custom renderer for the group header row (e.g., show avatar + name + count). */
-  renderGroupHeader?: (args: {
-    value: unknown; // group value (e.g., categoryId)
-    rows: T[]; // rows in this group
-    expanded: boolean;
-    toggle: () => void;
-  }) => React.ReactNode;
+type ControlledPaginationProps = {
+  pageIndex?: number; // 0-based (controlled)
+  totalRows?: number; // server-known total (enables Next when applicable)
+  onPageChange?: (nextPageIndex: number) => void;
+  rowsPerPageOptions?: number[];
+  onRowsPerPageChange?: (size: number) => void;
 };
+
+type StickyTableWithDnDProps<T extends object> = StickyTableProps<T> &
+  ControlledPaginationProps & {
+    onReorder?: (orderedIds: string[]) => void;
+    getRowId?: (row: T) => string;
+    disableDrag?: boolean;
+    onColumnsReorder?: (orderedColumnIds: string[]) => void;
+    dragHandleClassName?: string;
+    renderGroupHeader?: (args: {
+      value: unknown;
+      rows: T[];
+      expanded: boolean;
+      toggle: () => void;
+    }) => React.ReactNode;
+    /** test id applied to the <Table> element */
+    tableTestId?: string;
+  };
 
 export default function StickyTable<T extends object>({
   columns,
@@ -85,19 +88,25 @@ export default function StickyTable<T extends object>({
   renderExpandedRow,
   bodyMaxHeight = 480,
 
-  // DnD props (rows)
+  // controlled pagination
+  pageIndex,
+  totalRows,
+  onPageChange,
+  rowsPerPageOptions = [],
+  onRowsPerPageChange,
+
+  // DnD
   onReorder,
   getRowId,
   disableDrag = false,
 
-  // Columns reorder callback
   onColumnsReorder,
-
-  // Drag handle class (listeners attach to this element only in TableBodyRows)
   dragHandleClassName = 'drag-handle',
 
-  // 🔹 New: group header renderer
   renderGroupHeader,
+
+  // test id
+  tableTestId,
 }: StickyTableWithDnDProps<T>) {
   const [expandedGroups, setExpandedGroups] = React.useState<
     Record<string, boolean>
@@ -108,11 +117,8 @@ export default function StickyTable<T extends object>({
   const [groupSortMode, setGroupSortMode] =
     React.useState<GroupSortMode>('count');
   const [denseMode, setDenseMode] = React.useState(false);
-
-  // 🔹 active drag id (used to fade source row & render overlay)
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
-  // Initial column order = leaf ids in the given order
   const initialColumnOrder: ColumnOrderState = React.useMemo(() => {
     const collectIds = (cols: any[], out: string[]) => {
       for (const c of cols) {
@@ -130,55 +136,77 @@ export default function StickyTable<T extends object>({
   const [columnOrder, setColumnOrder] =
     React.useState<ColumnOrderState>(initialColumnOrder);
 
-  // Group/sort the incoming data (pure)
   const sortedData = React.useMemo(
     () => groupAndSortData<T>(data, groupById, groupSortMode),
     [data, groupById, groupSortMode],
   );
 
-  // ✅ Disable pagination whenever the table is grouped
-  const paginationEnabled = enablePagination && !groupById;
+  const isGrouped = Boolean(groupById);
+  const paginationEnabled = enablePagination && !isGrouped;
+  const controlledPagination =
+    paginationEnabled && typeof pageIndex === 'number';
 
-  const baseOptions = {
+  const table = useReactTable({
     data: sortedData,
     columns,
-    state: { sorting, columnFilters, columnOrder },
+    state: {
+      sorting,
+      columnFilters,
+      columnOrder,
+      ...(paginationEnabled
+        ? {
+            pagination: {
+              pageIndex: controlledPagination ? pageIndex! : 0,
+              pageSize: rowsPerPage,
+            },
+          }
+        : {}),
+    },
     onSortingChange,
     onColumnFiltersChange,
     onColumnOrderChange: setColumnOrder,
+    ...(paginationEnabled && !controlledPagination
+      ? { getPaginationRowModel: getPaginationRowModel() }
+      : {}),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
-    manualGrouping: false,
-    initialState: {
-      grouping: groupById ? [String(groupById)] : [],
-      pagination: { pageIndex: 0, pageSize: rowsPerPage },
-    },
+    manualPagination: controlledPagination,
     enableSorting,
     enableColumnFilters,
     filterFns: { ...tableFilters },
-    // Stable row IDs
     getRowId: (row: T, idx: number) =>
       getRowId ? getRowId(row) : ((row as any).id ?? String(idx)),
-  } as const;
-
-  const table = useReactTable({
-    ...baseOptions,
-    ...(paginationEnabled
-      ? { getPaginationRowModel: getPaginationRowModel() }
+    ...(controlledPagination && onPageChange
+      ? {
+          onPaginationChange: (updater: any) => {
+            const prev = { pageIndex: pageIndex!, pageSize: rowsPerPage };
+            const next =
+              typeof updater === 'function' ? updater(prev) : updater;
+            if (
+              typeof next?.pageIndex === 'number' &&
+              next.pageIndex !== pageIndex
+            )
+              onPageChange(next.pageIndex);
+            if (
+              typeof next?.pageSize === 'number' &&
+              next.pageSize !== rowsPerPage &&
+              onRowsPerPageChange
+            ) {
+              onRowsPerPageChange(next.pageSize);
+            }
+          },
+        }
       : {}),
   });
 
-  // Emit reordered columns to parent if needed
   React.useEffect(() => {
     if (!onColumnsReorder) return;
     onColumnsReorder(columnOrder as string[]);
   }, [columnOrder, onColumnsReorder]);
 
   const rowModel = table.getRowModel();
-  const isGrouped = Boolean(groupById) && table.getState().grouping.length > 0;
 
-  // Expand all groups by default when grouping changes
   React.useEffect(() => {
     if (!isGrouped) return;
     const next: Record<string, boolean> = {};
@@ -189,81 +217,61 @@ export default function StickyTable<T extends object>({
   }, [isGrouped, rowModel.rows]);
 
   const toggleGroup = (id: string) =>
-    setExpandedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+    setExpandedGroups((p) => ({ ...p, [id]: !p[id] }));
   const toggleRowExpand = (id: string) =>
-    setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+    setExpandedRows((p) => ({ ...p, [id]: !p[id] }));
 
-  // ────────────────────────────────────────────────
-  // DnD setup + visible id computation
-  // ────────────────────────────────────────────────
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
 
-  /** Collect visible leaf rows:
-   *  - Ungrouped: all root rows with no subRows (on the current page)
-   *  - Grouped: leaf children inside groups that are currently expanded
-   */
   const visibleLeafRows = React.useMemo(() => {
     const roots = table.getRowModel().rows;
     if (!isGrouped) return roots.filter((r) => r.subRows.length === 0);
-
     const leafs: typeof roots = [];
     for (const group of roots) {
       if (group.depth !== 0 || group.subRows.length === 0) continue;
       if (!expandedGroups[group.id]) continue;
-      for (const child of group.subRows) {
+      for (const child of group.subRows)
         if (child.subRows.length === 0) leafs.push(child);
-      }
     }
     return leafs;
   }, [table, isGrouped, expandedGroups]);
 
-  // IDs for SortableContext; must match useSortable id in TableBodyRows
   const visibleIds = React.useMemo(
     () => visibleLeafRows.map((r) => String(r.id)),
     [visibleLeafRows],
   );
 
-  // Keep the guard simple; add sort/filter guards later if you want
   const canDragRows =
     Boolean(onReorder) && !disableDrag && visibleIds.length > 0;
 
-  const handleRowDragStart = (e: DragStartEvent) => {
+  const handleRowDragStart = (e: DragStartEvent) =>
     setActiveId(String(e.active.id));
-  };
 
   const handleRowDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     setActiveId(null);
-
     if (!canDragRows || !over || active.id === over.id) return;
-
     const oldIndex = visibleIds.indexOf(String(active.id));
     const newIndex = visibleIds.indexOf(String(over.id));
     if (oldIndex < 0 || newIndex < 0) return;
-
-    const newIds = arrayMove(visibleIds, oldIndex, newIndex);
-    onReorder?.(newIds);
+    onReorder?.(arrayMove(visibleIds, oldIndex, newIndex));
   };
 
-  // 🔹 Overlay that always shows product name (fallback: title → first useful cell)
   const renderOverlay = React.useCallback(() => {
     if (!activeId) return null;
     const row = visibleLeafRows.find((r) => String(r.id) === activeId);
     if (!row) return null;
-
     const original = row.original as any;
     const label: string =
       (original?.name && String(original.name)) ||
       (original?.title && String(original.title)) ||
-      // fallback: read "name" column if present
       ((row as any)
         .getAllCells?.()
         ?.find?.((c: any) => c.column?.id === 'name')
         ?.getValue?.() as string) ||
-      'Product';
-
+      'Row';
     return (
       <div className="st-ghost">
         <div className="st-ghost-primary">{label}</div>
@@ -271,7 +279,6 @@ export default function StickyTable<T extends object>({
     );
   }, [activeId, visibleLeafRows]);
 
-  // Table shell
   const tableShell = (
     <TableContainer
       component={Paper}
@@ -288,6 +295,8 @@ export default function StickyTable<T extends object>({
     >
       <Table
         stickyHeader
+        aria-label="table"
+        data-testid={tableTestId || undefined}
         size={denseMode ? 'small' : 'medium'}
         sx={(t) => ({
           '& .MuiTableCell-stickyHeader': {
@@ -323,14 +332,25 @@ export default function StickyTable<T extends object>({
           toggleRowExpand={toggleRowExpand}
           enableRowDrag={canDragRows}
           dragHandleClassName={dragHandleClassName}
-          /** custom group header renderer */
           renderGroupHeader={renderGroupHeader}
-          /** fade the source row while dragging */
           activeId={activeId}
         />
       </Table>
     </TableContainer>
   );
+
+  const clientCount = table.getFilteredRowModel().rows.length;
+
+  // If server total provided, prefer it, otherwise fall back to client count
+  const paginationCount = controlledPagination
+    ? typeof totalRows === 'number'
+      ? totalRows
+      : clientCount
+    : clientCount;
+
+  const currentPage = controlledPagination
+    ? Math.max(0, pageIndex!)
+    : table.getState().pagination.pageIndex;
 
   return (
     <Box sx={{ width: '100%', overflow: 'hidden' }}>
@@ -345,7 +365,6 @@ export default function StickyTable<T extends object>({
           }
           label="Dense mode"
         />
-
         {isGrouped && (
           <Tooltip title={`Sort groups by ${groupSortMode}`}>
             <IconButton
@@ -390,21 +409,54 @@ export default function StickyTable<T extends object>({
         tableShell
       )}
 
-      {/* Only paginate when not grouped */}
       {paginationEnabled && !isGrouped && (
         <TablePagination
           component="div"
-          count={table.getFilteredRowModel().rows.length}
-          page={table.getState().pagination.pageIndex}
-          onPageChange={(_, page) => table.setPageIndex(page)}
+          count={paginationCount}
+          page={currentPage}
+          onPageChange={(_, next) => {
+            if (controlledPagination && onPageChange) onPageChange(next);
+            else table.setPageIndex(next);
+          }}
           rowsPerPage={rowsPerPage}
-          rowsPerPageOptions={[]}
+          onRowsPerPageChange={
+            onRowsPerPageChange
+              ? (e) => onRowsPerPageChange(parseInt(e.target.value, 10))
+              : undefined
+          }
+          rowsPerPageOptions={
+            rowsPerPageOptions.length ? rowsPerPageOptions : []
+          }
           sx={(t) => ({
             mt: 1,
             bgcolor: (t.vars || t).palette.background.paper,
             border: `1px solid ${(t.vars || t).palette.divider}`,
             borderRadius: 1,
           })}
+          // Stable ARIA labels for tests
+          getItemAriaLabel={(type) => {
+            switch (type) {
+              case 'next':
+                return 'Go to next page';
+              case 'previous':
+                return 'Go to previous page';
+              case 'first':
+                return 'Go to first page';
+              case 'last':
+                return 'Go to last page';
+              default:
+                return '';
+            }
+          }}
+          // Ensure pointer events are not blocked when enabled
+          backIconButtonProps={{
+            'aria-label': 'Go to previous page',
+            sx: { pointerEvents: 'auto' },
+          }}
+          nextIconButtonProps={{
+            'aria-label': 'Go to next page',
+            sx: { pointerEvents: 'auto' },
+          }}
         />
       )}
     </Box>

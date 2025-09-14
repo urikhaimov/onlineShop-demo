@@ -1,15 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import * as React from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
+  Divider,
   Box,
   Button,
-  Divider,
-  Typography,
-  Alert,
   Stack,
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  Typography,
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -17,7 +18,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 
 import type { TOrder } from '@common/types';
-import { useOrders } from '../../../hooks/useOrders';
 import LoadingProgress from '../../../components/LoadingProgress';
 import NotFound from '../../../components/NotFound';
 import StickyTable from '../../../components/StickyTable';
@@ -48,6 +48,11 @@ import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
+import { useOrdersQuery } from '../../../hooks/useOrdersQuery';
+
+// ⬇️ NEW: header + CSV
+import AdminHeaderBar from '../../../components/AdminHeaderBar';
+import { downloadOrdersCsv } from '../../../utils/exportOrdersToCsv';
 
 /** ---------- types & helpers (fully typed) ---------- */
 type OrderItem = {
@@ -159,19 +164,21 @@ export default function AdminOrdersPage() {
     columnFilters,
     setColumnFilters,
     resetFilters,
-    filters,
+    filters, // from useAdminOrdersStore (email, status, min/maxTotal, price, dates, inStockOnly…)
   } = useAdminOrdersStore();
 
-  const { data = [], isLoading, error, refetch } = useOrders();
-
+  // Table ↔ URL
   useStickyTableQuerySync({
     sorting,
     setSorting,
     columnFilters,
     setColumnFilters,
   });
+
+  // Filters ↔ URL
   useAdminOrderFiltersQuerySync();
 
+  // Drawer + delete dialog
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [toDelete, setToDelete] = useState<TOrder | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -186,12 +193,56 @@ export default function AdminOrdersPage() {
     [navigate],
   );
 
-  const filteredData = useMemo<TOrder[]>(() => {
-    const list: TOrder[] = Array.isArray(data) ? (data as TOrder[]) : [];
-    return list.filter((o) => orderMatchesFilters(o as OrderLike, filters));
-  }, [data, filters]);
+  // Build server params from filters & table sort (use first sort)
+  const serverParams = useMemo(() => {
+    const firstSort =
+      Array.isArray(sorting) && sorting.length ? sorting[0] : null;
+    const sort =
+      firstSort && firstSort.id
+        ? `${firstSort.id}:${firstSort.desc ? 'desc' : 'asc'}`
+        : 'createdAt:desc';
 
-  const resetTableFilters = () => {
+    return {
+      q: (filters.email || '').trim() || undefined,
+      status:
+        filters.status && filters.status !== 'all' ? filters.status : undefined,
+      totalMin: filters.minTotal ?? undefined,
+      totalMax: filters.maxTotal ?? undefined,
+      priceMin: filters.minPrice ?? undefined,
+      priceMax: filters.maxPrice ?? undefined,
+      startDate: filters.startDate ?? undefined,
+      endDate: filters.endDate ?? undefined,
+      inStockOnly: filters.inStockOnly ? true : undefined,
+      limit: 500,
+      page: 1,
+      sort,
+    };
+  }, [filters, sorting]);
+
+  // 🔎 Fetch orders via React Query
+  const {
+    data: orderResult,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useOrdersQuery(serverParams, { enabled: true });
+
+  const data = orderResult?.items ?? [];
+
+  // Client-side guard (keeps UX consistent if backend lacks some filters)
+  const filteredData = useMemo<TOrder[]>(
+    () => data.filter((o) => orderMatchesFilters(o as OrderLike, filters)),
+    [data, filters],
+  );
+
+  // ⬇️ NEW: Export CSV handler (uses currently filtered rows)
+  const onExportCsv = useCallback(() => {
+    downloadOrdersCsv(filteredData);
+  }, [filteredData]);
+
+  // Reset table filters + URL + store filters
+  const resetTableFilters = useCallback(() => {
     setSorting([]);
     setColumnFilters([]);
     resetFilters();
@@ -200,10 +251,13 @@ export default function AdminOrdersPage() {
     next.delete('sort');
     next.delete('filters');
     clearAdminOrderFiltersInSearchParams(next);
-    setParams(next, { replace: true });
-  };
+    if (params.toString() !== next.toString()) {
+      setParams(next, { replace: true });
+    }
+  }, [params, setParams, setSorting, setColumnFilters, resetFilters]);
 
-  const handleConfirmDelete = async () => {
+  // Delete order (Firestore) + refresh
+  const handleConfirmDelete = useCallback(async () => {
     if (!toDelete) return;
     setDeleting(true);
     setDeleteError(null);
@@ -218,7 +272,7 @@ export default function AdminOrdersPage() {
         { variant: 'success', autoHideDuration: 3000 },
       );
 
-      if (typeof refetch === 'function') await refetch();
+      await refetch();
     } catch (err) {
       const msg =
         err instanceof Error
@@ -231,12 +285,23 @@ export default function AdminOrdersPage() {
     } finally {
       setDeleting(false);
     }
-  };
+  }, [enqueueSnackbar, refetch, t, toDelete]);
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
       <AdminPageContainer>
-        {/* Header actions (Filters + Reset) */}
+        {/* NEW: Header bar with title, Reset, and Export CSV */}
+        <AdminHeaderBar
+          title={t('adminOrdersPage.title', { defaultValue: 'Orders' })}
+          onReset={resetTableFilters}
+          rightActions={
+            <Button variant="outlined" size="small" onClick={onExportCsv}>
+              {t('actions.exportCsv', { defaultValue: 'Export CSV' })}
+            </Button>
+          }
+        />
+
+        {/* Sticky controls (Filters + Reset) */}
         <Box
           sx={{
             position: 'sticky',
@@ -269,9 +334,9 @@ export default function AdminOrdersPage() {
 
         <Divider sx={{ my: 2 }} />
 
-        {isLoading ? (
+        {isFetching ? (
           <LoadingProgress />
-        ) : error ? (
+        ) : isError ? (
           <Typography color="error" sx={{ p: 2 }}>
             {t('adminOrdersPage.failedToLoad', {
               message: (error as Error)?.message ?? '',
@@ -289,10 +354,12 @@ export default function AdminOrdersPage() {
             onColumnFiltersChange={setColumnFilters}
             enableSorting
             enableColumnFilters={false}
+            enablePagination
             rowsPerPage={10}
             enableRowExpansion
             renderExpandedRow={(row) => <OrderExpandedRow order={row} />}
             bodyMaxHeight="60vh"
+            getRowId={(o) => o.id}
           />
         )}
 
