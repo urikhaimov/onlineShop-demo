@@ -5,57 +5,53 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios';
 import { auth } from '../firebase';
-// import i18n from '@/i18n'; // uncomment if you want locale headers
 
-/**
- * Base URL resolution (order of precedence):
- * 1) VITE_API_BASE        -> e.g. http://localhost:3000/api
- * 2) VITE_API_ORIGIN      -> e.g. http://localhost:3000  (we append /api)
- * 3) '/api'               -> Vite proxy in dev / Hosting rewrite in prod
- */
 const origin = import.meta.env.VITE_API_ORIGIN as string | undefined;
 const baseURL =
   (import.meta.env.VITE_API_BASE as string) ||
-  (origin ? `${origin}/api` : '/api');
+  (origin ? `${origin}/api` : '/api'); // requires Vite proxy when relative
 
 const axiosInstance = axios.create({
   baseURL,
-  withCredentials: true,
+  // ❗ Usually NOT needed for Bearer tokens and can break CORS:
+  withCredentials: false,
   timeout: 10_000,
 });
 
 if (import.meta.env.DEV) {
-  // Helps verify you’re not accidentally hitting :5173
-
   console.log('[api] baseURL =', baseURL);
 }
 
-function ensureHeaders(
-  headers: InternalAxiosRequestConfig['headers'],
-): AxiosHeaders {
-  return AxiosHeaders.from(headers || {});
+// Helper to normalize headers type
+function ensureHeaders(h: InternalAxiosRequestConfig['headers']): AxiosHeaders {
+  return AxiosHeaders.from(h || {});
 }
 
-/** Attach Firebase ID token to each request when signed in. */
+/** Attach Firebase ID token when available. */
 axiosInstance.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    const user = auth.currentUser;
     const headers = ensureHeaders(config.headers);
-
-    // Always ask for JSON
     headers.set('Accept', 'application/json');
 
+    const user = auth.currentUser;
     if (user) {
-      const token = await user.getIdToken(); // fast path (cached unless expired)
+      // uses cached token unless expired
+      const token = await user.getIdToken();
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    // Optional locale headers
-    // const lang = i18n?.language ?? 'en';
-    // headers.set('Accept-Language', lang);
-    // headers.set('x-lang', lang);
-
     config.headers = headers;
+
+    if (import.meta.env.DEV) {
+      const url = (config.baseURL ?? '') + (config.url ?? '');
+      // minimal dev trace
+      console.debug(
+        '[api:req]',
+        config.method?.toUpperCase(),
+        url,
+        headers.get('Authorization') ? 'auth' : 'no-auth',
+      );
+    }
     return config;
   },
   (error) => Promise.reject(error),
@@ -80,16 +76,27 @@ axiosInstance.interceptors.response.use(
         const fresh = await auth.currentUser.getIdToken(true);
         const headers = ensureHeaders(cfg.headers);
         headers.set('Authorization', `Bearer ${fresh}`);
-
-        // const lang = i18n?.language ?? 'en';
-        // headers.set('Accept-Language', lang);
-        // headers.set('x-lang', lang);
-
         cfg.headers = headers;
-        return axiosInstance(cfg);
+
+        if (import.meta.env.DEV) {
+          console.debug(
+            '[api:retry]',
+            cfg.method?.toUpperCase(),
+            (cfg.baseURL ?? '') + (cfg.url ?? ''),
+          );
+        }
+        return axiosInstance(cfg); // will not infinite-loop because _retry is set
       } catch {
-        // fall through
+        // fall through to reject
       }
+    }
+
+    if (import.meta.env.DEV) {
+      const status = error.response?.status;
+      const url = error.config
+        ? (error.config.baseURL ?? '') + (error.config.url ?? '')
+        : '(no-config)';
+      console.warn('[api:err]', status, url, error.response?.data);
     }
     return Promise.reject(error);
   },

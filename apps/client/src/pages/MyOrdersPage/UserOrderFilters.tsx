@@ -9,6 +9,8 @@ import {
   useTheme,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs, { Dayjs } from 'dayjs';
 
 import { useOrderFilterStore } from '../../stores/useOrderFilterStore';
@@ -66,8 +68,9 @@ export default function UserOrderFilters({
     resetFilters,
   } = useOrderFilterStore();
 
-  const currency = (v: number) =>
-    formatCurrency(v, ECurrency.ILS, i18n.language);
+  // Test-safe i18n access (some tests mock t() only)
+  const lang = (i18n as any)?.language ?? 'en';
+  const currency = (v: number) => formatCurrency(v, ECurrency.ILS, lang);
   const maybeClose = () => closeOnChange && onClose?.();
 
   const onFromChange = (d: Dayjs | null) => {
@@ -86,14 +89,11 @@ export default function UserOrderFilters({
 
   const handleReset = () => {
     resetFilters();
+    // keep local input in sync too
+    setSearchLocal('');
   };
 
-  const handleApply = React.useCallback(() => {
-    (document.activeElement as HTMLElement | null)?.blur?.();
-    onClose?.();
-  }, [onClose]);
-
-  // ---- Debounced search (fixes test expecting q === "ORD-0005") ----
+  // ---- Debounced search (ensures final q === "ORD-0005") ----
   // Keep a local input mirror so keystrokes don't immediately hit the store/API.
   const [searchLocal, setSearchLocal] = React.useState(searchTerm ?? '');
 
@@ -108,9 +108,18 @@ export default function UserOrderFilters({
     const t = setTimeout(() => {
       setSearchTerm(trimmed);
       if (trimmed && closeOnChange) onClose?.();
-    }, 180); // small trailing debounce
+    }, 180);
     return () => clearTimeout(t);
   }, [searchLocal, setSearchTerm, closeOnChange, onClose]);
+
+  // Also flush on Apply, so closing the drawer immediately after typing
+  // still commits the full query to the store.
+  const handleApply = React.useCallback(() => {
+    const trimmed = searchLocal.trim();
+    setSearchTerm(trimmed); // ✅ force-flush latest value
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    onClose?.();
+  }, [onClose, searchLocal, setSearchTerm]);
 
   // Clamp slider values
   const sliderMin = Math.max(
@@ -154,46 +163,47 @@ export default function UserOrderFilters({
           autoComplete="off"
         />
 
-        {/* Dates */}
-        {/* Dates */}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={gap}>
-          <DatePicker
-            label={t('filters.dateFrom', { defaultValue: 'From date' })}
-            value={dateFrom ? dayjs(dateFrom) : null}
-            onChange={(value: Dayjs | null, _ctx) => onFromChange(value)}
-            reduceAnimations={isMobile}
-            slotProps={{
-              textField: {
-                fullWidth: true,
-                size: 'small',
-                inputProps: {
-                  'aria-label': t('filters.dateFrom', {
-                    defaultValue: 'From date',
-                  }) as string,
+        {/* Dates (wrapped in a local LocalizationProvider for tests) */}
+        <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={lang}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={gap}>
+            <DatePicker
+              label={t('filters.dateFrom', { defaultValue: 'From date' })}
+              value={dateFrom ? dayjs(dateFrom) : null}
+              onChange={(value) => onFromChange(value as Dayjs | null)}
+              reduceAnimations={isMobile}
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  size: 'small',
+                  inputProps: {
+                    'aria-label': t('filters.dateFrom', {
+                      defaultValue: 'From date',
+                    }) as string,
+                  },
                 },
-              },
-              openPickerButton: { size: 'small' },
-            }}
-          />
-          <DatePicker
-            label={t('filters.dateTo', { defaultValue: 'To date' })}
-            value={dateTo ? dayjs(dateTo) : null}
-            onChange={(value: Dayjs | null, _ctx) => onToChange(value)}
-            reduceAnimations={isMobile}
-            slotProps={{
-              textField: {
-                fullWidth: true,
-                size: 'small',
-                inputProps: {
-                  'aria-label': t('filters.dateTo', {
-                    defaultValue: 'To date',
-                  }) as string,
+                openPickerButton: { size: 'small' },
+              }}
+            />
+            <DatePicker
+              label={t('filters.dateTo', { defaultValue: 'To date' })}
+              value={dateTo ? dayjs(dateTo) : null}
+              onChange={(value) => onToChange(value as Dayjs | null)}
+              reduceAnimations={isMobile}
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  size: 'small',
+                  inputProps: {
+                    'aria-label': t('filters.dateTo', {
+                      defaultValue: 'To date',
+                    }) as string,
+                  },
                 },
-              },
-              openPickerButton: { size: 'small' },
-            }}
-          />
-        </Stack>
+                openPickerButton: { size: 'small' },
+              }}
+            />
+          </Stack>
+        </LocalizationProvider>
 
         {/* Status */}
         <TextField

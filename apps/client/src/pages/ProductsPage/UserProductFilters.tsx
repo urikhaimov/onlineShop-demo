@@ -9,6 +9,8 @@ import {
   useTheme,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import type { Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +20,7 @@ import { ECurrency, type TCategory } from '@common/types';
 import FiltersFooterActions from '../../components/FiltersFooterActions';
 import RangeFilterSlider from '../../components/RangeFilterSlider';
 import { formatCurrency } from '@common/utils';
+
 const PRICE_MIN = 0;
 const PRICE_MAX = 100_000;
 const STOCK_MIN = 0;
@@ -78,9 +81,9 @@ export default function UserProductFilters({
   } = useProductStore();
 
   // ---- Helpers ----
-
-  const currency = (v: number) =>
-    formatCurrency(v, ECurrency.ILS, i18n.language);
+  const lang =
+    (i18n as any)?.resolvedLanguage ?? (i18n as any)?.language ?? 'en';
+  const currency = (v: number) => formatCurrency(v, ECurrency.ILS, lang);
 
   const maybeClose = () => {
     if (closeOnChange && onClose) onClose();
@@ -122,35 +125,32 @@ export default function UserProductFilters({
   };
 
   return (
-    <Box
-      sx={{
-        bgcolor: 'background.paper',
-        boxSizing: 'border-box',
-      }}
-    >
+    <Box sx={{ bgcolor: 'background.paper', boxSizing: 'border-box' }}>
       <Stack spacing={gap} sx={{ px: padX, py: padY }}>
         {/* Search */}
         <TextField
-          label={t('filters.search')}
+          label={t('filters.search', { defaultValue: 'Search' })}
           size="small"
           type="search"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && maybeClose()}
           fullWidth
-          placeholder={t('actions.searchPlaceholder')}
-          slotProps={{
-            htmlInput: {
-              inputMode: 'search',
-              'aria-label': t('filters.search') as string,
-            },
+          placeholder={t('actions.searchPlaceholder', {
+            defaultValue: 'Search products…',
+          })}
+          inputProps={{
+            inputMode: 'search',
+            'aria-label': t('filters.search', {
+              defaultValue: 'Search',
+            }) as string,
           }}
           autoComplete="off"
         />
 
         {/* Category */}
         <TextField
-          label={t('table.category')}
+          label={t('table.category', { defaultValue: 'Category' })}
           select
           size="small"
           value={selectedCategoryId}
@@ -160,7 +160,9 @@ export default function UserProductFilters({
           }}
           fullWidth
         >
-          <MenuItem value="">{t('filters.all')}</MenuItem>
+          <MenuItem value="">
+            {t('filters.all', { defaultValue: 'All' })}
+          </MenuItem>
           {categories.map((c) => (
             <MenuItem key={c.id} value={c.id}>
               {c.name}
@@ -168,33 +170,35 @@ export default function UserProductFilters({
           ))}
         </TextField>
 
-        {/* Updated From / To */}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={gap}>
-          <DatePicker
-            label={t('filters.updatedFrom')}
-            value={updatedFrom ?? null}
-            onChange={onUpdatedFromChange}
-            reduceAnimations={isMobile}
-            slotProps={{
-              textField: { fullWidth: true, size: 'small' },
-              openPickerButton: { size: 'small' },
-            }}
-          />
-          <DatePicker
-            label={t('filters.updatedTo')}
-            value={updatedTo ?? null}
-            onChange={onUpdatedToChange}
-            reduceAnimations={isMobile}
-            slotProps={{
-              textField: { fullWidth: true, size: 'small' },
-              openPickerButton: { size: 'small' },
-            }}
-          />
-        </Stack>
+        {/* Updated From / To (with LocalizationProvider for MUI X pickers) */}
+        <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={lang}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={gap}>
+            <DatePicker
+              label={t('filters.updatedFrom', { defaultValue: 'Updated from' })}
+              value={updatedFrom ?? null}
+              onChange={(value) => onUpdatedFromChange(value as Dayjs | null)}
+              reduceAnimations={isMobile}
+              slotProps={{
+                textField: { fullWidth: true, size: 'small' },
+                openPickerButton: { size: 'small' },
+              }}
+            />
+            <DatePicker
+              label={t('filters.updatedTo', { defaultValue: 'Updated to' })}
+              value={updatedTo ?? null}
+              onChange={(value) => onUpdatedToChange(value as Dayjs | null)}
+              reduceAnimations={isMobile}
+              slotProps={{
+                textField: { fullWidth: true, size: 'small' },
+                openPickerButton: { size: 'small' },
+              }}
+            />
+          </Stack>
+        </LocalizationProvider>
 
         {/* Price range */}
         <RangeFilterSlider
-          label={t('filters.priceRange')}
+          label={t('filters.priceRange', { defaultValue: 'Price range' })}
           min={PRICE_MIN}
           max={PRICE_MAX}
           step={50}
@@ -209,7 +213,7 @@ export default function UserProductFilters({
 
         {/* Stock range */}
         <RangeFilterSlider
-          label={t('filters.stockRange')}
+          label={t('filters.stockRange', { defaultValue: 'Stock range' })}
           min={STOCK_MIN}
           max={STOCK_MAX}
           step={1}

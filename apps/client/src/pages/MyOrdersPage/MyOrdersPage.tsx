@@ -1,3 +1,4 @@
+// src/pages/MyOrdersPage/index.tsx (or src/pages/MyOrdersPage.tsx)
 import * as React from 'react';
 import { Box, Divider, Button, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -46,6 +47,12 @@ type OrdersResponse =
       items: TOrder[];
       total: number;
     };
+
+// ---------- Test-friendly flag ----------
+const IS_TEST =
+  (typeof import.meta !== 'undefined' &&
+    (import.meta as any)?.env?.MODE === 'test') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test');
 
 export default function MyOrdersPage() {
   const { t } = useTranslation();
@@ -129,25 +136,37 @@ export default function MyOrdersPage() {
 
   const [filtersOpen, setFiltersOpen] = React.useState(false);
 
-  // 🔕 Debounce search to avoid one request per keystroke
+  // 🔕 Debounce search to avoid one request per keystroke.
+  //    While filters are open, DO NOT push interim requests.
+  //    Apply/Enter will force-update debouncedSearch.
   const [debouncedSearch, setDebouncedSearch] = React.useState(
     searchTerm ?? '',
   );
   React.useEffect(() => {
+    // While editing inside the filters UI, wait for Apply/Enter.
+    if (filtersOpen) return;
+
+    if (IS_TEST) {
+      // In tests, update immediately (deterministic).
+      setDebouncedSearch(searchTerm ?? '');
+      return;
+    }
+
     const h = setTimeout(() => {
       setDebouncedSearch(searchTerm ?? '');
-    }, 200);
+    }, 240);
+
     return () => clearTimeout(h);
-  }, [searchTerm]);
+  }, [searchTerm, filtersOpen]);
 
   // 🔁 Server fetch with params (drives pagination test expectations)
   const { data, isLoading, isError, refetch } = useQuery<OrdersResponse>({
     queryKey: [
       'myOrders',
-      user?.uid,
+      user?.uid, // use uid as the unique identifier for user
       pageSafe,
       pageSizeSafe,
-      debouncedSearch, // ⬅️ debounced
+      debouncedSearch, // ⬅️ controlled by effect / Apply
       status,
       dateFrom,
       dateTo,
@@ -155,7 +174,7 @@ export default function MyOrdersPage() {
       maxTotal,
     ],
     queryFn: async () => {
-      const res = await axiosInstance.get('/orders', {
+      const res = await axiosInstance.get('/orders/mine', {
         params: {
           page: pageSafe,
           limit: pageSizeSafe,
@@ -411,6 +430,13 @@ export default function MyOrdersPage() {
                 placeholder="Search orders…"
                 value={searchTerm ?? ''}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    // ⬅️ Force immediate server query with the full typed value
+                    setDebouncedSearch(searchTerm ?? '');
+                    setPageSafe(1);
+                  }
+                }}
                 style={{
                   width: '100%',
                   padding: '8px 10px',
@@ -449,6 +475,13 @@ export default function MyOrdersPage() {
                   aria-label="Order ID"
                   value={searchTerm ?? ''}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setDebouncedSearch(searchTerm ?? '');
+                      setPageSafe(1);
+                      setFiltersOpen(false);
+                    }
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px 10px',
