@@ -93,7 +93,25 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
   const watchedCategoryId = useWatch({ control, name: 'categoryId' });
 
+  // ── refs (single declarations) ──────────────────────────────────────────────
   const quillRef = useRef<ReactQuill | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const submittingRef = useRef(false);
+
+  // live refs for store-derived values (avoid stale-closure in tests)
+  const combinedImagesRef = useRef(combinedImages);
+  const deletedImageIdsRef = useRef(deletedImageIds);
+  const categoriesRef = useRef(categories);
+  useEffect(() => {
+    combinedImagesRef.current = combinedImages;
+  }, [combinedImages]);
+  useEffect(() => {
+    deletedImageIdsRef.current = deletedImageIds;
+  }, [deletedImageIds]);
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
+
   const quillModules = useMemo(
     () => ({
       toolbar: [
@@ -109,6 +127,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     }),
     [],
   );
+
   const quillFormats = useMemo(
     () => [
       'header',
@@ -217,7 +236,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
   const handleImageDrop = (files: File[]) => {
     if (!files?.length) return;
-    const allowed = Math.max(0, MAX_IMAGES - combinedImages.length);
+    const allowed = Math.max(0, MAX_IMAGES - combinedImagesRef.current.length);
     const useFiles = files.slice(0, allowed);
     const timestamp = Date.now();
 
@@ -232,11 +251,19 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     if (newImages.length) addCombinedImages(newImages);
   };
 
-  // ---------- SUBMIT ----------
+  const handleClickSave = () => {
+    if (formRef.current?.requestSubmit) formRef.current.requestSubmit();
+    else formRef.current?.submit();
+  };
+
+  // ── SUBMIT ─────────────────────────────────────────────────────────────────
   const onSubmit = async (formData: FormState) => {
+    if (submittingRef.current) return; // hard guard
+    submittingRef.current = true;
+
     try {
       // Guard: category must be real
-      const hasValidCategory = categories.some(
+      const hasValidCategory = categoriesRef.current.some(
         (c) => c.id === formData.categoryId,
       );
       if (!hasValidCategory) {
@@ -246,31 +273,30 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
           }) as string,
           { variant: 'warning' },
         );
+        submittingRef.current = false; // allow retry
         return;
       }
 
       setUploadingImages(true);
 
-      // Build images payload for the hook:
-      // - existing → URL string
-      // - new      → { type:'new', file } (hook will upload to Firebase)
-      const imagesForSave: Array<string | CombinedImageForSave> = combinedImages
-        .map((img) => {
-          if (img.type === 'existing' && img.url) {
-            return img.url; // pass as string URL
-          }
-          if (img.type === 'new' && (img as UploadableImage).file) {
-            return {
-              id: img.id,
-              url: img.url, // may be blob:…; the hook can ignore/replace after upload
-              type: 'new',
-              file: (img as UploadableImage).file!,
-            } as CombinedImageForSave;
-          }
-          // Fallback: ignore anything malformed
-          return null;
-        })
-        .filter(Boolean) as Array<string | CombinedImageForSave>;
+      // Build images payload from latest ref-snapshots
+      const imagesForSave: Array<string | CombinedImageForSave> =
+        combinedImagesRef.current
+          .map((img) => {
+            if (img.type === 'existing' && img.url) {
+              return img.url; // pass as string URL
+            }
+            if (img.type === 'new' && (img as UploadableImage).file) {
+              return {
+                id: img.id,
+                url: img.url,
+                type: 'new',
+                file: (img as UploadableImage).file!,
+              } as CombinedImageForSave;
+            }
+            return null;
+          })
+          .filter(Boolean) as Array<string | CombinedImageForSave>;
 
       const payload: SaveProductArgs = {
         productId,
@@ -278,13 +304,12 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
         data: {
           name: formData.name.trim(),
           description: formData.description ?? '',
-          // accept empty as 0; coerce to number for backend sanity
           price: formData.price === '' ? 0 : Number(formData.price),
           stock: formData.stock === '' ? 0 : Number(formData.stock),
           categoryId: formData.categoryId,
         },
         images: imagesForSave,
-        deletedImageIds, // existing-* ids stripped earlier to raw URL in your onRemove logic
+        deletedImageIds: deletedImageIdsRef.current,
       };
 
       await saveMutation.mutateAsync(payload);
@@ -297,6 +322,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
       );
 
       navigate('/admin/products');
+      // keep submittingRef true to block double-fire after success
     } catch (err) {
       console.error('❌ Failed to save product:', err);
       enqueueSnackbar(
@@ -305,6 +331,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
         }) as string,
         { variant: 'error', autoHideDuration: 5000 },
       );
+      submittingRef.current = false; // allow retry after error
     } finally {
       setUploadingImages(false);
     }
@@ -327,7 +354,10 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
     );
   }
 
-  const imagesRemaining = Math.max(0, MAX_IMAGES - combinedImages.length);
+  const imagesRemaining = Math.max(
+    0,
+    MAX_IMAGES - combinedImagesRef.current.length,
+  );
   const isRtl = i18n.dir() === 'rtl';
 
   return (
@@ -359,9 +389,9 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 {t('actions.cancel', { defaultValue: 'Cancel' })}
               </Button>
               <Button
-                type="submit"
-                form="product-form"
+                type="button"
                 variant="contained"
+                onClick={handleClickSave}
                 disabled={
                   isSubmitting || isUploadingImages || !isValid || !isDirty
                 }
@@ -373,19 +403,24 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
           <Divider />
 
-          {/* FORM: force a new BFC and use gap to avoid margin-collapse */}
+          {/* FORM */}
           <Box
             component="form"
             id="product-form"
-            onSubmit={handleSubmit(onSubmit)}
+            ref={formRef}
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void handleSubmit(onSubmit)(e);
+            }}
             noValidate
             dir={isRtl ? 'rtl' : 'ltr'}
             sx={{
-              overflow: 'auto', // new block formatting context
+              overflow: 'auto',
               display: 'flex',
               flexDirection: 'column',
-              gap: 2.5, // spacing without margins
-              pb: 2, // comfy bottom padding
+              gap: 2.5,
+              pb: 2,
               width: '100%',
             }}
           >
@@ -548,23 +583,22 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   images={combinedImages}
                   onDrop={handleImageDrop}
                   onRemove={(id) => {
-                    const imageToDelete = combinedImages.find(
+                    const imageToDelete = combinedImagesRef.current.find(
                       (img) => img.id === id,
                     );
                     if (imageToDelete?.type === 'existing') {
-                      // store keeps raw URL ids (strip 'existing-')
                       addDeletedImageId(
                         imageToDelete.id.replace('existing-', ''),
                       );
                     }
                     setCombinedImages(
-                      combinedImages.filter((img) => img.id !== id),
+                      combinedImagesRef.current.filter((img) => img.id !== id),
                     );
                   }}
                   onReorderAll={(newOrder) => setCombinedImages(newOrder)}
                   showSnackbar={false}
                   onCloseSnackbar={() => {
-                    // noop
+                    /* no-op, handled by parent */
                   }}
                   singleHeight={240}
                   withinCard
@@ -598,8 +632,9 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 {t('actions.cancel', { defaultValue: 'Cancel' })}
               </Button>
               <Button
-                type="submit"
+                type="button"
                 variant="contained"
+                onClick={handleClickSave}
                 disabled={
                   isSubmitting || isUploadingImages || !isValid || !isDirty
                 }
