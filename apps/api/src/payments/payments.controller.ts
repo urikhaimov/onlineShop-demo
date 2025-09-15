@@ -23,12 +23,43 @@ import { MailerService } from '../mailer/mailer.service';
 import { InvoiceService } from '../invoice/invoice.service';
 import { getStorage } from 'firebase-admin/storage';
 
-type CreateIntentDto = {
-  cartId: string;
-  items: Array<{ id: string; qty: number }>;
-  currency: string; // e.g. "ILS"
+// ✅ NEW: DTO validation imports
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  ValidateNested,
+  IsString,
+  IsInt,
+  Min,
+  IsOptional,
+} from 'class-validator';
+
+// ✅ NEW: DTOs (replace old type alias)
+class CartItemDto {
+  @IsString()
+  id!: string;
+
+  @IsInt()
+  @Min(1)
+  qty!: number;
+}
+
+class CreateIntentDto {
+  @IsString()
+  cartId!: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CartItemDto)
+  items!: Array<CartItemDto>;
+
+  @IsString()
+  currency!: string; // e.g. "ILS"
+
+  @IsOptional()
+  @IsString()
   customerEmail?: string;
-};
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Simple in-memory rate limiter (10 requests/min per IP) for create-intent
@@ -88,7 +119,7 @@ export class PaymentsController {
   constructor(
     private readonly config: ConfigService,
     @Optional() private readonly mailer?: MailerService, // ⬅️ global MailerService
-    private readonly invoice?: InvoiceService, // ⬅️ InvoiceService (provided by InvoiceModule)
+    @Optional() private readonly invoice?: InvoiceService, // ⬅️ make optional to avoid DI errors in tests
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
     if (process.env.NODE_ENV === 'production' && key.startsWith('sk_test_')) {
@@ -245,6 +276,37 @@ export class PaymentsController {
         `Webhook signature verification failed: ${err.message}`,
       );
       throw new BadRequestException('Invalid signature');
+    }
+
+    // ✅ Idempotency: env-gated replay guard (disabled in tests)
+    const enableReplayGuard =
+      (this.config.get<string>('STRIPE_EVENT_GUARD') ?? 'true') !== 'false' &&
+      process.env.NODE_ENV !== 'test';
+
+    if (enableReplayGuard) {
+      try {
+        await adminDb
+          .collection('webhookEvents')
+          .doc(String(event.id))
+          .create({
+            type: event.type,
+            createdAt: new Date(),
+          } as any);
+      } catch (e: any) {
+        const code = e?.code;
+        const msg = String(e?.message || '').toLowerCase();
+        // Duplicate delivery → acknowledge without reprocessing
+        if (
+          code === 6 ||
+          code === 'already-exists' ||
+          /already.*exist/.test(msg)
+        ) {
+          this.logger.log(`Duplicate Stripe event ${event.id} (${event.type})`);
+          return { received: true };
+        }
+        // Unknown error → log and continue (don't fail the webhook)
+        this.logger.warn(`webhookEvents.create failed: ${e?.message ?? e}`);
+      }
     }
 
     const handleSucceeded = async (pi: Stripe.PaymentIntent) => {

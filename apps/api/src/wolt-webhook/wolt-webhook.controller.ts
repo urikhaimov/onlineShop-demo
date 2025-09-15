@@ -1,46 +1,84 @@
-// src/wolt-webhook/wolt-webhook.controller.ts
-import { Controller, Post, Req, Res, Headers, HttpCode } from '@nestjs/common';
-import { Request, Response } from 'express'; // ok even if you run Fastify; used only for types
+import {
+  Controller,
+  Post,
+  Req,
+  Headers,
+  HttpCode,
+  BadRequestException,
+} from '@nestjs/common';
+import type { Request } from 'express';
 import * as crypto from 'crypto';
+import { ConfigService } from '@nestjs/config';
 
-const SIG_HEADER = 'x-signature'; // replace once Wolt confirms the header name
 const HMAC_ALGO = 'sha256';
 
-@Controller('api/webhooks')
+function parseV1(sig?: string): string | undefined {
+  if (!sig) return undefined;
+  if (sig.includes('=')) {
+    // format: t=...,v1=...,v1=...
+    const v1 = sig
+      .split(',')
+      .map((s) => s.trim())
+      .find((p) => p.startsWith('v1='));
+    return v1?.slice(3);
+  }
+  return sig; // raw hex
+}
+
+@Controller('webhooks') // global prefix (e.g. "api") will be applied by the app
 export class WoltWebhookController {
+  private readonly secret: string;
+
+  constructor(private readonly config: ConfigService) {
+    this.secret =
+      this.config.get<string>('WOLT_WEBHOOK_SECRET') ??
+      process.env.WOLT_WEBHOOK_SECRET ??
+      '';
+  }
+
   @Post('wolt')
   @HttpCode(200)
   async handle(
-    @Req() req: Request & { rawBody?: Buffer }, // raw body will be attached below
-    @Res({ passthrough: true }) res: Response,
-    @Headers(SIG_HEADER) signature: string,
+    @Req() req: Request & { rawBody?: Buffer },
+    @Headers('x-signature') sigLower?: string,
+    @Headers('X-Signature') sigTitle?: string,
   ) {
-    const secret = process.env.WOLT_WEBHOOK_SECRET || '';
+    const raw: Buffer | undefined =
+      (req as any).rawBody ||
+      (Buffer.isBuffer((req as any).body)
+        ? ((req as any).body as Buffer)
+        : undefined);
 
-    // 1) get raw body (Buffer)
-    const raw = (req as any).rawBody as Buffer;
-    if (!raw || !signature || !secret) {
-      // don't leak details
-      return res.status(400).send('bad request');
+    const header =
+      sigLower ?? sigTitle ?? (req.headers['x-signature'] as string);
+    const v1Hex = parseV1(header);
+
+    if (!raw || !v1Hex || !this.secret) {
+      throw new BadRequestException('bad request');
     }
 
-    // 2) compute expected HMAC
-    const expected = crypto
-      .createHmac(HMAC_ALGO, secret)
-      .update(raw)
-      .digest('hex');
+    // Compute expected HMAC as bytes and compare in constant time.
+    let ok = false;
+    try {
+      const expected = crypto
+        .createHmac(HMAC_ALGO, this.secret)
+        .update(raw)
+        .digest(); // Buffer
+      const provided = Buffer.from(v1Hex, 'hex');
+      ok =
+        provided.length === expected.length &&
+        crypto.timingSafeEqual(expected, provided);
+    } catch {
+      ok = false;
+    }
 
-    // 3) constant-time compare
-    const ok =
-      signature.includes(expected) && // tweak if header is "t=...,v1=..."
-      expected.length === 64; // sanity
+    if (!ok) {
+      throw new BadRequestException('invalid signature');
+    }
 
-    if (!ok) return res.status(400).send('invalid signature');
+    // If you need the event later:
+    // const event = JSON.parse(raw.toString('utf8'));
 
-    // 4) parse json *after* verification
-    const event = JSON.parse(raw.toString('utf8'));
-    console.log('Wolt event:', event); // TODO: idempotent handling, queue, etc.
-
-    return 'ok';
+    return { ok: true };
   }
 }

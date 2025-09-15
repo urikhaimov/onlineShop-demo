@@ -1,4 +1,5 @@
-// Runs before every test file (configured via jest-e2e.js -> setupFiles)
+// apps/api/test/setup-e2e.ts
+// Runs before every test file (configured via jest-e2e.js -> setupFilesAfterEnv)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Default test env + disable rate limiting globally (tests re-enable per-case)
@@ -41,6 +42,7 @@ function applyPatch(cur: any, patch: any) {
   }
   return next;
 }
+
 function makeDoc(key: string) {
   return {
     async get() {
@@ -52,6 +54,12 @@ function makeDoc(key: string) {
       };
     },
     async set(data: any) {
+      __firestoreStore.set(key, data);
+    },
+    async create(data: any) {
+      if (__firestoreStore.has(key)) {
+        throw new Error('Document already exists');
+      }
       __firestoreStore.set(key, data);
     },
     async update(patch: any) {
@@ -71,6 +79,7 @@ jest.mock('@common/firebase', () => ({
       const tx = {
         get: async (ref: any) => ref.get(),
         set: (ref: any, data: any) => ref.set(data),
+        create: (ref: any, data: any) => ref.create(data),
         update: (ref: any, patch: any) => ref.update(patch),
       };
       return fn(tx);
@@ -79,15 +88,13 @@ jest.mock('@common/firebase', () => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Global helper to mount Stripe raw-body middleware on the Nest app
+// Global helper to mount raw-body middleware on a specific route
 // Use in specs:  global.applyStripeRaw(app, '/api/payments/webhooks/stripe')
+//                global.applyStripeRaw(app, '/api/webhooks/wolt')
 // ─────────────────────────────────────────────────────────────────────────────
 import * as bodyParser from 'body-parser';
 
-(global as any).applyStripeRaw = (
-  app: any,
-  route = '/api/payments/webhooks/stripe',
-) => {
+(global as any).applyStripeRaw = (app: any, route: string) => {
   // IMPORTANT: raw BEFORE JSON, only on the webhook route
   const rawMw = bodyParser.raw({ type: '*/*', limit: '2mb' });
   const ensureRaw = (req: any, _res: any, next: any) => {
@@ -95,14 +102,14 @@ import * as bodyParser from 'body-parser';
     next();
   };
   app.use(route, rawMw, ensureRaw);
+
   // Normal JSON parser for the rest (and AFTER the raw-on-route)
   app.use(bodyParser.json());
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tame noisy logs: hide expected signature failures, keep the rest visible
-// ─────────────────────────────────────────────────────────────────────────────
 import { Logger } from '@nestjs/common';
+// Tame noisy logs: hide expected signature failures, keep the rest visible
 const _origError = Logger.prototype.error;
 const _origWarn = Logger.prototype.warn;
 
@@ -140,10 +147,15 @@ afterAll(() => {
 
 // Make store & helpers visible on global for specs
 declare global {
-  var applyStripeRaw: (app: any, route?: string) => void;
+  // Helper that mounts raw-body on a specific route (must be called before app.init())
+  var applyStripeRaw: (app: any, route: string) => void;
 
+  // In-memory Firestore backing store
   var __firestoreStore: Map<string, any>;
 
+  // Utility to temporarily enable the rate limiter inside a test
   var withRateLimitEnabled: <T>(fn: () => Promise<T> | T) => Promise<T>;
 }
 (global as any).__firestoreStore = __firestoreStore;
+
+export {};
