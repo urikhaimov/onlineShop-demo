@@ -62,16 +62,16 @@ async function bootstrap() {
     next();
   };
 
-  // Add your Wolt webhook path here (alongside Stripe)
+  // Add other webhook paths here (Stripe + any partner webhooks)
   const webhookPaths = [
     `/${apiPrefix}/orders/webhook`,
     `/${apiPrefix}/payments/webhooks/stripe`,
-    `/${apiPrefix}/webhooks/wolt`, // ← Wolt webhook
+    `/${apiPrefix}/webhooks/wolt`,
   ];
   webhookPaths.forEach((p) => app.use(p, webhookRaw, ensureRawBody));
   // -------------------------------------------------------------------------------------
 
-  // Standard parsers for the rest of the app
+  // Standard parsers for the rest of the app (mounted AFTER raw webhook parsers)
   app.use(bodyParser.json({ limit: '1mb' }));
   app.use(bodyParser.urlencoded({ extended: true, limit: '1mb' }));
 

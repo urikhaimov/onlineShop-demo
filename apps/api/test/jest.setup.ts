@@ -88,28 +88,54 @@ import * as bodyParser from 'body-parser';
   app: any,
   route = '/api/payments/webhooks/stripe',
 ) => {
+  // IMPORTANT: raw BEFORE JSON, only on the webhook route
   const rawMw = bodyParser.raw({ type: '*/*', limit: '2mb' });
   const ensureRaw = (req: any, _res: any, next: any) => {
     if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
     next();
   };
   app.use(route, rawMw, ensureRaw);
+  // Normal JSON parser for the rest (and AFTER the raw-on-route)
   app.use(bodyParser.json());
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Silence Nest Logger noise in tests
+// Tame noisy logs: hide expected signature failures, keep the rest visible
 // ─────────────────────────────────────────────────────────────────────────────
 import { Logger } from '@nestjs/common';
+const _origError = Logger.prototype.error;
+const _origWarn = Logger.prototype.warn;
+
 beforeAll(() => {
-  jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {
-    // Suppress error logs
+  jest.spyOn(Logger.prototype, 'error').mockImplementation(function (
+    this: any,
+    message?: any,
+    ...rest: any[]
+  ) {
+    const msg = String(message ?? '');
+    if (/Webhook signature verification failed:/i.test(msg)) {
+      return; // swallow expected Stripe signature noise in tests
+    }
+    return _origError.apply(this, [message, ...rest]);
   });
-  jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {
-    // Suppress warning logs
+
+  jest.spyOn(Logger.prototype, 'warn').mockImplementation(function (
+    this: any,
+    message?: any,
+    ...rest: any[]
+  ) {
+    const msg = String(message ?? '');
+    // Optionally swallow specific, expected warns during tests:
+    if (/send(OrderConfirmation|RefundEmail) failed:/i.test(msg)) {
+      return;
+    }
+    return _origWarn.apply(this, [message, ...rest]);
   });
-  // uncomment if you want full silence:
-  // jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+});
+
+afterAll(() => {
+  (Logger.prototype.error as jest.Mock)?.mockRestore?.();
+  (Logger.prototype.warn as jest.Mock)?.mockRestore?.();
 });
 
 // Make store & helpers visible on global for specs
