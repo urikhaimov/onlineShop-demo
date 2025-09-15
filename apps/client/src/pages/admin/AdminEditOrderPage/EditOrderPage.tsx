@@ -1,5 +1,5 @@
 // src/pages/admin/orders/EditOrderPage.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
@@ -17,7 +17,7 @@ import {
 } from '../../../services/ability.service';
 import { useTranslation } from 'react-i18next';
 
-import { useOrder, useUpdateOrder, Order } from '../../../hooks/useOrder';
+import { useOrder, useUpdateOrder, type Order } from '../../../hooks/useOrder';
 import LoadingProgress from '@client/components/LoadingProgress';
 import FormTextField from '@client/components/FormTextField';
 
@@ -29,13 +29,24 @@ import OrderPayment from '../../../components/orders/OrderPayment';
 import OrderTimestamps from '../../../components/orders/OrderTimestamps';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { ESTATUS_OPTIONS } from '@common/types';
-// ✅ Reusable page card layout
 import PageCard from '@client/layouts/PageCard';
 
-// For inner paper radius
 import { useThemeStore } from '../../../stores/useThemeStore';
 import { getLayoutTokens } from '../../../utils/uiLayout';
 import { useSnackbar } from 'notistack';
+
+type UpdateOrderVars = Order & {
+  previousStatus?: Order['status'];
+};
+
+type UpdateOrderMutation = {
+  mutate: (
+    vars: UpdateOrderVars,
+    opts?: { onSuccess?: () => void; onError?: (e: unknown) => void },
+  ) => void;
+  mutateAsync?: (vars: UpdateOrderVars) => Promise<void>;
+  status: 'idle' | 'pending' | 'error' | 'success' | (string & {});
+};
 
 export default function EditOrderPage() {
   const { t } = useTranslation();
@@ -43,58 +54,98 @@ export default function EditOrderPage() {
   const { id } = useParams<{ id: string }>();
 
   const { data: order, isLoading, isError, error } = useOrder(id);
-  const updateOrderMutation = useUpdateOrder(id);
+  const updateOrderMutation = useUpdateOrder(id) as UpdateOrderMutation;
 
+  // Keep most recent order in a ref (for previousStatus, etc.)
+  const orderRef = useRef<Order | undefined>(order);
+  useEffect(() => {
+    orderRef.current = order;
+  }, [order]);
+
+  // RHF v8: <TFieldValues, TContext, TTransformedValues>
+  // Explicitly set TTransformedValues = Order to align handleSubmit with SubmitHandler<Order>
   const {
     control,
     handleSubmit,
     reset,
     watch,
     formState: { isSubmitting, errors },
-  } = useForm<Order>({
-    defaultValues: order || {
+  } = useForm<Order, any, Order>({
+    mode: 'onChange',
+    defaultValues: order ?? {
+      id: id ?? '',
       status: 'pending',
       notes: '',
       delivery: { provider: '', trackingNumber: '', eta: '' },
       items: [],
+      // DeepPartial<Order> allows omitting the rest; no `any` needed.
     },
   });
 
+  // keep form in sync after order loads
   useEffect(() => {
     if (order) reset(order);
   }, [order, reset]);
 
   const currentStatus = watch('status');
 
-  const onSubmit: SubmitHandler<Order> = (formData) => {
-    updateOrderMutation.mutate(
-      { ...formData, previousStatus: order?.status },
-      {
-        onSuccess: () => {
-          enqueueSnackbar(
-            t('orderEdit.success', {
-              defaultValue: 'Order updated successfully!',
-            }) as string,
-            { variant: 'success', autoHideDuration: 4000 },
-          );
-        },
-        onError: (err) => {
-          const message =
-            err instanceof Error
-              ? err.message
-              : (t('orderEdit.updateFailed', {
-                  defaultValue: 'Failed to update order.',
-                }) as string);
-          enqueueSnackbar(message, {
-            variant: 'error',
-            autoHideDuration: 4000,
-          });
-        },
-      },
-    );
+  // submit guards + programmatic form submit (prevents double fire)
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const submittingRef = useRef(false);
+
+  const onSubmit: SubmitHandler<Order> = async (formData) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
+    try {
+      const previousStatus = orderRef.current?.status;
+
+      const run =
+        updateOrderMutation.mutateAsync ??
+        ((vars: UpdateOrderVars) =>
+          new Promise<void>((resolve, reject) =>
+            updateOrderMutation.mutate(vars, {
+              onSuccess: () => resolve(),
+              onError: (e: unknown) => reject(e),
+            }),
+          ));
+
+      await run({ ...formData, previousStatus });
+
+      enqueueSnackbar(
+        t('orderEdit.success', {
+          defaultValue: 'Order updated successfully!',
+        }),
+        { variant: 'success', autoHideDuration: 4000 },
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : t('orderEdit.updateFailed', {
+              defaultValue: 'Failed to update order.',
+            });
+
+      enqueueSnackbar(message, {
+        variant: 'error',
+        autoHideDuration: 4000,
+      });
+
+      // allow retry on error
+      submittingRef.current = false;
+      return;
+    } finally {
+      // do not flip submittingRef back on success to avoid accidental re-submits
+    }
   };
 
-  // keep inner card radius consistent with theme settings
+  const submitHandler = handleSubmit(onSubmit);
+
+  const handleClickSave = () => {
+    if (formRef.current?.requestSubmit) formRef.current.requestSubmit();
+    else formRef.current?.submit();
+  };
+
   const { themeSettings } = useThemeStore();
   const { radius } = getLayoutTokens(themeSettings, 'form');
 
@@ -105,7 +156,7 @@ export default function EditOrderPage() {
         <Typography color="error">
           {t('orderEdit.errorLoading', {
             defaultValue: 'Error loading order: {{message}}',
-            message: error?.message,
+            message: (error as { message?: string } | undefined)?.message,
           })}
         </Typography>
       </Box>
@@ -113,9 +164,8 @@ export default function EditOrderPage() {
 
   return (
     <PageLayout action={EAbilityActions.MANAGE} subject={EAbilitySubjects.ALL}>
-      {/* ✅ Reusable PageCard handles outer scroll area, centered paper, and inner padding */}
       <PageCard variant="form" pad={{ xs: 3, sm: 3.5, md: 4 }}>
-        <Stack>
+        <Stack spacing={2.5}>
           <Typography variant="h5" fontWeight={600}>
             {t('orderEdit.title', {
               defaultValue: 'Edit Order #{{id}}',
@@ -123,14 +173,15 @@ export default function EditOrderPage() {
             })}
           </Typography>
 
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5}>
             {/* LEFT MAIN COLUMN */}
-            <Stack flex={2} spacing={2}>
+            <Stack flex={2} spacing={2.5}>
               <Paper sx={{ p: 2, borderRadius: radius }}>
                 <Typography variant="h6" fontWeight="bold" gutterBottom>
                   {t('orderEdit.orderStatus', { defaultValue: 'Order Status' })}
                 </Typography>
-                <FormTextField
+
+                <FormTextField<Order>
                   label={t('orderEdit.status', { defaultValue: 'Status' })}
                   name="status"
                   control={control}
@@ -145,6 +196,7 @@ export default function EditOrderPage() {
                     </MenuItem>
                   ))}
                 </FormTextField>
+
                 <Box mt={2}>
                   <OrderStatusBadge status={currentStatus} />
                 </Box>
@@ -156,8 +208,9 @@ export default function EditOrderPage() {
                     defaultValue: 'Delivery Information',
                   })}
                 </Typography>
+
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                  <FormTextField
+                  <FormTextField<Order>
                     label={t('orderEdit.provider', {
                       defaultValue: 'Provider',
                     })}
@@ -166,7 +219,7 @@ export default function EditOrderPage() {
                     errorObject={errors?.delivery?.provider}
                     fullWidth
                   />
-                  <FormTextField
+                  <FormTextField<Order>
                     label={t('orderEdit.trackingNumber', {
                       defaultValue: 'Tracking Number',
                     })}
@@ -176,8 +229,9 @@ export default function EditOrderPage() {
                     fullWidth
                   />
                 </Stack>
+
                 <Box mt={2}>
-                  <FormTextField
+                  <FormTextField<Order>
                     label={t('orderEdit.eta', {
                       defaultValue: 'ETA (ISO or text)',
                     })}
@@ -193,7 +247,8 @@ export default function EditOrderPage() {
                 <Typography variant="h6" fontWeight="bold" gutterBottom>
                   {t('orderEdit.adminNotes', { defaultValue: 'Admin Notes' })}
                 </Typography>
-                <FormTextField
+
+                <FormTextField<Order>
                   label={t('orderEdit.internalNotes', {
                     defaultValue: 'Internal Notes',
                   })}
@@ -209,12 +264,16 @@ export default function EditOrderPage() {
               <Box textAlign="right">
                 <Button
                   variant="contained"
-                  onClick={handleSubmit(onSubmit)}
+                  type="button"
+                  onClick={handleClickSave}
                   disabled={
-                    updateOrderMutation.status === 'pending' || isSubmitting
+                    isSubmitting ||
+                    submittingRef.current ||
+                    updateOrderMutation.status === 'pending'
                   }
                 >
-                  {updateOrderMutation.status === 'pending' ? (
+                  {updateOrderMutation.status === 'pending' ||
+                  submittingRef.current ? (
                     <CircularProgress size={24} />
                   ) : (
                     t('orderEdit.saveChanges', { defaultValue: 'Save Changes' })
@@ -224,7 +283,7 @@ export default function EditOrderPage() {
             </Stack>
 
             {/* RIGHT SIDEBAR */}
-            <Stack flex={1} spacing={2}>
+            <Stack flex={1} spacing={2.5}>
               <OrderCustomer order={order} />
               <OrderShipping order={order} />
               <OrderItems order={order} />
@@ -232,6 +291,19 @@ export default function EditOrderPage() {
               <OrderTimestamps order={order} />
             </Stack>
           </Stack>
+
+          {/* Hidden form element to centralize submission & validations */}
+          <Box
+            component="form"
+            ref={formRef}
+            onSubmit={(e) => {
+              // Let RHF handle preventDefault; we only stop propagation.
+              e.stopPropagation();
+              void submitHandler(e);
+            }}
+            sx={{ display: 'contents' }}
+            noValidate
+          />
         </Stack>
       </PageCard>
     </PageLayout>

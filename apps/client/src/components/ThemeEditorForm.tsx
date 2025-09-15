@@ -17,7 +17,13 @@ import {
 } from '../hooks/useThemeHooks';
 import FormTextField from '../components/FormTextField';
 
-const fontOptions = ['Noto Sans Hebrew', 'Open Sans', 'Inter', 'Orbitron', 'Poppins'];
+const fontOptions = [
+  'Noto Sans Hebrew',
+  'Open Sans',
+  'Inter',
+  'Orbitron',
+  'Poppins',
+];
 const maxWidthOptions: ThemeSettings['maxWidth'][] = [
   'sm',
   'md',
@@ -85,10 +91,12 @@ export default function ThemeEditorForm() {
         <FormTextField
           label="Theme Preset"
           select
-          SelectProps={{ native: false }}
-          onChange={(e) => handlePresetChange(e.target.value)}
+          SelectProps={{
+            native: false,
+            onChange: (e) => handlePresetChange(e.target.value as string),
+            value: '',
+          }}
           fullWidth
-          value=""
         >
           <MenuItem value="">Select a preset</MenuItem>
           {Object.keys(themePresets).map((key) => (
