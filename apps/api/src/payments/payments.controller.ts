@@ -12,13 +12,16 @@ import {
   HttpException,
   HttpStatus,
   Param,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { adminDb } from '@common/firebase';
 import { FieldValue } from 'firebase-admin/firestore';
 import { MailerService } from '../mailer/mailer.service';
+import { InvoiceService } from '../invoice/invoice.service';
+import { getStorage } from 'firebase-admin/storage';
 
 type CreateIntentDto = {
   cartId: string;
@@ -85,6 +88,7 @@ export class PaymentsController {
   constructor(
     private readonly config: ConfigService,
     @Optional() private readonly mailer?: MailerService, // ⬅️ global MailerService
+    private readonly invoice?: InvoiceService, // ⬅️ InvoiceService (provided by InvoiceModule)
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
     if (process.env.NODE_ENV === 'production' && key.startsWith('sk_test_')) {
@@ -182,6 +186,26 @@ export class PaymentsController {
   }
 
   // ----------------------------------------------------------------------------
+  // Helper: safe items parse for invoices
+  // ----------------------------------------------------------------------------
+  private safeParseItems(
+    raw: unknown,
+  ): Array<{ id: string; qty: number; priceCents?: number }> | undefined {
+    if (!raw || typeof raw !== 'string') return undefined;
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return undefined;
+      return arr.map((x) => ({
+        id: String(x.id),
+        qty: Number(x.qty) || 1,
+        priceCents: x.priceCents ? Number(x.priceCents) : undefined,
+      }));
+    } catch {
+      return undefined;
+    }
+  }
+
+  // ----------------------------------------------------------------------------
   // POST /payments/webhooks/stripe
   // ----------------------------------------------------------------------------
   @Post('webhooks/stripe')
@@ -233,10 +257,12 @@ export class PaymentsController {
         items = [];
       }
 
-      const emailToNotify: string | undefined =
+      // Try hard to find an email for notifications and invoice:
+      let emailToNotify: string | undefined =
         (pi.metadata?.email as string) ||
         (pi.receipt_email as string) ||
         undefined;
+
       let createdNow = false;
 
       await adminDb.runTransaction(async (tx) => {
@@ -253,6 +279,11 @@ export class PaymentsController {
         };
 
         if (snap.exists) {
+          // if no email yet on the order, keep what was there
+          const existing = snap.data() as any;
+          if (!emailToNotify && existing?.email) {
+            emailToNotify = existing.email;
+          }
           tx.update(ref, base);
         } else {
           createdNow = true;
@@ -263,6 +294,7 @@ export class PaymentsController {
           });
         }
 
+        // decrement stock
         for (const it of items) {
           const pid = String(it.id);
           const qty = Math.max(0, Number(it.qty || 0));
@@ -272,15 +304,75 @@ export class PaymentsController {
         }
       });
 
+      // ── Generate & upload invoice (if InvoiceService is present) ────────────
+      let invoiceUpload:
+        | { buffer: Buffer; path: string; url?: string }
+        | undefined;
+
+      try {
+        if (this.invoice) {
+          const storeName = process.env.STORE_NAME ?? 'Bunder Shop';
+          const vatRate = Number(process.env.VAT_RATE ?? '0');
+          invoiceUpload = await this.invoice.generateAndUpload({
+            orderId,
+            createdAt: new Date(),
+            amountCents: Number(pi.amount_received ?? pi.amount ?? 0),
+            currency: (pi.currency ?? 'ILS').toUpperCase(),
+            email: emailToNotify ?? null,
+            items: this.safeParseItems(pi.metadata?.items),
+            vatRate: isNaN(vatRate) ? 0 : vatRate,
+            storeName,
+          });
+
+          // persist invoice pointer on order
+          await adminDb
+            .collection('orders')
+            .doc(orderId)
+            .update({
+              invoice: {
+                path: invoiceUpload.path,
+                url: invoiceUpload.url ?? null,
+                createdAt: new Date(),
+              },
+              updatedAt: new Date(),
+            });
+        }
+      } catch (e) {
+        this.logger.warn(
+          `Invoice generation/upload failed for ${orderId}: ${(e as Error).message}`,
+        );
+      }
+
+      // ── Send email (with PDF attached if we have it) ──────────────────────
       if (emailToNotify && this.mailer?.sendOrderConfirmation) {
         try {
-          await this.mailer.sendOrderConfirmation(emailToNotify, {
+          const payload = {
             orderId,
-            amount: (pi.amount_received ?? pi.amount) || 0,
-            currency: pi.currency ?? null,
+            amount: Number(pi.amount_received ?? pi.amount ?? 0),
+            currency: (pi.currency ?? 'ILS').toUpperCase(),
             paymentIntentId: pi.id,
             created: createdNow,
-          });
+            invoiceUrl: invoiceUpload?.url ?? undefined,
+          };
+
+          // ✅ Attach the generated PDF as third-arg options when available
+          const mailOpts = invoiceUpload?.buffer
+            ? {
+                attachments: [
+                  {
+                    filename: `invoice_${orderId}.pdf`,
+                    content: invoiceUpload.buffer,
+                    contentType: 'application/pdf',
+                  },
+                ],
+              }
+            : undefined;
+
+          await this.mailer.sendOrderConfirmation(
+            emailToNotify,
+            payload,
+            mailOpts,
+          );
         } catch (e) {
           this.logger.warn(
             `sendOrderConfirmation failed: ${(e as Error).message}`,
@@ -443,5 +535,31 @@ export class PaymentsController {
     }
 
     return { ok: true };
+  }
+
+  // ----------------------------------------------------------------------------
+  // GET /payments/orders/:orderId/invoice — stream the PDF invoice
+  // ----------------------------------------------------------------------------
+  @Get('orders/:orderId/invoice')
+  async downloadInvoice(
+    @Param('orderId') orderId: string,
+    @Res() res: Response,
+  ) {
+    const bucket = getStorage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+    const file = bucket.file(`invoices/${orderId}.pdf`);
+    const [exists] = await file.exists();
+    if (!exists) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=invoice_${orderId}.pdf`,
+    );
+    file
+      .createReadStream()
+      .on('error', () => res.status(500).end())
+      .pipe(res);
   }
 }

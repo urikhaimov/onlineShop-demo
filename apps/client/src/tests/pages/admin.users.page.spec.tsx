@@ -1,13 +1,5 @@
 // src/tests/pages/admin.users.page.spec.tsx
-import {
-  describe,
-  it,
-  beforeEach,
-  afterEach,
-  expect,
-  vi,
-  type Mock,
-} from 'vitest';
+import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
 import React from 'react';
 import {
   render,
@@ -25,9 +17,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // No-op URL sync
 vi.mock('../../hooks/useStickyTableQuerySync', () => ({
-  useStickyTableQuerySync: () => {
-    // do nothing
-  },
+  useStickyTableQuerySync: () => {},
 }));
 
 // Bypass auth/guards
@@ -44,12 +34,7 @@ vi.mock('react-i18next', () => ({
     i18n: { language: 'en' },
   }),
   Trans: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  initReactI18next: {
-    type: '3rdParty',
-    init: () => {
-      // do nothing
-    },
-  },
+  initReactI18next: { type: '3rdParty', init: () => {} },
 }));
 
 // Optional UI store
@@ -59,6 +44,7 @@ vi.mock('../../stores/useAdminUsersUIStore', () => ({
 
 // Columns: return handlers bag directly
 vi.mock('../../pages/admin/AdminUsersPage/Columns', () => ({
+  // type any to avoid test-time type coupling
   defineUserColumns: (handlers: any) => handlers as any,
 }));
 
@@ -143,15 +129,11 @@ const users = [
   { id: 'u2', email: 'b@acme.com', role: 'admin' },
 ];
 
-const updateUserRole = vi.fn(async (_id: string, _role: string) => {
-  return true;
-});
-const deleteUser = vi.fn(async (_id: string) => {
-  return true;
-});
+const updateUserRole = vi.fn(async (_id: string, _role: string) => {});
+const deleteUser = vi.fn(async (_id: string) => {});
 
 beforeEach(() => {
-  (useAdminUsersQuery as unknown as Mock).mockReturnValue({
+  (useAdminUsersQuery as unknown as vi.Mock).mockReturnValue({
     users,
     isLoading: false,
     error: null,
@@ -167,7 +149,7 @@ afterEach(() => {
 // ── Specs ─────────────────────────────────────────────────────────────────────
 describe('AdminUsersPage', () => {
   it('shows loading gate', async () => {
-    (useAdminUsersQuery as unknown as Mock).mockReturnValue({
+    (useAdminUsersQuery as unknown as vi.Mock).mockReturnValue({
       users: [],
       isLoading: true,
       error: null,
@@ -186,7 +168,7 @@ describe('AdminUsersPage', () => {
   });
 
   it('shows error state', async () => {
-    (useAdminUsersQuery as unknown as Mock).mockReturnValue({
+    (useAdminUsersQuery as unknown as vi.Mock).mockReturnValue({
       users: [],
       isLoading: false,
       error: new Error('boom'),

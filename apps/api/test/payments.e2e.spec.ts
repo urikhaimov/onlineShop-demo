@@ -6,9 +6,16 @@ import nock from 'nock';
 import { ConfigService } from '@nestjs/config';
 import * as bodyParser from 'body-parser';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Mocks that must be hoisted
+// ─────────────────────────────────────────────────────────────────────────────
+jest.mock('firebase-admin/storage', () => ({ getStorage: jest.fn() }));
+
 // ✅ Only the controller — avoid full AppModule to prevent long init/hangs
 import { PaymentsController } from '../src/payments/payments.controller';
-import { MailerService } from '../src/mailer/mailer.service'; // 👈 FIX: import real token
+import { MailerService } from '../src/mailer/mailer.service'; // 👈 use class token
+import { InvoiceService } from '../src/invoice/invoice.service'; // 👈 use class token
+import { Readable } from 'stream';
 
 // 🔒 Local alias (with fallback) for rate-limit toggling; works with or without jest.setup.ts
 const withRateLimitEnabled: <T>(fn: () => Promise<T> | T) => Promise<T> =
@@ -29,9 +36,9 @@ jest.mock('@common/firebase', () => {
   const adminDb = {
     collection: jest.fn().mockReturnThis(),
     doc: jest.fn().mockReturnThis(),
-    get: jest.fn(),
+    get: jest.fn(), // <- used for docRef.get()
     set: jest.fn(),
-    update: jest.fn(),
+    update: jest.fn(), // <- used for docRef.update(payload) and tx.update(ref, payload)
     runTransaction: jest.fn(),
   };
   return { adminDb };
@@ -42,7 +49,7 @@ import { adminDb } from '@common/firebase';
 type AdminDbMock = {
   collection: jest.Mock;
   doc: jest.Mock;
-  get: jest.Mock;
+  get: jest.Mock; // docRef.get()
   set: jest.Mock;
   update: jest.Mock;
   runTransaction: jest.Mock;
@@ -80,6 +87,13 @@ function listRoutes(app: INestApplication) {
   return out;
 }
 
+// Helper to make a DocumentSnapshot-like object
+const makeSnap = (data: any, exists = true) => ({
+  exists,
+  data: () => data,
+  get: (field: string) => (data ? data[field] : null),
+});
+
 describe('PaymentsController (e2e)', () => {
   let app: INestApplication;
   let createIntentPath = '';
@@ -93,6 +107,11 @@ describe('PaymentsController (e2e)', () => {
   const mailerMock = {
     sendOrderConfirmation: jest.fn(),
     sendRefundEmail: jest.fn(),
+  };
+
+  // 📄 invoice mock so we can assert PDF generation/upload & persistence
+  const invoiceMock = {
+    generateAndUpload: jest.fn(),
   };
 
   beforeAll(() => {
@@ -125,7 +144,8 @@ describe('PaymentsController (e2e)', () => {
       controllers: [PaymentsController],
       providers: [
         { provide: ConfigService, useValue: configMock },
-        { provide: MailerService, useValue: mailerMock }, // 👈 FIX: provide class token, not 'MAIL_SERVICE'
+        { provide: MailerService, useValue: mailerMock }, // 👈 provide class token
+        { provide: InvoiceService, useValue: invoiceMock }, // 👈 provide invoice mock
       ],
     }).compile();
 
@@ -134,7 +154,6 @@ describe('PaymentsController (e2e)', () => {
     app.setGlobalPrefix(apiPrefix);
 
     // 🔐 Ensure Stripe webhook sees the exact raw body (mirror main.ts)
-    // Use type '*/*' so Express gives us the raw Buffer for any content-type.
     const stripeRaw = bodyParser.raw({ type: '*/*', limit: '2mb' });
     const ensureRawBody = (req: any, _res: any, next: any) => {
       if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
@@ -143,8 +162,8 @@ describe('PaymentsController (e2e)', () => {
     // Mount on the expected prefixed path before init
     app.use(`/${apiPrefix}/payments/webhooks/stripe`, stripeRaw, ensureRawBody);
 
-    // 👇 FIX: also mount JSON parser AFTER raw for other routes (e.g., create-intent)
-    app.use(bodyParser.json()); // 👈 FIX
+    // 👇 also mount JSON parser AFTER raw for other routes (e.g., create-intent)
+    app.use(bodyParser.json());
 
     await app.init();
 
@@ -193,6 +212,10 @@ describe('PaymentsController (e2e)', () => {
     jest.restoreAllMocks();
     nock.abortPendingRequests();
     nock.cleanAll();
+    invoiceMock.generateAndUpload.mockReset();
+
+    // 🔁 Reset docRef.get() to a sane default (prevents "snap.data is not a function")
+    db.get = jest.fn().mockResolvedValue(makeSnap({}));
   });
 
   it('POST /payments/create-intent returns clientSecret + paymentIntentId', async () => {
@@ -200,8 +223,8 @@ describe('PaymentsController (e2e)', () => {
     db.collection.mockReturnThis();
     db.doc.mockReturnThis();
 
-    // Safe default for any unexpected reads
-    db.get = jest.fn().mockResolvedValue({ get: () => null });
+    // For product/settings reads, we want a DocumentSnapshot with only .get(field)
+    db.get = jest.fn().mockResolvedValue({ get: () => null } as any);
     // product 1 price 50, product 2 price 30, settings: shipping 10, tax 0, discount 0
     (db.get as jest.Mock)
       .mockResolvedValueOnce({
@@ -247,7 +270,6 @@ describe('PaymentsController (e2e)', () => {
       paymentIntentId: 'pi_123',
     });
 
-    // Assert the Stripe call parameters (cast the call tuple)
     const [params, options] = createSpy.mock.calls[0] as [any, any];
     expect(params).toMatchObject({
       amount: 12000, // (50*1 + 30*2 + 10) * 100
@@ -275,7 +297,6 @@ describe('PaymentsController (e2e)', () => {
     };
     const payloadRaw = JSON.stringify(eventPayload);
 
-    // Valid Stripe signature header
     const header = Stripe.webhooks.generateTestHeaderString({
       payload: payloadRaw,
       secret: webhookSecret,
@@ -286,7 +307,7 @@ describe('PaymentsController (e2e)', () => {
     db.doc.mockReturnThis();
     db.runTransaction.mockImplementation(async (fn: any) => {
       const tx = {
-        get: jest.fn(async () => ({ exists: false, get: () => null })),
+        get: jest.fn(async () => makeSnap({}, false)),
         set: jest.fn(),
         update: jest.fn(),
       };
@@ -296,11 +317,10 @@ describe('PaymentsController (e2e)', () => {
     });
 
     await request(app.getHttpServer())
-      .post(webhookPath) // ✅ normalized & prefixed
+      .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header) // some code reads lowercase key
       .set('Content-Type', 'application/json')
-      .send(payloadRaw) // send exact string so signature matches
+      .send(payloadRaw)
       .expect(200);
   });
 
@@ -309,7 +329,7 @@ describe('PaymentsController (e2e)', () => {
       .post(webhookPath)
       .set('Stripe-Signature', 'bad')
       .set('Content-Type', 'application/json')
-      .send('{}'); // plain string
+      .send('{}');
 
     expect(res.status).toBe(400);
   });
@@ -337,7 +357,6 @@ describe('PaymentsController (e2e)', () => {
     expect([200, 201]).toContain(r1.status);
     expect([200, 201]).toContain(r2.status);
 
-    // both Stripe calls must reuse the same idempotency key
     const idks = spy.mock.calls.map(
       ([, opts]: [unknown, { idempotencyKey?: string }]) =>
         opts?.idempotencyKey,
@@ -354,7 +373,7 @@ describe('PaymentsController (e2e)', () => {
     let setCallsTotal = 0;
     db.runTransaction.mockImplementation(async (fn: any) => {
       const tx = {
-        get: jest.fn(async () => ({ exists, get: () => null })),
+        get: jest.fn(async () => makeSnap({}, exists)),
         set: jest.fn(() => {
           setCallsTotal++;
         }),
@@ -364,6 +383,9 @@ describe('PaymentsController (e2e)', () => {
       exists = true; // next time behave as "already processed / existing order"
       return true;
     });
+
+    // Ensure any accidental docRef.get() (outside tx) won’t blow up
+    db.get = jest.fn().mockResolvedValue(makeSnap({}));
 
     const eventPayload = {
       id: 'evt_same',
@@ -390,7 +412,6 @@ describe('PaymentsController (e2e)', () => {
     await request(app.getHttpServer())
       .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header)
       .set('Content-Type', 'application/json')
       .send(raw)
       .expect(200);
@@ -399,7 +420,6 @@ describe('PaymentsController (e2e)', () => {
     await request(app.getHttpServer())
       .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header)
       .set('Content-Type', 'application/json')
       .send(raw)
       .expect(200);
@@ -413,7 +433,7 @@ describe('PaymentsController (e2e)', () => {
     let setCalls = 0;
     db.runTransaction.mockImplementation(async (fn: any) => {
       const tx = {
-        get: jest.fn(async () => ({ exists: false, get: () => null })),
+        get: jest.fn(async () => makeSnap({}, false)),
         set: jest.fn(() => {
           setCalls++;
         }),
@@ -447,7 +467,6 @@ describe('PaymentsController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header)
       .set('Content-Type', 'application/json')
       .send(raw);
 
@@ -456,14 +475,13 @@ describe('PaymentsController (e2e)', () => {
   });
 
   it('charge.refunded (full) updates order to refunded with amount', async () => {
-    // Arrange Firestore tx mock: capture the update payload we write
     db.collection.mockReturnThis();
     db.doc.mockReturnThis();
 
     let lastUpdate: any = null;
     db.runTransaction.mockImplementation(async (fn: any) => {
       const tx = {
-        get: jest.fn(async () => ({ exists: true, get: () => null })), // already has an order
+        get: jest.fn(async () => makeSnap({}, true)), // already has an order
         set: jest.fn(),
         update: jest.fn((_ref: any, payload: any) => {
           lastUpdate = payload;
@@ -502,7 +520,6 @@ describe('PaymentsController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header)
       .set('Content-Type', 'application/json')
       .send(raw);
 
@@ -519,7 +536,7 @@ describe('PaymentsController (e2e)', () => {
     let lastUpdate: any = null;
     db.runTransaction.mockImplementation(async (fn: any) => {
       const tx = {
-        get: jest.fn(async () => ({ exists: true, get: () => null })),
+        get: jest.fn(async () => makeSnap({}, true)),
         set: jest.fn(),
         update: jest.fn((_ref: any, payload: any) => {
           lastUpdate = payload;
@@ -558,7 +575,6 @@ describe('PaymentsController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header)
       .set('Content-Type', 'application/json')
       .send(raw);
 
@@ -577,12 +593,11 @@ describe('PaymentsController (e2e)', () => {
 
     db.runTransaction.mockImplementation(async (fn: any) => {
       const tx = {
-        get: jest.fn(async () => ({ exists: false, get: () => null })), // order does not exist yet
+        get: jest.fn(async () => makeSnap({}, false)), // order does not exist yet
         set: jest.fn(() => {
           setCalled = true;
         }),
         update: jest.fn((_ref: any, payload: any) => {
-          // count product stock updates by looking for a 'stock' field
           if (
             payload &&
             Object.prototype.hasOwnProperty.call(payload, 'stock')
@@ -626,24 +641,23 @@ describe('PaymentsController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header)
       .set('Content-Type', 'application/json')
       .send(raw);
 
     expect([200, 204]).toContain(res.status);
-    expect(setCalled).toBe(true); // order created
-    expect(stockUpdates).toBeGreaterThan(0); // stock decremented
+    expect(setCalled).toBe(true);
+    expect(stockUpdates).toBeGreaterThan(0);
   });
 
+  // 📧 EMAIL TESTS
   // 📧 EMAIL TESTS
   it('success webhook sends order confirmation email when metadata.email is present', async () => {
     db.collection.mockReturnThis();
     db.doc.mockReturnThis();
 
-    // create order in tx; email sending is outside tx
     db.runTransaction.mockImplementation(async (fn: any) => {
       const tx = {
-        get: jest.fn(async () => ({ exists: false, get: () => null })),
+        get: jest.fn(async () => makeSnap({}, false)),
         set: jest.fn(),
         update: jest.fn(),
       };
@@ -682,7 +696,6 @@ describe('PaymentsController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header)
       .set('Content-Type', 'application/json')
       .send(raw);
 
@@ -693,9 +706,11 @@ describe('PaymentsController (e2e)', () => {
       expect.objectContaining({
         orderId: 'cart-mail',
         amount: 12000,
-        currency: 'ils',
+        currency: expect.stringMatching(/^ils$/i),
         paymentIntentId: 'pi_mail_1',
       }),
+      // Option A: 3rd arg exists; here it’s undefined because no invoice/attachments
+      undefined,
     );
   });
 
@@ -703,10 +718,9 @@ describe('PaymentsController (e2e)', () => {
     db.collection.mockReturnThis();
     db.doc.mockReturnThis();
 
-    // order exists, so tx updates it
     db.runTransaction.mockImplementation(async (fn: any) => {
       const tx = {
-        get: jest.fn(async () => ({ exists: true, get: () => null })),
+        get: jest.fn(async () => makeSnap({}, true)),
         set: jest.fn(),
         update: jest.fn(),
       };
@@ -746,7 +760,6 @@ describe('PaymentsController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(webhookPath)
       .set('Stripe-Signature', header)
-      .set('stripe-signature', header)
       .set('Content-Type', 'application/json')
       .send(raw);
 
@@ -766,7 +779,220 @@ describe('PaymentsController (e2e)', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────────────
-  // NEW: Public config, rate-limit, and prod-key guard
+  // NEW: Invoice generation + persistence + email link/attachment + download
+  // ────────────────────────────────────────────────────────────────────────────
+
+  it('on succeeded: generates invoice, persists pointer, and emails link + attachment', async () => {
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => makeSnap({}, false)),
+        set: jest.fn(),
+        update: jest.fn(), // stock updates happen here
+      };
+      await fn(tx);
+      return true;
+    });
+
+    const pdfBuf = Buffer.from('%PDF-invoice-bytes%');
+    const invoiceUrl = 'https://signed.example/inv_cart-inv-1.pdf';
+
+    invoiceMock.generateAndUpload.mockResolvedValueOnce({
+      buffer: pdfBuf,
+      path: 'invoices/cart-inv-1.pdf',
+      url: invoiceUrl,
+    });
+
+    mailerMock.sendOrderConfirmation.mockClear();
+    db.update.mockClear?.();
+
+    const eventPayload = {
+      id: 'evt_inv_ok',
+      object: 'event',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_inv_1',
+          object: 'payment_intent',
+          amount: 5000,
+          amount_received: 5000,
+          currency: 'ils',
+          metadata: {
+            cartId: 'cart-inv-1',
+            email: 'buyer@example.com',
+            items: JSON.stringify([{ id: '1', qty: 1 }]),
+          },
+        },
+      },
+    };
+    const raw = JSON.stringify(eventPayload);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect([200, 204]).toContain(res.status);
+
+    // 1) Invoice generated with proper args
+    expect(invoiceMock.generateAndUpload).toHaveBeenCalledTimes(1);
+    expect(invoiceMock.generateAndUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'cart-inv-1',
+        amountCents: 5000,
+        currency: 'ILS', // uppercased by controller
+        email: 'buyer@example.com',
+      }),
+    );
+
+    // 2) Order doc updated with invoice pointer (outside tx → one-arg update(payload))
+    const singleArgUpdateCall = (db.update as jest.Mock).mock.calls.find(
+      (c) => c.length === 1,
+    );
+    expect(singleArgUpdateCall).toBeDefined();
+    const persisted = singleArgUpdateCall![0];
+
+    // ✅ Expect nested "invoice" object (matches controller) + ignore updatedAt noise
+    expect(persisted).toEqual(
+      expect.objectContaining({
+        invoice: expect.objectContaining({
+          path: 'invoices/cart-inv-1.pdf',
+          url: invoiceUrl,
+        }),
+      }),
+    );
+
+    // 3) Email sent with link + attachment
+    expect(mailerMock.sendOrderConfirmation).toHaveBeenCalledTimes(1);
+    const [to, payload, opts] = mailerMock.sendOrderConfirmation.mock.calls[0];
+
+    expect(to).toBe('buyer@example.com');
+    expect(payload).toEqual(
+      expect.objectContaining({
+        orderId: 'cart-inv-1',
+        paymentIntentId: 'pi_inv_1',
+        amount: 5000,
+        currency: 'ILS',
+        invoiceUrl,
+      }),
+    );
+    expect(opts).toEqual(
+      expect.objectContaining({
+        attachments: [
+          expect.objectContaining({
+            filename: 'invoice_cart-inv-1.pdf',
+            content: pdfBuf,
+            contentType: 'application/pdf',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('succeeded webhook still emails if invoice generation fails (no link/attachment)', async () => {
+    db.collection.mockReturnThis();
+    db.doc.mockReturnThis();
+
+    db.runTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        get: jest.fn(async () => makeSnap({}, false)),
+        set: jest.fn(),
+        update: jest.fn(),
+      };
+      await fn(tx);
+      return true;
+    });
+
+    invoiceMock.generateAndUpload.mockRejectedValueOnce(new Error('boom'));
+
+    mailerMock.sendOrderConfirmation.mockClear();
+
+    const eventPayload = {
+      id: 'evt_inv_fail',
+      object: 'event',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_noinv_1',
+          object: 'payment_intent',
+          amount: 7000,
+          amount_received: 7000,
+          currency: 'ils',
+          metadata: { cartId: 'cart-noinv-1', email: 'buyer@example.com' },
+        },
+      },
+    };
+    const raw = JSON.stringify(eventPayload);
+    const header = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: webhookSecret,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(webhookPath)
+      .set('Stripe-Signature', header)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect([200, 204]).toContain(res.status);
+
+    // Email still sent…
+    expect(mailerMock.sendOrderConfirmation).toHaveBeenCalledTimes(1);
+    const [, payload, opts] = mailerMock.sendOrderConfirmation.mock.calls[0];
+
+    // …without invoiceUrl or attachments
+    expect(payload.invoiceUrl).toBeUndefined();
+    expect(opts).toBeUndefined();
+  });
+
+  it('GET /payments/orders/:orderId/invoice streams the PDF', async () => {
+    const { getStorage } = require('firebase-admin/storage') as {
+      getStorage: jest.Mock;
+    };
+    const pdf = Buffer.from('%PDF-1.4\n%invoice bytes\n');
+
+    // Mock Storage → bucket → file(path) → exists() + createReadStream()
+    getStorage.mockReturnValue({
+      bucket: () => ({
+        file: (_path: string) => ({
+          exists: async () => [true],
+          createReadStream: () => Readable.from(pdf),
+        }),
+      }),
+    });
+
+    const pref = process.env.API_PREFIX ?? 'api';
+    const orderId = 'order-dl-1';
+
+    const res = await request(app.getHttpServer())
+      .get(`/${pref}/payments/orders/${orderId}/invoice`)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+
+    expect(res.headers['content-type']).toMatch(/application\/pdf/);
+    expect(res.headers['content-disposition']).toContain(
+      `invoice_${orderId}.pdf`,
+    );
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect((res.body as Buffer).equals(pdf)).toBe(true);
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Public config, rate-limit, and prod-key guard
   // ────────────────────────────────────────────────────────────────────────────
 
   it('GET /payments/config/public returns masked publishable key', async () => {
@@ -781,14 +1007,12 @@ describe('PaymentsController (e2e)', () => {
         defaultCurrency: expect.any(String),
       }),
     );
-    // Should end with the last 4 of our fake key and include the ellipsis
     expect(res.body.publishableKeyMasked).toContain('…7890');
     expect(res.body.publishableKeyMasked.length).toBeGreaterThanOrEqual(11);
   });
 
   it('rate-limits create-intent bursts (10/min/IP)', async () => {
     await withRateLimitEnabled(async () => {
-      // Avoid network; cheap Stripe + Firestore mocks
       jest
         .spyOn((ctrl as any).stripe.paymentIntents, 'create')
         .mockResolvedValue({ id: 'pi_rate', client_secret: 'cs_rate' } as any);
@@ -828,7 +1052,14 @@ describe('PaymentsController (e2e)', () => {
     await expect(
       Test.createTestingModule({
         controllers: [PaymentsController],
-        providers: [{ provide: ConfigService, useValue: configMock }],
+        providers: [
+          { provide: ConfigService, useValue: configMock },
+          // Provide InvoiceService to avoid DI error overshadowing the intended throw
+          {
+            provide: InvoiceService,
+            useValue: { generateAndUpload: jest.fn() },
+          },
+        ],
       }).compile(),
     ).rejects.toThrow(/Test key used in production/i);
 

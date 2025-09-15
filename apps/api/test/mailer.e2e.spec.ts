@@ -57,8 +57,6 @@ describe('MailerService (unit-ish via DI, no network)', () => {
       created: true,
     });
 
-    // (intentionally not asserting createTransport call count — implementation may reuse a cached transporter)
-
     expect(sendMail).toHaveBeenCalledTimes(1);
     const mail = sendMail.mock.calls[0][0];
 
@@ -67,8 +65,69 @@ describe('MailerService (unit-ish via DI, no network)', () => {
     expect(mail.subject).toMatch(/order_1/i);
     expect(mail.text).toContain('pi_123');
     expect(mail.html).toContain('order_1');
-    // (optional) if your service uppercases currency:
-    // expect(mail.text).toMatch(/\bILS\b/);
+  });
+
+  it('includes invoice link in email body when invoiceUrl is provided', async () => {
+    const url = 'https://example.com/invoice.pdf';
+
+    await mailer.sendOrderConfirmation(
+      'buyer@example.com',
+      {
+        orderId: 'order_2',
+        amount: 5000,
+        currency: 'ils',
+        paymentIntentId: 'pi_456',
+        created: true,
+        invoiceUrl: url,
+      },
+      // no attachments in this test
+    );
+
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    const mail = sendMail.mock.calls[0][0];
+
+    expect(mail.html).toContain('הורדת חשבונית (PDF)');
+    expect(mail.html).toContain(url);
+    expect(mail.text).toContain(`Invoice: ${url}`);
+
+    // ✅ assert undefined directly (don’t coalesce to [])
+    expect(mail.attachments).toBeUndefined();
+  });
+
+  it('passes PDF attachment to transporter when provided', async () => {
+    const pdf = Buffer.from('%PDF-bytes%');
+
+    await mailer.sendOrderConfirmation(
+      'buyer@example.com',
+      {
+        orderId: 'order_3',
+        amount: 7777,
+        currency: 'ils',
+        paymentIntentId: 'pi_777',
+        created: true,
+        invoiceUrl: 'https://example.com/signed.pdf',
+      },
+      {
+        attachments: [
+          {
+            filename: 'invoice_order_3.pdf',
+            content: pdf,
+            contentType: 'application/pdf',
+          },
+        ],
+      },
+    );
+
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    const mail = sendMail.mock.calls[0][0];
+
+    expect(mail.attachments).toEqual([
+      expect.objectContaining({
+        filename: 'invoice_order_3.pdf',
+        content: pdf,
+        contentType: 'application/pdf',
+      }),
+    ]);
   });
 
   it('sends refund email with refund IDs listed', async () => {

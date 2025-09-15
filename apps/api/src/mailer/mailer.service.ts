@@ -8,6 +8,7 @@ type OrderEmailPayload = {
   currency: string | null; // e.g., "ils"
   paymentIntentId: string;
   created: boolean;
+  invoiceUrl?: string | null; // ✅ added for PDF link in email body
 };
 
 type RefundEmailPayload = {
@@ -17,6 +18,15 @@ type RefundEmailPayload = {
   chargeId: string;
   full: boolean;
   refundIds: string[];
+};
+
+type MailerOptions = {
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    contentType?: string;
+  }>;
+  replyTo?: string;
 };
 
 @Injectable()
@@ -83,12 +93,21 @@ export class MailerService {
   // ────────────────────────────────────────────────────────────────────────────
   // Order confirmation
   // ────────────────────────────────────────────────────────────────────────────
-  async sendOrderConfirmation(to: string, payload: OrderEmailPayload) {
-    const { orderId, amount, currency, paymentIntentId, created } = payload;
+  async sendOrderConfirmation(
+    to: string,
+    payload: OrderEmailPayload,
+    opts?: MailerOptions,
+  ) {
+    const { orderId, amount, currency, paymentIntentId, created, invoiceUrl } =
+      payload;
     const fmt = this.formatMoney(amount, currency);
     const subject = created
       ? `Order ${orderId} confirmed — ${fmt}`
       : `Payment received for ${orderId} — ${fmt}`;
+
+    const invoiceLinkHtml = invoiceUrl
+      ? `<p style="margin:12px 0"><a href="${this.escape(invoiceUrl)}" target="_blank" rel="noopener">הורדת חשבונית (PDF)</a></p>`
+      : '';
 
     const html = `
       <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
@@ -99,24 +118,40 @@ export class MailerService {
           <li>מטבע: <strong>${(currency || 'ILS').toUpperCase()}</strong></li>
           <li>Payment Intent: <code>${this.escape(paymentIntentId)}</code></li>
         </ul>
+        ${invoiceLinkHtml}
         <p style="margin:16px 0 0">אם יש לך שאלות, פשוט השב/י למייל זה.</p>
       </div>
     `;
+
     const text = [
       'תודה על ההזמנה!',
       `הזמנה: ${orderId}`,
       `סכום: ${fmt}`,
       `מטבע: ${(currency || 'ILS').toUpperCase()}`,
       `Payment Intent: ${paymentIntentId}`,
-    ].join('\n');
+      invoiceUrl ? `Invoice: ${invoiceUrl}` : undefined,
+    ]
+      .filter(Boolean)
+      .join('\n');
 
-    return this.safeSend({ to, subject, html, text });
+    return this.safeSend({
+      to,
+      subject,
+      html,
+      text,
+      replyTo: opts?.replyTo,
+      attachments: opts?.attachments,
+    });
   }
 
   // ────────────────────────────────────────────────────────────────────────────
   // Refund email (full or partial)
   // ────────────────────────────────────────────────────────────────────────────
-  async sendRefundEmail(to: string, payload: RefundEmailPayload) {
+  async sendRefundEmail(
+    to: string,
+    payload: RefundEmailPayload,
+    opts?: MailerOptions,
+  ) {
     const { orderId, amount, currency, chargeId, full, refundIds } = payload;
     const fmt = this.formatMoney(amount, currency);
     const subject = full
@@ -141,7 +176,14 @@ export class MailerService {
       `Charge: ${chargeId}\n` +
       `Refund IDs: ${(refundIds || []).join(', ') || '-'}`;
 
-    return this.safeSend({ to, subject, html, text });
+    return this.safeSend({
+      to,
+      subject,
+      html,
+      text,
+      replyTo: opts?.replyTo,
+      attachments: opts?.attachments,
+    });
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -153,6 +195,11 @@ export class MailerService {
     html: string;
     text: string;
     replyTo?: string;
+    attachments?: Array<{
+      filename: string;
+      content: Buffer;
+      contentType?: string;
+    }>;
   }): Promise<{ ok: boolean; id?: string }> {
     try {
       const info = await this.transporter.sendMail({
@@ -162,6 +209,7 @@ export class MailerService {
         text: opts.text,
         html: opts.html,
         replyTo: opts.replyTo,
+        attachments: opts.attachments,
         // headers: { 'List-Unsubscribe': '<mailto:unsubscribe@bundershop.is-a.dev>' },
       });
       this.logger.log(`Email sent to ${opts.to}: ${info.messageId ?? ''}`);
