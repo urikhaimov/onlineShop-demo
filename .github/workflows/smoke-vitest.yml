@@ -1,4 +1,3 @@
-# .github/workflows/smoke-vitest.yml
 name: Daily Vitest Smoke
 
 on:
