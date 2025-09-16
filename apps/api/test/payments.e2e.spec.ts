@@ -1,5 +1,11 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import {
+  ThrottlerGuard,
+  ThrottlerModule,
+  ThrottlerStorageService,
+} from '@nestjs/throttler';
 import request from 'supertest';
 import Stripe from 'stripe';
 import nock from 'nock';
@@ -102,6 +108,7 @@ describe('PaymentsController (e2e)', () => {
 
   // controller instance (cast to any to access private stripe field)
   let ctrl: any;
+  let throttleStore: ThrottlerStorageService | undefined;
 
   // 📧 mailer mock so we can assert emails are sent on success/refund
   const mailerMock = {
@@ -141,17 +148,27 @@ describe('PaymentsController (e2e)', () => {
     };
 
     const moduleRef = await Test.createTestingModule({
+      imports: [
+        // Enable throttling in the test app (10 req / 60s)
+        ThrottlerModule.forRoot({ ttl: 60, limit: 10 }),
+      ],
       controllers: [PaymentsController],
       providers: [
         { provide: ConfigService, useValue: configMock },
         { provide: MailerService, useValue: mailerMock }, // 👈 provide class token
         { provide: InvoiceService, useValue: invoiceMock }, // 👈 provide invoice mock
+        // Apply throttler as a global guard
+        { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
     }).compile();
 
     const apiPrefix = process.env.API_PREFIX ?? 'api';
     app = moduleRef.createNestApplication({ rawBody: true });
     app.setGlobalPrefix(apiPrefix);
+
+    // Trust X-Forwarded-For so throttler buckets by client IP in tests/CI
+    const server = app.getHttpAdapter().getInstance?.();
+    server?.set?.('trust proxy', true);
 
     // 🔐 Ensure Stripe webhook sees the exact raw body (mirror main.ts)
     const stripeRaw = bodyParser.raw({ type: '*/*', limit: '2mb' });
@@ -166,6 +183,13 @@ describe('PaymentsController (e2e)', () => {
     app.use(bodyParser.json());
 
     await app.init();
+
+    // Keep a handle to the throttler storage to clear between tests
+    try {
+      throttleStore = app.get(ThrottlerStorageService);
+    } catch {
+      // ignore if not resolvable
+    }
 
     // discover the two routes we need
     const routes = listRoutes(app);
@@ -216,6 +240,14 @@ describe('PaymentsController (e2e)', () => {
 
     // 🔁 Reset docRef.get() to a sane default (prevents "snap.data is not a function")
     db.get = jest.fn().mockResolvedValue(makeSnap({}));
+
+    // 🧹 Clear rate-limit buckets between tests for determinism
+    try {
+      // Default storage uses a Map; optional-chain guards different impls
+      (throttleStore as any)?.storage?.clear?.();
+    } catch {
+      /* no-op */
+    }
   });
 
   it('POST /payments/create-intent returns clientSecret + paymentIntentId', async () => {
@@ -1021,7 +1053,7 @@ describe('PaymentsController (e2e)', () => {
       db.doc.mockReturnThis();
       db.get = jest.fn().mockResolvedValue({ get: () => null }); // settings lookups return 0s
 
-      const ip = '1.1.1.1';
+      const ip = '203.0.113.42';
       const statuses: number[] = [];
       for (let i = 0; i < 11; i++) {
         const r = await request(app.getHttpServer())
