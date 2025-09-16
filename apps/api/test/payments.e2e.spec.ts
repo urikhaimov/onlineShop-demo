@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import {
-  ThrottlerGuard,
+  ThrottlerBehindProxyGuard,
   ThrottlerModule,
   ThrottlerStorageService,
 } from '@nestjs/throttler';
@@ -157,8 +157,8 @@ describe('PaymentsController (e2e)', () => {
         { provide: ConfigService, useValue: configMock },
         { provide: MailerService, useValue: mailerMock }, // 👈 provide class token
         { provide: InvoiceService, useValue: invoiceMock }, // 👈 provide invoice mock
-        // Apply throttler as a global guard
-        { provide: APP_GUARD, useClass: ThrottlerGuard },
+        // Apply throttler as a global guard (behind proxy so X-Forwarded-For works)
+        { provide: APP_GUARD, useClass: ThrottlerBehindProxyGuard },
       ],
     }).compile();
 
