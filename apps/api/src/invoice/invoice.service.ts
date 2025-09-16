@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit'; // If you see TS error, enable esModuleInterop or: import * as PDFDocument from 'pdfkit';
-import { getBucket } from '../firebase/admin'; // <-- uses storageBucket set at initializeApp
+import { adminBucket } from '../firebase/admin'; // ✅ uses storageBucket set at initializeApp; bypasses emulator if configured
 
 export type InvoiceItem = {
   id: string;
@@ -140,7 +140,7 @@ export class InvoiceService {
 
   async uploadBuffer(orderId: string, buffer: Buffer): Promise<InvoiceUpload> {
     // ✅ Use the default bucket configured in initializeApp({ storageBucket: ... })
-    const bucket = getBucket();
+    const bucket = adminBucket();
     const path = `invoices/${orderId}.pdf`;
     const file = bucket.file(path);
 

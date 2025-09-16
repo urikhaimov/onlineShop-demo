@@ -21,7 +21,7 @@ import { adminDb } from '@common/firebase';
 import { FieldValue } from 'firebase-admin/firestore';
 import { MailerService } from '../mailer/mailer.service';
 import { InvoiceService } from '../invoice/invoice.service';
-import { getBucket } from '../firebase/admin'; // ✅ use shared initializer (default bucket)
+import { adminBucket } from '../firebase/admin'; // ✅ use shared initializer (default bucket)
 
 // ✅ NEW: DTO validation imports
 import { Type } from 'class-transformer';
@@ -627,7 +627,7 @@ export class PaymentsController {
     @Param('orderId') orderId: string,
     @Res() res: Response,
   ) {
-    const bucket = getBucket(); // ✅ default from initializeApp({ storageBucket })
+    const bucket = adminBucket(); // ✅ default from initializeApp({ storageBucket })
     const path = `invoices/${orderId}.pdf`;
     const file = bucket.file(path);
 
