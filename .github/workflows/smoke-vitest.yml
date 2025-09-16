@@ -1,0 +1,46 @@
+# .github/workflows/smoke-vitest.yml
+name: Daily Vitest Smoke
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # 07:30 Asia/Jerusalem == 04:30 UTC
+    - cron: '30 4 * * *'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: smoke-vitest-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools@latest
+
+      - name: Run Vitest smoke
+        env:
+          CI: 'true'
+        run: npm run test:smoke
+
+      - name: Upload logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-smoke-logs
+          path: |
+            **/vitest*.log
+            firestore-debug.log
+            storage-debug.log
+          if-no-files-found: ignore
