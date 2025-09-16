@@ -20,7 +20,7 @@ const authDomain = clean(
   getEnv('VITE_FIREBASE_AUTH_DOMAIN', { env }) as string,
 );
 const projectId = clean(getEnv('VITE_FIREBASE_PROJECT_ID', { env }) as string);
-const bucketEnv = clean(
+const bucketRaw = clean(
   getEnv('VITE_FIREBASE_STORAGE_BUCKET', { env }) as string,
 );
 const senderId = clean(
@@ -28,14 +28,19 @@ const senderId = clean(
 );
 const appId = clean(getEnv('VITE_FIREBASE_APP_ID', { env }) as string);
 
-// ✅ Bucket must be the gs bucket name (default: <projectId>.appspot.com)
-const storageBucket = bucketEnv || `${projectId}.appspot.com`;
+// ✅ Normalize bucket: strip gs:// and convert *.firebasestorage.app → *.appspot.com
+const normalizeBucket = (b: string) =>
+  (b || '')
+    .replace(/^gs:\/\//i, '')
+    .replace(/\.firebasestorage\.app$/i, '.appspot.com');
+
+const storageBucket = normalizeBucket(bucketRaw) || `${projectId}.appspot.com`;
 
 const firebaseConfig = {
   apiKey,
   authDomain,
   projectId,
-  storageBucket, // keep this here so SDK knows the default bucket
+  storageBucket, // keep the default bucket in config
   messagingSenderId: senderId,
   appId,
 } as const;
@@ -57,7 +62,6 @@ export const isEmulator =
   (env.VITE_USE_FIREBASE_EMULATOR || '').toLowerCase() === 'true';
 
 if (isEmulator) {
-  // Auth
   try {
     const authHost =
       env.VITE_FIREBASE_AUTH_EMULATOR_HOST ||
@@ -67,10 +71,9 @@ if (isEmulator) {
     if (import.meta.env.DEV)
       console.log('[Firebase] 🔌 Auth emulator:', authHost);
   } catch {
-    /* HMR double-connect ok */
+    // ignore
   }
 
-  // Firestore
   try {
     const fsHost =
       env.VITE_FIRESTORE_EMULATOR_HOST ||
@@ -81,10 +84,9 @@ if (isEmulator) {
     if (import.meta.env.DEV)
       console.log('[Firebase] 🔌 Firestore emulator:', fsHost);
   } catch {
-    /* noop */
+    // ignore
   }
 
-  // Storage
   try {
     const stHost =
       env.VITE_FIREBASE_STORAGE_EMULATOR_HOST ||
@@ -95,25 +97,22 @@ if (isEmulator) {
     if (import.meta.env.DEV)
       console.log('[Firebase] 🔌 Storage emulator:', stHost);
   } catch {
-    /* noop */
+    // ignore
   }
 }
 
-// 🔐 keep user signed in across reloads (especially useful with emulator)
+// 🔐 keep user signed in across reloads
 setPersistence(auth, browserLocalPersistence).catch(() => {
-  /* ignore on SSR/HMR */
+  // ignore
 });
 
 // ---- Dev Diagnostics --------------------------------------------------------
 if (import.meta.env.DEV) {
   console.log('[Firebase] projectId:', firebaseApp.options.projectId);
-  console.log('[Firebase] storageBucket (env):', bucketEnv);
+  console.log('[Firebase] storageBucket (env raw):', bucketRaw);
   console.log('[Firebase] storageBucket (resolved):', storageBucket);
-
-  // should log: gs://<project-id>.appspot.com/
   import('firebase/storage').then(({ ref }) =>
     console.log('[Firebase] storage root:', ref(storage, '').toString()),
   );
-
   (window as any).auth = auth;
 }

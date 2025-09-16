@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import PDFDocument from 'pdfkit'; // If you see TS error, enable esModuleInterop or use: import * as PDFDocument from 'pdfkit';
-import { getStorage } from 'firebase-admin/storage';
+import PDFDocument from 'pdfkit'; // If you see TS error, enable esModuleInterop or: import * as PDFDocument from 'pdfkit';
+import { getBucket } from '../firebase/admin'; // <-- uses storageBucket set at initializeApp
 
 export type InvoiceItem = {
   id: string;
@@ -139,7 +139,8 @@ export class InvoiceService {
   }
 
   async uploadBuffer(orderId: string, buffer: Buffer): Promise<InvoiceUpload> {
-    const bucket = getStorage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+    // ✅ Use the default bucket configured in initializeApp({ storageBucket: ... })
+    const bucket = getBucket();
     const path = `invoices/${orderId}.pdf`;
     const file = bucket.file(path);
 
@@ -152,10 +153,8 @@ export class InvoiceService {
 
     let url: string | undefined;
     try {
-      const [signed] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 1000 * 60 * 60 * 24 * 7, // 7 days
-      });
+      const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
+      const [signed] = await file.getSignedUrl({ action: 'read', expires });
       url = signed;
     } catch {
       // Signed URLs might fail in emulator; ignore.
