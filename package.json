@@ -19,6 +19,7 @@
     "nx:latest": "npm i -g nx && npx nx migrate latest && npx nx --version",
     "test:e2e": "playwright test apps/client-e2e",
     "e2e": "playwright test -c apps/client-e2e/playwright.config.ts",
+    "test:smoke": "firebase emulators:exec \"vitest run -t @smoke --passWithNoTests --reporter=basic\"",
     "e2e:ui": "playwright test --ui -c apps/client-e2e/playwright.config.ts",
     "e2e:headed": "playwright test --headed -c apps/client-e2e/playwright.config.ts",
     "test:api:e2e": "jest -c apps/api/test/jest-e2e.js --runInBand",

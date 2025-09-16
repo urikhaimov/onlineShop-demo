@@ -226,18 +226,24 @@ export class PaymentsController {
     try {
       const arr = JSON.parse(raw);
       if (!Array.isArray(arr)) return undefined;
-      return arr.map((x) => ({
-        id: String(x.id),
-        qty: Number(x.qty) || 1,
-        priceCents: x.priceCents ? Number(x.priceCents) : undefined,
-      }));
+      return arr.map((x) =>
+        (
+          [
+            'id' in x ? { id: String((x as any).id) } : { id: '' },
+            'qty' in x ? { qty: Number((x as any).qty) || 1 } : { qty: 1 },
+            'priceCents' in x && (x as any).priceCents !== undefined
+              ? { priceCents: Number((x as any).priceCents) }
+              : {},
+          ] as any
+        ).reduce((a: any, b: any) => ({ ...a, ...b }), {}),
+      );
     } catch {
       return undefined;
     }
   }
 
   // ----------------------------------------------------------------------------
-  // POST /payments/webhooks/stripe
+  // POST /payments/webhooks/stripe  ← primary route
   // ----------------------------------------------------------------------------
   @Post('webhooks/stripe')
   @HttpCode(200)
@@ -555,6 +561,20 @@ export class PaymentsController {
     }
 
     return { received: true };
+  }
+
+  // ----------------------------------------------------------------------------
+  // POST /payments/webhook  ← compatibility alias for tests/tools
+  // ----------------------------------------------------------------------------
+  @Post('webhook')
+  @HttpCode(200)
+  async stripeWebhookAlias(
+    @Req() req: Request & { rawBody?: Buffer },
+    @Headers('stripe-signature') sigLower?: string,
+    @Headers('Stripe-Signature') sigTitle?: string,
+  ) {
+    // Delegate to primary handler
+    return this.stripeWebhook(req, sigLower, sigTitle);
   }
 
   // ----------------------------------------------------------------------------
