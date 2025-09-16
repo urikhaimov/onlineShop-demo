@@ -1,0 +1,107 @@
+name: Daily API E2E
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # daily at 00:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: daily-api-e2e
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  # App/Tests env
+  NODE_ENV: test
+  CI: true
+  # Stripe (from repo secrets)
+  STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+  STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+  STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+  # Mailer: keep tests quiet in CI (no real SMTP)
+  MAIL_MODE: json
+  EMAIL_FROM: ci@example.test
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run API e2e
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:api:e2e 2>&1 | tee jest-e2e.log
+
+      - name: Upload logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-e2e-logs
+          path: jest-e2e.log
+          if-no-files-found: ignore
+
+      - name: Create/Update issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const title = 'Daily API E2E failed';
+            const issues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'ci,e2e' });
+            const existing = issues.data.find(i => i.title === title);
+            const body = [
+              `**Run:** https://github.com/${owner}/${repo}/actions/runs/${context.runId}`,
+              `**Branch:** ${context.ref}`,
+              `**Commit:** ${process.env.GITHUB_SHA}`,
+              '',
+              'Artifacts: `api-e2e-logs`.',
+              '',
+              '_This issue will auto-close on the next successful run._'
+            ].join('\n');
+            if (existing) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ owner, repo, title, body, labels: ['ci','e2e'] });
+            }
+
+      - name: Close failure issue on success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const title = 'Daily API E2E failed';
+            const { data } = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'ci,e2e' });
+            const existing = data.find(i => i.title === title);
+            if (existing) {
+              await github.rest.issues.update({ owner, repo, issue_number: existing.number, state: 'closed' });
+            }
+
+      - name: Job summary
+        run: |
+          {
+            echo "## Daily API E2E"
+            echo ""
+            echo "**Status:** ${{ job.status }}"
+            echo "- Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "- Branch: ${{ github.ref }}"
+          } >> "$GITHUB_STEP_SUMMARY"
