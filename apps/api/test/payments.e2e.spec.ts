@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import {
-  ThrottlerBehindProxyGuard,
+  ThrottlerGuard,
   ThrottlerModule,
   ThrottlerStorageService,
 } from '@nestjs/throttler';
@@ -150,15 +150,18 @@ describe('PaymentsController (e2e)', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [
         // Enable throttling in the test app (10 req / 60s)
-        ThrottlerModule.forRoot({ ttl: 60, limit: 10 }),
+        ThrottlerModule.forRoot({
+          // Newer throttler versions expect a list of throttlers
+          throttlers: [{ ttl: 60, limit: 10 }],
+        }),
       ],
       controllers: [PaymentsController],
       providers: [
         { provide: ConfigService, useValue: configMock },
         { provide: MailerService, useValue: mailerMock }, // 👈 provide class token
         { provide: InvoiceService, useValue: invoiceMock }, // 👈 provide invoice mock
-        // Apply throttler as a global guard (behind proxy so X-Forwarded-For works)
-        { provide: APP_GUARD, useClass: ThrottlerBehindProxyGuard },
+        // Apply throttler as a global guard
+        { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
     }).compile();
 
