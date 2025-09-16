@@ -98,7 +98,6 @@ export default [
       '**/*.cjs',
       '**/*.mjs',
     ],
-    // Override or add rules here
     plugins: {
       jsdoc,
       import: importPlugin,
@@ -116,17 +115,10 @@ export default [
       'no-debugger': 'warn',
       'no-duplicate-imports': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
-      // Enforce consistent indentation (4 spaces in this case)
-      // indent: ['warn', 2],
-      // Enforce the use of single quotes for strings
       quotes: ['warn', 'single'],
-      // Enforce semicolons at the end of statements
       semi: ['error', 'always'],
-      // Enforce consistent line breaks (LF for Unix)
       'linebreak-style': ['error', 'unix'],
-      // Require the use of === and !== (no implicit type conversions)
       eqeqeq: ['error', 'always'],
-      // Enforce a maximum line length (usually 80 or 100 characters)
       'max-len': [
         'warn',
         {
@@ -140,14 +132,9 @@ export default [
           ignorePattern: '^\\s*import\\s+.*\\s+from\\s+["\'].*["\']',
         },
       ],
-      // Enable Prettier as a lint rule
       'prettier/prettier': [
         'error',
-        {
-          trailingComma: 'all',
-          semi: true,
-          singleQuote: true,
-        },
+        { trailingComma: 'all', semi: true, singleQuote: true },
       ],
       'import/no-unresolved': 0,
       'import/extensions': 1,
@@ -177,6 +164,23 @@ export default [
         'warn',
         { contexts: ['TSPropertySignature'] },
       ],
+    },
+  },
+
+  /** ⬇️ Disable type-aware linting for build/test config files */
+  {
+    files: [
+      '**/vitest*.config.*',
+      '**/vite*.config.*',
+      '**/*.config.ts',
+      'vitest.smoke.config.ts',
+    ],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        // don’t require the file to belong to a tsconfig project
+        projectService: false,
+      },
     },
   },
 ];

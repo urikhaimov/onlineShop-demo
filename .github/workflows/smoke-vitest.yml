@@ -1,4 +1,3 @@
-# .github/workflows/smoke-vitest.yml
 name: Daily Vitest Smoke
 
 on:
@@ -33,7 +32,7 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      # Run only *.smoke.spec.ts and provide safe env defaults
+      # Run only *.smoke.spec.* and provide safe env defaults
       - name: Run Vitest smoke
         env:
           CI: 'true'
@@ -45,7 +44,7 @@ jobs:
           VITE_FIREBASE_APP_ID: '1:123:web:abc'
           VITE_FIREBASE_MEASUREMENT_ID: 'G-SMOKE'
         run: |
-          npx firebase-tools emulators:exec "vitest run --include \"**/*.smoke.spec.ts\" --passWithNoTests"
+          npx firebase-tools emulators:exec 'vitest run -c vitest.smoke.config.ts'
 
       - name: Upload logs (always)
         if: always()
