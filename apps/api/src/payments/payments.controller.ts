@@ -21,7 +21,7 @@ import { adminDb } from '@common/firebase';
 import { FieldValue } from 'firebase-admin/firestore';
 import { MailerService } from '../mailer/mailer.service';
 import { InvoiceService } from '../invoice/invoice.service';
-import { getStorage } from 'firebase-admin/storage';
+import { getBucket } from '../firebase/admin'; // ✅ use shared initializer (default bucket)
 
 // ✅ NEW: DTO validation imports
 import { Type } from 'class-transformer';
@@ -119,7 +119,7 @@ export class PaymentsController {
   constructor(
     private readonly config: ConfigService,
     @Optional() private readonly mailer?: MailerService, // ⬅️ global MailerService
-    @Optional() private readonly invoice?: InvoiceService, // ⬅️ make optional to avoid DI errors in tests
+    @Optional() private readonly invoice?: InvoiceService, // ⬅️ optional avoids DI issues in tests
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
     if (process.env.NODE_ENV === 'production' && key.startsWith('sk_test_')) {
@@ -339,8 +339,8 @@ export class PaymentsController {
 
         const base = {
           status: 'paid',
-          amount: pi.amount_received ?? pi.amount,
-          currency: pi.currency,
+          amount: pi.amount_received ?? pi.amount, // cents
+          currency: pi.currency, // e.g. "ils"
           paymentIntentId: pi.id,
           updatedAt: new Date(),
           email: emailToNotify ?? null, // persist for resends
@@ -620,28 +620,112 @@ export class PaymentsController {
   }
 
   // ----------------------------------------------------------------------------
-  // GET /payments/orders/:orderId/invoice — stream the PDF invoice
+  // GET /payments/orders/:orderId/invoice — stream the PDF invoice (generate if missing)
   // ----------------------------------------------------------------------------
   @Get('orders/:orderId/invoice')
   async downloadInvoice(
     @Param('orderId') orderId: string,
     @Res() res: Response,
   ) {
-    const bucket = getStorage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
-    const file = bucket.file(`invoices/${orderId}.pdf`);
-    const [exists] = await file.exists();
-    if (!exists) {
-      res.status(404).json({ error: 'Invoice not found' });
-      return;
+    const bucket = getBucket(); // ✅ default from initializeApp({ storageBucket })
+    const path = `invoices/${orderId}.pdf`;
+    const file = bucket.file(path);
+
+    try {
+      // If already exists → stream it
+      const [exists] = await file.exists();
+      if (exists) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename=invoice_${orderId}.pdf`,
+        );
+        return file
+          .createReadStream()
+          .on('error', (err) => {
+            this.logger.error(
+              `Invoice stream error for ${path}: ${err?.message}`,
+              err?.stack,
+            );
+            if (!res.headersSent) {
+              res
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .json({ message: 'Failed to stream invoice' });
+            }
+          })
+          .pipe(res);
+      }
+
+      // Not found on Storage → try to generate on-demand
+      if (!this.invoice) {
+        // If InvoiceService is not wired, say 404 like before
+        return res.status(404).json({ error: 'Invoice not found' });
+      }
+
+      const snap = await adminDb.collection('orders').doc(orderId).get();
+      const order = snap.exists ? (snap.data() as any) : null;
+
+      // Build InvoiceInput from order doc (best effort)
+      const amountCents = (() => {
+        if (typeof order?.amount === 'number') return Math.round(order.amount); // cents (from webhook)
+        if (typeof order?.total === 'number')
+          return Math.round(order.total * 100);
+        return 0;
+      })();
+
+      const currency = String(order?.currency ?? 'ILS').toUpperCase();
+
+      const items =
+        Array.isArray(order?.items) && order.items.length
+          ? order.items.map((it: any, idx: number) => ({
+              id: String(it.productId || it.id || idx + 1),
+              name: typeof it.name === 'string' ? it.name : undefined,
+              qty: Number(it.quantity ?? it.qty ?? 1) || 1,
+              priceCents:
+                typeof it.priceCents === 'number'
+                  ? Math.round(it.priceCents)
+                  : typeof it.price === 'number'
+                    ? Math.round(it.price * 100)
+                    : undefined,
+            }))
+          : undefined;
+
+      const vatEnv = Number(process.env.VAT_RATE ?? '0');
+      const input = {
+        orderId,
+        createdAt: order?.createdAt || new Date().toISOString(),
+        updatedAt: order?.updatedAt || new Date().toISOString(),
+        amountCents,
+        currency,
+        email: order?.email || order?.buyer?.email || null,
+        items,
+        vatRate: isNaN(vatEnv) ? 0 : vatEnv,
+        storeName: process.env.STORE_NAME ?? 'Bunder Shop',
+      };
+
+      const { buffer } = await this.invoice.generateAndUpload(input);
+
+      // Stream freshly-generated PDF
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=invoice_${orderId}.pdf`,
+      );
+      return res.status(HttpStatus.OK).send(buffer);
+    } catch (err: any) {
+      this.logger.error(
+        `Invoice error for ${orderId}: ${err?.message}`,
+        err?.stack,
+      );
+      const hint =
+        process.env.NODE_ENV !== 'production'
+          ? 'Check order document and Storage permissions; see server logs for details.'
+          : undefined;
+      return res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ message: 'Internal server error', hint });
     }
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename=invoice_${orderId}.pdf`,
-    );
-    file
-      .createReadStream()
-      .on('error', () => res.status(500).end())
-      .pipe(res);
   }
 }
