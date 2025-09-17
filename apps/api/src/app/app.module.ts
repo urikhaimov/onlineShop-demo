@@ -16,7 +16,7 @@ import { AuthClientModule } from 'auth-client';
 import { AuthModule } from '../auth/auth.module';
 import { SearchModule } from '../search/search.module';
 import { HealthController } from '../health/health.controller';
-
+import { StripeWebhookController } from '../payments/stripe-webhook.controller';
 import { StripeModule } from '../stripe/stripe.module';
 import { PaymentsModule } from '../payments/payments.module';
 
@@ -26,7 +26,15 @@ import { MailerModule } from '../mailer/mailer.module';
 // ✅ Dev-only test endpoints (email test etc.)
 import { DevModule } from '../dev/dev.module';
 
+// ✅ E2E/Test-only seed endpoints (e.g., /test/seed-order)
+import { TestModule } from '../test/test.module';
+
 const devOnlyModules = process.env.NODE_ENV === 'production' ? [] : [DevModule];
+
+const testRoutesModules =
+  process.env.ENABLE_TEST_ROUTES === '1' || process.env.NODE_ENV === 'test'
+    ? [TestModule]
+    : [];
 
 @Module({
   imports: [
@@ -54,13 +62,20 @@ const devOnlyModules = process.env.NODE_ENV === 'production' ? [] : [DevModule];
     SearchModule,
 
     // infra / integrations
-    MailerModule, // provides MailerService used by Payments / Dev test
+    MailerModule,
     StripeModule,
     PaymentsModule, // /payments/* routes
 
     // 🚧 loaded only in non-prod
     ...devOnlyModules,
+
+    // 🧪 loaded only when explicitly enabled or in NODE_ENV=test
+    ...testRoutesModules,
   ],
-  controllers: [ImageProxyController, HealthController],
+  controllers: [
+    ImageProxyController,
+    HealthController,
+    StripeWebhookController,
+  ],
 })
 export class AppModule {}

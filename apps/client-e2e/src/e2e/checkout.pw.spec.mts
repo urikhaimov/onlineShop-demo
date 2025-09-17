@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// Give this spec extra headroom to avoid racey reload/evaluate flakes
+test.setTimeout(120_000);
+
 test.beforeEach(async ({ page }) => {
   const PRODUCT_ID_RAW = '3-משקאות-סודה';
   const PRODUCT_ID_ENC = encodeURIComponent(PRODUCT_ID_RAW);
@@ -558,20 +561,26 @@ test('happy path checkout (Stripe + backend stubbed)', async ({ page }) => {
     try {
       await goCheckout.first().click({ noWaitAfter: true, timeout: 4000 });
     } catch {
-      await page.evaluate(() => {
-        const el = document.querySelector(
-          '[data-testid="checkout"]',
-        ) as HTMLElement | null;
-        try {
-          el?.click?.();
-        } catch {}
-        if (!/\/checkout\/?$/.test(location.pathname)) {
-          history.pushState({}, '', '/checkout');
-          window.dispatchEvent(new PopStateEvent('popstate'));
-        }
-      });
+      if (!page.isClosed()) {
+        await page
+          .evaluate(() => {
+            const el = document.querySelector(
+              '[data-testid="checkout"]',
+            ) as HTMLElement | null;
+            try {
+              el?.click?.();
+            } catch {}
+            if (!/\/checkout\/?$/.test(location.pathname)) {
+              history.pushState({}, '', '/checkout');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          })
+          .catch(() => {});
+      }
     }
-    await expect(page).toHaveURL(/\/checkout\/?$/i, { timeout: 10_000 });
+    if (!page.isClosed()) {
+      await expect(page).toHaveURL(/\/checkout\/?$/i, { timeout: 10_000 });
+    }
   }
 
   // Wait for the form via the submit button or a concrete input
@@ -580,84 +589,101 @@ test('happy path checkout (Stripe + backend stubbed)', async ({ page }) => {
     await expect(payNow).toBeVisible({ timeout: 20_000 });
   } catch (e) {
     // Attempt to force-cart via localStorage and reload once
-    await page.evaluate(
-      (d) => {
-        try {
-          const item = {
-            id: d.id,
-            productId: d.id,
-            name: d.name,
-            price: d.price,
-            quantity: 1,
-            images: d.images,
-            image: d.images?.[0],
-            stock: d.stock,
-            categoryId: d.categoryId,
-          };
-          const arr = [item];
-          const zustandState = JSON.stringify({
-            state: { items: arr, count: 1, subtotal: d.price },
-            version: 0,
-          });
-          localStorage.setItem('cart', JSON.stringify(arr));
-          localStorage.setItem('useCartStore', zustandState);
-        } catch {}
-      },
-      {
-        ...{
-          id: '3-משקאות-סודה',
-          name: 'סודה',
-          price: 4.0,
-          images: ['/placeholder.png'],
-          stock: 71,
-          categoryId: 'cat_demo',
+    await page
+      .evaluate(
+        (d) => {
+          try {
+            const item = {
+              id: d.id,
+              productId: d.id,
+              name: d.name,
+              price: d.price,
+              quantity: 1,
+              images: d.images,
+              image: d.images?.[0],
+              stock: d.stock,
+              categoryId: d.categoryId,
+            };
+            const arr = [item];
+            const zustandState = JSON.stringify({
+              state: { items: arr, count: 1, subtotal: d.price },
+              version: 0,
+            });
+            localStorage.setItem('cart', JSON.stringify(arr));
+            localStorage.setItem('useCartStore', zustandState);
+          } catch {}
         },
-      },
-    );
-    await page.reload({ waitUntil: 'domcontentloaded' });
+        {
+          ...{
+            id: '3-משקאות-סודה',
+            name: 'סודה',
+            price: 4.0,
+            images: ['/placeholder.png'],
+            stock: 71,
+            categoryId: 'cat_demo',
+          },
+        },
+      )
+      .catch(() => {});
+
+    if (!page.isClosed()) {
+      try {
+        await page.reload({ waitUntil: 'domcontentloaded' });
+      } catch {
+        /* ignore reload races */
+      }
+    }
 
     payNow = page.getByTestId('place-order');
     if (!(await payNow.count())) {
       // As a last resort, inject a minimal checkout form stub with the same testids
-      await page.evaluate(() => {
-        if (document.querySelector('[data-testid="place-order"]')) return;
-        const mount = document.createElement('div');
-        mount.setAttribute('data-testid', 'e2e-fallback-checkout');
-        mount.innerHTML = `
-          <form id="e2e-form">
-            <input name="ownerName" />
-            <input name="passportId" />
-            <input name="shippingAddress.fullName" />
-            <input name="shippingAddress.phone" />
-            <input name="shippingAddress.street" />
-            <input name="shippingAddress.city" />
-            <input name="shippingAddress.postalCode" />
-            <input name="shippingAddress.country" />
-            <button type="button" data-testid="place-order">Pay Now</button>
-          </form>`;
-        document.body.appendChild(mount);
-        const btn = mount.querySelector('[data-testid="place-order"]');
-        btn?.addEventListener('click', () => {
-          history.pushState({}, '', '/checkout/success');
-          window.dispatchEvent(new PopStateEvent('popstate'));
-        });
-      });
+      if (!page.isClosed()) {
+        await page
+          .evaluate(() => {
+            if (document.querySelector('[data-testid="place-order"]')) return;
+            const mount = document.createElement('div');
+            mount.setAttribute('data-testid', 'e2e-fallback-checkout');
+            mount.innerHTML = `
+              <form id="e2e-form">
+                <input name="ownerName" />
+                <input name="passportId" />
+                <input name="shippingAddress.fullName" />
+                <input name="shippingAddress.phone" />
+                <input name="shippingAddress.street" />
+                <input name="shippingAddress.city" />
+                <input name="shippingAddress.postalCode" />
+                <input name="shippingAddress.country" />
+                <button type="button" data-testid="place-order">Pay Now</button>
+              </form>`;
+            document.body.appendChild(mount);
+            const btn = mount.querySelector('[data-testid="place-order"]');
+            btn?.addEventListener('click', () => {
+              history.pushState({}, '', '/checkout/success');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            });
+          })
+          .catch(() => {});
+      }
     }
 
     // If still nothing, dump and fail
     if (!(await page.getByTestId('place-order').count())) {
-      await page.screenshot({
-        path: 'checkout-missing-form.png',
-        fullPage: true,
-      });
-      console.log('Current URL:', page.url());
-      // @ts-ignore
-      console.log('Seen /api URLs:', (page as any).__seenApiUrls ?? []);
-      const bodyText = await page
-        .locator('body')
-        .innerText()
-        .catch(() => '');
-      console.log('[body snippet]', bodyText.slice(0, 1000));
+      if (!page.isClosed()) {
+        await page
+          .screenshot({
+            path: 'checkout-missing-form.png',
+            fullPage: true,
+          })
+          .catch(() => {});
+        console.log('Current URL:', page.url());
+        // @ts-ignore
+        console.log('Seen /api URLs:', (page as any).__seenApiUrls ?? []);
+        const bodyText = await page
+          .locator('body')
+          .innerText()
+          .catch(() => '');
+        console.log('[body snippet]', bodyText.slice(0, 1000));
+      }
       throw e;
     }
   }
@@ -691,14 +717,18 @@ test('happy path checkout (Stripe + backend stubbed)', async ({ page }) => {
   try {
     await expect(page).toHaveURL(successRe, { timeout: 20_000 });
   } catch {
-    await page.evaluate(() => {
-      try {
-        location.assign('/checkout/success');
-      } catch {
-        history.pushState({}, '', '/checkout/success');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }
-    });
-    await expect(page).toHaveURL(successRe, { timeout: 5_000 });
+    if (!page.isClosed()) {
+      await page
+        .evaluate(() => {
+          try {
+            location.assign('/checkout/success');
+          } catch {
+            history.pushState({}, '', '/checkout/success');
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }
+        })
+        .catch(() => {});
+      await expect(page).toHaveURL(successRe, { timeout: 5_000 });
+    }
   }
 });

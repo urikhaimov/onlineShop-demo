@@ -1,3 +1,4 @@
+// apps/api/src/payments/payments.controller.ts
 import {
   BadRequestException,
   Controller,
@@ -21,9 +22,8 @@ import { adminDb } from '@common/firebase';
 import { FieldValue } from 'firebase-admin/firestore';
 import { MailerService } from '../mailer/mailer.service';
 import { InvoiceService } from '../invoice/invoice.service';
-import { adminBucket } from '../firebase/admin'; // ✅ use shared initializer (default bucket)
+import { adminBucket } from '../firebase/admin';
 
-// ✅ NEW: DTO validation imports
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -34,7 +34,6 @@ import {
   IsOptional,
 } from 'class-validator';
 
-// ✅ NEW: DTOs (replace old type alias)
 class CartItemDto {
   @IsString()
   id!: string;
@@ -54,7 +53,7 @@ class CreateIntentDto {
   items!: Array<CartItemDto>;
 
   @IsString()
-  currency!: string; // e.g. "ILS"
+  currency!: string;
 
   @IsOptional()
   @IsString()
@@ -62,7 +61,7 @@ class CreateIntentDto {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Simple in-memory rate limiter (10 requests/min per IP) for create-intent
+// Rate limits
 // ─────────────────────────────────────────────────────────────────────────────
 const RATE_LIMIT_PER_MIN = 10;
 const rateBuckets = new Map<string, { count: number; windowStart: number }>();
@@ -83,7 +82,6 @@ function shouldThrottle(ip: string): boolean {
   return false;
 }
 
-// 🔁 Separate limiter for resend-receipt (5/min per IP by default)
 const RESEND_RATE_LIMIT_PER_MIN = 5;
 const resendBuckets = new Map<string, { count: number; windowStart: number }>();
 function shouldThrottleResend(ip: string): boolean {
@@ -98,11 +96,25 @@ function shouldThrottleResend(ip: string): boolean {
   return false;
 }
 
-// ✅ allow disabling rate limit in tests/locally
 const RATE_LIMIT_ENABLED =
   process.env.DISABLE_RATE_LIMIT !== 'true' && process.env.NODE_ENV !== 'test';
 
-// Mask publishable key like: pk_live_…7890
+// Prefer orderId; accept common variations; else fallback
+function orderIdFromMeta(
+  meta: Record<string, any> | null | undefined,
+  fallback: string,
+) {
+  const m = meta || {};
+  return (m.orderId ??
+    m.order_id ??
+    m.order ??
+    m.cartId ??
+    m.cart_id ??
+    m.reference ??
+    m.ref ??
+    fallback) as string;
+}
+
 function maskPublishableKey(pk: string): string {
   if (!pk) return '';
   const last4 = pk.slice(-4);
@@ -118,8 +130,8 @@ export class PaymentsController {
 
   constructor(
     private readonly config: ConfigService,
-    @Optional() private readonly mailer?: MailerService, // ⬅️ global MailerService
-    @Optional() private readonly invoice?: InvoiceService, // ⬅️ optional avoids DI issues in tests
+    @Optional() private readonly mailer?: MailerService,
+    @Optional() private readonly invoice?: InvoiceService,
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
     if (process.env.NODE_ENV === 'production' && key.startsWith('sk_test_')) {
@@ -132,7 +144,7 @@ export class PaymentsController {
   }
 
   // ----------------------------------------------------------------------------
-  // GET /payments/config/public — minimal public config for the client
+  // GET /payments/config/public
   // ----------------------------------------------------------------------------
   @Get('config/public')
   @HttpCode(200)
@@ -141,7 +153,7 @@ export class PaymentsController {
     const defaultCurrency =
       this.config.get<string>('DEFAULT_CURRENCY') ?? 'USD';
     return {
-      publishableKey: pk, // ← client expects this
+      publishableKey: pk,
       publishableKeyMasked: maskPublishableKey(pk),
       defaultCurrency,
     };
@@ -161,10 +173,10 @@ export class PaymentsController {
       );
     }
 
-    const cartId = String(dto.cartId ?? '');
+    const orderId = String(dto.cartId ?? ''); // tests often pass their custom id here
     const currency = String(dto.currency ?? 'ILS').toLowerCase();
 
-    // 1) Fetch prices for items
+    // 1) Fetch prices
     let subtotal = 0;
     for (const it of dto.items ?? []) {
       const pid = String(it.id);
@@ -174,7 +186,7 @@ export class PaymentsController {
       subtotal += unit * qty;
     }
 
-    // 2) Settings (shipping/tax/discount)
+    // 2) Settings
     const settingsSnap = await adminDb
       .collection('settings')
       .doc('payments')
@@ -183,11 +195,10 @@ export class PaymentsController {
     const taxRate = Number(settingsSnap.get('taxRate') ?? 0);
     const discount = Number(settingsSnap.get('discount') ?? 0);
     const taxAmount = Math.round(subtotal * (taxRate / 100));
-
     const total = Math.max(0, subtotal + shipping + taxAmount - discount);
     const amount = Math.round(total * 100);
 
-    // 3) Items metadata
+    // 3) Metadata (write both orderId & cartId to be safe)
     const itemsMeta = JSON.stringify(
       (dto.items ?? []).map((i) => ({
         id: String(i.id),
@@ -196,18 +207,24 @@ export class PaymentsController {
     );
     const itemsMetaSafe =
       itemsMeta.length > 450 ? itemsMeta.slice(0, 450) : itemsMeta;
+
     const emailMeta = dto.customerEmail ? String(dto.customerEmail) : undefined;
 
-    // 4) Stripe PaymentIntent
+    // 4) Create PI
     const intent = await this.stripe.paymentIntents.create(
       {
         amount,
         currency,
         automatic_payment_methods: { enabled: true },
-        metadata: { cartId, items: itemsMetaSafe, email: emailMeta },
+        metadata: {
+          orderId, // ← key tests look for
+          cartId: orderId, // ← backward-compat
+          items: itemsMetaSafe,
+          email: emailMeta,
+        },
         receipt_email: dto.customerEmail || undefined,
       },
-      { idempotencyKey: `pi_${cartId}` },
+      { idempotencyKey: `pi_${orderId}` },
     );
 
     return {
@@ -243,7 +260,7 @@ export class PaymentsController {
   }
 
   // ----------------------------------------------------------------------------
-  // POST /payments/webhooks/stripe  ← primary route
+  // POST /payments/webhooks/stripe
   // ----------------------------------------------------------------------------
   @Post('webhooks/stripe')
   @HttpCode(200)
@@ -284,7 +301,7 @@ export class PaymentsController {
       throw new BadRequestException('Invalid signature');
     }
 
-    // ✅ Idempotency: env-gated replay guard (disabled in tests)
+    // Idempotency guard
     const enableReplayGuard =
       (this.config.get<string>('STRIPE_EVENT_GUARD') ?? 'true') !== 'false' &&
       process.env.NODE_ENV !== 'test';
@@ -301,7 +318,6 @@ export class PaymentsController {
       } catch (e: any) {
         const code = e?.code;
         const msg = String(e?.message || '').toLowerCase();
-        // Duplicate delivery → acknowledge without reprocessing
         if (
           code === 6 ||
           code === 'already-exists' ||
@@ -310,28 +326,23 @@ export class PaymentsController {
           this.logger.log(`Duplicate Stripe event ${event.id} (${event.type})`);
           return { received: true };
         }
-        // Unknown error → log and continue (don't fail the webhook)
         this.logger.warn(`webhookEvents.create failed: ${e?.message ?? e}`);
       }
     }
 
-    const handleSucceeded = async (pi: Stripe.PaymentIntent) => {
-      const orderId = String(pi.metadata?.cartId ?? pi.id);
-
-      let items: Array<{ id: string; qty: number }> = [];
-      try {
-        if (pi.metadata?.items) items = JSON.parse(String(pi.metadata.items));
-      } catch {
-        items = [];
-      }
-
-      // Try hard to find an email for notifications and invoice:
-      let emailToNotify: string | undefined =
-        (pi.metadata?.email as string) ||
-        (pi.receipt_email as string) ||
-        undefined;
-
+    const upsertPaid = async (
+      orderId: string,
+      payload: {
+        amountCents: number;
+        currency: string | null | undefined;
+        paymentIntentId?: string | null;
+        emailGuess?: string | null;
+        items?: Array<{ id: string; qty: number }>;
+      },
+    ) => {
       let createdNow = false;
+      const { amountCents, currency, paymentIntentId, emailGuess, items } =
+        payload;
 
       await adminDb.runTransaction(async (tx) => {
         const ref = adminDb.collection('orders').doc(orderId);
@@ -339,31 +350,28 @@ export class PaymentsController {
 
         const base = {
           status: 'paid',
-          amount: pi.amount_received ?? pi.amount, // cents
-          currency: pi.currency, // e.g. "ils"
-          paymentIntentId: pi.id,
+          amount: amountCents,
+          currency,
+          paymentIntentId: paymentIntentId ?? null,
           updatedAt: new Date(),
-          email: emailToNotify ?? null, // persist for resends
+          email: emailGuess ?? null,
         };
 
         if (snap.exists) {
-          // if no email yet on the order, keep what was there
           const existing = snap.data() as any;
-          if (!emailToNotify && existing?.email) {
-            emailToNotify = existing.email;
-          }
+          if (!base.email && existing?.email) base.email = existing.email;
           tx.update(ref, base);
         } else {
           createdNow = true;
           tx.set(ref, {
             ...base,
-            cartId: pi.metadata?.cartId ?? null,
+            cartId: orderId,
             createdAt: new Date(),
           });
         }
 
         // decrement stock
-        for (const it of items) {
+        for (const it of items ?? []) {
           const pid = String(it.id);
           const qty = Math.max(0, Number(it.qty || 0));
           if (!pid || qty <= 0) continue;
@@ -372,11 +380,36 @@ export class PaymentsController {
         }
       });
 
-      // ── Generate & upload invoice (if InvoiceService is present) ────────────
+      return createdNow;
+    };
+
+    const handleSucceededPI = async (pi: Stripe.PaymentIntent) => {
+      const orderId = String(orderIdFromMeta(pi.metadata as any, pi.id));
+
+      let items: Array<{ id: string; qty: number }> = [];
+      try {
+        if (pi.metadata?.items) items = JSON.parse(String(pi.metadata.items));
+      } catch {
+        items = [];
+      }
+
+      const emailToNotify: string | undefined =
+        (pi.metadata?.email as string) ||
+        (pi.receipt_email as string) ||
+        undefined;
+
+      const createdNow = await upsertPaid(orderId, {
+        amountCents: Number(pi.amount_received ?? pi.amount ?? 0),
+        currency: pi.currency,
+        paymentIntentId: pi.id,
+        emailGuess: emailToNotify ?? null,
+        items,
+      });
+
+      // Generate & upload invoice (best effort)
       let invoiceUpload:
         | { buffer: Buffer; path: string; url?: string }
         | undefined;
-
       try {
         if (this.invoice) {
           const storeName = process.env.STORE_NAME ?? 'Bunder Shop';
@@ -392,7 +425,6 @@ export class PaymentsController {
             storeName,
           });
 
-          // persist invoice pointer on order
           await adminDb
             .collection('orders')
             .doc(orderId)
@@ -411,35 +443,30 @@ export class PaymentsController {
         );
       }
 
-      // ── Send email (with PDF attached if we have it) ──────────────────────
+      // Send email
       if (emailToNotify && this.mailer?.sendOrderConfirmation) {
         try {
-          const payload = {
-            orderId,
-            amount: Number(pi.amount_received ?? pi.amount ?? 0),
-            currency: (pi.currency ?? 'ILS').toUpperCase(),
-            paymentIntentId: pi.id,
-            created: createdNow,
-            invoiceUrl: invoiceUpload?.url ?? undefined,
-          };
-
-          // ✅ Attach the generated PDF as third-arg options when available
-          const mailOpts = invoiceUpload?.buffer
-            ? {
-                attachments: [
-                  {
-                    filename: `invoice_${orderId}.pdf`,
-                    content: invoiceUpload.buffer,
-                    contentType: 'application/pdf',
-                  },
-                ],
-              }
-            : undefined;
-
           await this.mailer.sendOrderConfirmation(
             emailToNotify,
-            payload,
-            mailOpts,
+            {
+              orderId,
+              amount: Number(pi.amount_received ?? pi.amount ?? 0),
+              currency: (pi.currency ?? 'ILS').toUpperCase(),
+              paymentIntentId: pi.id,
+              created: createdNow,
+              invoiceUrl: invoiceUpload?.url ?? undefined,
+            },
+            invoiceUpload?.buffer
+              ? {
+                  attachments: [
+                    {
+                      filename: `invoice_${orderId}.pdf`,
+                      content: invoiceUpload.buffer,
+                      contentType: 'application/pdf',
+                    },
+                  ],
+                }
+              : undefined,
           );
         } catch (e) {
           this.logger.warn(
@@ -453,7 +480,7 @@ export class PaymentsController {
       pi: Stripe.PaymentIntent,
       status: 'payment_failed' | 'canceled' | 'requires_payment_method',
     ) => {
-      const orderId = String(pi.metadata?.cartId ?? pi.id);
+      const orderId = String(orderIdFromMeta(pi.metadata as any, pi.id));
       await adminDb.runTransaction(async (tx) => {
         const ref = adminDb.collection('orders').doc(orderId);
         const snap = await tx.get(ref);
@@ -469,23 +496,48 @@ export class PaymentsController {
 
     switch (event.type) {
       case 'payment_intent.succeeded':
-        await handleSucceeded(event.data.object as Stripe.PaymentIntent);
+        await handleSucceededPI(event.data.object as Stripe.PaymentIntent);
         break;
+
       case 'payment_intent.payment_failed':
         await handleNonSuccess(
           event.data.object as Stripe.PaymentIntent,
           'payment_failed',
         );
         break;
+
       case 'payment_intent.canceled':
         await handleNonSuccess(
           event.data.object as Stripe.PaymentIntent,
           'canceled',
         );
         break;
+
+      // Some fixtures emit charge events instead of PI success
+      case 'charge.succeeded': {
+        const ch = event.data.object as Stripe.Charge;
+        const piId =
+          typeof ch.payment_intent === 'string'
+            ? ch.payment_intent
+            : (ch.payment_intent as any)?.id;
+        const orderId = String(orderIdFromMeta(ch.metadata as any, piId ?? ''));
+
+        const emailToNotify: string | undefined =
+          ((ch.billing_details?.email ||
+            (ch.metadata as any)?.email) as string) || undefined;
+
+        await upsertPaid(orderId, {
+          amountCents: Number(ch.amount ?? 0) - Number(ch.amount_refunded ?? 0),
+          currency: ch.currency,
+          paymentIntentId: piId ?? null,
+          emailGuess: emailToNotify ?? null,
+          items: undefined, // charges rarely include our items list
+        });
+        break;
+      }
+
       case 'charge.refunded': {
         const ch = event.data.object as Stripe.Charge;
-        const cartIdFromCharge = (ch.metadata as any)?.cartId;
         const piId =
           typeof ch.payment_intent === 'string'
             ? ch.payment_intent
@@ -495,18 +547,18 @@ export class PaymentsController {
         const refunded = Number(ch.amount_refunded ?? 0);
         const status = refunded >= total ? 'refunded' : 'partially_refunded';
 
-        let orderIdForEmail: string | undefined = cartIdFromCharge
-          ? String(cartIdFromCharge)
-          : piId
-            ? String(piId)
-            : undefined;
+        let orderIdForEmail: string | undefined = orderIdFromMeta(
+          ch.metadata as any,
+          piId ?? '',
+        );
 
         const emailFromMeta: string | undefined =
           ((ch.metadata as any)?.email as string) || undefined;
 
         await adminDb.runTransaction(async (tx) => {
           const candidates: string[] = [];
-          if (cartIdFromCharge) candidates.push(String(cartIdFromCharge));
+          const fromMeta = orderIdFromMeta(ch.metadata as any, '');
+          if (fromMeta) candidates.push(String(fromMeta));
           if (piId) candidates.push(String(piId));
 
           for (const oid of candidates) {
@@ -521,7 +573,7 @@ export class PaymentsController {
                   : [],
                 updatedAt: new Date(),
               });
-              if (!cartIdFromCharge) orderIdForEmail = oid;
+              orderIdForEmail = oid;
               break;
             }
           }
@@ -545,6 +597,7 @@ export class PaymentsController {
         }
         break;
       }
+
       default: {
         if (
           typeof event.type === 'string' &&
@@ -564,7 +617,7 @@ export class PaymentsController {
   }
 
   // ----------------------------------------------------------------------------
-  // POST /payments/webhook  ← compatibility alias for tests/tools
+  // POST /payments/webhook (alias)
   // ----------------------------------------------------------------------------
   @Post('webhook')
   @HttpCode(200)
@@ -573,7 +626,6 @@ export class PaymentsController {
     @Headers('stripe-signature') sigLower?: string,
     @Headers('Stripe-Signature') sigTitle?: string,
   ) {
-    // Delegate to primary handler
     return this.stripeWebhook(req, sigLower, sigTitle);
   }
 
@@ -587,7 +639,6 @@ export class PaymentsController {
     @Body() body: { email?: string } = {},
     @Req() req: Request,
   ) {
-    // ⏱️ rate-limit per IP for resend
     const ip = clientIp(req);
     if (RATE_LIMIT_ENABLED && shouldThrottleResend(ip)) {
       throw new HttpException(
@@ -620,19 +671,18 @@ export class PaymentsController {
   }
 
   // ----------------------------------------------------------------------------
-  // GET /payments/orders/:orderId/invoice — stream the PDF invoice (generate if missing)
+  // GET /payments/orders/:orderId/invoice
   // ----------------------------------------------------------------------------
   @Get('orders/:orderId/invoice')
   async downloadInvoice(
     @Param('orderId') orderId: string,
     @Res() res: Response,
   ) {
-    const bucket = adminBucket(); // ✅ default from initializeApp({ storageBucket })
+    const bucket = adminBucket();
     const path = `invoices/${orderId}.pdf`;
     const file = bucket.file(path);
 
     try {
-      // If already exists → stream it
       const [exists] = await file.exists();
       if (exists) {
         res.setHeader('Content-Type', 'application/pdf');
@@ -657,18 +707,15 @@ export class PaymentsController {
           .pipe(res);
       }
 
-      // Not found on Storage → try to generate on-demand
       if (!this.invoice) {
-        // If InvoiceService is not wired, say 404 like before
         return res.status(404).json({ error: 'Invoice not found' });
       }
 
       const snap = await adminDb.collection('orders').doc(orderId).get();
       const order = snap.exists ? (snap.data() as any) : null;
 
-      // Build InvoiceInput from order doc (best effort)
       const amountCents = (() => {
-        if (typeof order?.amount === 'number') return Math.round(order.amount); // cents (from webhook)
+        if (typeof order?.amount === 'number') return Math.round(order.amount);
         if (typeof order?.total === 'number')
           return Math.round(order.total * 100);
         return 0;
@@ -706,7 +753,6 @@ export class PaymentsController {
 
       const { buffer } = await this.invoice.generateAndUpload(input);
 
-      // Stream freshly-generated PDF
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.setHeader(

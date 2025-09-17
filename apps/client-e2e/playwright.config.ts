@@ -15,6 +15,7 @@ export default defineConfig({
     '**/*.pw.spec.cts',
     '**/*.pw.spec.*',
     '**/*.spec.*',
+    '**/*.spec.mts', // ✅ add thi
   ],
   timeout: 60_000,
   expect: { timeout: 15_000 },

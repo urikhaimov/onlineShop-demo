@@ -92,8 +92,8 @@ export class OrdersController {
     return {
       id: safeId,
       status: doc.status,
-      amount: doc.totalAmount,
-      currency: doc.payment?.currency,
+      amount: doc.total ?? doc.totalAmount,
+      currency: doc.currency ?? doc.payment?.currency,
       updatedAt: doc.updatedAt,
     };
   }
@@ -120,6 +120,8 @@ export class OrdersController {
       shipping?: number; // MAJOR
       taxRate?: number; // fraction (0.17)
       discount?: number; // MINOR
+      // optional linkage (helps webhook):
+      orderId?: string | null;
       // customer fields (optional)
       ownerName?: string | null;
       passportId?: string | null;
@@ -152,18 +154,22 @@ export class OrdersController {
       currency,
       userId: req.user.uid,
       email: body.email ?? undefined,
-      idempotencyKey, // service will recompute a safer one from args
+      idempotencyKey, // service may recompute/augment internally
       cart: body.cart ?? [],
+      orderId:
+        (body.orderId ?? undefined) ||
+        (body.metadata?.orderId as string | undefined),
       metadata: {
-        shippingMajor: body.shipping ?? 0,
-        taxRate: body.taxRate ?? 0,
-        discountMinor: body.discount ?? 0,
+        // Stripe metadata MUST be strings:
+        shippingMajor: String(body.shipping ?? 0),
+        taxRate: String(body.taxRate ?? 0),
+        discountMinor: String(body.discount ?? 0),
         ownerName: body.ownerName ?? undefined,
         passportId: body.passportId ?? undefined,
         phone: body.phone ?? undefined,
         ...(body.metadata ?? {}),
       },
-    });
+    } as any);
   }
 
   // SPA finalize (webhook remains source of truth)

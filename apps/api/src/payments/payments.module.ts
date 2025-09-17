@@ -1,3 +1,4 @@
+// apps/api/src/payments/payments.module.ts
 import {
   Module,
   MiddlewareConsumer,
@@ -5,10 +6,16 @@ import {
   RequestMethod,
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { PaymentsController } from './payments.controller';
 import { raw } from 'express';
-import { MailerModule } from '../mailer/mailer.module'; // path from src/payments -> src/mailer
+
+import { PaymentsController } from './payments.controller';
+import { MailerModule } from '../mailer/mailer.module';
 import { InvoiceModule } from '../invoice/invoice.module';
+
+// NOTE:
+// - Do NOT import OrdersModule here (avoids spinning up OrdersService in tests).
+// - Do NOT import or register an InvoicesPublicController here.
+//   The invoice download endpoint is implemented on PaymentsController.
 
 @Module({
   // If ConfigModule isn’t global elsewhere, switch to ConfigModule.forRoot({ isGlobal: true })
@@ -19,10 +26,9 @@ export class PaymentsModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // Stripe webhook must receive the exact raw bytes (no JSON parsing)
     consumer.apply(raw({ type: '*/*' })).forRoutes(
-      // ✅ must match @Post('webhooks/stripe') in PaymentsController
+      // primary webhook endpoint
       { path: 'payments/webhooks/stripe', method: RequestMethod.POST },
-
-      // (optional) legacy alias if you previously used /payments/webhook
+      // optional legacy alias
       { path: 'payments/webhook', method: RequestMethod.POST },
     );
   }

@@ -55,7 +55,6 @@ async function bootstrap() {
   });
 
   // --- Webhook raw body (must be BEFORE any JSON/urlencoded parser for those paths) ---
-  // Use '*/*' to be robust to proxies that tweak content-type params.
   const webhookRaw = bodyParser.raw({ type: '*/*', limit: '2mb' });
   const ensureRawBody = (req: any, _res: any, next: any) => {
     if (!req.rawBody && Buffer.isBuffer(req.body)) req.rawBody = req.body;
@@ -66,6 +65,11 @@ async function bootstrap() {
   const webhookPaths = [
     `/${apiPrefix}/orders/webhook`,
     `/${apiPrefix}/payments/webhooks/stripe`,
+    // extra aliases so CLI/tests always hit a raw-body route:
+    `/${apiPrefix}/payments/webhook`,
+    `/${apiPrefix}/webhooks/stripe`,
+    `/${apiPrefix}/stripe/webhook`,
+    // partners
     `/${apiPrefix}/webhooks/wolt`,
   ];
   webhookPaths.forEach((p) => app.use(p, webhookRaw, ensureRawBody));
@@ -84,7 +88,7 @@ async function bootstrap() {
     }),
   );
 
-  // Helmet + CSP (allow Stripe/Firebase and local dev) + HSTS in prod
+  // ── Helmet applied ONCE here (avoid duplicates anywhere else) ──────────────
   app.use(
     helmet({
       crossOriginEmbedderPolicy: false,
@@ -128,13 +132,21 @@ async function bootstrap() {
           styleSrc: ["'self'", "'unsafe-inline'"],
           fontSrc: ["'self'", 'data:'],
           frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com'],
+          // (helmet useDefaults already sets these, but keeping explicit is fine)
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          frameAncestors: ["'self'"],
+          objectSrc: ["'none'"],
+          scriptSrcAttr: ["'none'"],
+          upgradeInsecureRequests: [],
         },
       },
       referrerPolicy: { policy: 'no-referrer' },
     }),
   );
+  // ───────────────────────────────────────────────────────────────────────────
 
-  // CORS for your client (webhooks are server-to-server; this only affects browser calls)
+  // CORS for your client (browser); webhooks are server-to-server
   app.enableCors({
     origin: [
       frontendOrigin,
@@ -151,7 +163,7 @@ async function bootstrap() {
       'x-lang',
       'stripe-signature',
       'Stripe-Signature',
-      'x-signature', // common HMAC header (Wolt)
+      'x-signature',
       'X-Signature',
     ],
     exposedHeaders: ['X-Total-Count', 'X-Total', 'X-Total-Results'],

@@ -1,21 +1,25 @@
-// src/components/LoadingProgress.tsx
 import * as React from 'react';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Box } from '@mui/material';
+import CircularProgress from '@mui/material/CircularProgress';
 
-type Props = { label?: string };
+type Props = {
+  size?: number;
+  /** Visible name for AT; default keeps tests happy */
+  label?: string;
+};
 
-export default function LoadingProgress({ label = 'Loading' }: Props) {
+export default function LoadingProgress({
+  size = 60,
+  label = 'Loading',
+}: Props) {
   return (
     <Box
-      role="status"
-      aria-live="polite"
-      sx={{ display: 'grid', placeItems: 'center', py: 4 }}
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      minHeight={120}
     >
-      {/* MUI already sets role="progressbar"; we add a name */}
-      <CircularProgress aria-label={label} size={60} />
-      <Typography variant="caption" sx={{ mt: 1, color: 'text.secondary' }}>
-        {label}…
-      </Typography>
+      <CircularProgress aria-label={label} size={size} />
     </Box>
   );
 }
