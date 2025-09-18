@@ -12,6 +12,12 @@ import { useThemeStore } from '../../stores/useThemeStore';
 import { useSnackbar } from 'notistack';
 import api from '../../api/axiosInstance';
 
+// Global registry to survive StrictMode double-mounts and cross-components
+const CONFIRM_RUNS: Set<string> =
+  typeof window !== 'undefined'
+    ? ((window as any).__piConfirmRuns ||= new Set<string>())
+    : new Set<string>();
+
 export default function CheckoutSuccessPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -23,12 +29,14 @@ export default function CheckoutSuccessPage() {
   const radius = (themeSettings?.borderRadius as number | undefined) ?? 8;
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
 
-  // One-shot: ask server to "confirm" again if needed.
-  // (No PM id → the service will recognize a succeeded PI and do final cleanup.)
+  // One-shot: ask server to "confirm" only once per PI (StrictMode-safe)
   React.useEffect(() => {
+    if (!paymentIntentId) return;
+    if (CONFIRM_RUNS.has(paymentIntentId)) return; // already confirmed elsewhere
+    CONFIRM_RUNS.add(paymentIntentId);
+
     let cancelled = false;
     (async () => {
-      if (!paymentIntentId) return;
       try {
         await api.post('/orders/confirm', { paymentIntentId });
       } catch (err: any) {
@@ -45,10 +53,12 @@ export default function CheckoutSuccessPage() {
         });
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [paymentIntentId, enqueueSnackbar, t]);
+    // intentionally only depends on paymentIntentId; the registry prevents re-runs
+  }, [paymentIntentId]);
 
   return (
     <PageLayout
@@ -95,9 +105,7 @@ export default function CheckoutSuccessPage() {
 
             {paymentIntentId && (
               <Typography variant="caption" color="text.secondary">
-                {t('checkoutSuccess.orderRef', {
-                  defaultValue: 'Reference:',
-                })}{' '}
+                {t('checkoutSuccess.orderRef', { defaultValue: 'Reference:' })}{' '}
                 {paymentIntentId}
               </Typography>
             )}
