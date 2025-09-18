@@ -1,3 +1,4 @@
+// src/pages/checkout/CheckoutPage.tsx
 import React, { useEffect, useMemo } from 'react';
 import {
   Alert,
@@ -29,6 +30,7 @@ import { useTranslation } from 'react-i18next';
 import { CDefaultCurrency } from '@common/types';
 import LoadingProgress from '@client/components/LoadingProgress';
 import { useSnackbar } from 'notistack';
+import api from '../../api/axiosInstance';
 
 // small helpers to avoid `any`
 type WithImage = { image?: string };
@@ -43,6 +45,13 @@ function pickImage(it: unknown): string {
     }
   }
   return '';
+}
+
+// client_secret -> pi_XXXX
+function getPiIdFromClientSecret(cs?: string | null) {
+  if (!cs) return '';
+  const m = cs.match(/^(pi_[^_]+)_secret_/);
+  return m?.[1] ?? '';
 }
 
 export default function CheckoutPage() {
@@ -120,7 +129,40 @@ export default function CheckoutPage() {
     discountMajor,
   });
 
-  // Toast errors instead of Snackbar components
+  // Current PI id (from client secret)
+  const paymentIntentId = useMemo(
+    () => getPiIdFromClientSecret(clientSecret),
+    [clientSecret],
+  );
+
+  // 🔄 As soon as we have a PI, persist the draft items on the server.
+  useEffect(() => {
+    (async () => {
+      if (!paymentIntentId || cart.length === 0) return;
+      try {
+        await api.post('/orders/save-draft', {
+          paymentIntentId,
+          items: cart.map((i) => ({
+            productId: i.id,
+            name: i.name,
+            price: Number(i.price) || 0,
+            quantity: Number(i.quantity) || 0,
+            image: pickImage(i),
+          })),
+        });
+      } catch (e: any) {
+        enqueueSnackbar(
+          e?.response?.data?.message ??
+            t('checkout.draftSaveFailed', {
+              defaultValue: 'Failed to sync draft items.',
+            }),
+          { variant: 'warning' },
+        );
+      }
+    })();
+  }, [paymentIntentId, cart, enqueueSnackbar, t]);
+
+  // Toast errors
   useEffect(() => {
     if (error) {
       enqueueSnackbar(String(error), {
@@ -142,17 +184,16 @@ export default function CheckoutPage() {
   // Loading gate AFTER hooks
   if (settingsLoading) return <LoadingProgress />;
 
-  // --- Elements options (NO wallets/paymentMethodOrder here)
+  // --- Elements options
   const elementsOptions: StripeElementsOptions = {
     clientSecret: clientSecret ?? undefined,
     appearance: {
       theme: isDark ? 'night' : 'stripe',
-      rules: {
-        '.Input': {
-          borderRadius: '8px',
-        },
-      },
+      rules: { '.Input': { borderRadius: '8px' } },
     },
+    // REQUIRED when using stripe.createPaymentMethod with the Payment Element
+    paymentMethodCreation: 'manual',
+    loader: 'auto',
   };
 
   return (
@@ -339,7 +380,12 @@ export default function CheckoutPage() {
               stripe={stripePromise}
               options={elementsOptions}
             >
-              <StripeCheckoutForm onRefreshIntent={refresh} />
+              {/* Pass the values the form needs for manual PM + 3DS */}
+              <StripeCheckoutForm
+                clientSecret={clientSecret}
+                paymentIntentId={paymentIntentId}
+                onRefreshIntent={refresh}
+              />
             </Elements>
           ) : (
             <Alert severity="error">

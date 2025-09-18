@@ -14,8 +14,11 @@ export class StripeController {
   async createPaymentIntent(@Body() body: CreateIntentBody) {
     const items = Array.isArray(body.items) ? body.items : [];
     const currency = (body.currency || 'ils').toLowerCase();
-    const pi = await this.stripeSvc.createPaymentIntent(items, currency);
-    return { clientSecret: pi.client_secret };
+    const pi = await this.stripeSvc.createPaymentIntentFromItems({
+      items,
+      currency,
+    });
+    return { clientSecret: pi.client_secret, paymentIntentId: pi.id };
   }
 
   @Get('payment-intent/:id')

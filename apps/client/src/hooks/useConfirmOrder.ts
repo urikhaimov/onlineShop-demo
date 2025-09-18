@@ -1,93 +1,58 @@
-import { useEffect, useMemo, useState } from 'react';
+import * as React from 'react';
 import { useLocation } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
-import { useCartStore } from '../stores/useCartStore';
 
-type ConfirmResponse = { orderId: string; alreadyConfirmed?: boolean };
-
-function extractPaymentIntentId(search: string): string | null {
+function getPiFromQuery(search: string) {
   const qs = new URLSearchParams(search);
-  const pi = qs.get('payment_intent');
-  if (pi) return pi;
-  const secret = qs.get('payment_intent_client_secret');
-  return secret ? secret.split('_secret')[0] : null;
+  // Accept any of these, just in case
+  return (
+    qs.get('payment_intent') ||
+    qs.get('paymentIntentId') ||
+    qs.get('pi') ||
+    ''
+  ).trim();
 }
 
-/**
- * Idempotent order confirmation:
- * - Confirms by payment_intent from the URL (preferred).
- * - Does NOT throw if the cart is empty.
- * - Uses localStorage to avoid double-confirm on refresh.
- * - Clears the cart only if it still has items.
- */
+function isValidPi(id: string) {
+  return /^pi_[A-Za-z0-9]+$/.test(id);
+}
+
 export function useConfirmOrder() {
   const { search } = useLocation();
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [toastOpen, setToastOpen] = React.useState(false);
 
-  const paymentIntentId = useMemo(
-    () => extractPaymentIntentId(search),
-    [search],
-  );
+  React.useEffect(() => {
+    const pi = getPiFromQuery(search);
+    if (!pi) return; // nothing to confirm if you visit the page directly
+    if (!isValidPi(pi)) {
+      setError('Invalid payment intent id');
+      setToastOpen(true);
+      return;
+    }
 
-  const items = useCartStore((s) => s.items ?? []);
-  const clearCart = useCartStore((s) => s.clearCart);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [toastOpen, setToastOpen] = useState(false);
-
-  useEffect(() => {
     let cancelled = false;
-
-    async function run() {
+    (async () => {
       try {
-        // If we don't have a PI, just render the success page without doing anything noisy.
-        if (!paymentIntentId) {
-          setError(null);
-          return;
-        }
-
-        // Skip if we already confirmed this PI in this browser.
-        const doneKey = `pi:${paymentIntentId}:confirmed`;
-        if (localStorage.getItem(doneKey) === '1') {
-          return;
-        }
-
-        // Prefer server-side confirm using PaymentIntent (cart snapshot optional).
-        const payload: any = { paymentIntentId };
-        if (items.length > 0) payload.cart = { items };
-
-        const { data } = await axiosInstance.post<ConfirmResponse>(
-          '/orders/confirm',
-          payload,
-        );
-
-        // Clear cart only if it still has items (no error if already empty).
-        if (items.length > 0) clearCart();
-
-        localStorage.setItem(doneKey, '1');
-        if (!cancelled) setToastOpen(true);
+        setLoading(true);
+        await axiosInstance.post('/orders/confirm', { paymentIntentId: pi });
       } catch (e: any) {
-        // Treat "Cart is empty" as non-fatal; Success page should not depend on cart.
         const msg =
           e?.response?.data?.message || e?.message || 'Failed to confirm order';
-
-        if (String(msg).toLowerCase().includes('cart is empty')) {
-          if (!cancelled) setError(null);
-        } else {
-          if (!cancelled) setError(msg);
+        if (!cancelled) {
+          setError(String(msg));
+          setToastOpen(true);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }
+    })();
 
-    run();
     return () => {
       cancelled = true;
     };
-  }, [paymentIntentId, items, clearCart]);
+  }, [search]);
 
-  return { loading, error, toastOpen, setToastOpen };
+  return { loading, error, setToastOpen, setError };
 }
-
-export default useConfirmOrder;

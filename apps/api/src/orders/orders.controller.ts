@@ -1,3 +1,4 @@
+// src/orders/orders.controller.ts
 import {
   BadRequestException,
   Controller,
@@ -116,9 +117,9 @@ export class OrdersController {
     body: {
       amount: number; // MINOR
       currency?: string; // 'ILS'
-      cart?: any[];
+      cart?: any[]; // accepts the richer cart you send from the client
       shipping?: number; // MAJOR
-      taxRate?: number; // fraction (0.17)
+      taxRate?: number; // fraction (e.g., 0.17)
       discount?: number; // MINOR
       // optional linkage (helps webhook):
       orderId?: string | null;
@@ -129,32 +130,47 @@ export class OrdersController {
       phone?: string | null;
       shippingAddress?: Record<string, any> | null;
       metadata?: Record<string, any>;
+      // optional client-provided idempotency key (safe to pass through)
+      idempotencyKey?: string | null;
     },
   ) {
-    const currency = (body.currency ?? 'ILS').toUpperCase();
+    const currencyUpper = (body.currency ?? 'ILS').toUpperCase();
     const minorRaw = Math.max(0, Math.round(Number(body.amount) || 0));
-    const amountMinor = clampMinorForCurrency(minorRaw, currency);
-    const totalMajor = minorToMajor(amountMinor, currency);
+    const amountMinor = clampMinorForCurrency(minorRaw, currencyUpper);
+    const totalMajor = minorToMajor(amountMinor, currencyUpper);
 
     // Cart signature participates in (client-visible) key
-    const sig = cartSignature(body.cart);
-    const idempotencyKey = composePIIdempotencyKey({
+    const sig = cartSignature(body.cart ?? []);
+
+    // Normalize extras that can change while amount/cart stay same — include
+    // them in the key so Stripe doesn't raise `idempotency_error`.
+    const shipMinor = Math.max(
+      0,
+      Math.round(((body.shipping ?? 0) as number) * 100),
+    );
+    const taxBps = Math.round(((body.taxRate ?? 0) as number) * 10_000); // 0.17 -> 1700 bps
+    const discountMinor = Math.max(0, Math.round(Number(body.discount) || 0));
+
+    // Prefer caller key if given, otherwise compose a stable key with extras.
+    // Example: pi-ILS-299-<sig>::s599-t1700-d300
+    const composedKey = `${composePIIdempotencyKey({
       uid: req.user.uid,
-      currency,
+      currency: currencyUpper,
       amountMinor,
       cartSig: sig,
-    });
+    })}::s${shipMinor}-t${taxBps}-d${discountMinor}`;
+    const idempotencyKey = (body.idempotencyKey || composedKey).slice(0, 255);
 
     this.logger.log(
-      `POST /orders/create-payment-intent uid=${req.user.uid} currency=${currency} minor=${amountMinor} cart=${body.cart?.length ?? 0}`,
+      `POST /orders/create-payment-intent uid=${req.user.uid} currency=${currencyUpper} minor=${amountMinor} cart=${body.cart?.length ?? 0}`,
     );
 
     return this.ordersService.createPaymentIntent({
       totalMajor,
-      currency,
+      currency: currencyUpper.toLowerCase(), // service expects lower-case (e.g., 'ils')
       userId: req.user.uid,
       email: body.email ?? undefined,
-      idempotencyKey, // service may recompute/augment internally
+      idempotencyKey,
       cart: body.cart ?? [],
       orderId:
         (body.orderId ?? undefined) ||
@@ -172,12 +188,76 @@ export class OrdersController {
     } as any);
   }
 
-  // SPA finalize (webhook remains source of truth)
+  /**
+   * Save/merge draft checkout details into the current PI document.
+   * Optionally mirrors shipping to Stripe PI (set `mirrorToStripe: true`).
+   */
+  @Post('save-draft')
+  @Roles('user', 'admin', 'superadmin')
+  async saveDraft(
+    @Req() req: AuthedRequest,
+    @Body()
+    body: {
+      paymentIntentId: string;
+      items?: any[];
+      customer?: { name?: string; email?: string; phone?: string };
+      shippingAddress?: {
+        name?: string;
+        phone?: string;
+        address?: {
+          line1?: string;
+          city?: string;
+          postalCode?: string;
+          country?: string;
+        };
+      };
+      mirrorToStripe?: boolean;
+    },
+  ) {
+    const paymentIntentId = (body?.paymentIntentId || '').trim();
+    if (!isValidPaymentIntentId(paymentIntentId)) {
+      throw new BadRequestException('Valid paymentIntentId is required');
+    }
+    this.logger.log(
+      `POST /orders/save-draft uid=${req.user.uid} pi=${paymentIntentId}`,
+    );
+    return this.ordersService.saveDraftCheckoutDetails({
+      paymentIntentId,
+      userId: req.user.uid,
+      items: body.items,
+      customer: body.customer,
+      shippingAddress: body.shippingAddress,
+      updateStripePI: !!body.mirrorToStripe,
+    });
+  }
+
+  /**
+   * Server-side confirm (single source of truth).
+   * Accepts a PaymentMethod ID and optional customer/shipping data.
+   * May return { status: 'requires_action' } if 3DS is needed.
+   */
   @Post('confirm')
   @Roles('user', 'admin', 'superadmin')
   async confirm(
     @Req() req: AuthedRequest,
-    @Body() body: { paymentIntentId?: string },
+    @Body()
+    body: {
+      paymentIntentId?: string;
+      paymentMethodId?: string;
+      customer?: { name?: string; email?: string; phone?: string };
+      shippingAddress?: {
+        name?: string;
+        phone?: string;
+        address?: {
+          line1?: string;
+          city?: string;
+          postalCode?: string;
+          country?: string;
+        };
+      };
+      mirrorToStripe?: boolean;
+      returnUrl?: string;
+    },
   ) {
     const paymentIntentId = (body?.paymentIntentId || '').trim();
     if (!isValidPaymentIntentId(paymentIntentId)) {
@@ -186,10 +266,16 @@ export class OrdersController {
     this.logger.log(
       `POST /orders/confirm uid=${req.user.uid} pi=${paymentIntentId}`,
     );
-    return this.ordersService.createOrderFromIntentById(
+    // delegate to the new flow that handles confirm + cleanup
+    return this.ordersService.confirmPaymentIntent({
       paymentIntentId,
-      req.user.uid,
-    );
+      userId: req.user.uid,
+      paymentMethodId: body.paymentMethodId,
+      customer: body.customer,
+      shippingAddress: body.shippingAddress,
+      mirrorToStripe: !!body.mirrorToStripe,
+      returnUrl: body.returnUrl,
+    });
   }
 
   // PATCH (used by Admin Edit page)

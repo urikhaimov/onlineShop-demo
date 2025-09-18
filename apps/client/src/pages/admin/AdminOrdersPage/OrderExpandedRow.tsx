@@ -16,6 +16,7 @@ import { useThemeStore } from '../../../stores/useThemeStore';
 type Props = { order: TOrder };
 
 const OrderExpandedRow: React.FC<Props> = ({ order }) => {
+  console.log('Rendering <OrderExpandedRow /> for order', order);
   const mui = useTheme();
   const { themeSettings } = useThemeStore();
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);

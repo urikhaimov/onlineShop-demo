@@ -203,7 +203,7 @@ describe('PaymentsController (e2e)', () => {
           /\/payments\/(create-intent|create-payment-intent|intent)$/i.test(
             r.path,
           ),
-      )?.path ?? '/payments/create-intent';
+      )?.path ?? '/create-payment-intent';
 
     webhookPath =
       routes.find(
@@ -253,7 +253,7 @@ describe('PaymentsController (e2e)', () => {
     }
   });
 
-  it('POST /payments/create-intent returns clientSecret + paymentIntentId', async () => {
+  it('POST /payments/create-payment-intent returns clientSecret + paymentIntentId', async () => {
     // Mock Firestore data for amount computation
     db.collection.mockReturnThis();
     db.doc.mockReturnThis();

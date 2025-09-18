@@ -24,7 +24,7 @@ import { MailerService } from '../mailer/mailer.service';
 import { InvoiceService } from '../invoice/invoice.service';
 import { adminBucket } from '../firebase/admin';
 
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsArray,
   ValidateNested,
@@ -32,12 +32,16 @@ import {
   IsInt,
   Min,
   IsOptional,
+  ArrayMinSize,
+  IsIn,
 } from 'class-validator';
 
 class CartItemDto {
   @IsString()
   id!: string;
 
+  @Transform(({ value }) => Number(value))
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   qty!: number;
@@ -48,12 +52,17 @@ class CreateIntentDto {
   cartId!: string;
 
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => CartItemDto)
   items!: Array<CartItemDto>;
 
-  @IsString()
-  currency!: string;
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsIn(['ils', 'usd'], { message: 'currency must be ils or usd' })
+  currency?: 'ils' | 'usd';
 
   @IsOptional()
   @IsString()
@@ -96,8 +105,11 @@ function shouldThrottleResend(ip: string): boolean {
   return false;
 }
 
+// Support both styles of env flags
 const RATE_LIMIT_ENABLED =
-  process.env.DISABLE_RATE_LIMIT !== 'true' && process.env.NODE_ENV !== 'test';
+  process.env.RATE_LIMIT_ENABLED === '1' ||
+  (process.env.DISABLE_RATE_LIMIT !== 'true' &&
+    process.env.NODE_ENV !== 'test');
 
 // Prefer orderId; accept common variations; else fallback
 function orderIdFromMeta(
@@ -120,6 +132,18 @@ function maskPublishableKey(pk: string): string {
   const last4 = pk.slice(-4);
   const keep = Math.min(pk.length - 4, 8);
   return `${pk.slice(0, keep)}…${last4}`;
+}
+
+// Stripe allows idempotency keys up to 255 chars
+function buildIdemKey(
+  headerKey: string | undefined,
+  orderId: string,
+  amountCents: number,
+  currency: string,
+) {
+  const fallback = `pi_${orderId}_${amountCents}_${currency}`; // stable per cart+amount+currency
+  const key = (headerKey || fallback).trim();
+  return key.length > 255 ? key.slice(0, 255) : key;
 }
 
 @Controller('payments')
@@ -160,11 +184,19 @@ export class PaymentsController {
   }
 
   // ----------------------------------------------------------------------------
-  // POST /payments/create-intent
+  // POST /payments/create-payment-intent
+  //  • Accepts optional Idempotency-Key header (recommended)
+  //  • Calculates totals from Firestore products + settings (in MINOR units)
+  //  • Writes metadata (orderId, items, email)
   // ----------------------------------------------------------------------------
-  @Post('create-intent')
+  @Post('create-payment-intent')
   @HttpCode(201)
-  async createPaymentIntent(@Req() req: Request, @Body() dto: CreateIntentDto) {
+  async createPaymentIntent(
+    @Req() req: Request,
+    @Body() dto: CreateIntentDto,
+    @Headers('idempotency-key') idemLower?: string,
+    @Headers('Idempotency-Key') idemTitle?: string,
+  ) {
     const ip = clientIp(req);
     if (RATE_LIMIT_ENABLED && shouldThrottle(ip)) {
       throw new HttpException(
@@ -173,30 +205,53 @@ export class PaymentsController {
       );
     }
 
-    const orderId = String(dto.cartId ?? ''); // tests often pass their custom id here
-    const currency = String(dto.currency ?? 'ILS').toLowerCase();
-
-    // 1) Fetch prices
-    let subtotal = 0;
-    for (const it of dto.items ?? []) {
-      const pid = String(it.id);
-      const qty = Number(it.qty ?? 0);
-      const snap = await adminDb.collection('products').doc(pid).get();
-      const unit = Number(snap.get('price') ?? 0);
-      subtotal += unit * qty;
+    if (!dto?.cartId || !Array.isArray(dto?.items) || dto.items.length === 0) {
+      throw new BadRequestException('Invalid cart payload');
     }
 
-    // 2) Settings
+    const orderId = String(dto.cartId);
+    const currency = String(dto.currency ?? 'ils').toLowerCase();
+
+    // 1) Fetch prices → subtotal **in cents**
+    let subtotalCents = 0;
+    for (const it of dto.items) {
+      const pid = String(it.id);
+      const qty = Number(it.qty ?? 0);
+      if (!pid || qty <= 0) continue;
+      const snap = await adminDb.collection('products').doc(pid).get();
+      if (!snap.exists) {
+        this.logger.warn(
+          `Product ${pid} not found while creating PI for ${orderId}`,
+        );
+        continue;
+      }
+      const unitMajor = Number(snap.get('price') ?? 0);
+      const unitCents = Math.round(unitMajor * 100);
+      subtotalCents += unitCents * qty;
+    }
+
+    // 2) Settings (kept in major units in DB) → convert to cents
     const settingsSnap = await adminDb
       .collection('settings')
       .doc('payments')
       .get();
-    const shipping = Number(settingsSnap.get('shipping') ?? 0);
-    const taxRate = Number(settingsSnap.get('taxRate') ?? 0);
-    const discount = Number(settingsSnap.get('discount') ?? 0);
-    const taxAmount = Math.round(subtotal * (taxRate / 100));
-    const total = Math.max(0, subtotal + shipping + taxAmount - discount);
-    const amount = Math.round(total * 100);
+
+    const shippingMajor = Number(settingsSnap.get('shipping') ?? 0);
+    const taxRate = Number(settingsSnap.get('taxRate') ?? 0); // percent
+    const discountMajor = Number(settingsSnap.get('discount') ?? 0);
+
+    const shippingCents = Math.round(shippingMajor * 100);
+    const discountCents = Math.round(discountMajor * 100);
+    const taxCents = Math.round(subtotalCents * (taxRate / 100));
+
+    const amount = Math.max(
+      0,
+      subtotalCents + shippingCents + taxCents - discountCents,
+    );
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Cart total must be greater than zero');
+    }
 
     // 3) Metadata (write both orderId & cartId to be safe)
     const itemsMeta = JSON.stringify(
@@ -210,27 +265,57 @@ export class PaymentsController {
 
     const emailMeta = dto.customerEmail ? String(dto.customerEmail) : undefined;
 
-    // 4) Create PI
-    const intent = await this.stripe.paymentIntents.create(
-      {
-        amount,
-        currency,
-        automatic_payment_methods: { enabled: true },
-        metadata: {
-          orderId, // ← key tests look for
-          cartId: orderId, // ← backward-compat
-          items: itemsMetaSafe,
-          email: emailMeta,
-        },
-        receipt_email: dto.customerEmail || undefined,
-      },
-      { idempotencyKey: `pi_${orderId}` },
-    );
+    const headerKey = (idemLower || idemTitle) ?? undefined;
+    const idempotencyKey = buildIdemKey(headerKey, orderId, amount, currency);
 
-    return {
-      clientSecret: intent.client_secret,
-      paymentIntentId: intent.id,
-    };
+    try {
+      // 4) Create PI (card-only; avoids Link/APM misconfig)
+      const intent = await this.stripe.paymentIntents.create(
+        {
+          amount,
+          currency,
+          payment_method_types: ['card'],
+          payment_method_options: {
+            card: { request_three_d_secure: 'automatic' },
+          },
+          metadata: {
+            orderId, // tests look for this
+            cartId: orderId, // backward-compat
+            items: itemsMetaSafe,
+            email: emailMeta,
+          },
+          receipt_email: dto.customerEmail || undefined,
+        },
+        { idempotencyKey },
+      );
+
+      return {
+        clientSecret: intent.client_secret,
+        paymentIntentId: intent.id,
+      };
+    } catch (err: any) {
+      const msg =
+        err?.raw?.message || err?.message || 'Failed to create PaymentIntent';
+      this.logger.error(
+        `create-intent failed for ${orderId}: ${msg} (${idempotencyKey})`,
+        err?.stack,
+      );
+      throw new HttpException(msg, HttpStatus.BAD_GATEWAY);
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // POST /payments/create-payment-intent (alias for older clients)
+  // ----------------------------------------------------------------------------
+  @Post('create-payment-intent')
+  @HttpCode(201)
+  async createPaymentIntentAlias(
+    @Req() req: Request,
+    @Body() dto: CreateIntentDto,
+    @Headers('idempotency-key') idemLower?: string,
+    @Headers('Idempotency-Key') idemTitle?: string,
+  ) {
+    return this.createPaymentIntent(req, dto, idemLower, idemTitle);
   }
 
   // ----------------------------------------------------------------------------

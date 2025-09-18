@@ -61,7 +61,10 @@ function normalizeFilters(raw: Record<string, any>): ListOrdersParams {
     priceMax: toNum(raw.priceMax),
     startDate: isBlank(raw.startDate) ? undefined : String(raw.startDate),
     endDate: isBlank(raw.endDate) ? undefined : String(raw.endDate),
-    inStockOnly: Boolean(raw.inStockOnly) || undefined,
+    inStockOnly:
+      typeof raw.inStockOnly === 'string'
+        ? raw.inStockOnly === 'true' || raw.inStockOnly === '1' || undefined
+        : (Boolean(raw.inStockOnly) as boolean) || undefined,
     sort: isBlank(raw.sort) ? undefined : String(raw.sort),
   };
   return pruneUndefined(out);
@@ -86,19 +89,22 @@ function normalizeOrders(data: unknown): OrdersResult {
 
 /** Which endpoint to try first (customize to your API). */
 const ORDERS_PATH =
-  (import.meta as any).env?.VITE_ORDERS_PATH || '/orders/admin';
+  (import.meta as any).env?.VITE_ORDERS_PATH || '/admin/orders';
 
 /** Fetch orders from the API (Auth header handled by axiosInstance). */
 async function listOrders(params: ListOrdersParams): Promise<OrdersResult> {
   // Try configured path first, then alternate fallback (admin <-> public)
   const paths =
-    ORDERS_PATH === '/orders/admin'
-      ? ['/orders/admin', '/orders']
-      : ['/orders', '/orders/admin'];
+    ORDERS_PATH === '/admin/orders'
+      ? ['/admin/orders', '/orders']
+      : ['/orders', '/admin/orders'];
 
   for (const p of paths) {
     try {
-      const res = await api.get(p, { params });
+      const res = await api.get(p, {
+        // Axios omits undefined values from query automatically
+        params,
+      });
 
       // Prefer body {items,total}, but respect X-Total-Count header if present
       const base = normalizeOrders(res.data);
@@ -111,7 +117,7 @@ async function listOrders(params: ListOrdersParams): Promise<OrdersResult> {
       return { items: base.items, total };
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 404) {
-        continue;
+        continue; // try next path
       }
       throw err;
     }

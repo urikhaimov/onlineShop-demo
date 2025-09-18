@@ -26,12 +26,20 @@ export type CurrencyCode =
   | 'VND'
   | string;
 
+/**
+ * Frontend order status (document-level). We keep legacy values and
+ * add the new ones the server uses ("open", "paid", "refunded", "canceled").
+ */
 export type TOrderStatus =
   | 'pending'
   | 'confirmed'
   | 'shipped'
   | 'delivered'
-  | 'cancelled';
+  | 'cancelled'
+  | 'open'
+  | 'paid'
+  | 'refunded'
+  | 'canceled';
 
 export type OrderMetadata = IMetadata & {
   createdBy: { uid: number; name: string };
@@ -50,17 +58,64 @@ export type TOrderItem = {
   image?: string;
 };
 
+/**
+ * Stripe PaymentIntent status union (subset; keep string fallback
+ * to stay resilient to SDK updates).
+ */
+export type StripePaymentIntentStatus =
+  | 'requires_payment_method'
+  | 'requires_confirmation'
+  | 'requires_action'
+  | 'processing'
+  | 'requires_capture'
+  | 'canceled'
+  | 'succeeded'
+  | string;
+
 export type TOrderPayment = {
+  /** e.g. 'card' */
   method: string;
-  status: 'paid' | 'unpaid';
-  transactionId?: string; // Stripe PI id is also here
-  currency?: CurrencyCode; // optional currency stored with payment
-  receipt_email?: string; // if you decide to persist it
+
+  /**
+   * For compatibility with existing UI, you can still infer "paid"/"unpaid"
+   * from this Stripe status:
+   *   paid   := status === 'succeeded'
+   *   unpaid := otherwise
+   */
+  status: StripePaymentIntentStatus;
+
+  /** Stripe PaymentIntent id (often equals order id) */
+  transactionId?: string;
+
+  /** Optional currency stored with payment */
+  currency?: CurrencyCode;
+
+  /** Email used for Stripe receipt (if set) */
+  receipt_email?: string;
+
+  /** Backend extras written by OrdersService (optional) */
+  provider?: 'stripe' | string;
+  totalMinor?: number; // cents/agorot
+  totalMajor?: number; // major units mirror
 };
 
+/**
+ * Address as written by the backend:
+ * - Supports both a nested "address" object and flat fields for legacy UIs.
+ */
 export type TOrderAddress = {
-  fullName?: string;
+  // nested form (current backend)
+  name?: string;
   phone?: string;
+  address?: {
+    line1?: string;
+    city?: string;
+    postalCode?: string;
+    country?: string;
+  };
+
+  // flat form (legacy UI)
+  fullName?: string;
   street?: string;
   city?: string;
   postalCode?: string;
@@ -77,8 +132,8 @@ export type TOrder = {
   /** Optional convenience mirror (MAJOR). Prefer totalAmount (MINOR). */
   total?: number;
 
-  /** MINOR units (e.g., agorot/cents) – the true source-of-truth total */
-  totalAmount: number;
+  /** MINOR units (e.g., agorot/cents) – true source of truth */
+  totalAmount?: number;
 
   /** (Optional) currency for this order */
   currency?: CurrencyCode;
@@ -108,8 +163,8 @@ export type TOrder = {
   notes?: string | null;
 
   statusHistory?: Array<{
-    status: string;
-    timestamp: string; // ISO string; keep as string if that’s what you store
+    status: string; // keep string for flexibility
+    timestamp: string; // ISO
     changedBy: string;
   }>;
 
@@ -117,7 +172,8 @@ export type TOrder = {
   createdAt?: Timestamp | FirestoreDate;
   updatedAt?: Timestamp | FirestoreDate;
 
-  metadata: OrderMetadata;
+  /** Some orders might not carry metadata, so keep it optional */
+  metadata?: OrderMetadata;
 };
 
 export enum ESTATUS_OPTIONS {

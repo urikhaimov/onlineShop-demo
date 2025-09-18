@@ -37,6 +37,9 @@ type FormData = {
   shippingAddress: ShippingAddress;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 function toIso2Country(input: string): string {
   const s = (input || '').trim().toUpperCase();
   if (s.length === 2) return s;
@@ -75,11 +78,34 @@ function prettyStripeError(code?: string, fallback?: string) {
   }
 }
 
-export default function StripeCheckoutForm({
-  onRefreshIntent,
-}: {
+// ─────────────────────────────────────────────────────────────────────────────
+// Props
+// ─────────────────────────────────────────────────────────────────────────────
+type StripeCheckoutFormProps = {
+  /** Optional: if you already know it; otherwise it’s derived from Elements */
+  paymentIntentId?: string;
+  /** Optional, for analytics/UI only */
+  totalMajor?: number;
+  /** Optional, for analytics/UI only */
+  currency?: string;
+
+  /** Called when the order is fully paid (after webhook/confirm) */
+  onPaid?: () => void;
+  /** Called on user-visible errors */
+  onError?: (msg: string) => void;
+
+  /** Refresh the intent (re-create client secret) */
   onRefreshIntent?: () => Promise<void>;
-}) {
+};
+
+export default function StripeCheckoutForm({
+  paymentIntentId: paymentIntentIdProp,
+  totalMajor,
+  currency,
+  onPaid,
+  onError,
+  onRefreshIntent,
+}: StripeCheckoutFormProps) {
   const { t } = useTranslation();
   const stripe = useStripe();
   const elements = useElements();
@@ -123,17 +149,18 @@ export default function StripeCheckoutForm({
   // Toast any errors via notistack (and clear the store error)
   React.useEffect(() => {
     if (error) {
-      enqueueSnackbar(String(error), {
-        variant: 'error',
-        autoHideDuration: 5000,
-      });
-      // clear after showing so repeated effects don't re-toast
+      onError?.(String(error));
+      if (!onError) {
+        enqueueSnackbar(String(error), {
+          variant: 'error',
+          autoHideDuration: 5000,
+        });
+      }
       setError(null);
     }
-  }, [error, enqueueSnackbar, setError]);
+  }, [error, enqueueSnackbar, setError, onError]);
 
-  // ✅ Poll PUBLIC endpoint until webhook has created the order
-  // Endpoint returns: { state: 'processing'|'succeeded'|..., orderId?: string }
+  // Poll PUBLIC endpoint until webhook/confirm has marked order as paid
   async function waitForOrderPaid(piId: string, timeoutMs = 60_000) {
     const start = Date.now();
     let delay = 1200;
@@ -142,21 +169,18 @@ export default function StripeCheckoutForm({
       try {
         const { data } = await axiosInstance.get<{
           state: string;
-          orderId?: string;
+          orderId?: string | null;
         }>(`/orders/public/${piId}`);
 
-        if (
-          data?.state === 'canceled' ||
-          data?.state === 'requires_payment_method'
-        ) {
-          throw new Error(`Payment ${data.state}`);
+        const state = String(data?.state || '').toLowerCase();
+        if (state === 'paid' || state === 'succeeded') {
+          return (data?.orderId as string | undefined) ?? piId;
         }
-
-        if (data?.state === 'succeeded' && data?.orderId) {
-          return data.orderId as string;
+        if (state === 'canceled' || state === 'requires_payment_method') {
+          throw new Error(`Payment ${state}`);
         }
       } catch {
-        // Ignore transient 404/5xx while webhook not finished
+        // transient errors while webhook still running
       }
       await new Promise((r) => setTimeout(r, delay));
       delay = Math.min(delay + 400, 4000);
@@ -164,13 +188,19 @@ export default function StripeCheckoutForm({
     return null;
   }
 
+  const bubbleError = (msg: string) => {
+    onError?.(msg);
+    if (!onError) enqueueSnackbar(msg, { variant: 'error' });
+  };
+
   const onSubmit = async (data: FormData) => {
     if (!stripe || !elements) {
-      setError(
-        t('checkoutForm.errors.stripeNotReady', {
+      const msg =
+        (t('checkoutForm.errors.stripeNotReady', {
           defaultValue: 'Stripe is not ready yet',
-        }),
-      );
+        }) as string) || 'Stripe is not ready yet';
+      setError(msg);
+      bubbleError(msg);
       return;
     }
     if (submitting) return;
@@ -180,107 +210,147 @@ export default function StripeCheckoutForm({
     setError(null);
 
     try {
+      // Ensure element fields are valid
+      const submitRes = await elements.submit();
+      if (submitRes.error) {
+        const msg = submitRes.error.message || 'Please check your details.';
+        setError(msg);
+        setLoading(false);
+        setSubmitting(false);
+        bubbleError(msg);
+        return;
+      }
+
       const addr = data.shippingAddress;
       const countryIso2 = toIso2Country(addr.country);
       const fallbackEmail = auth.currentUser?.email || undefined;
       const billingEmail = (email || '').trim() || fallbackEmail;
 
-      const { error: stripeError, paymentIntent } = await stripe.confirmPayment(
-        {
-          elements,
-          confirmParams: {
-            payment_method_data: {
-              billing_details: {
-                name: data.ownerName || addr.fullName,
-                email: billingEmail,
-                phone: addr.phone,
-                address: {
-                  line1: addr.street,
-                  city: addr.city,
-                  postal_code: addr.postalCode,
-                  country: countryIso2,
-                },
-              },
+      // 1) Create a PaymentMethod (manual flow; Elements is configured with paymentMethodCreation: 'manual')
+      const pmRes = await stripe.createPaymentMethod({
+        elements,
+        params: {
+          billing_details: {
+            name: data.ownerName || addr.fullName,
+            email: billingEmail,
+            phone: addr.phone,
+            address: {
+              line1: addr.street,
+              city: addr.city,
+              postal_code: addr.postalCode,
+              country: countryIso2,
             },
-            shipping: {
-              name: addr.fullName || data.ownerName,
-              phone: addr.phone,
-              address: {
-                line1: addr.street,
-                city: addr.city,
-                postal_code: addr.postalCode,
-                country: countryIso2,
-              },
-            },
-            receipt_email: billingEmail,
-            return_url: `${window.location.origin}/checkout/success`,
           },
-          redirect: 'if_required',
         },
-      );
+      });
 
-      if (stripeError) {
+      if (pmRes.error || !pmRes.paymentMethod) {
         const msg = prettyStripeError(
-          (stripeError as any)?.code,
-          stripeError.message ||
-            (t('checkoutForm.errors.paymentFailed', {
-              defaultValue: 'Payment failed',
-            }) as string),
+          (pmRes as any).error?.code,
+          pmRes.error?.message,
         );
         setError(msg);
         setLoading(false);
         setSubmitting(false);
         if (onRefreshIntent) await onRefreshIntent();
+        bubbleError(msg);
         return;
       }
 
-      const piId = paymentIntent?.id;
-      const piStatus = paymentIntent?.status;
-
-      if (
-        piId &&
-        (piStatus === 'succeeded' ||
-          piStatus === 'processing' ||
-          piStatus === 'requires_action')
-      ) {
-        const orderId = await waitForOrderPaid(piId);
-
-        if (orderId) {
-          try {
-            clearCart();
-            localStorage.removeItem('cart');
-          } catch {
-            // no-op
-          }
-          setLoading(false);
-          setSubmitting(false);
-          navigate('/checkout/success');
-          return;
-        }
-
-        // Still processing after timeout → soft message
-        setError(
-          t('checkoutForm.errors.processing', {
-            defaultValue:
-              "We are still processing your payment. You'll see your order as soon as it's confirmed.",
-          }) as string,
-        );
+      // Derive clientSecret (used only for handleNextAction).
+      const derivedClientSecret: string | undefined = (elements as unknown as {
+        _clientSecret?: string;
+      })
+        ? (elements as unknown as { _clientSecret?: string })._clientSecret
+        : undefined;
+      if (!paymentIntentIdProp && !derivedClientSecret) {
+        const msg = 'Client secret missing. Please refresh and try again.';
+        setError(msg);
         setLoading(false);
         setSubmitting(false);
+        bubbleError(msg);
+        return;
+      }
+      const paymentIntentId =
+        paymentIntentIdProp || derivedClientSecret!.split('_secret_')[0];
+
+      // 2) Confirm on the server (single source of truth) and mirror shipping to Stripe
+      const confirmPayload = {
+        paymentIntentId,
+        paymentMethodId: pmRes.paymentMethod.id,
+        mirrorToStripe: true,
+        customer: {
+          name: data.ownerName || addr.fullName,
+          email: billingEmail,
+          phone: addr.phone,
+        },
+        shippingAddress: {
+          name: addr.fullName || data.ownerName,
+          phone: addr.phone,
+          address: {
+            line1: addr.street,
+            city: addr.city,
+            postalCode: addr.postalCode,
+            country: countryIso2,
+          },
+        },
+      };
+
+      const res = await axiosInstance.post('/orders/confirm', confirmPayload);
+      const { status: serverStatus } = res.data || {};
+
+      // 3) Handle 3DS if required
+      if (serverStatus === 'requires_action') {
+        const na = await stripe.handleNextAction({
+          clientSecret: derivedClientSecret!,
+        });
+        if (na.error) {
+          const msg = na.error.message || 'Authentication was cancelled.';
+          setError(msg);
+          setLoading(false);
+          setSubmitting(false);
+          if (onRefreshIntent) await onRefreshIntent();
+          bubbleError(msg);
+          return;
+        }
+      }
+
+      // 4) Wait for the order to flip to paid (via webhook/confirm)
+      const orderId = await waitForOrderPaid(paymentIntentId);
+      if (orderId) {
+        try {
+          clearCart();
+          sessionStorage.removeItem('cart-storage'); // your persist key (if used)
+          localStorage.removeItem('cart'); // legacy key (if used)
+        } catch {
+          /* noop */
+        }
+        setLoading(false);
+        setSubmitting(false);
+
+        onPaid?.();
+        if (!onPaid)
+          enqueueSnackbar('Payment successful 🎉', { variant: 'success' });
+
+        navigate(`/checkout/success?payment_intent=${paymentIntentId}`);
         return;
       }
 
-      setError(
-        t('checkoutForm.errors.paymentStatus', {
-          status: piStatus ?? 'unknown',
-          defaultValue: 'Payment status: {{status}}',
-        }) as string,
-      );
+      // Not paid yet → soft message and allow user to check later
+      const softMsg =
+        (t('checkoutForm.errors.processing', {
+          defaultValue:
+            "We are still processing your payment. You'll see your order as soon as it's confirmed.",
+        }) as string) ||
+        "We are still processing your payment. You'll see your order as soon as it's confirmed.";
+      setError(softMsg);
       setLoading(false);
       setSubmitting(false);
       if (onRefreshIntent) await onRefreshIntent();
+      bubbleError(softMsg);
     } catch (err: any) {
       const msg =
+        err?.response?.data?.message ||
         err?.message ||
         (t('checkoutForm.errors.unexpected', {
           defaultValue: 'Unexpected error',
@@ -289,6 +359,7 @@ export default function StripeCheckoutForm({
       setLoading(false);
       setSubmitting(false);
       if (onRefreshIntent) await onRefreshIntent();
+      bubbleError(String(msg));
     }
   };
 

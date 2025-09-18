@@ -1,69 +1,92 @@
+// apps/client/src/components/orders/OrderItems.tsx
 import * as React from 'react';
-import { Box, Typography } from '@mui/material';
-import { useTranslation } from 'react-i18next';
+import { Card, CardContent, Typography, Stack } from '@mui/material';
 import type { TOrder } from '@common/types';
-import OrderSection from './OrderSection';
-import {
-  itemsFromOrder,
-  keyForItem,
-  amountMinorToMajor,
-} from '../../utils/orderSafe';
-import { useLocaleFormatters } from '../../hooks/useLocale';
-import { DASH } from '../../utils/columns.util';
+
+const ZERO_DEC = new Set([
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'JPY',
+  'KMF',
+  'KRW',
+  'MGA',
+  'PYG',
+  'RWF',
+  'UGX',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+]);
+
+function toMajorFromMinor(minor?: number, currency?: string) {
+  if (minor === null) return undefined;
+  const cur = (currency || '').toUpperCase();
+  return ZERO_DEC.has(cur) ? Math.round(minor) : minor / 100;
+}
+
+function displayTotal(order: TOrder): number {
+  const currency = (order.currency ||
+    order.payment?.currency ||
+    'ILS') as string;
+
+  // prefer explicit 'total' (major)
+  if (typeof order.total === 'number') return order.total;
+
+  // accept 'totalMajor' (major) used by draft rows
+  const totalMajor = (order as any).totalMajor;
+  if (typeof totalMajor === 'number') return totalMajor;
+
+  // legacy/minor fields
+  const totalAmount = (order as any).totalAmount; // minor
+  if (typeof totalAmount === 'number')
+    return toMajorFromMinor(totalAmount, currency) ?? 0;
+
+  const totalMinor = (order as any).totalMinor; // minor (draft rows)
+  if (typeof totalMinor === 'number')
+    return toMajorFromMinor(totalMinor, currency) ?? 0;
+
+  return 0;
+}
 
 type Props = { order: TOrder };
 
 const OrderItems: React.FC<Props> = ({ order }) => {
-  const { t } = useTranslation();
-  const { formatCurrency } = useLocaleFormatters();
-
-  const items = itemsFromOrder(order);
-  const totalMajor = amountMinorToMajor(order.totalAmount);
+  const items = order.items ?? [];
 
   return (
-    <OrderSection
-      title={t('orderDetails.items', { defaultValue: 'Items' })}
-      gridSpan={{ xs: 'auto', sm: '1 / span 2' }}
-    >
-      {items.length ? (
-        <Box component="ul" sx={{ pl: 3, my: 0 }}>
-          {items.map((it, idx) => {
-            const name =
-              (typeof it.name === 'string' && it.name.trim()) ||
-              (typeof it.productId === 'string' && it.productId) ||
-              `Item #${idx + 1}`;
-            const qty = typeof it.quantity === 'number' ? it.quantity : 0;
-            const unit = typeof it.price === 'number' ? it.price : undefined;
-            const unitFmt = unit !== undefined ? formatCurrency(unit) : DASH;
-            const lineFmt =
-              unit !== undefined ? formatCurrency(unit * qty) : DASH;
+    <Card variant="outlined">
+      <CardContent>
+        <Typography variant="subtitle2" gutterBottom>
+          Items
+        </Typography>
 
-            return (
-              <li key={keyForItem(it, idx)}>
-                <Typography variant="body2">
-                  {t('orderDetails.line', {
-                    defaultValue:
-                      '{{name}} — Qty: {{qty}} × {{unit}} = {{line}}',
-                    name,
-                    qty,
-                    unit: unitFmt,
-                    price: unitFmt, // keep for legacy translations
-                    line: lineFmt,
-                  })}
-                </Typography>
-              </li>
-            );
-          })}
-        </Box>
-      ) : (
-        <Typography variant="body2">{DASH}</Typography>
-      )}
+        {items.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            —
+          </Typography>
+        ) : (
+          <Stack spacing={0.75}>
+            {items.map((i, idx) => (
+              <Typography key={idx} variant="body2">
+                {i.quantity}× {i.name} —{' '}
+                {order.currency ?? order.payment?.currency ?? 'ILS'}{' '}
+                {i.price.toFixed(2)}
+              </Typography>
+            ))}
+          </Stack>
+        )}
 
-      <Typography variant="body2" sx={{ mt: 0.75 }}>
-        <strong>{t('orderDetails.total', { defaultValue: 'Total' })}:</strong>{' '}
-        {totalMajor !== undefined ? formatCurrency(totalMajor) : DASH}
-      </Typography>
-    </OrderSection>
+        <Typography sx={{ mt: 1.25 }} fontWeight={600}>
+          Total:{' '}
+          {(order.currency ?? order.payment?.currency ?? 'ILS').toUpperCase()}{' '}
+          {displayTotal(order).toFixed(2)}
+        </Typography>
+      </CardContent>
+    </Card>
   );
 };
 
