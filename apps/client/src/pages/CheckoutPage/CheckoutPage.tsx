@@ -380,9 +380,8 @@ export default function CheckoutPage() {
               stripe={stripePromise}
               options={elementsOptions}
             >
-              {/* Pass the values the form needs for manual PM + 3DS */}
+              {/* Form derives clientSecret from Elements; no need to pass it */}
               <StripeCheckoutForm
-                clientSecret={clientSecret}
                 paymentIntentId={paymentIntentId}
                 onRefreshIntent={refresh}
               />

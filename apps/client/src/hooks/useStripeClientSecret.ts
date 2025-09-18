@@ -46,8 +46,7 @@ const toMajor = (minor: number, currency: string) =>
 function hashStr(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i);
-  // convert to unsigned 32-bit and base36 for compactness
-  return (h >>> 0).toString(36);
+  return (h >>> 0).toString(36); // unsigned 32-bit → base36
 }
 
 // Build a key that changes whenever any money-meaningful field changes
@@ -57,11 +56,7 @@ function buildIdemKey(params: {
   shippingMajor: number;
   taxRatePercent: number;
   discountMajor: number;
-  cartPayload: {
-    productId: string;
-    price: number; // MAJOR
-    quantity: number;
-  }[];
+  cartPayload: { productId: string; price: number; quantity: number }[];
   salt?: string; // used only for one-time retry fallback
 }) {
   const basis = {
@@ -70,8 +65,6 @@ function buildIdemKey(params: {
     s: params.shippingMajor,
     t: params.taxRatePercent,
     d: params.discountMajor,
-    // Only include fields that affect charge amount:
-    // id, price, qty (avoid names/images so localization changes don’t churn the key)
     items: params.cartPayload.map((i) => ({
       id: i.productId,
       p: i.price,
@@ -79,20 +72,27 @@ function buildIdemKey(params: {
     })),
   };
   const fingerprint = hashStr(JSON.stringify(basis));
-  return `pi:${params.currency}:${params.amountMinor}:${fingerprint}${params.salt ? `:${params.salt}` : ''}`;
+  return `pi:${params.currency}:${params.amountMinor}:${fingerprint}${
+    params.salt ? `:${params.salt}` : ''
+  }`;
 }
 
-export function useStripeClientSecret(input?: {
-  totalMajor: number;
-  currency: string; // 'ILS', 'USD', ...
-  cart: CartItem[];
-  shippingMajor: number; // MAJOR
-  taxRatePercent: number; // e.g., 17
-  discountMajor: number; // MAJOR
-}) {
+export function useStripeClientSecret(
+  input?: {
+    totalMajor: number;
+    currency: string; // 'ILS', 'USD', ...
+    cart: CartItem[];
+    shippingMajor: number; // MAJOR
+    taxRatePercent: number; // e.g., 17
+    discountMajor: number; // MAJOR
+  },
+  opts?: { enabled?: boolean },
+) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const enabled = opts?.enabled ?? true;
 
   // Safe defaults during first render
   const {
@@ -109,7 +109,7 @@ export function useStripeClientSecret(input?: {
     [totalMajor, currency],
   );
 
-  // Minimal cart payload
+  // Minimal cart payload (kept for draft display on server)
   const cartPayload = useMemo(
     () =>
       (cart || []).map((i) => ({
@@ -144,6 +144,9 @@ export function useStripeClientSecret(input?: {
   const seq = useRef(0);
 
   const createIntent = useCallback(async () => {
+    // Gate by enabled flag
+    if (!enabled) return;
+
     // No amount → clear and bail
     if (!amountMinor || amountMinor <= 0) {
       inflight.current?.abort();
@@ -161,7 +164,7 @@ export function useStripeClientSecret(input?: {
 
     setLoading(true);
 
-    // Build a stable idempotency key based on *all* money inputs
+    // Stable idempotency key based on *all* money inputs
     const baseKey = buildIdemKey({
       currency,
       amountMinor,
@@ -172,13 +175,15 @@ export function useStripeClientSecret(input?: {
     });
 
     async function requestOnce(idemKey: string) {
+      // ⚠️ Send the shape your controller expects:
+      // amount (MINOR), shipping (MAJOR), taxRate (fraction), discount (MINOR)
       const body = {
-        totalMajor, // MAJOR
+        amount: amountMinor, // MINOR
         currency,
-        cart: cartPayload, // kept for draft display
-        shippingMajor,
-        taxRatePercent,
-        discountMajor,
+        cart: cartPayload,
+        shipping: Number(shippingMajor),
+        taxRate: Number(taxRatePercent) / 100,
+        discount: toMinor(discountMajor, currency),
         idempotencyKey: idemKey,
       };
 
@@ -222,7 +227,15 @@ export function useStripeClientSecret(input?: {
       ) {
         retried = true;
         try {
-          const saltedKey = baseKey + ':' + Date.now().toString(36); // unique per retry
+          const saltedKey = buildIdemKey({
+            currency,
+            amountMinor,
+            shippingMajor,
+            taxRatePercent,
+            discountMajor,
+            cartPayload: cartForKey,
+            salt: Date.now().toString(36),
+          });
           const { data } = await requestOnce(saltedKey);
           if (!mounted.current || mySeq !== seq.current) return;
 
@@ -271,9 +284,9 @@ export function useStripeClientSecret(input?: {
       if (mounted.current && mySeq === seq.current) setLoading(false);
     }
   }, [
+    enabled,
     amountMinor,
     currency,
-    totalMajor,
     cartPayload,
     cartForKey,
     shippingMajor,
@@ -283,16 +296,16 @@ export function useStripeClientSecret(input?: {
 
   useEffect(() => {
     mounted.current = true;
-    createIntent();
+    if (enabled) createIntent();
     return () => {
       mounted.current = false;
       inflight.current?.abort();
     };
-  }, [createIntent]);
+  }, [createIntent, enabled]);
 
   const refresh = useCallback(async () => {
-    await createIntent();
-  }, [createIntent]);
+    if (enabled) await createIntent();
+  }, [createIntent, enabled]);
 
   return { clientSecret, loading, error, refresh };
 }

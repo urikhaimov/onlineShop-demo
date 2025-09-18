@@ -283,11 +283,7 @@ export class OrdersService {
   // ───────────────────────────────────────────────────────────────────────────
   // Cleanup helpers
   // ───────────────────────────────────────────────────────────────────────────
-  private async cleanupOldDrafts(
-    userId: string,
-    keepId?: string,
-    aggressive = false,
-  ) {
+  async cleanupOldDrafts(userId: string, keepId?: string, aggressive = false) {
     try {
       const snap = await this.col()
         .where('userId', '==', userId)

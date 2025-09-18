@@ -1,8 +1,7 @@
 // src/pages/checkout/CheckoutSuccessPage.tsx
 import * as React from 'react';
 import { Box, Typography, Button, Stack, Paper } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { useConfirmOrder } from '../../hooks/useConfirmOrder';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageLayout } from '../../layouts/page.layout';
 import {
   EAbilityActions,
@@ -11,39 +10,51 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useSnackbar } from 'notistack';
+import api from '../../api/axiosInstance';
 
 export default function CheckoutSuccessPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { loading, error, setToastOpen } = useConfirmOrder();
   const { themeSettings } = useThemeStore();
   const { enqueueSnackbar } = useSnackbar();
+  const [params] = useSearchParams();
+  const paymentIntentId = (params.get('payment_intent') || '').trim();
 
   const radius = (themeSettings?.borderRadius as number | undefined) ?? 8;
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
 
-  // 🔔 Replace MUI Snackbar with notistack toasts
+  // One-shot: ask server to "confirm" again if needed.
+  // (No PM id → the service will recognize a succeeded PI and do final cleanup.)
   React.useEffect(() => {
-    if (error) {
-      enqueueSnackbar(
-        String(
-          error ||
-            t('checkoutSuccess.errors.generic', {
-              defaultValue: 'Something went wrong during order confirmation.',
-            }),
-        ),
-        { variant: 'error', autoHideDuration: 6000 },
-      );
-      setToastOpen(false);
-    }
-  }, [error, enqueueSnackbar, setToastOpen, t]);
+    let cancelled = false;
+    (async () => {
+      if (!paymentIntentId) return;
+      try {
+        await api.post('/orders/confirm', { paymentIntentId });
+      } catch (err: any) {
+        if (cancelled) return;
+        const msg =
+          err?.response?.data?.message ??
+          err?.message ??
+          t('checkoutSuccess.errors.generic', {
+            defaultValue: 'Something went wrong during order confirmation.',
+          });
+        enqueueSnackbar(String(msg), {
+          variant: 'error',
+          autoHideDuration: 6000,
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentIntentId, enqueueSnackbar, t]);
 
   return (
     <PageLayout
       action={EAbilityActions.MANAGE}
       subject={EAbilitySubjects.CHECKOUT}
     >
-      {/* ⬇️ Same container geometry as CheckoutPage */}
       <Box
         sx={{
           minHeight: 'calc(100vh - 64px)',
@@ -62,7 +73,7 @@ export default function CheckoutSuccessPage() {
             maxWidth: 480,
             borderRadius: radius,
           }}
-          data-testid="order-success" // ✅ marker for e2e tests
+          data-testid="order-success"
         >
           <Stack
             spacing={2 * spacingScale}
@@ -82,6 +93,15 @@ export default function CheckoutSuccessPage() {
               })}
             </Typography>
 
+            {paymentIntentId && (
+              <Typography variant="caption" color="text.secondary">
+                {t('checkoutSuccess.orderRef', {
+                  defaultValue: 'Reference:',
+                })}{' '}
+                {paymentIntentId}
+              </Typography>
+            )}
+
             <Stack
               direction={{ xs: 'column', sm: 'row' }}
               spacing={1.25 * spacingScale}
@@ -92,10 +112,7 @@ export default function CheckoutSuccessPage() {
                 color="primary"
                 onClick={() => navigate('/')}
                 size="large"
-                sx={{
-                  borderRadius: radius,
-                  width: { xs: '100%', sm: 'auto' },
-                }}
+                sx={{ borderRadius: radius, width: { xs: '100%', sm: 'auto' } }}
               >
                 {t('checkoutSuccess.goHome', { defaultValue: 'Go to Home' })}
               </Button>
@@ -104,24 +121,13 @@ export default function CheckoutSuccessPage() {
                 variant="outlined"
                 onClick={() => navigate('/my-orders')}
                 size="large"
-                sx={{
-                  borderRadius: radius,
-                  width: { xs: '100%', sm: 'auto' },
-                }}
+                sx={{ borderRadius: radius, width: { xs: '100%', sm: 'auto' } }}
               >
                 {t('checkoutSuccess.viewOrders', {
                   defaultValue: 'View My Orders',
                 })}
               </Button>
             </Stack>
-
-            {loading && (
-              <Typography variant="body2" color="text.secondary">
-                {t('checkoutSuccess.processing', {
-                  defaultValue: 'Processing order...',
-                })}
-              </Typography>
-            )}
           </Stack>
         </Paper>
       </Box>

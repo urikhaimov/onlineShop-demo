@@ -39,7 +39,7 @@ export function defineAdminOrderColumns(
 
   // Total Amount column
   const amountCol: ColumnDef<TOrder> = makeCurrencyColumn<TOrder>(
-    'totalAmount',
+    'total',
     i18n.t('table.total'),
     formatCurrencyMinor, // 👈 pass a FUNCTION, not a string
     {

@@ -84,6 +84,9 @@ function prettyStripeError(code?: string, fallback?: string) {
 type StripeCheckoutFormProps = {
   /** Optional: if you already know it; otherwise it’s derived from Elements */
   paymentIntentId?: string;
+  /** Optional: pass the client secret directly if you have it */
+  clientSecret?: string;
+
   /** Optional, for analytics/UI only */
   totalMajor?: number;
   /** Optional, for analytics/UI only */
@@ -100,6 +103,7 @@ type StripeCheckoutFormProps = {
 
 export default function StripeCheckoutForm({
   paymentIntentId: paymentIntentIdProp,
+  clientSecret,
   totalMajor,
   currency,
   onPaid,
@@ -258,11 +262,11 @@ export default function StripeCheckoutForm({
       }
 
       // Derive clientSecret (used only for handleNextAction).
-      const derivedClientSecret: string | undefined = (elements as unknown as {
-        _clientSecret?: string;
-      })
-        ? (elements as unknown as { _clientSecret?: string })._clientSecret
-        : undefined;
+      const derivedClientSecret: string | undefined =
+        clientSecret ??
+        (elements as unknown as { _clientSecret?: string })._clientSecret ??
+        undefined;
+
       if (!paymentIntentIdProp && !derivedClientSecret) {
         const msg = 'Client secret missing. Please refresh and try again.';
         setError(msg);

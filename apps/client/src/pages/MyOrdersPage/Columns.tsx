@@ -28,7 +28,7 @@ export function buildOrderColumns(
 
   // Total Amount (stored as MINOR units)
   const amountCol: ColumnDef<TOrder> = makeCurrencyColumn<TOrder>(
-    'totalAmount',
+    'total',
     t('table.total'),
     formatCurrencyFromMinor,
     {
