@@ -15,17 +15,34 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-// Stable idempotency key for cart+amount+currency
+// Stable idempotency key for cart+amount+currency (+ always tag user)
 function buildIdemKey(params: {
   provided?: string | undefined;
-  userId: string;
+  userId: string; // may be 'anon' if not logged in
   orderId?: string | undefined;
-  amount: number;
-  currency: string;
+  amount: number; // cents
+  currency: string; // lower-case, e.g. 'ils'
 }) {
-  const fallback = `pi:${params.orderId ?? 'no-order'}:${params.userId}:${params.currency}:${params.amount}`;
-  const key = (params.provided || fallback).trim();
-  return key.length > 255 ? key.slice(0, 255) : key;
+  // Deterministic fallback (without user)
+  const fallback = `pi:${params.orderId ?? 'no-order'}:${params.currency}:${params.amount}`;
+
+  // Use provided if present, but ALWAYS suffix with user tag
+  const base = (params.provided?.trim() || fallback).trim();
+  const tagged = `${base}:${params.userId || 'anon'}`;
+
+  // Stripe limit 255 chars
+  return tagged.length > 255 ? tagged.slice(0, 255) : tagged;
+}
+
+// Detect the Stripe “idempotent… same parameters” error
+function isIdempotencyParamMismatch(e: any): boolean {
+  const msg =
+    (Array.isArray(e?.raw?.message)
+      ? e.raw.message.join(', ')
+      : e?.raw?.message) ||
+    e?.message ||
+    '';
+  return /idempotent/i.test(msg) && /same parameters/i.test(msg);
 }
 
 // Strip undefined so Firestore merge won't blank fields
@@ -349,32 +366,48 @@ export class OrdersService {
     const amountMinor = Math.max(0, Math.round((input.totalMajor ?? 0) * 100));
     const currency = (input.currency ?? 'ils').toLowerCase();
 
-    const idempotencyKey = buildIdemKey({
+    const baseIdempotencyKey = buildIdemKey({
       provided: input.idempotencyKey,
-      userId: input.userId,
+      userId: input.userId || 'anon',
       orderId: input.orderId,
       amount: amountMinor,
       currency,
     });
 
-    const pi = await this.stripe.paymentIntents.create(
-      {
-        amount: amountMinor,
-        currency,
-        payment_method_types: ['card'],
-        payment_method_options: {
-          card: { request_three_d_secure: 'automatic' },
-        },
-        metadata: {
-          userId: input.userId,
-          orderId: input.orderId ?? '',
-          app: 'onlineShop',
-          ...(input.metadata ?? {}),
-        },
-        receipt_email: input.email || undefined,
+    const params: Stripe.PaymentIntentCreateParams = {
+      amount: amountMinor,
+      currency,
+      payment_method_types: ['card'],
+      payment_method_options: {
+        card: { request_three_d_secure: 'automatic' },
       },
-      { idempotencyKey },
-    );
+      metadata: {
+        userId: input.userId,
+        orderId: input.orderId ?? '',
+        app: 'onlineShop',
+        ...(input.metadata ?? {}),
+      },
+      receipt_email: input.email || undefined,
+    };
+
+    const tryCreate = (idk: string) =>
+      this.stripe!.paymentIntents.create(params, { idempotencyKey: idk });
+
+    let pi: Stripe.PaymentIntent;
+    try {
+      pi = await tryCreate(baseIdempotencyKey);
+    } catch (e) {
+      if (!isIdempotencyParamMismatch(e)) throw e;
+      // one-time recovery with salted key
+      const salted = `${baseIdempotencyKey}:${Date.now().toString(36)}`.slice(
+        0,
+        255,
+      );
+      this.logger.warn(
+        `createPaymentIntent retrying with salted key due to idempotency mismatch (was=${baseIdempotencyKey})`,
+      );
+      pi = await tryCreate(salted);
+    }
 
     await this.col()
       .doc(pi.id)
@@ -404,9 +437,7 @@ export class OrdersService {
         { merge: true },
       );
 
-    this.logger.log(
-      `createPaymentIntent ${pi.id} ${currency} ${amountMinor} (idk=${idempotencyKey})`,
-    );
+    this.logger.log(`createPaymentIntent ${pi.id} ${currency} ${amountMinor}`);
 
     // Keep the fresh draft, only clean up *older* open drafts (avoid racing with user submit)
     await this.cleanupOldDrafts(input.userId, pi.id, false);

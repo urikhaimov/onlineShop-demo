@@ -12,7 +12,7 @@ type CartItem = {
   quantity?: number;
 };
 
-// Zero-decimal currencies
+// ── zero-decimal helpers ──────────────────────────────────────────────────────
 const ZERO_DEC = new Set([
   'BIF',
   'CLP',
@@ -31,25 +31,19 @@ const ZERO_DEC = new Set([
   'XOF',
   'XPF',
 ]);
-
 const toMinor = (major: number, currency: string) =>
   ZERO_DEC.has(currency.toUpperCase())
     ? Math.round(Number(major) || 0)
     : Math.round((Number(major) || 0) * 100);
 
-const toMajor = (minor: number, currency: string) =>
-  ZERO_DEC.has(currency.toUpperCase())
-    ? Math.round(Number(minor) || 0)
-    : (Number(minor) || 0) / 100;
-
-// Tiny stable hash (djb2) over a string
+// ── tiny stable hash ──────────────────────────────────────────────────────────
 function hashStr(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i);
-  return (h >>> 0).toString(36); // unsigned 32-bit → base36
+  return (h >>> 0).toString(36);
 }
 
-// Build a key that changes whenever any money-meaningful field changes
+// ── request key (idempotency) ────────────────────────────────────────────────
 function buildIdemKey(params: {
   currency: string;
   amountMinor: number;
@@ -57,7 +51,7 @@ function buildIdemKey(params: {
   taxRatePercent: number;
   discountMajor: number;
   cartPayload: { productId: string; price: number; quantity: number }[];
-  salt?: string; // used only for one-time retry fallback
+  salt?: string; // only for manual refresh / recovery
 }) {
   const basis = {
     c: params.currency,
@@ -71,28 +65,31 @@ function buildIdemKey(params: {
       q: i.quantity,
     })),
   };
-  const fingerprint = hashStr(JSON.stringify(basis));
-  return `pi:${params.currency}:${params.amountMinor}:${fingerprint}${
-    params.salt ? `:${params.salt}` : ''
-  }`;
+  const fp = hashStr(JSON.stringify(basis));
+  return `pi:${params.currency}:${params.amountMinor}:${fp}${params.salt ? `:${params.salt}` : ''}`;
 }
 
-export function useStripeClientSecret(
-  input?: {
-    totalMajor: number;
-    currency: string; // 'ILS', 'USD', ...
-    cart: CartItem[];
-    shippingMajor: number; // MAJOR
-    taxRatePercent: number; // e.g., 17
-    discountMajor: number; // MAJOR
-  },
-  opts?: { enabled?: boolean },
-) {
+// Global, survives StrictMode remounts in dev (prevents duplicate first fires)
+const FIRED_KEYS: Set<string> =
+  typeof window !== 'undefined'
+    ? ((window as any).__stripePIKeys ||= new Set<string>())
+    : new Set<string>();
+
+// Helper: detect Stripe idempotency-params mismatch
+const isIdempotencyParamMismatch = (msg: string | undefined) =>
+  !!msg && /idempotent/i.test(msg) && /same parameters/i.test(msg);
+
+export function useStripeClientSecret(input?: {
+  totalMajor: number;
+  currency: string;
+  cart: CartItem[];
+  shippingMajor: number;
+  taxRatePercent: number;
+  discountMajor: number;
+}) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const enabled = opts?.enabled ?? true;
 
   // Safe defaults during first render
   const {
@@ -109,7 +106,6 @@ export function useStripeClientSecret(
     [totalMajor, currency],
   );
 
-  // Minimal cart payload (kept for draft display on server)
   const cartPayload = useMemo(
     () =>
       (cart || []).map((i) => ({
@@ -127,7 +123,6 @@ export function useStripeClientSecret(
     [cart],
   );
 
-  // Subset used for hashing (ids/prices/qtys only)
   const cartForKey = useMemo(
     () =>
       cartPayload.map((i) => ({
@@ -138,96 +133,45 @@ export function useStripeClientSecret(
     [cartPayload],
   );
 
-  // Abort & sequencing to ignore stale responses
-  const inflight = useRef<AbortController | null>(null);
-  const mounted = useRef(true);
-  const seq = useRef(0);
-
-  const createIntent = useCallback(async () => {
-    // Gate by enabled flag
-    if (!enabled) return;
-
-    // No amount → clear and bail
-    if (!amountMinor || amountMinor <= 0) {
-      inflight.current?.abort();
-      setClientSecret(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    // Cancel previous and start fresh
-    inflight.current?.abort();
-    const ctl = new AbortController();
-    inflight.current = ctl;
-    const mySeq = ++seq.current;
-
-    setLoading(true);
-
-    // Stable idempotency key based on *all* money inputs
-    const baseKey = buildIdemKey({
+  const requestKey = useMemo(
+    () =>
+      buildIdemKey({
+        currency,
+        amountMinor,
+        shippingMajor,
+        taxRatePercent,
+        discountMajor,
+        cartPayload: cartForKey,
+      }),
+    [
       currency,
       amountMinor,
       shippingMajor,
       taxRatePercent,
       discountMajor,
-      cartPayload: cartForKey,
-    });
+      cartForKey,
+    ],
+  );
 
-    async function requestOnce(idemKey: string) {
-      // ⚠️ Send the shape your controller expects:
-      // amount (MINOR), shipping (MAJOR), taxRate (fraction), discount (MINOR)
-      const body = {
-        amount: amountMinor, // MINOR
-        currency,
-        cart: cartPayload,
-        shipping: Number(shippingMajor),
-        taxRate: Number(taxRatePercent) / 100,
-        discount: toMinor(discountMajor, currency),
-        idempotencyKey: idemKey,
-      };
+  const inflight = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
 
-      return axiosInstance.post('/orders/create-payment-intent', body, {
-        signal: ctl.signal,
-      });
-    }
-
-    let retried = false;
-
-    try {
-      const { data } = await requestOnce(baseKey);
-
-      // Ignore if a newer request finished
-      if (!mounted.current || mySeq !== seq.current) return;
-
-      const secret = data?.clientSecret;
-      if (!secret || typeof secret !== 'string') {
-        throw new Error('Empty client secret from server');
+  const createIntent = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (!amountMinor || amountMinor <= 0) {
+        setClientSecret(null);
+        setError(null);
+        setLoading(false);
+        return;
       }
-      setClientSecret(secret);
-      setError(null);
-    } catch (err: any) {
-      const message =
-        (Array.isArray(err?.response?.data?.message)
-          ? err.response.data.message.join(', ')
-          : err?.response?.data?.message) ||
-        err?.message ||
-        '';
 
-      const looksLikeIdemError =
-        typeof message === 'string' &&
-        message.toLowerCase().includes('idempotent');
+      // Start fresh request
+      inflight.current?.abort();
+      const ctl = new AbortController();
+      inflight.current = ctl;
 
-      // One-time retry with a salted key if Stripe rejects the base key
-      if (
-        !retried &&
-        looksLikeIdemError &&
-        mounted.current &&
-        mySeq === seq.current
-      ) {
-        retried = true;
-        try {
-          const saltedKey = buildIdemKey({
+      const key = opts?.force
+        ? buildIdemKey({
             currency,
             amountMinor,
             shippingMajor,
@@ -235,77 +179,138 @@ export function useStripeClientSecret(
             discountMajor,
             cartPayload: cartForKey,
             salt: Date.now().toString(36),
-          });
-          const { data } = await requestOnce(saltedKey);
-          if (!mounted.current || mySeq !== seq.current) return;
+          })
+        : requestKey;
 
-          const secret = data?.clientSecret;
-          if (!secret || typeof secret !== 'string') {
-            throw new Error('Empty client secret from server (retry)');
-          }
-          setClientSecret(secret);
-          setError(null);
-        } catch (err2: any) {
-          if (
-            err2?.name === 'CanceledError' ||
-            err2?.code === 'ERR_CANCELED' ||
-            ctl.signal.aborted ||
-            mySeq !== seq.current ||
-            !mounted.current
-          ) {
-            return;
-          }
-          setClientSecret(null);
-          setError(
-            String(
+      const body = {
+        totalMajor, // MAJOR
+        currency,
+        cart: cartPayload, // for server draft display
+        shippingMajor,
+        taxRatePercent,
+        discountMajor,
+        idempotencyKey: key,
+      };
+
+      setLoading(true);
+      try {
+        const { data } = await axiosInstance.post(
+          '/orders/create-payment-intent',
+          body,
+          { signal: ctl.signal },
+        );
+
+        if (!mounted.current) return;
+        const secret = data?.clientSecret;
+        if (!secret || typeof secret !== 'string')
+          throw new Error('Empty client secret from server');
+
+        setClientSecret(secret);
+        setError(null);
+      } catch (err: any) {
+        if (!mounted.current) return;
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED')
+          return;
+
+        // If Stripe says "same parameters" → retry ONCE with a salted key
+        const rawMsg =
+          (Array.isArray(err?.response?.data?.message)
+            ? err.response.data.message.join(', ')
+            : err?.response?.data?.message) ||
+          err?.message ||
+          '';
+
+        if (!opts?.force && isIdempotencyParamMismatch(String(rawMsg))) {
+          try {
+            const saltedKey = buildIdemKey({
+              currency,
+              amountMinor,
+              shippingMajor,
+              taxRatePercent,
+              discountMajor,
+              cartPayload: cartForKey,
+              salt: Date.now().toString(36),
+            });
+
+            const { data } = await axiosInstance.post(
+              '/orders/create-payment-intent',
+              { ...body, idempotencyKey: saltedKey },
+              { signal: ctl.signal },
+            );
+
+            if (!mounted.current) return;
+            const secret = data?.clientSecret;
+            if (!secret || typeof secret !== 'string')
+              throw new Error('Empty client secret from server');
+
+            setClientSecret(secret);
+            setError(null);
+            return; // success after retry
+          } catch (err2: any) {
+            const msg2 =
               (Array.isArray(err2?.response?.data?.message)
                 ? err2.response.data.message.join(', ')
                 : err2?.response?.data?.message) ||
-                err2?.message ||
-                'Failed to create payment intent',
-            ),
-          );
+              err2?.message ||
+              'Failed to create payment intent';
+            setClientSecret(null);
+            setError(String(msg2));
+            return;
+          }
         }
-      } else {
-        // Normal error flow
-        if (
-          err?.name === 'CanceledError' ||
-          err?.code === 'ERR_CANCELED' ||
-          ctl.signal.aborted ||
-          mySeq !== seq.current ||
-          !mounted.current
-        ) {
-          return;
-        }
-        setClientSecret(null);
-        setError(String(message || 'Failed to create payment intent'));
-      }
-    } finally {
-      if (mounted.current && mySeq === seq.current) setLoading(false);
-    }
-  }, [
-    enabled,
-    amountMinor,
-    currency,
-    cartPayload,
-    cartForKey,
-    shippingMajor,
-    taxRatePercent,
-    discountMajor,
-  ]);
 
+        // Normal error path
+        const msg =
+          (Array.isArray(err?.response?.data?.message)
+            ? err.response.data.message.join(', ')
+            : err?.response?.data?.message) ||
+          err?.message ||
+          'Failed to create payment intent';
+        setClientSecret(null);
+        setError(String(msg));
+      } finally {
+        if (mounted.current) setLoading(false);
+      }
+    },
+    [
+      amountMinor,
+      requestKey,
+      totalMajor,
+      currency,
+      cartPayload,
+      cartForKey,
+      shippingMajor,
+      taxRatePercent,
+      discountMajor,
+    ],
+  );
+
+  // Fire once per unique requestKey (survives StrictMode remounts)
   useEffect(() => {
     mounted.current = true;
-    if (enabled) createIntent();
+
+    if (!amountMinor || amountMinor <= 0) {
+      setClientSecret(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    if (FIRED_KEYS.has(requestKey)) return;
+    FIRED_KEYS.add(requestKey);
+    void createIntent();
+
     return () => {
       mounted.current = false;
-      inflight.current?.abort();
+      // do NOT abort here — StrictMode would cancel the real request
     };
-  }, [createIntent, enabled]);
+  }, [amountMinor, requestKey, createIntent]);
 
   const refresh = useCallback(async () => {
-    if (enabled) await createIntent();
-  }, [createIntent, enabled]);
+    // allow a new key to be fired again
+    FIRED_KEYS.delete(requestKey);
+    await createIntent({ force: true });
+  }, [requestKey, createIntent]);
 
   return { clientSecret, loading, error, refresh };
 }

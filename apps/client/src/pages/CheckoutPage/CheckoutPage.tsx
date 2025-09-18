@@ -119,20 +119,42 @@ export default function CheckoutPage() {
     [currency],
   );
 
-  // ✅ Create / refresh PaymentIntent after totals & currency are known
-  const { clientSecret, loading, error, refresh } = useStripeClientSecret({
-    totalMajor,
-    currency,
-    cart,
-    shippingMajor,
-    taxRatePercent, // percent, e.g. 17
-    discountMajor,
-  });
+  // ✅ Gate PI creation until settings are loaded & totals are stable
+  const ready = !settingsLoading && cart.length > 0 && totalMajor > 0;
+
+  // ✅ Create / refresh PaymentIntent only when ready (hook is still always called)
+  const { clientSecret, loading, error, refresh } = useStripeClientSecret(
+    ready
+      ? {
+          totalMajor,
+          currency,
+          cart,
+          shippingMajor,
+          taxRatePercent, // percent, e.g. 17
+          discountMajor,
+        }
+      : undefined,
+  );
 
   // Current PI id (from client secret)
   const paymentIntentId = useMemo(
     () => getPiIdFromClientSecret(clientSecret),
     [clientSecret],
+  );
+
+  // --- Elements options (MUST be declared before any early return) ---
+  const elementsOptions = useMemo<StripeElementsOptions>(
+    () => ({
+      clientSecret: clientSecret ?? undefined,
+      appearance: {
+        theme: isDark ? 'night' : 'stripe',
+        rules: { '.Input': { borderRadius: '8px' } },
+      },
+      // REQUIRED when using stripe.createPaymentMethod with the Payment Element
+      paymentMethodCreation: 'manual',
+      loader: 'auto',
+    }),
+    [clientSecret, isDark],
   );
 
   // 🔄 As soon as we have a PI, persist the draft items on the server.
@@ -143,10 +165,10 @@ export default function CheckoutPage() {
         await api.post('/orders/save-draft', {
           paymentIntentId,
           items: cart.map((i) => ({
-            productId: i.id,
-            name: i.name,
-            price: Number(i.price) || 0,
-            quantity: Number(i.quantity) || 0,
+            productId: (i as any).id,
+            name: (i as any).name,
+            price: Number((i as any).price) || 0,
+            quantity: Number((i as any).quantity) || 0,
             image: pickImage(i),
           })),
         });
@@ -173,28 +195,16 @@ export default function CheckoutPage() {
   }, [error, enqueueSnackbar]);
 
   useEffect(() => {
-    if (settingsError && settingsErr) {
+    if (!settingsLoading && settingsError && settingsErr) {
       enqueueSnackbar(String(settingsErr), {
         variant: 'warning',
         autoHideDuration: 4000,
       });
     }
-  }, [settingsError, settingsErr, enqueueSnackbar]);
+  }, [settingsLoading, settingsError, settingsErr, enqueueSnackbar]);
 
-  // Loading gate AFTER hooks
+  // Loading gate AFTER all hooks (so hook order is stable)
   if (settingsLoading) return <LoadingProgress />;
-
-  // --- Elements options
-  const elementsOptions: StripeElementsOptions = {
-    clientSecret: clientSecret ?? undefined,
-    appearance: {
-      theme: isDark ? 'night' : 'stripe',
-      rules: { '.Input': { borderRadius: '8px' } },
-    },
-    // REQUIRED when using stripe.createPaymentMethod with the Payment Element
-    paymentMethodCreation: 'manual',
-    loader: 'auto',
-  };
 
   return (
     <PageLayout
@@ -231,7 +241,7 @@ export default function CheckoutPage() {
             {t('checkout.title', { defaultValue: 'Checkout' })}
           </Typography>
 
-          {settingsError && (
+          {settingsError && !settingsLoading && (
             <Alert severity="warning" sx={{ mb: 1.5 * spacingScale }}>
               {t('checkout.settingsFallback', {
                 defaultValue:
@@ -265,13 +275,13 @@ export default function CheckoutPage() {
                 <Stack spacing={0.75 * spacingScale}>
                   {cart.map((item) => {
                     const img = pickImage(item);
-                    const qty = Number(item.quantity) || 0;
-                    const price = Number(item.price) || 0;
+                    const qty = Number((item as any).quantity) || 0;
+                    const price = Number((item as any).price) || 0;
                     const lineTotal = +(price * qty).toFixed(2);
 
                     return (
                       <Stack
-                        key={item.id}
+                        key={(item as any).id}
                         direction="row"
                         alignItems="center"
                         spacing={1.25 * spacingScale}
@@ -287,7 +297,7 @@ export default function CheckoutPage() {
                           <Box
                             component="img"
                             src={img}
-                            alt={item.name}
+                            alt={(item as any).name}
                             sx={{
                               width: 56,
                               height: 56,
@@ -313,8 +323,12 @@ export default function CheckoutPage() {
                         )}
 
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="body2" noWrap title={item.name}>
-                            {item.name}
+                          <Typography
+                            variant="body2"
+                            noWrap
+                            title={(item as any).name}
+                          >
+                            {(item as any).name}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {t('checkout.qty', { defaultValue: 'Qty' })}: {qty}{' '}
