@@ -4,10 +4,13 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional, // ← added
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { adminDb } from '@common/firebase';
+import { MailerService } from '../mailer/mailer.service'; // ← added
+import { InvoiceService } from '../invoice/invoice.service'; // ← added
 
 type OrderStatus = 'open' | 'paid' | 'refunded' | 'canceled';
 
@@ -86,7 +89,11 @@ export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
   public readonly stripe?: Stripe;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() private readonly mailer?: MailerService, // ← added
+    @Optional() private readonly invoice?: InvoiceService, // ← added
+  ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
     if (!key && process.env.NODE_ENV === 'test') {
       this.stripe = new Stripe('sk_test_dummy', {
@@ -588,6 +595,90 @@ export class OrdersService {
     }
   }
 
+  // ---- email helpers (Option A hybrid) --------------------------------------
+  private async getRecipientEmail(opts: {
+    pi: Stripe.PaymentIntent;
+    draft?: any;
+  }): Promise<string | undefined> {
+    const { pi, draft } = opts;
+    const charge =
+      typeof pi.latest_charge === 'string' ? undefined : pi.latest_charge;
+
+    const fromPi =
+      (pi.metadata?.email as string | undefined) ||
+      (pi.receipt_email as string | undefined);
+
+    const fromCharge =
+      (charge?.billing_details?.email as string | undefined) || undefined;
+
+    const fromDraft =
+      (draft?.customer?.email as string | undefined) ||
+      (draft?.email as string | undefined);
+
+    return fromPi || fromCharge || fromDraft || undefined;
+  }
+
+  private async sendReceiptIfNeeded(
+    orderId: string,
+    pi: Stripe.PaymentIntent,
+    draft?: any,
+  ) {
+    try {
+      if (!this.mailer?.sendOrderConfirmation) return;
+
+      const ref = this.col().doc(orderId);
+      const snap = await ref.get();
+      const already =
+        snap.exists && (snap.get('receiptSentAt') as string | undefined);
+      if (already) {
+        this.logger.log(`receipt already sent for ${orderId} @ ${already}`);
+        return;
+      }
+
+      const to = await this.getRecipientEmail({ pi, draft });
+      if (!to) {
+        this.logger.warn(`no recipient email for order ${orderId}`);
+        return;
+      }
+
+      let invoiceUrl: string | undefined;
+      try {
+        if (this.invoice?.ensureInvoice) {
+          const inv = await this.invoice.ensureInvoice(orderId, {
+            force: false,
+          });
+          invoiceUrl = inv?.url;
+        }
+      } catch (e) {
+        this.logger.warn(
+          `ensureInvoice failed for ${orderId}: ${(e as Error).message}`,
+        );
+      }
+
+      const amountMinor = Number(pi.amount_received ?? pi.amount ?? 0);
+      const currency = (pi.currency ?? 'ILS').toUpperCase();
+
+      await this.mailer.sendOrderConfirmation(to, {
+        orderId,
+        amount: amountMinor,
+        currency,
+        paymentIntentId: pi.id,
+        created: false,
+        invoiceUrl,
+      });
+
+      await ref.set(
+        { receiptSentAt: nowIso(), updatedAt: nowIso() },
+        { merge: true },
+      );
+      this.logger.log(`receipt sent for order ${orderId} → ${to}`);
+    } catch (e) {
+      this.logger.warn(
+        `sendReceiptIfNeeded failed for ${orderId}: ${(e as Error).message}`,
+      );
+    }
+  }
+
   async createOrderFromIntentById(paymentIntentId: string, userId: string) {
     if (!this.stripe) throw new Error('Stripe not configured');
 
@@ -683,6 +774,9 @@ export class OrdersService {
       );
 
     await this.cleanupOldDrafts(userId, orderId, true);
+
+    // ✅ Send receipt here (hybrid approach); webhook will de-dupe via receiptSentAt
+    await this.sendReceiptIfNeeded(orderId, pi, draft);
 
     this.logger.log(`createOrderFromIntentById ${orderId} ← ${pi.status}`);
     return payload;

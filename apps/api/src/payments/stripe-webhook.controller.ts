@@ -13,6 +13,7 @@ import { RawBodyRequest } from '@nestjs/common/interfaces';
 import Stripe from 'stripe';
 import { OrdersService } from '../orders/orders.service';
 import { InvoiceService } from '../invoice/invoice.service';
+import { MailerService } from '../mailer/mailer.service';
 
 function extractOrderId(event: Stripe.Event): string | undefined {
   const obj: any = event?.data?.object ?? {};
@@ -36,6 +37,7 @@ export class StripeWebhookController {
   constructor(
     private readonly orders: OrdersService,
     @Optional() private readonly invoices?: InvoiceService,
+    @Optional() private readonly mailer?: MailerService,
   ) {}
 
   // Canonical path to use with Stripe CLI: /api/webhooks/stripe
@@ -53,8 +55,6 @@ export class StripeWebhookController {
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     const isProd = process.env.NODE_ENV === 'production';
     const relaxed = !isProd && process.env.E2E_RELAXED_MATCH === '1';
-    const blockInvoice =
-      !isProd && (process.env.E2E_INVOICE_BLOCK === '1' || relaxed);
 
     let event: Stripe.Event;
     try {
@@ -83,19 +83,127 @@ export class StripeWebhookController {
       `Received ${event.type} (evt=${event.id}) meta=${JSON.stringify(meta)}`,
     );
 
-    const maybeGenerateInvoice = async (orderId?: string) => {
-      if (!orderId || !this.invoices?.generateAndStorePdf) return;
+    // ---- helpers ------------------------------------------------------------
+
+    const maybeEnsureInvoiceAndGetUrl = async (
+      orderId?: string,
+    ): Promise<string | undefined> => {
+      if (!orderId || !this.invoices?.ensureInvoice) return undefined;
       try {
-        if (blockInvoice) {
-          await this.invoices.generateAndStorePdf(orderId);
-        } else {
-          // fire-and-forget in normal flows
-          this.invoices.generateAndStorePdf(orderId).catch(() => void 0);
-        }
+        const inv = await this.invoices.ensureInvoice(orderId, {
+          force: false,
+        });
+        return inv?.url;
       } catch {
-        // swallow to keep webhook ack reliable
+        return undefined;
       }
     };
+
+    const getRecipientEmail = async (opts: {
+      orderId?: string;
+      pi?: Stripe.PaymentIntent;
+      charge?: Stripe.Charge;
+    }): Promise<string | undefined> => {
+      const { orderId, pi, charge } = opts;
+
+      const fromPi =
+        (pi?.metadata?.email as string | undefined) ||
+        (pi?.receipt_email as string | undefined);
+      if (fromPi) return fromPi;
+
+      const fromCharge =
+        (charge?.billing_details?.email as string | undefined) ||
+        ((charge?.metadata as any)?.email as string | undefined);
+      if (fromCharge) return fromCharge;
+
+      if (orderId && this.orders.getOrderDoc) {
+        try {
+          const o = await this.orders.getOrderDoc(orderId);
+          const email =
+            (o?.email as string | undefined) ||
+            (o?.buyer?.email as string | undefined) ||
+            (o?.customer?.email as string | undefined);
+          if (email) return email;
+        } catch {
+          // ignore
+        }
+      }
+      return undefined;
+    };
+
+    const sendReceiptEmail = async (opts: {
+      orderId: string;
+      pi?: Stripe.PaymentIntent;
+      charge?: Stripe.Charge;
+    }) => {
+      if (!this.mailer?.sendOrderConfirmation) return;
+
+      // de-dupe: don’t resend if already stamped
+      try {
+        const existing = await this.orders.getOrderDoc(opts.orderId);
+        if (existing?.receiptSentAt) {
+          this.logger.log(
+            `skip email: receiptSentAt=${existing.receiptSentAt} for ${opts.orderId}`,
+          );
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
+      const to = await getRecipientEmail({
+        orderId: opts.orderId,
+        pi: opts.pi,
+        charge: opts.charge,
+      });
+      if (!to) return;
+
+      // Prefer PI values, else charge
+      const amount =
+        (opts.pi && Number(opts.pi.amount_received ?? opts.pi.amount ?? 0)) ||
+        (opts.charge && Number(opts.charge.amount ?? 0)) ||
+        0;
+
+      const currency =
+        (opts.pi?.currency as string | undefined) ||
+        (opts.charge?.currency as string | undefined) ||
+        'ILS';
+
+      const paymentIntentId =
+        (opts.pi?.id as string | undefined) ||
+        (typeof opts.charge?.payment_intent === 'string'
+          ? (opts.charge?.payment_intent as string)
+          : (opts.charge?.payment_intent as any)?.id) ||
+        opts.orderId;
+
+      let invoiceUrl: string | undefined;
+      try {
+        invoiceUrl = await maybeEnsureInvoiceAndGetUrl(opts.orderId);
+      } catch {
+        // non-fatal
+      }
+
+      try {
+        await this.mailer.sendOrderConfirmation(to, {
+          orderId: opts.orderId,
+          amount,
+          currency: (currency || 'ILS').toUpperCase(),
+          paymentIntentId,
+          created: false,
+          invoiceUrl,
+        });
+        // mark as sent
+        await this.orders.updateOrder(opts.orderId, {
+          receiptSentAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        this.logger.warn(
+          `sendOrderConfirmation failed: ${(e as Error).message}`,
+        );
+      }
+    };
+
+    // ---- main switch --------------------------------------------------------
 
     try {
       switch (event.type) {
@@ -107,6 +215,7 @@ export class StripeWebhookController {
             await this.orders.updateStatus(orderId, 'paid');
           } else if (this.orders.markPaidByPaymentIntentId) {
             await this.orders.markPaidByPaymentIntentId(pi.id);
+            orderId = orderId ?? pi.id; // fallback to PI id if no explicit order id
           }
 
           // E2E-only safety net: if still nothing matched, mark most recent open order as paid
@@ -127,55 +236,62 @@ export class StripeWebhookController {
             }
           }
 
-          await maybeGenerateInvoice(orderId);
+          if (orderId) {
+            await sendReceiptEmail({ orderId, pi });
+          }
           break;
         }
 
         case 'checkout.session.completed': {
           const session = event.data.object as Stripe.Checkout.Session;
           let orderId = extractOrderId(event);
+          let pi: Stripe.PaymentIntent | undefined;
 
-          // If not on session metadata, fetch PI to read metadata
-          if (!orderId && typeof session.payment_intent === 'string') {
-            const pi = await this.stripe.paymentIntents.retrieve(
-              session.payment_intent,
-            );
+          // If not on session metadata, fetch PI to read metadata & email
+          if (typeof session.payment_intent === 'string') {
+            try {
+              pi = await this.stripe.paymentIntents.retrieve(
+                session.payment_intent,
+              );
+            } catch {
+              // ignore
+            }
+          }
+
+          if (!orderId && pi) {
             orderId = (pi.metadata?.orderId as string | undefined) ?? undefined;
-
-            if (!orderId && this.orders.markPaidByPaymentIntentId) {
-              await this.orders.markPaidByPaymentIntentId(pi.id);
-            }
-
-            if (
-              !orderId &&
-              relaxed &&
-              (this.orders as any).findMostRecentOpenOrderId
-            ) {
-              const fallbackId = await (
-                this.orders as any
-              ).findMostRecentOpenOrderId();
-              if (fallbackId) {
-                await this.orders.updateStatus(fallbackId, 'paid');
-                orderId = fallbackId;
-                this.logger.warn(
-                  `E2E_RELAXED_MATCH: marked ${fallbackId} as paid (session=${session.id})`,
-                );
-              }
-            }
           }
 
           if (orderId) {
             await this.orders.updateStatus(orderId, 'paid');
+            await sendReceiptEmail({ orderId, pi });
+          } else if (pi?.id && this.orders.markPaidByPaymentIntentId) {
+            await this.orders.markPaidByPaymentIntentId(pi.id);
+            await sendReceiptEmail({ orderId: pi.id, pi });
+          } else if (
+            relaxed &&
+            (this.orders as any).findMostRecentOpenOrderId
+          ) {
+            const fallbackId = await (
+              this.orders as any
+            ).findMostRecentOpenOrderId();
+            if (fallbackId) {
+              await this.orders.updateStatus(fallbackId, 'paid');
+              await sendReceiptEmail({ orderId: fallbackId, pi });
+              this.logger.warn(
+                `E2E_RELAXED_MATCH: marked ${fallbackId} as paid (session=${session.id})`,
+              );
+            }
           }
-          await maybeGenerateInvoice(orderId);
           break;
         }
 
         case 'charge.succeeded': {
+          const ch = event.data.object as Stripe.Charge;
           const orderId = extractOrderId(event);
           if (orderId) {
             await this.orders.updateStatus(orderId, 'paid');
-            await maybeGenerateInvoice(orderId);
+            await sendReceiptEmail({ orderId, charge: ch });
           }
           break;
         }

@@ -1,6 +1,7 @@
 // src/mailer/mailer.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import nodemailer, { Transporter } from 'nodemailer';
+import sgMail, { MailDataRequired } from '@sendgrid/mail';
 
 type OrderEmailPayload = {
   orderId: string;
@@ -8,7 +9,7 @@ type OrderEmailPayload = {
   currency: string | null; // e.g., "ils"
   paymentIntentId: string;
   created: boolean;
-  invoiceUrl?: string | null; // ✅ added for PDF link in email body
+  invoiceUrl?: string | null; // PDF link in email body
 };
 
 type RefundEmailPayload = {
@@ -29,65 +30,134 @@ type MailerOptions = {
   replyTo?: string;
 };
 
+type Provider = 'sendgrid' | 'smtp' | 'json';
+
 @Injectable()
 export class MailerService {
   private readonly logger = new Logger(MailerService.name);
-  private readonly transporter: Transporter;
+  private transporter?: Transporter; // for SMTP / JSON
+  private readonly provider: Provider;
   private readonly fromAddress: string;
+  private readonly sandbox: boolean;
 
   constructor() {
     const {
+      // selection
+      EMAIL_PROVIDER, // 'sendgrid' | 'smtp' | 'json'
+      NODE_ENV,
+
+      // sendgrid
+      SENDGRID_API_KEY,
+      SENDGRID_SANDBOX, // 'true' | 'false'
+
+      // smtp (or URL)
       SMTP_URL,
       SMTP_HOST,
       SMTP_PORT,
       SMTP_USER,
       SMTP_PASS,
       SMTP_SECURE,
+
+      // generic
       MAIL_FROM,
       MAIL_FROM_NAME,
-      MAIL_MODE,
-      NODE_ENV,
+      MAIL_MODE, // legacy: 'json' in tests/local
     } = process.env;
 
-    const baseOpts: any = {
-      pool: true,
-      maxConnections: 3,
-      maxMessages: 100,
-      connectionTimeout: 15_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 30_000,
-    };
+    // Determine provider
+    let provider: Provider =
+      (EMAIL_PROVIDER as Provider) ||
+      (MAIL_MODE === 'json' || NODE_ENV === 'test' ? 'json' : 'smtp');
 
-    if (MAIL_MODE === 'json' || NODE_ENV === 'test') {
-      this.transporter = nodemailer.createTransport({ jsonTransport: true });
-    } else if (SMTP_URL) {
-      // URL-based config (works with SendGrid, etc.)
-      this.transporter = nodemailer.createTransport({
-        ...baseOpts,
-        url: SMTP_URL,
-      });
-    } else if (SMTP_HOST) {
-      // Host/port config
-      this.transporter = nodemailer.createTransport({
-        ...baseOpts,
-        host: SMTP_HOST,
-        port: Number(SMTP_PORT ?? 587),
-        secure: String(SMTP_SECURE ?? '').toLowerCase() === 'true',
-        auth: SMTP_USER
-          ? { user: SMTP_USER, pass: SMTP_PASS ?? '' }
-          : undefined,
-      });
-    } else {
-      // Fallback for local/dev
+    // If provider is sendgrid but no key, fall back safely to json
+    if (provider === 'sendgrid' && !SENDGRID_API_KEY) {
       this.logger.warn(
-        'No SMTP configured. Falling back to jsonTransport (logs only).',
+        'EMAIL_PROVIDER=sendgrid but SENDGRID_API_KEY is missing. Falling back to JSON (no delivery).',
       );
-      this.transporter = nodemailer.createTransport({ jsonTransport: true });
+      provider = 'json';
     }
+
+    this.provider = provider;
+    this.sandbox = String(SENDGRID_SANDBOX ?? '').toLowerCase() === 'true';
 
     const from = MAIL_FROM || 'no-reply@example.com';
     const name = MAIL_FROM_NAME || 'Shop';
     this.fromAddress = name ? `${name} <${from}>` : from;
+
+    // Init concrete transport
+    if (this.provider === 'sendgrid') {
+      sgMail.setApiKey(SENDGRID_API_KEY!);
+      if (this.sandbox) {
+        this.logger.warn(
+          'SendGrid sandbox mode ENABLED — emails will NOT be delivered.',
+        );
+      }
+      this.logger.log('Mailer initialized: provider=sendgrid');
+    } else if (this.provider === 'smtp') {
+      const baseOpts: any = {
+        pool: true,
+        maxConnections: 3,
+        maxMessages: 100,
+        connectionTimeout: 15_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 30_000,
+      };
+
+      if (SMTP_URL) {
+        this.transporter = nodemailer.createTransport({
+          ...baseOpts,
+          url: SMTP_URL,
+        });
+      } else if (SMTP_HOST) {
+        this.transporter = nodemailer.createTransport({
+          ...baseOpts,
+          host: SMTP_HOST,
+          port: Number(SMTP_PORT ?? 587),
+          secure:
+            String(SMTP_SECURE ?? '').toLowerCase() === 'true' ||
+            Number(SMTP_PORT) === 465,
+          auth: SMTP_USER
+            ? { user: SMTP_USER, pass: SMTP_PASS ?? '' }
+            : undefined,
+        });
+      } else {
+        // convenience: allow sendgrid over SMTP if user forgot provider
+        if (SENDGRID_API_KEY) {
+          this.logger.warn(
+            'No SMTP_* provided; attempting SendGrid SMTP fallback.',
+          );
+          this.transporter = nodemailer.createTransport({
+            ...baseOpts,
+            host: 'smtp.sendgrid.net',
+            port: 587,
+            secure: false,
+            auth: { user: 'apikey', pass: SENDGRID_API_KEY },
+          });
+        } else {
+          this.logger.warn(
+            'No SMTP configured. Falling back to jsonTransport (logs only).',
+          );
+          this.transporter = nodemailer.createTransport({
+            jsonTransport: true,
+          });
+          this.provider = 'json';
+        }
+      }
+
+      // Try verifying SMTP at boot (best-effort)
+      this.transporter?.verify().then(
+        () => this.logger.log('SMTP transporter verified successfully'),
+        (err) => this.logger.warn(`SMTP verify failed: ${err?.message || err}`),
+      );
+
+      this.logger.log(
+        `Mailer initialized: provider=${this.provider}${SMTP_URL ? ' (url)' : ''}`,
+      );
+    } else {
+      // JSON/log-only
+      this.transporter = nodemailer.createTransport({ jsonTransport: true });
+      this.logger.log('Mailer initialized: provider=json (no real delivery)');
+    }
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -187,7 +257,7 @@ export class MailerService {
   }
 
   // ────────────────────────────────────────────────────────────────────────────
-  // Helpers
+  // Core sender (provider-aware)
   // ────────────────────────────────────────────────────────────────────────────
   private async safeSend(opts: {
     to: string;
@@ -202,7 +272,44 @@ export class MailerService {
     }>;
   }): Promise<{ ok: boolean; id?: string }> {
     try {
-      const info = await this.transporter.sendMail({
+      if (this.provider === 'sendgrid') {
+        const msg: MailDataRequired = {
+          from: this.fromAddress,
+          to: opts.to,
+          subject: opts.subject,
+          text: opts.text,
+          html: opts.html,
+          replyTo: opts.replyTo,
+          attachments: (opts.attachments || []).map((a) => ({
+            filename: a.filename,
+            type: a.contentType || 'application/octet-stream',
+            content: a.content.toString('base64'),
+            disposition: 'attachment',
+          })),
+          mailSettings: this.sandbox
+            ? { sandboxMode: { enable: true } }
+            : undefined,
+          // trackingSettings: { clickTracking: { enable: false, enableText: false } },
+          // headers: { 'List-Unsubscribe': '<mailto:unsubscribe@yourdomain>' },
+        };
+
+        const [resp] = await sgMail.send(msg);
+        const msgId =
+          (resp.headers && (resp.headers['x-message-id'] as string)) ||
+          (resp.headers &&
+            (resp.headers['x-message-id'.toLowerCase()] as string)) ||
+          undefined;
+
+        this.logger.log(
+          `Email sent (provider=sendgrid) to ${opts.to}: status=${resp.statusCode}${
+            msgId ? ` id=${msgId}` : ''
+          }`,
+        );
+        return { ok: true, id: msgId };
+      }
+
+      // SMTP / JSON via Nodemailer
+      const info = await this.transporter!.sendMail({
         from: this.fromAddress,
         to: opts.to,
         subject: opts.subject,
@@ -210,9 +317,11 @@ export class MailerService {
         html: opts.html,
         replyTo: opts.replyTo,
         attachments: opts.attachments,
-        // headers: { 'List-Unsubscribe': '<mailto:unsubscribe@bundershop.is-a.dev>' },
+        // headers: { 'List-Unsubscribe': '<mailto:unsubscribe@yourdomain>' },
       });
-      this.logger.log(`Email sent to ${opts.to}: ${info.messageId ?? ''}`);
+      this.logger.log(
+        `Email sent (provider=${this.provider}) to ${opts.to}: ${info.messageId ?? ''}`,
+      );
       return { ok: true, id: info.messageId as string | undefined };
     } catch (e) {
       this.logger.error(`Email send failed: ${(e as Error).message}`);
@@ -220,6 +329,9 @@ export class MailerService {
     }
   }
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // Utils
+  // ────────────────────────────────────────────────────────────────────────────
   private formatMoney(amountMinor: number, currency: string | null) {
     const curr = (currency || 'ILS').toUpperCase();
     const major = (amountMinor ?? 0) / 100;
