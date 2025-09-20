@@ -26,11 +26,20 @@ type QueryOptions = {
   staleTime?: number;
   refetchOnMount?: boolean | 'always';
   refetchOnWindowFocus?: boolean;
+  refetchOnReconnect?: boolean;
+  retry?: number;
+  gcTime?: number; // v5 (cacheTime in v4)
 };
+
+/** ---------------- helpers ---------------- **/
 
 /** treat '', null, undefined, 'undefined', 'null' as "empty" */
 const isBlank = (v: unknown) =>
-  v === '' || v === null || v === 'undefined' || v === 'null';
+  v === '' ||
+  v === null ||
+  v === undefined ||
+  v === 'undefined' ||
+  v === 'null';
 
 const toNum = (v: unknown) => {
   if (isBlank(v)) return undefined;
@@ -45,6 +54,14 @@ const pruneUndefined = <T extends Record<string, any>>(obj: T): T =>
   Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined),
   ) as T;
+
+/** stable, sorted JSON for query key */
+function stableKey(obj: Record<string, unknown>): string {
+  const entries = Object.entries(obj).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+  return JSON.stringify(Object.fromEntries(entries));
+}
 
 function normalizeFilters(raw: Record<string, any>): ListOrdersParams {
   const out: ListOrdersParams = {
@@ -67,6 +84,7 @@ function normalizeFilters(raw: Record<string, any>): ListOrdersParams {
         : (Boolean(raw.inStockOnly) as boolean) || undefined,
     sort: isBlank(raw.sort) ? undefined : String(raw.sort),
   };
+  // Axios will also omit undefined, but we prune here to stabilize the key
   return pruneUndefined(out);
 }
 
@@ -101,50 +119,46 @@ async function listOrders(params: ListOrdersParams): Promise<OrdersResult> {
 
   for (const p of paths) {
     try {
-      const res = await api.get(p, {
-        // Axios omits undefined values from query automatically
-        params,
-      });
-
-      // Prefer body {items,total}, but respect X-Total-Count header if present
+      const res = await api.get(p, { params }); // axios drops undefined
       const base = normalizeOrders(res.data);
       const headerTotal = Number(res.headers?.['x-total-count']);
       const total =
         Number.isFinite(headerTotal) && headerTotal >= 0
           ? headerTotal
           : base.total;
-
       return { items: base.items, total };
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 404) {
-        continue; // try next path
-      }
+      if (axios.isAxiosError(err) && err.response?.status === 404) continue;
       throw err;
     }
   }
-
-  // Both paths 404 → empty
   return { items: [], total: 0 };
 }
 
-/** Main hook */
+/** ---------------- main hook ---------------- **/
 export function useOrdersQuery(
   rawFilters: Record<string, any>,
   options?: QueryOptions,
 ) {
+  // 1) Normalize + prune so we never send q=undefined etc.
   const params = useMemo(() => normalizeFilters(rawFilters), [rawFilters]);
 
+  // 2) Stable query key to avoid duplicate fetches on StrictMode remounts
+  const key = useMemo(() => ['orders', stableKey(params)] as const, [params]);
+
   return useQuery<OrdersResult>({
-    queryKey: ['orders', params],
+    queryKey: key,
     queryFn: () => {
-      if (import.meta.env.DEV) {
-        console.log('listOrders -> params', params);
-      }
+      if (import.meta.env.DEV) console.log('listOrders -> params', params);
       return listOrders(params);
     },
-    staleTime: options?.staleTime ?? 30_000,
+    // 🔒 Avoid double fetch in React 18 StrictMode dev:
+    staleTime: options?.staleTime ?? 60_000, // fresh for 1 min
+    gcTime: options?.gcTime ?? 5 * 60_000, // keep cache around
     refetchOnMount: options?.refetchOnMount ?? false,
     refetchOnWindowFocus: options?.refetchOnWindowFocus ?? false,
+    refetchOnReconnect: options?.refetchOnReconnect ?? false,
+    retry: options?.retry ?? 0,
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
   });
