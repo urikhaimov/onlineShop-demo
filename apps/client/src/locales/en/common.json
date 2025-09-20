@@ -87,11 +87,13 @@
     "oldest": "Oldest"
   },
   "status": {
-    "pending": "Pending",
-    "confirmed": "Confirmed",
+    "open": "Open",
+    "authorized": "Authorized",
+    "paid": "Paid",
+    "refunded": "Refunded",
+    "canceled": "Cancelled",
     "shipped": "Shipped",
-    "delivered": "Delivered",
-    "cancelled": "Cancelled"
+    "delivered": "Delivered"
   },
   "orders": {
     "status": {

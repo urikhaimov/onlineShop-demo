@@ -26,7 +26,7 @@ export function getLayoutTokens(
   const pad = 3 * (theme.spacingScale ?? 1);
   const sectionPad = Math.max(2, pad - 1);
   const radius = 2;
-  console.log('radius', radius);
+
   const cap = kind === 'form' ? 920 : 1280;
   const contentMax = Math.min(getMaxWidthPx(theme.maxWidth), cap);
   return { pad, sectionPad, radius, contentMax };

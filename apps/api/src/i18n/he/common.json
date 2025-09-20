@@ -1,5 +1,57 @@
 {
-  "greeting": "שלום",
-  "errors": { "unauthorized": "אין לך הרשאה." },
-  "validation": { "name_required": "יש להזין שם." }
+  "email": {
+    "order": {
+      "subject": {
+        "created": "הזמנה {{id}} אושרה — {{amount}}",
+        "paid": "התשלום עבור {{id}} התקבל — {{amount}}"
+      },
+      "heading": "תודה על ההזמנה!",
+      "received": "ההזמנה {{id}} התקבלה בהצלחה.",
+      "fields": {
+        "amount": "סכום",
+        "currency": "מטבע",
+        "pi": "Payment Intent"
+      },
+      "invoice_link": "הורדת חשבונית (PDF)",
+      "questions": "אם יש לך שאלות, פשוט השב/י למייל זה."
+    },
+    "update": {
+      "subject": {
+        "updated": "עדכון להזמנה {{id}}",
+        "shipped": "ההזמנה {{id}} נשלחה",
+        "delivered": "ההזמנה {{id}} נמסרה",
+        "paid": "ההזמנה {{id}} שולמה",
+        "canceled": "ההזמנה {{id}} בוטלה",
+        "refunded": "בוצע החזר על ההזמנה {{id}}",
+        "open": "עדכון להזמנה {{id}}"
+      },
+      "heading": "עדכון הזמנה.",
+      "body": "ההזמנה {{id}} עודכנה.",
+      "fields": {
+        "status": "סטטוס",
+        "provider": "חברת משלוח",
+        "tracking": "מספר מעקב",
+        "eta": "תאריך משוער"
+      }
+    },
+    "refund": {
+      "subject": {
+        "full": "בוצע החזר עבור {{id}} — {{amount}}",
+        "partial": "בוצע החזר חלקי עבור {{id}} — {{amount}}"
+      },
+      "heading": {
+        "full": "החזר הושלם",
+        "partial": "החזר חלקי"
+      },
+      "body": "עבור ההזמנה {{id}}."
+    }
+  },
+  "status": {
+    "open": "פתוחה",
+    "paid": "שולמה",
+    "shipped": "נשלחה",
+    "delivered": "נמסרה",
+    "canceled": "בוטלה",
+    "refunded": "הוחזרה"
+  }
 }

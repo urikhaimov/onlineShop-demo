@@ -87,11 +87,13 @@
     "oldest": "ישן תחילה"
   },
   "status": {
-    "pending": "ממתין",
-    "confirmed": "אושר",
+    "open": "פתוח",
+    "authorized": "מוכן לחיוב",
+    "paid": "שולם",
+    "refunded": "הוחזר",
+    "canceled": "בוטל",
     "shipped": "נשלח",
-    "delivered": "נמסר",
-    "cancelled": "בוטל"
+    "delivered": "סופק"
   },
   "orders": {
     "status": {

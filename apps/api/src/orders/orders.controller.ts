@@ -33,7 +33,10 @@ import {
 } from './utils/stripe.util';
 import { getStripeRawBody } from './utils/request.util';
 
-type AuthedUser = { uid: string; role?: string };
+// ✅ DTO for PATCH validation
+import { UpdateOrderDto } from './dto/update-order.dto';
+
+type AuthedUser = { uid: string; role?: string; email?: string };
 type AuthedRequest = Request & { user: AuthedUser };
 interface RawBodyRequest extends Request {
   rawBody?: Buffer;
@@ -284,16 +287,43 @@ export class OrdersController {
   async updateOrder(
     @Req() req: AuthedRequest,
     @Param('id') id: string,
-    @Body()
-    dto: Partial<{
-      status: string;
-      notes: string | null;
-      delivery: { provider?: string; trackingNumber?: string; eta?: string };
-    }>,
+    @Body() dto: UpdateOrderDto, // ✅ validate body
   ) {
     const safeId = (id || '').trim();
-    this.logger.log(`PATCH /orders/${safeId} by=${req.user.uid}`);
-    return this.ordersService.updateOrder(safeId, dto, req.user.uid);
+
+    // Helpful log to debug any remaining 4xx/5xx responses
+    this.logger.log(
+      `PATCH /orders/${safeId} by=${req.user.uid} body=${JSON.stringify(dto)}`,
+    );
+
+    // Only forward whitelisted keys to the service
+    const patch: any = {};
+    if (dto.status !== undefined) patch.status = dto.status;
+    if (dto.notes !== undefined) patch.notes = dto.notes;
+    if (dto.delivery !== undefined) patch.delivery = dto.delivery;
+
+    const updated = await this.ordersService.updateOrder(
+      safeId,
+      patch,
+      req.user.uid,
+    );
+
+    // Optional hook: if your service implements notifyCustomer, call it safely
+    if (dto.notifyCustomer && (this.ordersService as any)?.notifyCustomer) {
+      try {
+        await (this.ordersService as any).notifyCustomer(
+          updated,
+          patch,
+          req.user,
+        );
+      } catch (e: any) {
+        this.logger.warn(
+          `notifyCustomer failed for ${safeId}: ${e?.message || e}`,
+        );
+      }
+    }
+
+    return updated;
   }
 
   /**
@@ -303,11 +333,11 @@ export class OrdersController {
   @Public()
   @HttpCode(200)
   async handleStripeWebhook(
-    @Req() req: RawBodyRequest,
+    @Req() req: Request & { rawBody?: Buffer },
     @Headers('stripe-signature') signature: string,
   ) {
     this.logger.log('POST /orders/webhook (Stripe)');
-    const raw = getStripeRawBody(req);
+    const raw = getStripeRawBody(req as any);
     if (!raw || !signature) {
       throw new BadRequestException(
         'Missing raw body or stripe-signature header',

@@ -30,16 +30,27 @@ export type CurrencyCode =
  * Frontend order status (document-level). We keep legacy values and
  * add the new ones the server uses ("open", "paid", "refunded", "canceled").
  */
-export type TOrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'shipped'
-  | 'delivered'
-  | 'cancelled'
-  | 'open'
-  | 'paid'
-  | 'refunded'
-  | 'canceled';
+// export type TOrderStatus =
+//   | 'pending'
+//   | 'confirmed'
+//   | 'shipped'
+//   | 'delivered'
+//   | 'cancelled'
+//   | 'open'
+//   | 'paid'
+//   | 'refunded'
+//   | 'canceled';
+export const ORDER_STATUS = [
+  'open', // cart/draft
+  'authorized', // manual-capture: PI requires_capture
+  'paid', // captured/settled
+  'shipped',
+  'delivered',
+  'refunded',
+  'canceled', // US spelling
+] as const;
+
+export type TOrderStatus = (typeof ORDER_STATUS)[number];
 
 export type OrderMetadata = IMetadata & {
   createdBy: { uid: number; name: string };
@@ -192,3 +203,21 @@ export type TOrderSettings = {
   updatedAt?: Timestamp;
   updatedBy?: { uid: string; name?: string };
 };
+
+export type LegacyOrderStatus = 'pending' | 'confirmed' | 'cancelled';
+
+// Map anything legacy → canonical
+export function normalizeStatus(
+  s: TOrderStatus | LegacyOrderStatus,
+): TOrderStatus {
+  switch (s) {
+    case 'pending':
+      return 'open';
+    case 'confirmed':
+      return 'paid';
+    case 'cancelled':
+      return 'canceled'; // normalize spelling
+    default:
+      return s as TOrderStatus;
+  }
+}

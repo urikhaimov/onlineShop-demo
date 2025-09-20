@@ -1,6 +1,12 @@
+// src/pages/admin/orders/components/OrderExpandedRow.tsx
 import * as React from 'react';
 import { Box, useTheme } from '@mui/material';
-import type { TOrder } from '@common/types';
+import type {
+  TOrder,
+  TOrderStatus,
+  TOrderPayment,
+  StripePaymentIntentStatus,
+} from '@common/types';
 
 import OrderCustomer from '../../../components/orders/OrderCustomer';
 import OrderShipping from '../../../components/orders/OrderShipping';
@@ -12,7 +18,7 @@ import OrderNotes from '../../../components/orders/OrderNotes';
 import { useThemeStore } from '../../../stores/useThemeStore';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Helpers: currency conversion + normalization
+// Currency helpers
 // ──────────────────────────────────────────────────────────────────────────────
 const ZERO_DEC = new Set([
   'BIF',
@@ -32,88 +38,104 @@ const ZERO_DEC = new Set([
   'XOF',
   'XPF',
 ]);
-
 function toMajorFromMinor(minor?: number, currency?: string) {
   if (minor === null) return undefined;
   const cur = (currency || '').toUpperCase();
   return ZERO_DEC.has(cur) ? Math.round(minor) : minor / 100;
 }
 
-/** Map service/webhook statuses to UI statuses */
-function mapStatus(status?: string): TOrder['status'] {
-  switch ((status || '').toLowerCase()) {
-    case 'paid':
-    case 'succeeded':
-      return 'confirmed';
-    case 'open':
-    case 'processing':
-    case 'requires_confirmation':
-    case 'requires_action':
-      return 'pending';
-    case 'canceled':
-    case 'cancelled':
-    case 'refunded':
-      return 'cancelled';
-    default:
-      // keep whatever came if it already matches app statuses
-      if (
-        status === 'pending' ||
-        status === 'confirmed' ||
-        status === 'shipped' ||
-        status === 'delivered' ||
-        status === 'cancelled'
-      ) {
-        return status as TOrder['status'];
-      }
-      return 'pending';
-  }
+// ──────────────────────────────────────────────────────────────────────────────
+// Canonical status mapping (backend + legacy + provider → TOrderStatus)
+// Canon: 'open' | 'authorized' | 'paid' | 'shipped' | 'delivered' | 'refunded' | 'canceled'
+// ──────────────────────────────────────────────────────────────────────────────
+function statusToCanon(s?: string): TOrderStatus {
+  const raw = String(s ?? '').toLowerCase();
+
+  // already canonical?
+  if (
+    raw === 'open' ||
+    raw === 'authorized' ||
+    raw === 'paid' ||
+    raw === 'shipped' ||
+    raw === 'delivered' ||
+    raw === 'refunded' ||
+    raw === 'canceled'
+  )
+    return raw as TOrderStatus;
+
+  // legacy UI names
+  if (raw === 'pending') return 'open';
+  if (raw === 'confirmed') return 'paid';
+  if (raw === 'cancelled') return 'canceled';
+
+  // provider / Stripe-inspired statuses
+  if (raw === 'succeeded') return 'paid';
+  if (raw === 'canceled') return 'canceled';
+  if (
+    raw === 'processing' ||
+    raw === 'requires_confirmation' ||
+    raw === 'requires_action' ||
+    raw === 'requires_capture' ||
+    raw === 'requires_payment_method'
+  )
+    return 'open';
+
+  // default safe
+  return 'open';
 }
 
-/** Build a view-safe order that fills/normalizes missing fields */
+// When order.payment is missing, derive a Stripe-like status (type-safe)
+function deriveProviderStatus(canon: TOrderStatus): StripePaymentIntentStatus {
+  if (canon === 'paid') return 'succeeded';
+  if (canon === 'canceled') return 'canceled';
+  // not paid yet -> something pending
+  return 'processing';
+}
+
+// Flatten Stripe-style shipping into our flat view model
+function flattenShipping(order: TOrder) {
+  const s: any = order.shippingAddress || {};
+  const addr = s.address || s || {};
+  return s || addr
+    ? {
+        fullName: s.name ?? order.ownerName ?? undefined,
+        phone: s.phone ?? undefined,
+        street: addr.line1 ?? addr.line ?? addr.street ?? undefined,
+        city: addr.city ?? undefined,
+        postalCode: addr.postalCode ?? addr.postal_code ?? undefined,
+        country: (addr.country || '').toUpperCase() || undefined,
+      }
+    : undefined;
+}
+
+/** Build a view-safe order that fills/normalizes missing fields (canonical). */
 function useNormalizedOrder(order: TOrder): TOrder {
-  // Pick a usable total (major). Preference: order.total → totalMajor → totalAmount
   const currency =
     order.currency || (order.payment?.currency as string | undefined);
+
   const totalFromMinor =
     toMajorFromMinor(
       (order as any).totalAmount ?? (order as any).totalMinor,
       currency,
     ) ?? undefined;
 
-  // Also accept a server-provided totalMajor field if present
-
   const totalFromTotalMajor: number | undefined = (order as any).totalMajor;
 
-  const safeTotal =
+  const total =
     typeof order.total === 'number'
       ? order.total
       : typeof totalFromTotalMajor === 'number'
         ? totalFromTotalMajor
         : totalFromMinor;
 
-  // Flatten Stripe-style shipping into TOrderAddress
-  // Accept both { shippingAddress: { address: {...}, name, phone } } and already-flat shapes
-  const s: any = (order as any).shippingAddress || {};
-  const addr = s.address || s || {};
-  const flatShipping =
-    s || addr
-      ? {
-          fullName: s.name ?? order.ownerName ?? undefined,
-          phone: s.phone ?? undefined,
-          street: addr.line1 ?? addr.line ?? addr.street ?? undefined,
-          city: addr.city ?? undefined,
-          postalCode: addr.postalCode ?? addr.postal_code ?? undefined,
-          country: (addr.country || '').toUpperCase() || undefined,
-        }
-      : undefined;
+  const canonStatus = statusToCanon(order.status as any);
 
-  // Ensure payment block exists for rendering
-  const safePayment =
+  const payment: TOrderPayment =
     order.payment && (order.payment as any).method
       ? order.payment
       : {
           method: 'card',
-          status: mapStatus(order.status) === 'confirmed' ? 'paid' : 'unpaid',
+          status: deriveProviderStatus(canonStatus), // ✅ Stripe-typed status
           transactionId: order.paymentIntentId,
           currency,
           receipt_email: order.email ?? undefined,
@@ -121,12 +143,12 @@ function useNormalizedOrder(order: TOrder): TOrder {
 
   return {
     ...order,
-    status: mapStatus(order.status as any),
-    total: safeTotal,
+    status: canonStatus, // ✅ canonical vocab
+    total,
     currency,
-    shippingAddress: flatShipping ?? order.shippingAddress,
-    payment: safePayment,
-  } as TOrder;
+    shippingAddress: flattenShipping(order) ?? order.shippingAddress,
+    payment,
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

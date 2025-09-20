@@ -4,13 +4,13 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  Optional, // ← added
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { adminDb } from '@common/firebase';
-import { MailerService } from '../mailer/mailer.service'; // ← added
-import { InvoiceService } from '../invoice/invoice.service'; // ← added
+import { MailerService } from '../mailer/mailer.service';
+import { InvoiceService } from '../invoice/invoice.service';
 
 type OrderStatus = 'open' | 'paid' | 'refunded' | 'canceled';
 
@@ -26,14 +26,9 @@ function buildIdemKey(params: {
   amount: number; // cents
   currency: string; // lower-case, e.g. 'ils'
 }) {
-  // Deterministic fallback (without user)
   const fallback = `pi:${params.orderId ?? 'no-order'}:${params.currency}:${params.amount}`;
-
-  // Use provided if present, but ALWAYS suffix with user tag
   const base = (params.provided?.trim() || fallback).trim();
   const tagged = `${base}:${params.userId || 'anon'}`;
-
-  // Stripe limit 255 chars
   return tagged.length > 255 ? tagged.slice(0, 255) : tagged;
 }
 
@@ -48,11 +43,27 @@ function isIdempotencyParamMismatch(e: any): boolean {
   return /idempotent/i.test(msg) && /same parameters/i.test(msg);
 }
 
-// Strip undefined so Firestore merge won't blank fields
+/** Top-level strip (kept for a few call-sites). */
 function defined<T extends Record<string, any>>(obj: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined),
   ) as Partial<T>;
+}
+
+/** 🔧 Recursively remove all `undefined` values (Firestore-safe). */
+function stripUndefinedDeep<T = any>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => stripUndefinedDeep(v))
+      .filter((v) => v !== undefined) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, any>)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, stripUndefinedDeep(v)]);
+    return Object.fromEntries(entries) as unknown as T;
+  }
+  return value;
 }
 
 // Pull freshest customer/shipping from PI
@@ -91,8 +102,8 @@ export class OrdersService {
 
   constructor(
     private readonly config: ConfigService,
-    @Optional() private readonly mailer?: MailerService, // ← added
-    @Optional() private readonly invoice?: InvoiceService, // ← added
+    @Optional() private readonly mailer?: MailerService,
+    @Optional() private readonly invoice?: InvoiceService,
   ) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
     if (!key && process.env.NODE_ENV === 'test') {
@@ -171,7 +182,7 @@ export class OrdersService {
     const id: string | undefined = dto.id;
     const ref = id ? this.col().doc(id) : this.col().doc();
 
-    const payload = defined({
+    const payload = stripUndefinedDeep({
       id: ref.id,
       userId: dto.userId,
       items: dto.items ?? [],
@@ -204,7 +215,7 @@ export class OrdersService {
     if (byUserId && curr.userId && curr.userId !== byUserId) {
       throw new ForbiddenException();
     }
-    const payload = defined({ ...dto, updatedAt: nowIso() });
+    const payload = stripUndefinedDeep({ ...dto, updatedAt: nowIso() });
     await ref.set(payload, { merge: true });
     this.logger.log(`updateOrder ${id}`);
     const after = await ref.get();
@@ -273,7 +284,7 @@ export class OrdersService {
     await this.col()
       .doc(paymentIntentId)
       .set(
-        defined({
+        stripUndefinedDeep({
           id: paymentIntentId,
           userId,
           items: Array.isArray(items) ? items : undefined,
@@ -405,7 +416,6 @@ export class OrdersService {
       pi = await tryCreate(baseIdempotencyKey);
     } catch (e) {
       if (!isIdempotencyParamMismatch(e)) throw e;
-      // one-time recovery with salted key
       const salted = `${baseIdempotencyKey}:${Date.now().toString(36)}`.slice(
         0,
         255,
@@ -419,7 +429,7 @@ export class OrdersService {
     await this.col()
       .doc(pi.id)
       .set(
-        defined({
+        stripUndefinedDeep({
           id: pi.id,
           userId: input.userId,
           status: 'open' as OrderStatus,
@@ -446,7 +456,6 @@ export class OrdersService {
 
     this.logger.log(`createPaymentIntent ${pi.id} ${currency} ${amountMinor}`);
 
-    // Keep the fresh draft, only clean up *older* open drafts (avoid racing with user submit)
     await this.cleanupOldDrafts(input.userId, pi.id, false);
 
     return { clientSecret: pi.client_secret, paymentIntentId: pi.id };
@@ -476,6 +485,7 @@ export class OrdersService {
     returnUrl?: string;
   }) {
     if (!this.stripe) throw new Error('Stripe not configured');
+
     const {
       paymentIntentId,
       userId,
@@ -502,7 +512,7 @@ export class OrdersService {
       expand: ['latest_charge'],
     });
 
-    // Switch BEFORE any narrowing branches (prevents TS2367 later)
+    // Compare first, then branch
     switch (pi.status) {
       case 'succeeded': {
         const order = await this.createOrderFromIntentById(pi.id, userId);
@@ -551,7 +561,7 @@ export class OrdersService {
       }
     }
 
-    // 2) Confirm (only if we reached here from 'requires_*')
+    // 2) Confirm
     pi = await this.stripe.paymentIntents.confirm(
       paymentIntentId,
       defined({
@@ -560,7 +570,7 @@ export class OrdersService {
       }),
     );
 
-    // 3) Post-confirm inspection with a switch (again, compare first)
+    // 3) Post-confirm inspection
     switch (pi.status) {
       case 'succeeded': {
         const order = await this.createOrderFromIntentById(pi.id, userId);
@@ -616,6 +626,34 @@ export class OrdersService {
       (draft?.email as string | undefined);
 
     return fromPi || fromCharge || fromDraft || undefined;
+  }
+
+  // Plain order (no PI) → best-effort address
+  private getEmailFromOrder(order: any): string | undefined {
+    return (
+      order?.email ||
+      order?.customer?.email ||
+      order?.payment?.receipt_email ||
+      undefined
+    );
+  }
+
+  private renderOrderUpdateHtml(ctx: {
+    orderId: string;
+    status?: string;
+    provider?: string;
+    trackingNumber?: string;
+    eta?: string;
+  }) {
+    const lines: string[] = [];
+    if (ctx.status) lines.push(`<b>Status:</b> ${ctx.status}`);
+    if (ctx.provider) lines.push(`<b>Provider:</b> ${ctx.provider}`);
+    if (ctx.trackingNumber)
+      lines.push(`<b>Tracking:</b> ${ctx.trackingNumber}`);
+    if (ctx.eta) lines.push(`<b>ETA:</b> ${ctx.eta}`);
+    return `<p>Hi,</p><p>Your order <b>${ctx.orderId}</b> was updated.</p><p>${lines.join(
+      '<br/>',
+    )}</p>`;
   }
 
   private async sendReceiptIfNeeded(
@@ -679,6 +717,92 @@ export class OrdersService {
     }
   }
 
+  /**
+   * Email the customer on admin updates (status, delivery, etc.).
+   * Called from the controller after a successful PATCH.
+   */
+  async notifyCustomer(
+    order: any,
+    patch: any = {},
+    actor?: { uid?: string; email?: string } | null,
+  ): Promise<void> {
+    try {
+      if (!this.mailer) return; // mailer not wired in env
+      const to = this.getEmailFromOrder(order);
+      if (!to) {
+        this.logger.warn(`notifyCustomer: no recipient email for ${order?.id}`);
+        return;
+      }
+
+      const ctx = {
+        orderId: String(order.id || order.paymentIntentId || ''),
+        status: (patch?.status ?? order?.status) as string | undefined,
+        provider:
+          patch?.delivery?.provider ??
+          (order?.delivery && order.delivery.provider),
+        trackingNumber:
+          patch?.delivery?.trackingNumber ??
+          (order?.delivery && order.delivery.trackingNumber),
+        eta:
+          patch?.delivery?.eta ??
+          (order?.delivery && (order.delivery.eta as any)),
+      };
+
+      // Prefer a dedicated template if your MailerService exposes it
+      const hasUpdateTemplate =
+        typeof (this.mailer as any)?.sendOrderUpdate === 'function';
+
+      if (hasUpdateTemplate) {
+        // ✅ keep `this` bound to MailerService so `this.escape` works
+        await (this.mailer as any).sendOrderUpdate.call(this.mailer, to, ctx);
+      } else if (this.mailer.sendOrderConfirmation) {
+        // Fallback: reuse confirmation template (minimal info)
+        const currency = (order?.currency || order?.payment?.currency || 'ILS')
+          .toString()
+          .toUpperCase();
+        const amountMinor = Number(
+          order?.totalMinor ??
+            order?.totalAmount ??
+            Math.round((order?.total || 0) * 100),
+        );
+        await this.mailer.sendOrderConfirmation(to, {
+          orderId: ctx.orderId,
+          amount: amountMinor || 0,
+          currency,
+          paymentIntentId:
+            order?.paymentIntentId || order?.payment?.transactionId,
+          created: false,
+        });
+      } else {
+        // Last resort: try a generic HTML sender if present
+        const sendRaw = (this.mailer as any).sendRaw as
+          | ((args: {
+              to: string;
+              subject: string;
+              html: string;
+            }) => Promise<void>)
+          | undefined;
+        if (sendRaw) {
+          await sendRaw({
+            to,
+            subject: `Update for order ${ctx.orderId}`,
+            html: this.renderOrderUpdateHtml(ctx),
+          });
+        } else {
+          this.logger.warn('notifyCustomer: no mailer method available');
+        }
+      }
+
+      this.logger.log(
+        `notifyCustomer: mailed ${to} for order ${ctx.orderId} (by=${actor?.uid ?? 'system'})`,
+      );
+    } catch (e) {
+      this.logger.warn(
+        `notifyCustomer failed for ${order?.id}: ${(e as Error).message}`,
+      );
+    }
+  }
+
   async createOrderFromIntentById(paymentIntentId: string, userId: string) {
     if (!this.stripe) throw new Error('Stripe not configured');
 
@@ -703,7 +827,7 @@ export class OrdersService {
         await this.col()
           .doc(pi.id)
           .set(
-            defined({
+            stripUndefinedDeep({
               status: 'open',
               shippingAddress: shippingAddress ?? draft.shippingAddress,
               customer: Object.keys(customer).length
@@ -733,7 +857,7 @@ export class OrdersService {
           ? pi.amount
           : draft.totalMinor) || 0;
 
-    const payload = defined({
+    const payload = stripUndefinedDeep({
       id: orderId,
       userId,
       status: 'paid' as const,
@@ -763,7 +887,7 @@ export class OrdersService {
     await this.col()
       .doc(pi.id)
       .set(
-        defined({
+        stripUndefinedDeep({
           status: 'paid',
           linkedOrderId: orderId,
           shippingAddress: payload.shippingAddress,

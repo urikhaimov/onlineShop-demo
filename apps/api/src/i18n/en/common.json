@@ -1,5 +1,57 @@
 {
-  "greeting": "Hello",
-  "errors": { "unauthorized": "You are not authorized." },
-  "validation": { "name_required": "Name is required." }
+  "email": {
+    "order": {
+      "subject": {
+        "created": "Order {{id}} confirmed — {{amount}}",
+        "paid": "Payment received for {{id}} — {{amount}}"
+      },
+      "heading": "Thank you for your order!",
+      "received": "Order {{id}} was received successfully.",
+      "fields": {
+        "amount": "Amount",
+        "currency": "Currency",
+        "pi": "Payment Intent"
+      },
+      "invoice_link": "Download invoice (PDF)",
+      "questions": "If you have any questions, just reply to this email."
+    },
+    "update": {
+      "subject": {
+        "updated": "Order {{id}} updated",
+        "shipped": "Your order {{id}} was shipped",
+        "delivered": "Your order {{id}} was delivered",
+        "paid": "Your order {{id}} was paid",
+        "canceled": "Your order {{id}} was canceled",
+        "refunded": "Your order {{id}} was refunded",
+        "open": "Order {{id}} updated"
+      },
+      "heading": "Your order was updated.",
+      "body": "Your order {{id}} was updated.",
+      "fields": {
+        "status": "Status",
+        "provider": "Provider",
+        "tracking": "Tracking",
+        "eta": "ETA"
+      }
+    },
+    "refund": {
+      "subject": {
+        "full": "Refund issued for {{id}} — {{amount}}",
+        "partial": "Partial refund for {{id}} — {{amount}}"
+      },
+      "heading": {
+        "full": "Refund completed",
+        "partial": "Partial refund"
+      },
+      "body": "For order {{id}}."
+    }
+  },
+  "status": {
+    "open": "Open",
+    "paid": "Paid",
+    "shipped": "Shipped",
+    "delivered": "Delivered",
+    "canceled": "Canceled",
+    "refunded": "Refunded"
+  }
 }

@@ -1,6 +1,6 @@
 // src/pages/admin/orders/EditOrderPage.tsx
-import React, { useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -28,16 +28,166 @@ import OrderShipping from '../../../components/orders/OrderShipping';
 import OrderPayment from '../../../components/orders/OrderPayment';
 import OrderTimestamps from '../../../components/orders/OrderTimestamps';
 import { useForm, type SubmitHandler } from 'react-hook-form';
-import { ESTATUS_OPTIONS } from '@common/types';
 import PageCard from '@client/layouts/PageCard';
 
 import { useThemeStore } from '../../../stores/useThemeStore';
 import { getLayoutTokens } from '../../../utils/uiLayout';
 import { useSnackbar } from 'notistack';
 
-type UpdateOrderVars = Order & {
-  previousStatus?: Order['status'];
-};
+// Canonical statuses from shared types
+import {
+  ORDER_STATUS,
+  type TOrderStatus,
+  type StripePaymentIntentStatus,
+} from '@common/types';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Helpers / Normalizers (match Orders list expanded row)
+// ──────────────────────────────────────────────────────────────────────────────
+const ZERO_DEC = new Set([
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'JPY',
+  'KMF',
+  'KRW',
+  'MGA',
+  'PYG',
+  'RWF',
+  'UGX',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+]);
+
+function toMajorFromMinor(minor?: number, currency?: string) {
+  if (minor === null) return undefined;
+  const cur = (currency || '').toUpperCase();
+  return ZERO_DEC.has(cur) ? Math.round(minor) : minor / 100;
+}
+
+function statusToCanon(s?: string): TOrderStatus {
+  const raw = String(s ?? '').toLowerCase();
+  if (
+    [
+      'open',
+      'authorized',
+      'paid',
+      'shipped',
+      'delivered',
+      'refunded',
+      'canceled',
+    ].includes(raw)
+  ) {
+    return raw as TOrderStatus;
+  }
+  if (raw === 'pending') return 'open';
+  if (raw === 'confirmed') return 'paid';
+  if (raw === 'cancelled') return 'canceled';
+  if (raw === 'succeeded') return 'paid';
+  if (
+    [
+      'processing',
+      'requires_confirmation',
+      'requires_action',
+      'requires_capture',
+      'requires_payment_method',
+    ].includes(raw)
+  )
+    return 'open';
+  return 'open';
+}
+
+function deriveProviderStatus(canon: TOrderStatus): StripePaymentIntentStatus {
+  if (canon === 'paid') return 'succeeded';
+  if (canon === 'canceled') return 'canceled';
+  return 'processing';
+}
+
+function flattenShipping(order: Order) {
+  const s: any = (order as any).shippingAddress || {};
+  const addr = s.address || s || {};
+  return s || addr
+    ? {
+        fullName: s.name ?? (order as any).ownerName ?? undefined,
+        phone: s.phone ?? undefined,
+        street: addr.line1 ?? addr.line ?? addr.street ?? undefined,
+        city: addr.city ?? undefined,
+        postalCode: addr.postalCode ?? addr.postal_code ?? undefined,
+        country: (addr.country || '').toUpperCase() || undefined,
+      }
+    : undefined;
+}
+
+function normalizeForView(order: Order): Order {
+  const currency =
+    (order as any).currency ||
+    ((order as any).payment?.currency as string | undefined);
+
+  const totalFromMinor =
+    toMajorFromMinor(
+      (order as any).totalAmount ?? (order as any).totalMinor,
+      currency,
+    ) ?? undefined;
+
+  const totalFromTotalMajor: number | undefined = (order as any).totalMajor;
+
+  const total =
+    typeof (order as any).total === 'number'
+      ? (order as any).total
+      : typeof totalFromTotalMajor === 'number'
+        ? totalFromTotalMajor
+        : totalFromMinor;
+
+  const canon = statusToCanon((order as any).status);
+
+  const payment =
+    (order as any).payment && (order as any).payment.method
+      ? (order as any).payment
+      : {
+          method: 'card',
+          status: deriveProviderStatus(canon),
+          transactionId: (order as any).paymentIntentId,
+          currency,
+          receipt_email: (order as any).email ?? undefined,
+        };
+
+  return {
+    ...(order as any),
+    status: canon,
+    total,
+    currency,
+    shippingAddress: flattenShipping(order) ?? (order as any).shippingAddress,
+    payment,
+  } as Order;
+}
+
+/** FirestoreDate → ISO string (or undefined) for PATCH delivery.eta */
+function toIsoString(v: any): string | undefined {
+  if (v == null) return undefined;
+  if (typeof v === 'string') return v;
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v?.toDate === 'function') {
+    const d = v.toDate();
+    return d ? d.toISOString() : undefined;
+  }
+  if (typeof v?.seconds === 'number') {
+    const ms = v.seconds * 1000 + Math.round((v.nanoseconds || 0) / 1e6);
+    return new Date(ms).toISOString();
+  }
+  return undefined;
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
+type UpdateOrderVars = Partial<{
+  status: TOrderStatus;
+  notes: string | null;
+  delivery: { provider?: string; trackingNumber?: string; eta?: string };
+  notifyCustomer?: boolean;
+}>;
 
 type UpdateOrderMutation = {
   mutate: (
@@ -50,20 +200,25 @@ type UpdateOrderMutation = {
 
 export default function EditOrderPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { id } = useParams<{ id: string }>();
 
-  const { data: order, isLoading, isError, error } = useOrder(id);
+  const { data: rawOrder, isLoading, isError, error } = useOrder(id);
+  const order = useMemo(
+    () => (rawOrder ? normalizeForView(rawOrder) : undefined),
+    [rawOrder],
+  );
+
   const updateOrderMutation = useUpdateOrder(id) as UpdateOrderMutation;
 
-  // Keep most recent order in a ref (for previousStatus, etc.)
+  // Keep most recent *normalized* order
   const orderRef = useRef<Order | undefined>(order);
   useEffect(() => {
     orderRef.current = order;
   }, [order]);
 
-  // RHF v8: <TFieldValues, TContext, TTransformedValues>
-  // Explicitly set TTransformedValues = Order to align handleSubmit with SubmitHandler<Order>
+  // RHF v8
   const {
     control,
     handleSubmit,
@@ -74,22 +229,21 @@ export default function EditOrderPage() {
     mode: 'onChange',
     defaultValues: order ?? {
       id: id ?? '',
-      status: 'pending',
+      status: 'open' as TOrderStatus,
       notes: '',
       delivery: { provider: '', trackingNumber: '', eta: '' },
       items: [],
-      // DeepPartial<Order> allows omitting the rest; no `any` needed.
     },
   });
 
-  // keep form in sync after order loads
+  // keep form in sync after order loads (use normalized)
   useEffect(() => {
     if (order) reset(order);
   }, [order, reset]);
 
   const currentStatus = watch('status');
 
-  // submit guards + programmatic form submit (prevents double fire)
+  // submit guards + programmatic form submit
   const formRef = useRef<HTMLFormElement | null>(null);
   const submittingRef = useRef(false);
 
@@ -99,6 +253,30 @@ export default function EditOrderPage() {
 
     try {
       const previousStatus = orderRef.current?.status;
+
+      // Build a MINIMAL PATCH body that matches UpdateOrderDto on the server
+      const etaStr = toIsoString((formData as any).delivery?.eta);
+
+      const delivery =
+        formData?.delivery &&
+        (formData.delivery.provider ||
+          formData.delivery.trackingNumber ||
+          formData.delivery.eta)
+          ? {
+              provider: formData.delivery.provider || undefined,
+              trackingNumber: formData.delivery.trackingNumber || undefined,
+              eta: etaStr, // ensure string for server DTO
+            }
+          : undefined;
+
+      const notifyCustomer = previousStatus !== formData.status;
+
+      const patch: UpdateOrderVars = {
+        status: formData.status as TOrderStatus,
+        notes: formData.notes ?? null,
+        delivery,
+        notifyCustomer,
+      };
 
       const run =
         updateOrderMutation.mutateAsync ??
@@ -110,14 +288,17 @@ export default function EditOrderPage() {
             }),
           ));
 
-      await run({ ...formData, previousStatus });
+      await run(patch);
 
       enqueueSnackbar(
         t('orderEdit.success', {
           defaultValue: 'Order updated successfully!',
         }),
-        { variant: 'success', autoHideDuration: 4000 },
+        { variant: 'success', autoHideDuration: 3000 },
       );
+
+      // redirect back to orders list
+      navigate('/admin/orders');
     } catch (err) {
       const message =
         err instanceof Error
@@ -135,7 +316,7 @@ export default function EditOrderPage() {
       submittingRef.current = false;
       return;
     } finally {
-      // do not flip submittingRef back on success to avoid accidental re-submits
+      // keep submittingRef true on success to avoid accidental re-submits
     }
   };
 
@@ -190,7 +371,7 @@ export default function EditOrderPage() {
                   required
                   fullWidth
                 >
-                  {Object.values(ESTATUS_OPTIONS).map((value) => (
+                  {ORDER_STATUS.map((value) => (
                     <MenuItem key={value} value={value}>
                       {t(`status.${value}`, { defaultValue: value })}
                     </MenuItem>
@@ -284,11 +465,15 @@ export default function EditOrderPage() {
 
             {/* RIGHT SIDEBAR */}
             <Stack flex={1} spacing={2.5}>
-              <OrderCustomer order={order} />
-              <OrderShipping order={order} />
-              <OrderItems order={order} />
-              <OrderPayment order={order} />
-              <OrderTimestamps order={order} />
+              {order && (
+                <>
+                  <OrderCustomer order={order} />
+                  <OrderShipping order={order} />
+                  <OrderItems order={order} />
+                  <OrderPayment order={order} />
+                  <OrderTimestamps order={order} />
+                </>
+              )}
             </Stack>
           </Stack>
 
@@ -297,7 +482,6 @@ export default function EditOrderPage() {
             component="form"
             ref={formRef}
             onSubmit={(e) => {
-              // Let RHF handle preventDefault; we only stop propagation.
               e.stopPropagation();
               void submitHandler(e);
             }}
