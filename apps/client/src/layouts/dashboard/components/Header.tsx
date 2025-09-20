@@ -4,10 +4,8 @@ import Stack from '@mui/material/Stack';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import Badge from '@mui/material/Badge';
 import IconButton from '@mui/material/IconButton';
-import CustomDatePicker from './CustomDatePicker';
-import NavbarBreadcrumbs from './NavbarBreadcrumbs';
+
 import ColorModeIconDropdown from './ColorModeIconDropdown';
-import Search from './Search';
 import LanguageSwitcher from '../../../components/LanguageSwitcher'; // 👈 add this
 import BackgroundModeControl from '../../../components/background/BackgroundModeControl';
 import { useCartCount } from '../../../stores/useCartStore';
@@ -36,8 +34,8 @@ export default function Header() {
       {/* <NavbarBreadcrumbs /> */}
       <BackgroundModeControl />
       <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
-        <Search />
-        <CustomDatePicker />
+        {/* <Search />
+        <CustomDatePicker /> */}
 
         {/* 🌐 Language selector */}
         <LanguageSwitcher />
