@@ -315,6 +315,7 @@ export default function MyOrdersPage() {
     >
       <PageContainer data-testid="my-orders-page">
         {/* Sticky header */}
+        {/* Sticky header — match ProductsPage */}
         <Box
           sx={{
             position: 'sticky',
@@ -323,15 +324,11 @@ export default function MyOrdersPage() {
             bgcolor: stickyBg,
             backdropFilter: 'saturate(140%) blur(8px)',
             borderBottom: `1px solid ${stickyBorder}`,
-            py: gapY * 0.5,
+            py: Math.max(1, unit * 0.5),
             px: { xs: 1, sm: 2 },
             mb: 1,
             borderRadius: { xs: 0, sm: radius },
             boxShadow: stickyShadow,
-            display: 'flex',
-            gap: 1,
-            alignItems: 'center',
-            justifyContent: 'space-between',
           }}
         >
           <TopActionBar
@@ -341,28 +338,6 @@ export default function MyOrdersPage() {
             onResetFilters={resetAllFilters}
             buttonWidth={isSmDown ? 'auto' : 120 + 8 * (unit - 2)}
           />
-
-          <Button
-            variant="outlined"
-            onClick={() => setFiltersOpen(true)}
-            data-testid="btn-open-filters-aux"
-            aria-label={t('filters.open', 'Open filters')}
-            title={t('filters.open', 'Open filters')}
-            size="small"
-          >
-            {t('filters.open', 'Filter')}
-          </Button>
-
-          <Button
-            variant="outlined"
-            onClick={resetAllFilters}
-            data-testid="btn-reset-filters"
-            aria-label={t('filters.reset', 'Reset filters')}
-            title={t('filters.reset', 'Reset filters')}
-            size="small"
-          >
-            {t('filters.reset', 'Reset')}
-          </Button>
         </Box>
 
         <Divider sx={{ mb: 2, borderColor: dividerColor }} />

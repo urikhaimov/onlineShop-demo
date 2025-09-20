@@ -31,18 +31,9 @@ export default function Header() {
       }}
       spacing={2}
     >
-      {/* <NavbarBreadcrumbs /> */}
-      <BackgroundModeControl />
       <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
-        {/* <Search />
-        <CustomDatePicker /> */}
-
         {/* 🌐 Language selector */}
         <LanguageSwitcher />
-
-        {/* <MenuButton showBadge aria-label="Open notifications">
-          <NotificationsRoundedIcon />
-        </MenuButton> */}
 
         {/* 🛒 Cart Badge with click to open drawer */}
         <IconButton
@@ -59,7 +50,7 @@ export default function Header() {
             <ShoppingCartIcon data-testid="cart-icon" />
           </Badge>
         </IconButton>
-
+        <BackgroundModeControl />
         <ColorModeIconDropdown />
       </Stack>
     </Stack>
