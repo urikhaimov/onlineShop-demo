@@ -35,17 +35,6 @@ export default function AdminHeaderBar({
         </Stack>
 
         <Stack direction="row" spacing={1}>
-          {onReset && (
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={onReset}
-              startIcon={<RestartAltIcon />}
-              sx={BUTTON_SX}
-            >
-              Reset
-            </Button>
-          )}
           {rightActions}
         </Stack>
       </Stack>

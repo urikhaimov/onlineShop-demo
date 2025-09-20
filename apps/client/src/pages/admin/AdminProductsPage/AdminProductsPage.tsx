@@ -15,6 +15,7 @@ import {
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { createCategoryGroupHeader } from './CategoryGroupHeader';
@@ -456,18 +457,12 @@ export default function AdminProductsPage() {
             </Button>
 
             <Button
-              variant={reorderMode ? 'contained' : 'outlined'}
+              variant="outlined"
               size="small"
-              startIcon={<SwapVertIcon />}
-              onClick={() => setReorderMode((v) => !v)}
+              startIcon={<RestartAltIcon />}
+              onClick={resetAll}
             >
-              {reorderMode
-                ? t('adminProductsPage.reorderOn', {
-                    defaultValue: 'Reorder: ON',
-                  })
-                : t('adminProductsPage.reorderOff', {
-                    defaultValue: 'Reorder: OFF',
-                  })}
+              {t('filters.reset')}
             </Button>
           </Stack>
         </Box>
