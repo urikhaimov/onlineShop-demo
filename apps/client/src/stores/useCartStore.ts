@@ -18,7 +18,6 @@ type CartState = {
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
-  /** Programmatic full reset (used by logout/resetRegistry) */
   reset: () => void;
   hasItem: (id: string) => boolean;
   getCartTotal: (opts?: CartTotalOptions) => number;
@@ -26,19 +25,32 @@ type CartState = {
 };
 
 const PERSIST_KEY = 'cart-storage';
-const EXPIRATION_MS = 1000 * 60 * 60; // 1 hour
+const EXPIRATION_MS = 1000 * 60 * 60;
+
+// ── helpers ────────────────────────────────────────────────────────────────
+const toNum = (v: unknown, fb = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fb;
+};
+const toPosInt = (v: unknown, fb = 1) => {
+  const n = Math.trunc(toNum(v, fb));
+  return n > 0 ? n : fb;
+};
+const safeStock = (stock?: unknown) => {
+  const n = Number(stock);
+  return Number.isFinite(n) && n > 0 ? n : Number.POSITIVE_INFINITY;
+};
+const clampToStock = (qty: number, stock?: unknown) =>
+  Math.min(qty, safeStock(stock));
 
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => {
-      // Auto-expire items silently after 1h since last write
       if (typeof window !== 'undefined') {
         setInterval(() => {
           const savedAt = get()._persistedAt ?? 0;
-          const now = Date.now();
-          if (now - savedAt > EXPIRATION_MS && get().items.length > 0) {
-            set({ items: [], _persistedAt: now });
-            // console.log('🕒 Cart auto-cleared after 1 hour of inactivity');
+          if (Date.now() - savedAt > EXPIRATION_MS && get().items.length > 0) {
+            set({ items: [], _persistedAt: Date.now() });
           }
         }, 60_000);
       }
@@ -48,7 +60,7 @@ export const useCartStore = create<CartState>()(
         try {
           sessionStorage.removeItem(PERSIST_KEY);
         } catch {
-          /* noop */
+          // ignore
         }
       };
 
@@ -57,31 +69,32 @@ export const useCartStore = create<CartState>()(
 
         addToCart: (item) => {
           const now = Date.now();
-          const existing = get().items.find((i) => i.id === item.id);
-          if (existing) {
-            set({
-              items: get().items.map((i) =>
-                i.id === item.id
-                  ? {
-                      ...i,
-                      quantity: Math.min(
-                        i.quantity + (item.quantity ?? 1),
-                        i.stock,
-                      ),
-                    }
-                  : i,
-              ),
-              _persistedAt: now,
-            });
-          } else {
-            set({
+          const inc = toPosInt(item.quantity ?? 1, 1);
+          set((state) => {
+            const existing = state.items.find((i) => i.id === item.id);
+            if (existing) {
+              const nextQty = clampToStock(
+                toPosInt(existing.quantity, 1) + inc,
+                existing.stock,
+              );
+              return {
+                items: state.items.map((i) =>
+                  i.id === item.id ? { ...i, quantity: nextQty } : i,
+                ),
+                _persistedAt: now,
+              };
+            }
+            return {
               items: [
-                ...get().items,
-                { ...item, quantity: item.quantity ?? 1 },
+                ...state.items,
+                {
+                  ...(item as any),
+                  quantity: clampToStock(inc, (item as any).stock),
+                },
               ],
               _persistedAt: now,
-            });
-          }
+            };
+          });
         },
 
         removeFromCart: (id) => {
@@ -92,28 +105,20 @@ export const useCartStore = create<CartState>()(
         },
 
         updateQuantity: (id, quantity) => {
+          const q = clampToStock(
+            toPosInt(quantity, 1),
+            get().items.find((i) => i.id === id)?.stock,
+          );
           set({
             items: get().items.map((item) =>
-              item.id === id
-                ? { ...item, quantity: Math.min(quantity, item.stock) }
-                : item,
+              item.id === id ? { ...item, quantity: q } : item,
             ),
             _persistedAt: Date.now(),
           });
         },
 
-        clearCart: () => {
-          // optional UX signals—comment out if you don’t want them:
-          // alert('🧹 Zustand clearCart triggered');
-          // console.log('🛒 Cart cleared (Zustand + persist)');
-          doReset();
-        },
-
-        // Full reset used by logout/resetRegistry
-        reset: () => {
-          doReset();
-        },
-
+        clearCart: () => doReset(),
+        reset: () => doReset(),
         hasItem: (id) => get().items.some((item) => item.id === id),
 
         getCartTotal: ({
@@ -122,17 +127,13 @@ export const useCartStore = create<CartState>()(
           discount = 0,
         }: CartTotalOptions = {}) => {
           const subtotal = get().items.reduce((sum, item) => {
-            const price =
-              typeof item.price === 'string'
-                ? parseFloat(item.price)
-                : item.price;
-            return sum + price * item.quantity;
+            const price = toNum(item.price, 0);
+            const qty = toPosInt(item.quantity, 1);
+            return sum + price * qty;
           }, 0);
-
-          const tax = subtotal * taxRate;
-          const total = subtotal + shipping + tax - discount;
-
-          // return in cents (rounded, non-negative)
+          const tax = subtotal * toNum(taxRate, 0);
+          const total =
+            subtotal + toNum(shipping, 0) + tax - toNum(discount, 0);
           return Math.max(Math.round(total * 100), 0);
         },
       };
@@ -144,16 +145,11 @@ export const useCartStore = create<CartState>()(
       migrate: (persistedState, _version) => {
         const now = Date.now();
         const savedAt = (persistedState as CartState)._persistedAt ?? 0;
-        const expired = now - savedAt > EXPIRATION_MS;
-
-        if (expired) {
-          // console.log('🕒 Cart expired during sessionStorage migration');
+        if (now - savedAt > EXPIRATION_MS) {
           return { items: [], _persistedAt: now } as Partial<CartState>;
         }
-
         return persistedState as CartState;
       },
-      // Avoid persisting functions; only `items` and `_persistedAt` are stored by JSONStorage.
       partialize: (state) => ({
         items: state.items,
         _persistedAt: state._persistedAt,
@@ -162,9 +158,11 @@ export const useCartStore = create<CartState>()(
   ),
 );
 
-// Register this store's reset so AuthProvider can clear it on logout
+// Reset hook
 registerStoreReset(() => useCartStore.getState().reset());
 
-// Optional helper
+// Safe cart count (never NaN)
 export const useCartCount = () =>
-  useCartStore((state) => state.items.reduce((sum, i) => sum + i.quantity, 0));
+  useCartStore((state) =>
+    state.items.reduce((sum, i) => sum + toPosInt(i.quantity, 1), 0),
+  );

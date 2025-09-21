@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { Card, CardContent, Typography, Stack } from '@mui/material';
 import type { TOrder } from '@common/types';
+import { useLocaleFormatters } from '../../hooks/useLocale';
 
 const ZERO_DEC = new Set([
   'BIF',
@@ -23,7 +24,7 @@ const ZERO_DEC = new Set([
 ]);
 
 function toMajorFromMinor(minor?: number, currency?: string) {
-  if (minor === null) return undefined;
+  if (minor === null || minor === undefined) return undefined;
   const cur = (currency || '').toUpperCase();
   return ZERO_DEC.has(cur) ? Math.round(minor) : minor / 100;
 }
@@ -56,6 +57,12 @@ type Props = { order: TOrder };
 
 const OrderItems: React.FC<Props> = ({ order }) => {
   const items = order.items ?? [];
+  const currency = (order.currency ||
+    order.payment?.currency ||
+    'ILS') as string;
+
+  // Use locale-aware currency formatter that outputs the symbol (₪, $, €…)
+  const { formatCurrency } = useLocaleFormatters(currency);
 
   return (
     <Card variant="outlined">
@@ -72,18 +79,14 @@ const OrderItems: React.FC<Props> = ({ order }) => {
           <Stack spacing={0.75}>
             {items.map((i, idx) => (
               <Typography key={idx} variant="body2">
-                {i.quantity}× {i.name} —{' '}
-                {order.currency ?? order.payment?.currency ?? 'ILS'}{' '}
-                {i.price.toFixed(2)}
+                {i.quantity}× {i.name} — {formatCurrency(Number(i.price ?? 0))}
               </Typography>
             ))}
           </Stack>
         )}
 
         <Typography sx={{ mt: 1.25 }} fontWeight={600}>
-          Total:{' '}
-          {(order.currency ?? order.payment?.currency ?? 'ILS').toUpperCase()}{' '}
-          {displayTotal(order).toFixed(2)}
+          Total: {formatCurrency(displayTotal(order))}
         </Typography>
       </CardContent>
     </Card>

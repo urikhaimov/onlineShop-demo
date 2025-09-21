@@ -1,4 +1,4 @@
-// src/pages/ProductsPage/ProductsPage.tsx  (adjust the path if yours differs)
+// src/pages/ProductsPage/ProductsPage.tsx
 import * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Divider, useMediaQuery, useTheme } from '@mui/material';
@@ -166,11 +166,35 @@ export default function ProductsPage() {
     [searchTerm, selectedCategoryId, minPrice, maxPrice, minStock, maxStock],
   );
 
+  // ✅ Force fresh data whenever the page mounts or regains focus/connection.
   const {
     data: productsResp,
     isLoading: productsLoading,
     error: productsError,
-  } = useProductsQuery(apiFilters, { enabled: !!user && !authLoading });
+    refetch,
+  } = useProductsQuery(apiFilters, {
+    enabled: !!user && !authLoading,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: 'always',
+    // keepPreviousData helps prevent UI flicker during refetch
+    keepPreviousData: true,
+  });
+
+  // Extra safety: refetch when tab becomes visible (some wrappers disable focus refetch)
+  useEffect(() => {
+    const onFocus = () => refetch();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refetch();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [refetch]);
 
   const products: IProduct[] = productsResp?.items ?? [];
   const busy = loading || authLoading || productsLoading;

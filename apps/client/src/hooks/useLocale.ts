@@ -5,7 +5,7 @@ import {
   makeDateTimeFormatter,
 } from '../utils/columns.util';
 import { useTranslation } from 'react-i18next';
-import { CDefaultCurrency } from '@common/types';
+import { CDefaultCurrency, ECurrency } from '@common/types';
 
 /** Normalize a language string (e.g., "en-US" → "en") with memoization */
 export function useLocale() {
@@ -15,14 +15,18 @@ export function useLocale() {
   return useMemo(() => getLocale(lang), [lang]);
 }
 
-/** Locale-aware memoized formatters (currency + datetime) */
-export function useLocaleFormatters(currency = CDefaultCurrency) {
+/** Locale-aware memoized formatters (currency symbol + datetime) */
+export function useLocaleFormatters(
+  currency: string | ECurrency = CDefaultCurrency as unknown as ECurrency,
+) {
   const lng = useLocale();
 
   const formatCurrency = useMemo(
-    () => makeCurrencyFormatter(currency),
-    [currency],
+    () =>
+      makeCurrencyFormatter(String(currency), lng, { display: 'narrowSymbol' }),
+    [currency, lng],
   );
+
   const formatDateTime = useMemo(() => makeDateTimeFormatter(lng), [lng]);
 
   return { lng, formatCurrency, formatDateTime };

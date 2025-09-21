@@ -1,3 +1,5 @@
+// apps/client/src/components/cart.drawer.tsx
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,7 +19,9 @@ import { useSwipeable } from 'react-swipeable';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 
-import { IProduct } from '@common/types';
+import { IProduct, CDefaultCurrency } from '@common/types';
+import { useLocaleFormatters } from '../hooks/useLocale';
+
 export type CartItem = IProduct & { quantity: number };
 
 interface CartDrawerProps {
@@ -25,24 +29,47 @@ interface CartDrawerProps {
   onClose: () => void;
 }
 
+// ── helpers ─────────────────────────────────────────────────────────────────
+const toNum = (v: unknown, fallback = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+const toPosInt = (v: unknown, fallback = 1) => {
+  const n = Math.trunc(toNum(v, fallback));
+  return n > 0 ? n : fallback;
+};
+
 function SwipeableCartItem({
   item,
   onRemove,
   onUpdate,
   showToast,
+  formatCurrency,
 }: {
   item: CartItem;
   onRemove: () => void;
-  onUpdate: (quantity: number) => void;
+  onUpdate: (quantity: number) => void; // absolute qty
   showToast: (msg: string) => void;
+  formatCurrency: (n: number) => string;
 }) {
   const { t } = useTranslation();
-  const handlers = useSwipeable({
-    onSwipedLeft: onRemove,
-    delta: 50,
-  });
+  const handlers = useSwipeable({ onSwipedLeft: onRemove, delta: 50 });
 
-  const formattedPrice = Number(item.price).toFixed(2);
+  // Sanitize live values (avoid NaN poisoning)
+  const qty = toPosInt(item.quantity, 1);
+  const stock = toPosInt(item.stock ?? Infinity, Infinity);
+  const priceMajor = toNum(item.price, 0);
+
+  const dec = () => {
+    const next = Math.max(1, qty - 1);
+    onUpdate(next);
+    showToast(t('cart.decreaseToast', { name: item.name }));
+  };
+  const inc = () => {
+    const next = Math.min(stock, qty + 1);
+    onUpdate(next); // first click -> 2
+    showToast(t('cart.increaseToast', { name: item.name }));
+  };
 
   return (
     <Fade in>
@@ -61,7 +88,8 @@ function SwipeableCartItem({
       >
         <ListItemText
           primary={item.name}
-          secondary={`$${formattedPrice} × ${item.quantity}`}
+          // RTL will visually reorder, numeric values stay correct
+          secondary={`${qty} × ${formatCurrency(priceMajor)}`}
         />
         <Box
           sx={{
@@ -83,22 +111,16 @@ function SwipeableCartItem({
             }}
           >
             <Button
-              onClick={() => {
-                onUpdate(item.quantity - 1);
-                showToast(t('cart.decreaseToast', { name: item.name }));
-              }}
-              disabled={item.quantity <= 1}
+              onClick={dec}
+              disabled={qty <= 1}
               sx={{ minWidth: 32, px: 0 }}
             >
               -
             </Button>
-            <Typography sx={{ px: 2 }}>{item.quantity}</Typography>
+            <Typography sx={{ px: 2 }}>{qty}</Typography>
             <Button
-              onClick={() => {
-                onUpdate(item.quantity + 1);
-                showToast(t('cart.increaseToast', { name: item.name }));
-              }}
-              disabled={item.quantity >= item.stock}
+              onClick={inc}
+              disabled={qty >= stock}
               sx={{ minWidth: 32, px: 0 }}
             >
               +
@@ -108,10 +130,7 @@ function SwipeableCartItem({
             variant="outlined"
             color="error"
             size="small"
-            onClick={() => {
-              onRemove();
-              showToast(t('cart.removedToast', { name: item.name }));
-            }}
+            onClick={onRemove}
           >
             {t('cart.remove')}
           </Button>
@@ -130,13 +149,23 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeFromCart = useCartStore((s) => s.removeFromCart);
   const clearCart = useCartStore((s) => s.clearCart);
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.price, 0);
+
+  // Safe subtotal; fallback qty = 1 to match UI
+  const subtotal = items.reduce((sum, i) => {
+    const qty = toPosInt(i.quantity, 1);
+    const price = toNum(i.price, 0);
+    return sum + qty * price;
+  }, 0);
+
+  // Locale-aware currency (₪, $, €, …)
+  const { formatCurrency } = useLocaleFormatters(CDefaultCurrency);
 
   const noop = () => undefined;
   const showToast = (message: string) =>
     enqueueSnackbar(message, { variant: 'info', autoHideDuration: 2500 });
   const isE2E =
     typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true;
+
   return (
     <SwipeableDrawer
       anchor="right"
@@ -180,11 +209,17 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
             <List>
               {items.map((item) => (
                 <SwipeableCartItem
-                  key={item.id}
+                  key={String(item.id)} // use item.id
                   item={item}
-                  onRemove={() => removeFromCart(item.id)}
-                  onUpdate={(qty) => updateQuantity(item.id, qty)}
+                  onRemove={() => {
+                    removeFromCart(item.id); // use item.id
+                    showToast(t('cart.removedToast', { name: item.name }));
+                  }}
+                  onUpdate={
+                    (newQty) => updateQuantity(item.id, toPosInt(newQty, 1)) // use item.id
+                  }
                   showToast={showToast}
+                  formatCurrency={formatCurrency}
                 />
               ))}
             </List>
@@ -195,7 +230,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
 
         <Box sx={{ p: 2 }}>
           <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            {t('cart.total')}: ${subtotal.toFixed(2)}
+            {t('cart.total')}: {formatCurrency(subtotal)}
           </Typography>
           <Button
             variant="contained"
@@ -203,10 +238,9 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
             fullWidth
             sx={{ mb: 1 }}
             data-testid="checkout"
-            disabled={!isE2E && items.length === 0} // <-- only disable outside E2E
+            disabled={!isE2E && items.length === 0}
             onClick={() => {
               if (!isE2E) onClose();
-
               navigate('/checkout');
             }}
           >

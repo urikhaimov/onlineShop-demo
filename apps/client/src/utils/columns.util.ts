@@ -48,8 +48,85 @@ function toFiniteNumber(v: unknown): number | undefined {
   return undefined;
 }
 
-/** Currency formatter that safely handles unknown/undefined inputs. */
-export function makeCurrencyFormatter(symbol: string = CDefaultCurrencySymbol) {
+// ────────────────────────────────────────────────────────────────────────────
+// Currency formatting (symbol-first, with safe fallbacks)
+// ────────────────────────────────────────────────────────────────────────────
+
+type CurrencyDisplay = 'symbol' | 'narrowSymbol' | 'code' | 'name';
+
+const FALLBACK_SYMBOL: Record<string, string> = {
+  ILS: '₪',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+  CNY: '¥',
+  INR: '₹',
+  RUB: '₽',
+  KRW: '₩',
+  AUD: 'A$',
+  CAD: 'C$',
+};
+
+function isCurrencyCode(s: string): boolean {
+  return /^[A-Za-z]{3}$/.test(s);
+}
+
+function currencySymbolFrom(code: string): string {
+  return (
+    FALLBACK_SYMBOL[code.toUpperCase()] ??
+    CDefaultCurrencySymbol ??
+    code.toUpperCase()
+  );
+}
+
+/**
+ * Currency formatter. Accepts either a 3-letter currency **code** (e.g., "ILS")
+ * or a literal **symbol** (e.g., "₪"). When a code is provided, it uses Intl
+ * with `currencyDisplay: 'narrowSymbol'` and replaces any lingering code with
+ * a known symbol as a fallback.
+ */
+export function makeCurrencyFormatter(
+  currencyOrSymbol: string = CDefaultCurrencySymbol,
+  locale?: string,
+  opts?: {
+    display?: CurrencyDisplay; // default: 'narrowSymbol'
+    minFrac?: number; // default: 2
+    maxFrac?: number; // default: 2
+  },
+) {
+  const loc =
+    locale || (typeof navigator !== 'undefined' ? navigator.language : 'en');
+
+  // If caller passed a 3-letter code → use Intl
+  if (isCurrencyCode(currencyOrSymbol)) {
+    const code = currencyOrSymbol.toUpperCase();
+    const fmt = new Intl.NumberFormat(loc, {
+      style: 'currency',
+      currency: code,
+      currencyDisplay: opts?.display ?? 'narrowSymbol',
+      minimumFractionDigits: opts?.minFrac ?? 2,
+      maximumFractionDigits: opts?.maxFrac ?? 2,
+    });
+
+    return (value: unknown): string => {
+      const n = toFiniteNumber(value);
+      if (n === undefined) return DASH;
+
+      let out = fmt.format(n);
+
+      // Fallback: If some locales still yield the code (e.g., "ILS 4.00"),
+      // replace it with a known symbol.
+      if (/\b[A-Z]{3}\b/.test(out)) {
+        out = out.replace(code, currencySymbolFrom(code));
+      }
+
+      return out;
+    };
+  }
+
+  // Otherwise treat input as a literal symbol
+  const symbol = currencyOrSymbol || CDefaultCurrencySymbol || '';
   return (value: unknown): string => {
     const n = toFiniteNumber(value);
     return n === undefined ? DASH : `${symbol} ${n.toFixed(2)}`;
