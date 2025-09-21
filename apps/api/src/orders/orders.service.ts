@@ -9,6 +9,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { adminDb } from '@common/firebase';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { DocumentSnapshot } from 'firebase-admin/firestore';
 import { MailerService } from '../mailer/mailer.service';
 import { InvoiceService } from '../invoice/invoice.service';
 
@@ -121,6 +123,176 @@ export class OrdersService {
     return adminDb.collection('orders');
   }
 
+  private productsCol() {
+    return adminDb.collection('products');
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Stock helpers
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Idempotently decrement stock for all items in the order.
+   * Writes `stockDecrementedAt` on the order to ensure single-apply semantics.
+   */
+  private async decrementStockForOrder(orderId: string, items: any[] = []) {
+    if (!Array.isArray(items) || items.length === 0) {
+      this.logger.warn(`decrementStockForOrder: no items for ${orderId}`);
+      await this.col()
+        .doc(orderId)
+        .set(
+          { stockDecrementedAt: nowIso(), updatedAt: nowIso() },
+          { merge: true },
+        );
+      return { updated: 0, skipped: items.length, errors: 0 };
+    }
+
+    // Aggregate quantities per product (handles duplicates in cart)
+    const qtyById = new Map<string, number>();
+    for (const it of items) {
+      const productId = String(it.productId || it.id || '').trim();
+      const qty = Math.max(0, Number(it.quantity ?? it.qty ?? 1) || 0);
+      if (!productId || qty <= 0) continue;
+      qtyById.set(productId, (qtyById.get(productId) || 0) + qty);
+    }
+    const productIds = [...qtyById.keys()];
+    if (productIds.length === 0) {
+      await this.col()
+        .doc(orderId)
+        .set(
+          { stockDecrementedAt: nowIso(), updatedAt: nowIso() },
+          { merge: true },
+        );
+      return { updated: 0, skipped: items.length, errors: 0 };
+    }
+
+    const res = await adminDb.runTransaction(async (tx) => {
+      const orderRef = this.col().doc(orderId);
+
+      // ── PHASE A: READS (all reads BEFORE any writes)
+      const orderSnap = await tx.get(orderRef);
+      const already = orderSnap.exists && orderSnap.get('stockDecrementedAt');
+      if (already) return { updated: 0, skipped: 0, errors: 0, already: true };
+
+      const productRefs = productIds.map((id) => this.productsCol().doc(id));
+      const snaps: DocumentSnapshot[] = await Promise.all(
+        productRefs.map((r) => tx.get(r)),
+      );
+
+      // ── PHASE B: WRITES
+      let updated = 0,
+        errors = 0;
+      const skipped = 0;
+
+      snaps.forEach((snap, i) => {
+        const ref = productRefs[i];
+        const id = ref.id;
+        const need = qtyById.get(id)!;
+
+        if (!snap.exists) {
+          this.logger.warn(
+            `decrementStockForOrder: missing product ${id} (order=${orderId})`,
+          );
+          errors++;
+          return;
+        }
+
+        const curr = snap.data() as any;
+        const stock = Math.max(0, Number(curr?.stock ?? 0));
+        const newStock = Math.max(0, stock - need);
+
+        // If you want strict enforcement, throw when stock < need.
+        tx.update(ref, {
+          stock: newStock,
+          sold: FieldValue.increment(need),
+          updatedAt: nowIso(),
+        });
+        updated++;
+      });
+
+      tx.set(
+        orderRef,
+        { stockDecrementedAt: nowIso(), updatedAt: nowIso() },
+        { merge: true },
+      );
+      return { updated, skipped, errors, already: false };
+    });
+
+    const note = (res as any).already ? 'already-decremented' : 'decremented';
+    this.logger.log(
+      `stock ${note} for ${orderId}: updated=${res.updated} skipped=${res.skipped} errors=${res.errors}`,
+    );
+    return res;
+  }
+
+  /**
+   * Minimal email sender for non-Stripe/manual-paid cases.
+   * Uses MailerService if available; de-dupes via `receiptSentAt`.
+   */
+  private async sendManualReceiptIfNeeded(order: any) {
+    try {
+      if (!this.mailer?.sendOrderConfirmation) return;
+
+      const ref = this.col().doc(order.id);
+      const snap = await ref.get();
+      const already =
+        snap.exists && (snap.get('receiptSentAt') as string | undefined);
+      if (already) {
+        this.logger.log(`receipt already sent for ${order.id} @ ${already}`);
+        return;
+      }
+
+      const to = this.getEmailFromOrder(order);
+      if (!to) {
+        this.logger.warn(`no recipient email for order ${order.id}`);
+        return;
+      }
+
+      let invoiceUrl: string | undefined;
+      try {
+        if (this.invoice?.ensureInvoice) {
+          const inv = await this.invoice.ensureInvoice(order.id, {
+            force: false,
+          });
+          invoiceUrl = inv?.url;
+        }
+      } catch (e) {
+        this.logger.warn(
+          `ensureInvoice failed for ${order.id}: ${(e as Error).message}`,
+        );
+      }
+
+      const currency = (order?.currency || order?.payment?.currency || 'ILS')
+        .toString()
+        .toUpperCase();
+      const amountMinor = Number(
+        order?.totalMinor ??
+          order?.payment?.totalMinor ??
+          Math.round((order?.total || 0) * 100),
+      );
+
+      await this.mailer.sendOrderConfirmation(to, {
+        orderId: String(order.id),
+        amount: amountMinor || 0,
+        currency,
+        paymentIntentId:
+          order?.paymentIntentId || order?.payment?.transactionId,
+        created: false,
+        invoiceUrl,
+      });
+
+      await ref.set(
+        { receiptSentAt: nowIso(), updatedAt: nowIso() },
+        { merge: true },
+      );
+      this.logger.log(`receipt sent for ${order.id} → ${to}`);
+    } catch (e) {
+      this.logger.warn(
+        `sendManualReceiptIfNeeded failed for ${order?.id}: ${(e as Error).message}`,
+      );
+    }
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // Queries
   // ───────────────────────────────────────────────────────────────────────────
@@ -204,6 +376,13 @@ export class OrdersService {
 
     await ref.set(payload, { merge: true });
     this.logger.log(`createOrder ${ref.id} → ${payload.status}`);
+
+    // If created as PAID (manual/admin path), decrement & email
+    if (payload.status === 'paid') {
+      await this.decrementStockForOrder(ref.id, payload.items || []);
+      await this.sendManualReceiptIfNeeded({ id: ref.id, ...payload });
+    }
+
     return payload;
   }
 
@@ -215,17 +394,40 @@ export class OrdersService {
     if (byUserId && curr.userId && curr.userId !== byUserId) {
       throw new ForbiddenException();
     }
+
+    const prevStatus: OrderStatus = curr.status as OrderStatus;
+    const nextStatus: OrderStatus = (dto.status ?? prevStatus) as OrderStatus;
+
     const payload = stripUndefinedDeep({ ...dto, updatedAt: nowIso() });
     await ref.set(payload, { merge: true });
     this.logger.log(`updateOrder ${id}`);
-    const after = await ref.get();
-    return { id, ...(after.data() as any) };
+    const afterSnap = await ref.get();
+    const after = { id, ...(afterSnap.data() as any) };
+
+    // If status moved to PAID, do the side-effects
+    if (prevStatus !== 'paid' && nextStatus === 'paid') {
+      await this.decrementStockForOrder(id, after.items || []);
+      await this.sendManualReceiptIfNeeded(after);
+    }
+
+    return after;
   }
 
   async updateStatus(orderId: string, status: OrderStatus) {
     const ref = this.col().doc(orderId);
+    const before = await ref.get();
+    const prevStatus: OrderStatus = (before.data() as any)?.status;
+
     await ref.set({ status, updatedAt: nowIso() }, { merge: true });
     this.logger.log(`Order ${orderId} → ${status}`);
+
+    // If this call flips to PAID (e.g., from a webhook handler), also decrement
+    if (prevStatus !== 'paid' && status === 'paid') {
+      const afterSnap = await ref.get();
+      const order = { id: orderId, ...(afterSnap.data() as any) };
+      await this.decrementStockForOrder(orderId, order.items || []);
+      // Email handled in Stripe path by sendReceiptIfNeeded; here we do nothing.
+    }
   }
 
   async markPaidByPaymentIntentId(paymentIntentId: string) {
@@ -666,19 +868,40 @@ export class OrdersService {
 
       const ref = this.col().doc(orderId);
       const snap = await ref.get();
-      const already =
-        snap.exists && (snap.get('receiptSentAt') as string | undefined);
-      if (already) {
-        this.logger.log(`receipt already sent for ${orderId} @ ${already}`);
+
+      const alreadyAt = snap.exists
+        ? (snap.get('receiptSentAt') as string | undefined)
+        : undefined;
+      const alreadyFor = snap.exists
+        ? (snap.get('receiptSentFor') as string | undefined)
+        : undefined;
+
+      // ✅ Only skip if we've already sent for THIS payment intent
+      if (alreadyAt && alreadyFor === pi.id) {
+        this.logger.log(
+          `receipt already sent for ${orderId} (pi=${pi.id}) @ ${alreadyAt}`,
+        );
         return;
       }
 
-      const to = await this.getRecipientEmail({ pi, draft });
+      // Resolve recipient
+      const charge =
+        typeof pi.latest_charge === 'string' ? undefined : pi.latest_charge;
+      const to =
+        (pi.metadata?.email as string | undefined) ||
+        (pi.receipt_email as string | undefined) ||
+        (charge?.billing_details?.email as string | undefined) ||
+        (draft?.customer?.email as string | undefined) ||
+        (draft?.email as string | undefined);
+
       if (!to) {
-        this.logger.warn(`no recipient email for order ${orderId}`);
+        this.logger.warn(
+          `no recipient email for order ${orderId} (pi=${pi.id})`,
+        );
         return;
       }
 
+      // Optional: try to mint an invoice; failure is non-fatal
       let invoiceUrl: string | undefined;
       try {
         if (this.invoice?.ensureInvoice) {
@@ -706,10 +929,15 @@ export class OrdersService {
       });
 
       await ref.set(
-        { receiptSentAt: nowIso(), updatedAt: nowIso() },
+        {
+          receiptSentAt: nowIso(),
+          receiptSentFor: pi.id, // bind to this transaction
+          updatedAt: nowIso(),
+        },
         { merge: true },
       );
-      this.logger.log(`receipt sent for order ${orderId} → ${to}`);
+
+      this.logger.log(`receipt sent for ${orderId} (pi=${pi.id}) → ${to}`);
     } catch (e) {
       this.logger.warn(
         `sendReceiptIfNeeded failed for ${orderId}: ${(e as Error).message}`,
@@ -753,7 +981,6 @@ export class OrdersService {
         typeof (this.mailer as any)?.sendOrderUpdate === 'function';
 
       if (hasUpdateTemplate) {
-        // ✅ keep `this` bound to MailerService so `this.escape` works
         await (this.mailer as any).sendOrderUpdate.call(this.mailer, to, ctx);
       } else if (this.mailer.sendOrderConfirmation) {
         // Fallback: reuse confirmation template (minimal info)
@@ -774,7 +1001,6 @@ export class OrdersService {
           created: false,
         });
       } else {
-        // Last resort: try a generic HTML sender if present
         const sendRaw = (this.mailer as any).sendRaw as
           | ((args: {
               to: string;
@@ -899,7 +1125,10 @@ export class OrdersService {
 
     await this.cleanupOldDrafts(userId, orderId, true);
 
-    // ✅ Send receipt here (hybrid approach); webhook will de-dupe via receiptSentAt
+    // ✅ Decrement stock ONCE
+    await this.decrementStockForOrder(orderId, payload.items || []);
+
+    // ✅ Send receipt (hybrid approach); de-duped via receiptSentAt/receiptSentFor
     await this.sendReceiptIfNeeded(orderId, pi, draft);
 
     this.logger.log(`createOrderFromIntentById ${orderId} ← ${pi.status}`);

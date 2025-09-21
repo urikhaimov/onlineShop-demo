@@ -1,4 +1,3 @@
-// src/orders/orders.controller.ts
 import {
   BadRequestException,
   Controller,
@@ -308,7 +307,7 @@ export class OrdersController {
       req.user.uid,
     );
 
-    // Optional hook: if your service implements notifyCustomer, call it safely
+    // Optional: notify customer (uses your service-level dedupe logic)
     if (dto.notifyCustomer && (this.ordersService as any)?.notifyCustomer) {
       try {
         await (this.ordersService as any).notifyCustomer(
