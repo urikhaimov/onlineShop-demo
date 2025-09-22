@@ -12,15 +12,10 @@ import { useThemeStore } from '../../stores/useThemeStore';
 import { useSnackbar } from 'notistack';
 import api from '../../api/axiosInstance';
 
-// Global registries to survive StrictMode double-mounts & cross-components
+// Global registry to survive StrictMode double-mounts & cross-components
 const CONFIRM_RUNS: Set<string> =
   typeof window !== 'undefined'
     ? ((window as any).__piConfirmRuns ||= new Set<string>())
-    : new Set<string>();
-
-const INV_RUNS: Set<string> =
-  typeof window !== 'undefined'
-    ? ((window as any).__piInventoryRuns ||= new Set<string>())
     : new Set<string>();
 
 export default function CheckoutSuccessPage() {
@@ -34,49 +29,53 @@ export default function CheckoutSuccessPage() {
   const radius = (themeSettings?.borderRadius as number | undefined) ?? 8;
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
 
-  // One-shot: confirm server-side (creates final order if needed)
+  // One-shot: confirm server-side (creates final order, decrements stock, emails)
   React.useEffect(() => {
     if (!paymentIntentId) return;
     if (CONFIRM_RUNS.has(paymentIntentId)) return;
     CONFIRM_RUNS.add(paymentIntentId);
 
     let cancelled = false;
+
     (async () => {
       try {
-        await api.post('/orders/confirm', { paymentIntentId });
-        // Best-effort inventory confirm (idempotent on server)
-        if (!INV_RUNS.has(paymentIntentId)) {
-          INV_RUNS.add(paymentIntentId);
-          try {
-            await api.post('/orders/confirm-inventory', { paymentIntentId });
-          } catch (invErr: any) {
-            if (!cancelled) {
-              const msg =
-                invErr?.response?.data?.message ??
-                invErr?.message ??
-                t('checkoutSuccess.errors.inventory', {
-                  defaultValue:
-                    'The order was confirmed, but updating stock failed. Our team will review.',
-                });
-              enqueueSnackbar(String(msg), {
-                variant: 'warning',
-                autoHideDuration: 6000,
-              });
-            }
-          }
+        const { data } = await api.post('/orders/confirm', { paymentIntentId });
+
+        // Optional UX sugar
+        if (!cancelled && data?.status === 'succeeded') {
+          enqueueSnackbar(
+            t('checkoutSuccess.confirmed', {
+              defaultValue: 'Order confirmed ✅',
+            }),
+            { variant: 'success', autoHideDuration: 3500 },
+          );
         }
       } catch (err: any) {
-        if (cancelled) return;
-        const msg =
-          err?.response?.data?.message ??
-          err?.message ??
-          t('checkoutSuccess.errors.generic', {
-            defaultValue: 'Something went wrong during order confirmation.',
+        // Fallback: if confirm failed for any transient reason, check public status
+        try {
+          const { data: pub } = await api.get(
+            `/orders/public/${paymentIntentId}`,
+          );
+          if (!cancelled && pub?.state === 'paid') {
+            // It's actually paid; nothing else to do.
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
+
+        if (!cancelled) {
+          const msg =
+            err?.response?.data?.message ??
+            err?.message ??
+            t('checkoutSuccess.errors.generic', {
+              defaultValue: 'Something went wrong during order confirmation.',
+            });
+          enqueueSnackbar(String(msg), {
+            variant: 'error',
+            autoHideDuration: 6000,
           });
-        enqueueSnackbar(String(msg), {
-          variant: 'error',
-          autoHideDuration: 6000,
-        });
+        }
       }
     })();
 

@@ -119,7 +119,7 @@ export class OrdersController {
     body: {
       amount: number; // MINOR
       currency?: string; // 'ILS'
-      cart?: any[]; // accepts the richer cart you send from the client
+      cart?: any[]; // richer cart from client
       shipping?: number; // MAJOR
       taxRate?: number; // fraction (e.g., 0.17)
       discount?: number; // MINOR
@@ -132,8 +132,9 @@ export class OrdersController {
       phone?: string | null;
       shippingAddress?: Record<string, any> | null;
       metadata?: Record<string, any>;
-      // optional client-provided idempotency key (safe to pass through)
-      idempotencyKey?: string | null;
+      // idempotency controls:
+      idempotencyKey?: string | null; // explicit override
+      nonce?: string | null; // ⬅️ new: per-checkout unique value to force a fresh PI
     },
   ) {
     const currencyUpper = (body.currency ?? 'ILS').toUpperCase();
@@ -141,11 +142,10 @@ export class OrdersController {
     const amountMinor = clampMinorForCurrency(minorRaw, currencyUpper);
     const totalMajor = minorToMajor(amountMinor, currencyUpper);
 
-    // Cart signature participates in (client-visible) key
+    // Cart signature participates in key
     const sig = cartSignature(body.cart ?? []);
 
-    // Normalize extras that can change while amount/cart stay same — include
-    // them in the key so Stripe doesn't raise `idempotency_error`.
+    // Include extras so Stripe doesn’t trip idempotency mismatch
     const shipMinor = Math.max(
       0,
       Math.round(((body.shipping ?? 0) as number) * 100),
@@ -153,14 +153,17 @@ export class OrdersController {
     const taxBps = Math.round(((body.taxRate ?? 0) as number) * 10_000); // 0.17 -> 1700 bps
     const discountMinor = Math.max(0, Math.round(Number(body.discount) || 0));
 
-    // Prefer caller key if given, otherwise compose a stable key with extras.
-    // Example: pi-ILS-299-<sig>::s599-t1700-d300
+    // Prefer caller key if given; otherwise compose a stable key + optional nonce
+    // Example: pi-ILS-299-<sig>::s599-t1700-d300-n<uuid>
     const composedKey = `${composePIIdempotencyKey({
       uid: req.user.uid,
       currency: currencyUpper,
       amountMinor,
       cartSig: sig,
-    })}::s${shipMinor}-t${taxBps}-d${discountMinor}`;
+    })}::s${shipMinor}-t${taxBps}-d${discountMinor}${
+      body.nonce ? `-n${body.nonce}` : ''
+    }`;
+
     const idempotencyKey = (body.idempotencyKey || composedKey).slice(0, 255);
 
     this.logger.log(
@@ -280,6 +283,31 @@ export class OrdersController {
     });
   }
 
+  /**
+   * Best-effort post-success inventory/email ensure (idempotent).
+   * Used by the client after returning from Stripe success page.
+   */
+  @Post('confirm-inventory')
+  @Roles('user', 'admin', 'superadmin')
+  async confirmInventory(
+    @Req() req: AuthedRequest,
+    @Body() body: { paymentIntentId: string },
+  ) {
+    const paymentIntentId = (body?.paymentIntentId || '').trim();
+    if (!isValidPaymentIntentId(paymentIntentId)) {
+      throw new BadRequestException('Valid paymentIntentId is required');
+    }
+    this.logger.log(
+      `POST /orders/confirm-inventory uid=${req.user.uid} pi=${paymentIntentId}`,
+    );
+    // This call is safe: it’s idempotent and will only decrement once + dedupe email
+    const order = await this.ordersService.createOrderFromIntentById(
+      paymentIntentId,
+      req.user.uid,
+    );
+    return { ok: true, orderId: order.id, status: order.status };
+  }
+
   // PATCH (used by Admin Edit page)
   @Patch(':id')
   @Roles('admin', 'superadmin')
@@ -307,7 +335,7 @@ export class OrdersController {
       req.user.uid,
     );
 
-    // Optional: notify customer (uses your service-level dedupe logic)
+    // Optional: notify customer
     if (dto.notifyCustomer && (this.ordersService as any)?.notifyCustomer) {
       try {
         await (this.ordersService as any).notifyCustomer(
