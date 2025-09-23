@@ -1,0 +1,6 @@
+// libs/email-templates/tsconfig.json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]
+}

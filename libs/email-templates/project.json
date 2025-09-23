@@ -1,0 +1,17 @@
+{
+  "name": "email-templates",
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{workspaceRoot}/dist/libs/email-templates"],
+      "options": {
+        "main": "libs/email-templates/src/index.ts",
+        "platform": "node",
+        "format": ["cjs"],
+        "outputPath": "dist/libs/email-templates",
+        "tsConfig": "libs/email-templates/tsconfig.lib.json",
+        "external": ["uglify-js", "uglify-js/*", "mjml", "handlebars"]
+      }
+    }
+  }
+}

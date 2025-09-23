@@ -1,0 +1,40 @@
+<mj-section>
+  <mj-column>
+    <mj-text font-size="20px" font-weight="700" align="{{alignStart}}">
+      {{#if isHebrew}}תשלום אושר{{else}}Payment Received{{/if}}
+    </mj-text>
+    <mj-text align="{{alignStart}}">
+      {{#if isHebrew}}
+      שלום {{ firstName }}, התשלום עבור ההזמנה {{ orderId }} התקבל בהצלחה.
+      {{else}}
+      Hi {{ firstName }}, your payment for order {{ orderId }} was successful.
+      {{/if}}
+    </mj-text>
+
+    <mj-raw>
+      <table class="summary" width="100%" dir="{{ dir }}"> <tr> <td align="{{
+        alignStart
+      }}" class="muted">{{#if isHebrew}}סכום ששולם{{else}}Amount Paid{{/if
+      }}</td> <td align="{{ alignEnd }}">{{price totalCents lang currency}}</td>
+      </tr> <tr> <td align="{{ alignStart }}" class="muted">{{#if isHebrew}}מזהה
+      תשלום{{else}}Payment Intent{{/if}}</td> <td align="{{ alignEnd }}"><span
+      class="kbd">{{ paymentIntentId }}</span></td> </tr> <tr> <td align="{{
+        alignStart
+      }}" class="muted">{{#if isHebrew}}תאריך{{else}}Date{{/if}}</td> <td
+      align="{{ alignEnd }}">{{formatDate paidAt lang}}</td> </tr> </table>
+    </mj-raw>
+
+    <mj-button
+      href="{{invoiceUrl}}"
+      align="{{alignStart}}"
+      padding="16px 0 0 0"
+    >
+      {{#if isHebrew}}הורדת חשבונית{{else}}Download Invoice{{/if}}
+    </mj-button>
+
+    <mj-text align="{{alignStart}}" class="muted" padding="12px 0 0 0">
+      {{#if isHebrew}} הקבלה זמינה גם באזור האישי שלך. {{else}} Your receipt is
+      also available in your account area. {{/if}}
+    </mj-text>
+  </mj-column>
+</mj-section>
