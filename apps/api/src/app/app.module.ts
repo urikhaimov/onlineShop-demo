@@ -27,7 +27,7 @@ import { StripeWebhookController } from '../payments/stripe-webhook.controller';
 import { StripeModule } from '../stripe/stripe.module';
 import { PaymentsModule } from '../payments/payments.module';
 
-// ✅ Mailer
+// ✅ Mailer singleton (provided & exported by MailerModule)
 import { MailerModule } from '../mailer/mailer.module';
 
 // ✅ Dev-only test endpoints (email test etc.)
@@ -40,7 +40,6 @@ import { TestModule } from '../test/test.module';
 import rateLimit from 'express-rate-limit';
 
 const devOnlyModules = process.env.NODE_ENV === 'production' ? [] : [DevModule];
-
 const testRoutesModules =
   process.env.ENABLE_TEST_ROUTES === '1' || process.env.NODE_ENV === 'test'
     ? [TestModule]
@@ -48,8 +47,10 @@ const testRoutesModules =
 
 @Module({
   imports: [
+    // Global config
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
 
+    // i18n
     I18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {
@@ -58,12 +59,12 @@ const testRoutesModules =
       },
     }),
 
+    // Core/feature modules
     DatabaseModule,
-
     AuthClientModule,
     AuthModule,
     ProductsModule,
-    OrdersModule,
+    OrdersModule, // exports OrdersService (used by StripeWebhookController)
     UsersModule,
     CategoriesModule,
     LandingPageModule,
@@ -71,21 +72,19 @@ const testRoutesModules =
     SecurityLogsModule,
     SearchModule,
 
-    // infra / integrations
-    MailerModule,
+    // Integrations
+    MailerModule, // if marked @Global(), import is harmless; otherwise required
     StripeModule,
-    PaymentsModule, // /payments/* routes
+    PaymentsModule,
 
-    // 🚧 loaded only in non-prod
+    // Dev / Test (conditional)
     ...devOnlyModules,
-
-    // 🧪 loaded only when explicitly enabled or in NODE_ENV=test
     ...testRoutesModules,
   ],
   controllers: [
     ImageProxyController,
     HealthController,
-    StripeWebhookController,
+    StripeWebhookController, // uses OrdersService (+ optional Mailer/Invoice)
   ],
   providers: [
     // 🌍 Global validation pipe (i18n-aware)

@@ -1,14 +1,12 @@
-// mailer.module.ts
+// src/mailer/mailer.module.ts
 import { Global, Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { MailerService } from './mailer.service';
 
-@Global()
+@Global() // optional but handy so you don't need to import everywhere
 @Module({
-  providers: [
-    MailerService,
-    // Alias so consumers/tests can inject by token 'MAIL_SERVICE'
-    { provide: 'MAIL_SERVICE', useExisting: MailerService },
-  ],
-  exports: [MailerService, 'MAIL_SERVICE'],
+  imports: [ConfigModule],
+  providers: [MailerService],
+  exports: [MailerService],
 })
 export class MailerModule {}

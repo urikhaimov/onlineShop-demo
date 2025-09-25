@@ -1,5 +1,3 @@
-// src/mailer/mailer.service.ts
-
 import { Injectable, Logger } from '@nestjs/common';
 import nodemailer, { Transporter } from 'nodemailer';
 import sgMail, { MailDataRequired } from '@sendgrid/mail';
@@ -27,7 +25,7 @@ type RefundEmailPayload = {
 
 type OrderUpdatePayload = {
   orderId: string;
-  status?: string; // shipped | delivered | paid | canceled | refunded | open | ...
+  status?: string; // open | authorized | paid | shipped | delivered | refunded | canceled
   delivery?: {
     provider?: string;
     trackingNumber?: string;
@@ -47,10 +45,7 @@ type MailerOptions = {
 
 type Provider = 'sendgrid' | 'smtp' | 'json';
 
-/** ───────────────────────── i18n helpers ─────────────────────────
- * Loads server dictionaries from src/i18n/{en,he}/common.json
- * Fallbacks: payload.locale → MAIL_LOCALE → 'he', then to 'en'.
- */
+/** ───────────────────────── i18n helpers ───────────────────────── */
 type Dict = Record<string, any>;
 function safeGet(obj: any, path: string): string | undefined {
   return String(path)
@@ -93,7 +88,6 @@ function t(
   const dict = getDict(locale);
   const val = safeGet(dict, key) as string | undefined;
   if (typeof val === 'string') return template(val, vars);
-  // English fallback if the chosen dict lacks the key
   const en = safeGet(EN, key) as string | undefined;
   if (typeof en === 'string') return template(en, vars);
   return template(fallback ?? '', vars);
@@ -144,7 +138,7 @@ export class MailerService {
     this.fromAddress = name ? `${name} <${from}>` : from;
 
     if (this.provider === 'sendgrid') {
-      sgMail.setApiKey(SENDGRID_API_KEY!);
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
       if (this.sandbox)
         this.logger.warn(
           'SendGrid sandbox mode ENABLED — emails will NOT be delivered.',
@@ -199,10 +193,15 @@ export class MailerService {
           this.provider = 'json';
         }
       }
-      this.transporter?.verify().then(
-        () => this.logger.log('SMTP transporter verified successfully'),
-        (err) => this.logger.warn(`SMTP verify failed: ${err?.message || err}`),
-      );
+
+      if (this.transporter) {
+        this.transporter.verify().then(
+          () => this.logger.log('SMTP transporter verified successfully'),
+          (err) =>
+            this.logger.warn(`SMTP verify failed: ${err?.message || err}`),
+        );
+      }
+
       this.logger.log(
         `Mailer initialized: provider=${this.provider}${SMTP_URL ? ' (url)' : ''}`,
       );
@@ -212,115 +211,145 @@ export class MailerService {
     }
   }
 
-  /** ───────────────── Order confirmation ───────────────── */
+  /** ───────────────── Order confirmation / receipt via MJML templates ───────────────── */
   async sendOrderConfirmation(
     to: string,
     payload: OrderEmailPayload,
     opts?: MailerOptions,
   ) {
-    const {
-      orderId,
-      amount,
-      currency,
-      paymentIntentId,
-      created,
-      invoiceUrl,
-      locale,
-    } = payload;
-    const fmt = this.formatMoney(amount, currency);
+    const { created, locale } = payload;
 
-    const subject = created
+    const tplName = created ? 'order-confirmed' : 'payment-receipt';
+    const fallbackSubject = created
       ? t(
           locale,
           'email.order.subject.created',
-          { id: orderId, amount: fmt },
-          `Order ${orderId} confirmed — ${fmt}`,
+          {
+            id: payload.orderId,
+            amount: this.formatMoney(payload.amount, payload.currency),
+          },
+          `Order ${payload.orderId} confirmed — ${this.formatMoney(payload.amount, payload.currency)}`,
         )
       : t(
           locale,
           'email.order.subject.paid',
-          { id: orderId, amount: fmt },
-          `Payment received for ${orderId} — ${fmt}`,
+          {
+            id: payload.orderId,
+            amount: this.formatMoney(payload.amount, payload.currency),
+          },
+          `Payment received for ${payload.orderId} — ${this.formatMoney(payload.amount, payload.currency)}`,
         );
 
-    const heading = t(
+    const rendered = await this.renderWithTemplates(
+      tplName,
       locale,
-      'email.order.heading',
-      {},
-      'Thank you for your order!',
-    );
-    const received = t(
-      locale,
-      'email.order.received',
-      { id: orderId },
-      `Order ${orderId} was received successfully.`,
-    );
-    const fAmount = t(locale, 'email.order.fields.amount', {}, 'Amount');
-    const fCurrency = t(locale, 'email.order.fields.currency', {}, 'Currency');
-    const fPi = t(locale, 'email.order.fields.pi', {}, 'Payment Intent');
-    const invoiceLabel = t(
-      locale,
-      'email.order.invoice_link',
-      {},
-      'Download invoice (PDF)',
-    );
-    const questions = t(
-      locale,
-      'email.order.questions',
-      {},
-      'If you have any questions, just reply to this email.',
+      this.payloadToVars(payload),
+      fallbackSubject,
     );
 
-    const invoiceLinkHtml = invoiceUrl
-      ? `<p style="margin:12px 0"><a href="${this.escape(invoiceUrl)}" target="_blank" rel="noopener">${this.escape(invoiceLabel)}</a></p>`
-      : '';
+    if (!rendered.ok) {
+      const { orderId, amount, currency, paymentIntentId, invoiceUrl } =
+        payload;
+      const fmt = this.formatMoney(amount, currency);
+      const subject = fallbackSubject;
 
-    const html = `
-      <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
-        <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
-        <p style="margin:0 0 12px">${this.escape(received)}</p>
-        <ul style="margin:0 0 12px;padding-left:18px">
-          <li>${this.escape(fAmount)}: <strong>${fmt}</strong></li>
-          <li>${this.escape(fCurrency)}: <strong>${(currency || 'ILS').toUpperCase()}</strong></li>
-          <li>${this.escape(fPi)}: <code>${this.escape(paymentIntentId)}</code></li>
-        </ul>
-        ${invoiceLinkHtml}
-        <p style="margin:16px 0 0">${this.escape(questions)}</p>
-      </div>
-    `;
+      const heading = t(
+        locale,
+        'email.order.heading',
+        {},
+        'Thank you for your order!',
+      );
+      const received = t(
+        locale,
+        'email.order.received',
+        { id: orderId },
+        `Order ${orderId} was received successfully.`,
+      );
+      const fAmount = t(locale, 'email.order.fields.amount', {}, 'Amount');
+      const fCurrency = t(
+        locale,
+        'email.order.fields.currency',
+        {},
+        'Currency',
+      );
+      const fPi = t(locale, 'email.order.fields.pi', {}, 'Payment Intent');
+      const invoiceLabel = t(
+        locale,
+        'email.order.invoice_link',
+        {},
+        'Download invoice (PDF)',
+      );
+      const questions = t(
+        locale,
+        'email.order.questions',
+        {},
+        'If you have any questions, just reply to this email.',
+      );
 
-    const text = [
-      heading,
-      template(received, { id: orderId }),
-      `${fAmount}: ${fmt}`,
-      `${fCurrency}: ${(currency || 'ILS').toUpperCase()}`,
-      `${fPi}: ${paymentIntentId}`,
-      invoiceUrl ? `${invoiceLabel}: ${invoiceUrl}` : undefined,
-      questions,
-    ]
-      .filter(Boolean)
-      .join('\n');
+      const invoiceLinkHtml = invoiceUrl
+        ? `<p style="margin:12px 0"><a href="${this.escape(
+            invoiceUrl,
+          )}" target="_blank" rel="noopener">${this.escape(
+            invoiceLabel,
+          )}</a></p>`
+        : '';
+
+      const html = `
+        <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
+          <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
+          <p style="margin:0 0 12px">${this.escape(received)}</p>
+          <ul style="margin:0 0 12px;padding-left:18px">
+            <li>${this.escape(fAmount)}: <strong>${fmt}</strong></li>
+            <li>${this.escape(fCurrency)}: <strong>${(currency || 'ILS').toUpperCase()}</strong></li>
+            <li>${this.escape(fPi)}: <code>${this.escape(paymentIntentId)}</code></li>
+          </ul>
+          ${invoiceLinkHtml}
+          <p style="margin:16px 0 0">${this.escape(questions)}</p>
+        </div>
+      `;
+
+      const text = [
+        heading,
+        template(received, { id: orderId }),
+        `${fAmount}: ${fmt}`,
+        `${fCurrency}: ${(currency || 'ILS').toUpperCase()}`,
+        `${fPi}: ${paymentIntentId}`,
+        invoiceUrl ? `${invoiceLabel}: ${invoiceUrl}` : undefined,
+        questions,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      return this.safeSend({
+        to,
+        subject,
+        html,
+        text,
+        replyTo: opts?.replyTo,
+        attachments: opts?.attachments,
+      });
+    }
 
     return this.safeSend({
       to,
-      subject,
-      html,
-      text,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
       replyTo: opts?.replyTo,
       attachments: opts?.attachments,
     });
   }
 
-  /** ───────────────── Order update (by status) ───────────────── */
+  /** ───────────────── Order update (status-specific templates) ───────────────── */
   async sendOrderUpdate(
     to: string,
     payload: OrderUpdatePayload,
     opts?: MailerOptions,
   ) {
     const { orderId, status, delivery, locale } = payload;
+    const statusKey = String(status || 'open').toLowerCase();
 
-    const statusKey = (status || 'open').toLowerCase();
-    const subject =
+    const fallbackSubject =
       t(locale, `email.update.subject.${statusKey}`, { id: orderId }, '') ||
       t(
         locale,
@@ -329,77 +358,123 @@ export class MailerService {
         `Order ${orderId} updated`,
       );
 
-    const heading = t(
-      locale,
-      'email.update.heading',
-      {},
-      'Your order was updated.',
-    );
-    const fStatus = t(locale, 'email.update.fields.status', {}, 'Status');
-    const fProvider = t(locale, 'email.update.fields.provider', {}, 'Provider');
-    const fTracking = t(locale, 'email.update.fields.tracking', {}, 'Tracking');
-    const fEta = t(locale, 'email.update.fields.eta', {}, 'ETA');
+    // Try status-specific files: order_shipped / order_delivered / order_canceled, etc.
+    const tplCandidates = [
+      `order_${statusKey}`, // underscore style we added
+      'order-update', // optional generic template if present
+    ];
 
-    const statusLabel =
-      t(locale, `status.${statusKey}`, {}, status || '') ||
-      (status ? status : '');
+    const baseVars = {
+      orderId,
+      status: statusKey,
+      statusLabel:
+        t(locale, `status.${statusKey}`, {}, status || '') || (status ?? ''),
+      deliveryProvider: delivery?.provider ?? '',
+      deliveryTracking: delivery?.trackingNumber ?? '',
+      deliveryEta: delivery?.eta ?? '',
+      brandName: process.env.MAIL_BRAND_NAME || 'Shop',
+      brandUrl: process.env.PUBLIC_BASE_URL || '',
+      assetsBaseUrl: process.env.MAIL_ASSETS_URL || '',
+    };
 
-    const lines: string[] = [];
-    if (statusLabel)
-      lines.push(
-        `<li>${this.escape(fStatus)}: <strong>${this.escape(statusLabel)}</strong></li>`,
-      );
-    if (delivery?.provider)
-      lines.push(
-        `<li>${this.escape(fProvider)}: <strong>${this.escape(delivery.provider)}</strong></li>`,
-      );
-    if (delivery?.trackingNumber)
-      lines.push(
-        `<li>${this.escape(fTracking)}: <code>${this.escape(delivery.trackingNumber)}</code></li>`,
-      );
-    if (delivery?.eta)
-      lines.push(
-        `<li>${this.escape(fEta)}: <strong>${this.escape(delivery.eta)}</strong></li>`,
-      );
+    let rendered:
+      | { ok: true; subject: string; html: string; text: string }
+      | { ok: false }
+      | undefined;
 
-    const html = `
-      <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
-        <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
-        <p style="margin:0 0 12px">${this.escape(
-          t(
-            locale,
-            'email.update.body',
-            { id: orderId },
-            `Your order ${orderId} was updated.`,
-          ),
-        )}</p>
-        ${lines.length ? `<ul style="margin:0 0 12px;padding-left:18px">${lines.join('')}</ul>` : ''}
-      </div>
-    `;
-
-    const textLines: string[] = [];
-    if (statusLabel) textLines.push(`${fStatus}: ${statusLabel}`);
-    if (delivery?.provider)
-      textLines.push(`${fProvider}: ${delivery.provider}`);
-    if (delivery?.trackingNumber)
-      textLines.push(`${fTracking}: ${delivery.trackingNumber}`);
-    if (delivery?.eta) textLines.push(`${fEta}: ${delivery.eta}`);
-
-    const text = [
-      t(
+    for (const name of tplCandidates) {
+      rendered = await this.renderWithTemplates(
+        name,
         locale,
-        'email.update.body',
-        { id: orderId },
-        `Your order ${orderId} was updated.`,
-      ),
-      ...textLines,
-    ].join('\n');
+        baseVars,
+        fallbackSubject,
+      );
+      if (rendered.ok) break;
+    }
+
+    if (!rendered || !rendered.ok) {
+      // Fallback to plaintext/HTML
+      const heading = t(
+        locale,
+        'email.update.heading',
+        {},
+        'Your order was updated.',
+      );
+      const fStatus = t(locale, 'email.update.fields.status', {}, 'Status');
+      const fProvider = t(
+        locale,
+        'email.update.fields.provider',
+        {},
+        'Provider',
+      );
+      const fTracking = t(
+        locale,
+        'email.update.fields.tracking',
+        {},
+        'Tracking',
+      );
+      const fEta = t(locale, 'email.update.fields.eta', {}, 'ETA');
+
+      const lines: string[] = [];
+      if (baseVars.statusLabel)
+        lines.push(
+          `<li>${this.escape(fStatus)}: <strong>${this.escape(baseVars.statusLabel)}</strong></li>`,
+        );
+      if (delivery?.provider)
+        lines.push(
+          `<li>${this.escape(fProvider)}: <strong>${this.escape(delivery.provider)}</strong></li>`,
+        );
+      if (delivery?.trackingNumber)
+        lines.push(
+          `<li>${this.escape(fTracking)}: <code>${this.escape(delivery.trackingNumber)}</code></li>`,
+        );
+      if (delivery?.eta)
+        lines.push(
+          `<li>${this.escape(fEta)}: <strong>${this.escape(delivery.eta)}</strong></li>`,
+        );
+
+      const html = `
+        <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
+          <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
+          <p style="margin:0 0 12px">${this.escape(t(locale, 'email.update.body', { id: orderId }, `Your order ${orderId} was updated.`))}</p>
+          ${lines.length ? `<ul style="margin:0 0 12px;padding-left:18px">${lines.join('')}</ul>` : ''}
+        </div>
+      `;
+
+      const textLines: string[] = [];
+      if (baseVars.statusLabel)
+        textLines.push(`${fStatus}: ${baseVars.statusLabel}`);
+      if (delivery?.provider)
+        textLines.push(`${fProvider}: ${delivery.provider}`);
+      if (delivery?.trackingNumber)
+        textLines.push(`${fTracking}: ${delivery.trackingNumber}`);
+      if (delivery?.eta) textLines.push(`${fEta}: ${delivery.eta}`);
+
+      const text = [
+        t(
+          locale,
+          'email.update.body',
+          { id: orderId },
+          `Your order ${orderId} was updated.`,
+        ),
+        ...textLines,
+      ].join('\n');
+
+      return this.safeSend({
+        to,
+        subject: fallbackSubject,
+        html,
+        text,
+        replyTo: opts?.replyTo,
+        attachments: opts?.attachments,
+      });
+    }
 
     return this.safeSend({
       to,
-      subject,
-      html,
-      text,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
       replyTo: opts?.replyTo,
       attachments: opts?.attachments,
     });
@@ -413,58 +488,82 @@ export class MailerService {
   ) {
     const { orderId, amount, currency, chargeId, full, refundIds, locale } =
       payload;
-    const fmt = this.formatMoney(amount, currency);
 
-    const subject = full
+    const fallbackSubject = full
       ? t(
           locale,
           'email.refund.subject.full',
-          { id: orderId, amount: fmt },
-          `Refund issued for ${orderId} — ${fmt}`,
+          { id: orderId, amount: this.formatMoney(amount, currency) },
+          `Refund issued for ${orderId} — ${this.formatMoney(amount, currency)}`,
         )
       : t(
           locale,
           'email.refund.subject.partial',
-          { id: orderId, amount: fmt },
-          `Partial refund for ${orderId} — ${fmt}`,
+          { id: orderId, amount: this.formatMoney(amount, currency) },
+          `Partial refund for ${orderId} — ${this.formatMoney(amount, currency)}`,
         );
 
-    const heading = full
-      ? t(locale, 'email.refund.heading.full', {}, 'Refund completed')
-      : t(locale, 'email.refund.heading.partial', {}, 'Partial refund');
+    const rendered = await this.renderWithTemplates(
+      'refund',
+      locale,
+      {
+        orderId,
+        isFull: !!full,
+        amountMinor: amount,
+        amount: this.formatMoney(amount, currency),
+        currency: (currency || 'ILS').toUpperCase(),
+        chargeId,
+        refundIds,
+      },
+      fallbackSubject,
+    );
 
-    const fAmount = t(locale, 'email.order.fields.amount', {}, 'Amount');
-    const html = `
-      <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
-        <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
-        <p style="margin:0 0 12px">${this.escape(
-          t(
-            locale,
-            'email.refund.body',
-            { id: orderId },
-            `For order ${orderId}.`,
-          ),
-        )}</p>
-        <ul style="margin:0 0 12px;padding-left:18px">
-          <li>${this.escape(fAmount)}: <strong>${fmt}</strong></li>
-          <li>Charge ID: <code>${this.escape(chargeId)}</code></li>
-          <li>Refund IDs: <code>${(refundIds || []).map(this.escape).join(', ') || '-'}</code></li>
-        </ul>
-      </div>
-    `;
+    if (!rendered.ok) {
+      const heading = full
+        ? t(locale, 'email.refund.heading.full', {}, 'Refund completed')
+        : t(locale, 'email.refund.heading.partial', {}, 'Partial refund');
 
-    const text =
-      `${heading}\n` +
-      `${t(locale, 'email.refund.body', { id: orderId }, `For order ${orderId}.`)}\n` +
-      `${fAmount}: ${fmt}\n` +
-      `Charge: ${chargeId}\n` +
-      `Refund IDs: ${(refundIds || []).join(', ') || '-'}`;
+      const fAmount = t(locale, 'email.order.fields.amount', {}, 'Amount');
+      const html = `
+        <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
+          <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
+          <p style="margin:0 0 12px">${this.escape(
+            t(
+              locale,
+              'email.refund.body',
+              { id: orderId },
+              `For order ${orderId}.`,
+            ),
+          )}</p>
+          <ul style="margin:0 0 12px;padding-left:18px">
+            <li>${this.escape(fAmount)}: <strong>${this.formatMoney(amount, currency)}</strong></li>
+            <li>Charge ID: <code>${this.escape(chargeId)}</code></li>
+            <li>Refund IDs: <code>${(refundIds || []).map(this.escape).join(', ') || '-'}</code></li>
+          </ul>
+        </div>
+      `;
+      const text =
+        `${heading}\n` +
+        `${t(locale, 'email.refund.body', { id: orderId }, `For order ${orderId}.`)}\n` +
+        `${fAmount}: ${this.formatMoney(amount, currency)}\n` +
+        `Charge: ${chargeId}\n` +
+        `Refund IDs: ${(refundIds || []).join(', ') || '-'}`;
+
+      return this.safeSend({
+        to,
+        subject: fallbackSubject,
+        html,
+        text,
+        replyTo: opts?.replyTo,
+        attachments: opts?.attachments,
+      });
+    }
 
     return this.safeSend({
       to,
-      subject,
-      html,
-      text,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
       replyTo: opts?.replyTo,
       attachments: opts?.attachments,
     });
@@ -533,6 +632,75 @@ export class MailerService {
     }
   }
 
+  /** ───────────────── Template rendering bridge ───────────────── */
+  private async renderWithTemplates(
+    templateName: string,
+    locale: string | undefined,
+    vars: Record<string, any>,
+    fallbackSubject: string,
+  ): Promise<
+    { ok: true; subject: string; html: string; text: string } | { ok: false }
+  > {
+    try {
+      // Import once, and treat as `any` to avoid compile-time property errors.
+      const mod = (await import('@email-templates')) as any;
+
+      // Accept multiple export shapes:
+      const renderFn =
+        (mod && typeof mod.render === 'function' && mod.render) ||
+        (mod?.renderer &&
+          typeof mod.renderer.render === 'function' &&
+          mod.renderer.render) ||
+        (typeof mod.renderTemplate === 'function' && mod.renderTemplate) ||
+        null;
+
+      // Subjects helper (subjectFor/subject)
+      const subjectsObj = mod?.subjects || mod?.Subjects || {};
+      const subjectFn =
+        (typeof subjectsObj.subjectFor === 'function' &&
+          subjectsObj.subjectFor) ||
+        (typeof subjectsObj.subject === 'function' && subjectsObj.subject) ||
+        null;
+
+      if (!renderFn) return { ok: false };
+
+      const data = { locale, ...vars };
+      const out = await renderFn(templateName, data);
+      const html: string = out?.html ?? '';
+      const text: string =
+        out?.text ?? (this.stripHtml(html).trim() || '[no text content]');
+      const subject: string =
+        (subjectFn ? subjectFn(templateName, locale, data) : null) ||
+        fallbackSubject;
+
+      if (!html) return { ok: false };
+      return { ok: true, subject, html, text };
+    } catch (e) {
+      this.logger.warn(
+        `[templates] render failed for ${templateName}: ${(e as Error).message}`,
+      );
+      return { ok: false };
+    }
+  }
+
+  /** Map payload → template vars (shared between order-confirmed & receipt) */
+  private payloadToVars(p: OrderEmailPayload) {
+    const amount = this.formatMoney(p.amount, p.currency);
+    return {
+      orderId: p.orderId,
+      paymentIntentId: p.paymentIntentId,
+      amount, // formatted (₪ 12.34)
+      amountMinor: p.amount,
+      currency: (p.currency || 'ILS').toUpperCase(),
+      invoiceUrl: p.invoiceUrl || null,
+
+      // Optional branding/context for templates:
+      brandName: process.env.MAIL_BRAND_NAME || 'Shop',
+      brandUrl: process.env.PUBLIC_BASE_URL || '',
+      assetsBaseUrl: process.env.MAIL_ASSETS_URL || '', // e.g. CDN path for /templates/assets
+    };
+  }
+
   /** ───────────────── Utils ───────────────── */
   private formatMoney(amountMinor: number, currency: string | null) {
     const curr = (currency || 'ILS').toUpperCase();
@@ -559,5 +727,18 @@ export class MailerService {
       "'": '&#39;',
     };
     return String(s).replace(/[&<>"']/g, (m) => map[m]);
+  }
+
+  private stripHtml(html: string) {
+    return String(html)
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<\/?[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
   }
 }

@@ -1,15 +1,22 @@
-import * as fs from 'fs';
-import * as path from 'path';
+// libs/email-templates/src/renderer.ts
+import fs from 'node:fs';
+import path from 'node:path';
 import mjml2html from 'mjml';
 import Handlebars from 'handlebars';
 import { registerEmailHelpers } from './helpers';
 
-registerEmailHelpers();
+registerEmailHelpers(Handlebars); // ✅ ensure helpers are on this instance
 
 export type EmailLang = 'en' | 'he';
 
 export interface RenderOpts {
-  template: 'order-confirmed' | 'payment-receipt' | 'password-reset';
+  template:
+    | 'order-confirmed'
+    | 'payment-receipt'
+    | 'password-reset'
+    | 'order-shipped'
+    | 'order-delivered'
+    | 'order-canceled';
   lang: EmailLang;
   data: Record<string, any>;
 }
@@ -18,19 +25,21 @@ function firstExisting(paths: string[]): string | null {
   for (const p of paths) {
     try {
       if (fs.existsSync(p)) return p;
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   }
   return null;
 }
 
 function getTemplatesRoot(): string {
   const candidates = [
-    // When running inside API dist (webpack), __dirname ≈ dist/apps/api
-    path.join(__dirname, 'libs', 'email-templates', 'templates'),
-    // If the lib was compiled separately
-    path.join(__dirname, 'templates'),
+    // when called from a compiled API app (dist/apps/api/... importing dist/libs/email-templates/...)
     path.join(__dirname, '..', 'templates'),
-    // ts-node / dev from workspace root
+    path.join(__dirname, 'templates'),
+    // when the lib is built into dist/libs/...
+    path.join(process.cwd(), 'dist', 'libs', 'email-templates', 'templates'),
+    // when running ts-node / workspace dev
     path.join(process.cwd(), 'libs', 'email-templates', 'src', 'templates'),
   ];
   const found = firstExisting(candidates);
@@ -45,12 +54,35 @@ function getTemplatesRoot(): string {
 
 function loadTemplate(name: string) {
   const root = getTemplatesRoot();
-  const base = fs.readFileSync(path.join(root, 'base.mjml'), 'utf8');
-  const body = fs.readFileSync(path.join(root, `${name}.mjml`), 'utf8');
+
+  // Support both dashed and underscored filenames (e.g., order-shipped ⟺ order_shipped)
+  const nameVariants = Array.from(
+    new Set([name, name.replace(/-/g, '_'), name.replace(/_/g, '-')]),
+  );
+
+  const basePath = path.join(root, 'base.mjml');
+  if (!fs.existsSync(basePath)) {
+    throw new Error(`[email-templates] Missing base.mjml in ${root}`);
+  }
+  const base = fs.readFileSync(basePath, 'utf8');
+
+  const bodyPath =
+    firstExisting(nameVariants.map((n) => path.join(root, `${n}.mjml`))) ?? '';
+  if (!bodyPath) {
+    throw new Error(
+      `[email-templates] Missing template "${name}". Tried:\n` +
+        nameVariants
+          .map((n) => ` - ${path.join(root, `${n}.mjml`)}`)
+          .join('\n'),
+    );
+  }
+  const body = fs.readFileSync(bodyPath, 'utf8');
+
   return { base, body };
 }
 
-export function renderEmail(opts: RenderOpts) {
+/** Keep your original API for internal calls if you like. */
+export function renderEmail(opts: RenderOpts): string {
   const { base, body } = loadTemplate(opts.template);
   const merged = base.replace('<!-- ::BODY:: -->', body);
 
@@ -67,14 +99,37 @@ export function renderEmail(opts: RenderOpts) {
   };
 
   const mjml = hb(ctx);
-  const { html, errors } = mjml2html(mjml, {
+  const { html } = mjml2html(mjml, {
     validationLevel: 'soft',
     keepComments: false,
     minify: true,
   });
-  if (errors?.length) {
-    // eslint-disable-next-line no-console
-    console.warn('[email-templates] mjml warnings:', errors);
-  }
   return html;
+}
+
+/**
+ * ✅ This is the function MailerService looks for.
+ * It returns { html, text } and takes (templateName, vars).
+ */
+export async function render(templateName: RenderOpts['template'], vars: any) {
+  const loc = String(vars?.locale ?? vars?.lang ?? 'he').toLowerCase();
+  const lang: EmailLang = loc.startsWith('he') ? 'he' : 'en';
+
+  const html = renderEmail({ template: templateName, lang, data: vars || {} });
+
+  // Lightweight text: strip tags & collapse whitespace
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<\/?[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return { html, text };
 }

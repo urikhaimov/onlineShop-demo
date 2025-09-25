@@ -73,6 +73,8 @@ function prettyStripeError(code?: string, fallback?: string) {
       return 'Payment processor error. Please try again.';
     case 'amount_too_small':
       return 'Amount is too small to charge.';
+    case 'authentication_required':
+      return 'The bank requires 3D Secure. Please complete authentication.';
     default:
       return fallback || 'Payment failed. Please try again.';
   }
@@ -120,10 +122,7 @@ export default function StripeCheckoutForm({
   // Dev-only: silence Apple/Google Pay warnings on localhost
   const paymentElementOptions: StripePaymentElementOptions = isProd
     ? {}
-    : {
-        wallets: { applePay: 'never' },
-        paymentMethodOrder: ['card'],
-      };
+    : { wallets: { applePay: 'never' }, paymentMethodOrder: ['card'] };
 
   const [email, setEmail] = React.useState<string>('');
   const [submitting, setSubmitting] = React.useState(false);
@@ -150,6 +149,15 @@ export default function StripeCheckoutForm({
   const clearCart = useCartStore((s) => s.clearCart);
   const { loading, error, setError, setLoading } = useStripeCheckoutStore();
 
+  // ── NEW: shared abort + per-request timeout for confirm & polling
+  const abortRef = React.useRef<AbortController | null>(null);
+  const REQ_TIMEOUT = 45_000;
+
+  React.useEffect(() => {
+    abortRef.current = new AbortController();
+    return () => abortRef.current?.abort(); // cancel in-flight requests on unmount
+  }, []);
+
   // Toast any errors via notistack (and clear the store error)
   React.useEffect(() => {
     if (error) {
@@ -169,12 +177,18 @@ export default function StripeCheckoutForm({
     const start = Date.now();
     let delay = 1200;
 
-    while (Date.now() - start < timeoutMs) {
+    while (
+      !abortRef.current?.signal.aborted &&
+      Date.now() - start < timeoutMs
+    ) {
       try {
         const { data } = await axiosInstance.get<{
           state: string;
           orderId?: string | null;
-        }>(`/orders/public/${piId}`);
+        }>(`/orders/public/${piId}`, {
+          timeout: Math.min(10_000, timeoutMs), // per-try budget
+          signal: abortRef.current?.signal,
+        });
 
         const state = String(data?.state || '').toLowerCase();
         if (state === 'paid' || state === 'succeeded') {
@@ -300,7 +314,11 @@ export default function StripeCheckoutForm({
         },
       };
 
-      const res = await axiosInstance.post('/orders/confirm', confirmPayload);
+      // ── NEW: longer timeout + abort signal so the browser doesn't cancel after 10s
+      const res = await axiosInstance.post('/orders/confirm', confirmPayload, {
+        timeout: REQ_TIMEOUT,
+        signal: abortRef.current?.signal,
+      });
       const { status: serverStatus } = res.data || {};
 
       // 3) Handle 3DS if required
@@ -355,6 +373,7 @@ export default function StripeCheckoutForm({
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
+        (err?.code === 'ERR_CANCELED' ? 'Request was canceled.' : undefined) ||
         err?.message ||
         (t('checkoutForm.errors.unexpected', {
           defaultValue: 'Unexpected error',

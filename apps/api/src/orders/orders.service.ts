@@ -20,13 +20,13 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-// Stable idempotency key for cart+amount+currency (+ always tag user)
+// ───────────────────────────────── helpers ─────────────────────────────────
 function buildIdemKey(params: {
   provided?: string | undefined;
-  userId: string; // may be 'anon' if not logged in
+  userId: string;
   orderId?: string | undefined;
-  amount: number; // cents
-  currency: string; // lower-case, e.g. 'ils'
+  amount: number;
+  currency: string;
 }) {
   const fallback = `pi:${params.orderId ?? 'no-order'}:${params.currency}:${params.amount}`;
   const base = (params.provided?.trim() || fallback).trim();
@@ -34,7 +34,6 @@ function buildIdemKey(params: {
   return tagged.length > 255 ? tagged.slice(0, 255) : tagged;
 }
 
-// Detect the Stripe “idempotent… same parameters” error
 function isIdempotencyParamMismatch(e: any): boolean {
   const msg =
     (Array.isArray(e?.raw?.message)
@@ -45,14 +44,12 @@ function isIdempotencyParamMismatch(e: any): boolean {
   return /idempotent/i.test(msg) && /same parameters/i.test(msg);
 }
 
-/** Top-level strip (kept for a few call-sites). */
 function defined<T extends Record<string, any>>(obj: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined),
   ) as Partial<T>;
 }
 
-/** 🔧 Recursively remove all `undefined` values (Firestore-safe). */
 function stripUndefinedDeep<T = any>(value: T): T {
   if (Array.isArray(value)) {
     return value
@@ -68,7 +65,6 @@ function stripUndefinedDeep<T = any>(value: T): T {
   return value;
 }
 
-// Pull freshest customer/shipping from PI
 function extractPeopleFromStripe(pi: Stripe.PaymentIntent) {
   const charge =
     typeof pi.latest_charge === 'string' ? undefined : pi.latest_charge;
@@ -97,10 +93,14 @@ function extractPeopleFromStripe(pi: Stripe.PaymentIntent) {
   return { shippingAddress, customer };
 }
 
+// ───────────────────────────────── service ─────────────────────────────────
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
   public readonly stripe?: Stripe;
+
+  /** Feature flag: if true, OrdersService sends Stripe receipts; otherwise controllers/webhooks do it. */
+  private readonly sendStripeEmailsFromOrders: boolean;
 
   constructor(
     private readonly config: ConfigService,
@@ -113,28 +113,25 @@ export class OrdersService {
         apiVersion: '2024-06-20' as any,
       });
       this.logger.verbose('OrdersService: using dummy Stripe key in tests');
-      return;
+    } else {
+      if (!key) throw new Error('Missing STRIPE_SECRET_KEY in environment');
+      this.stripe = new Stripe(key, { apiVersion: '2024-06-20' as any });
     }
-    if (!key) throw new Error('Missing STRIPE_SECRET_KEY in environment');
-    this.stripe = new Stripe(key, { apiVersion: '2024-06-20' as any });
+
+    // Default OFF: avoid double-send; controllers/webhooks handle mailing and stamping.
+    this.sendStripeEmailsFromOrders =
+      String(process.env.SEND_STRIPE_EMAILS_FROM_ORDERS || '').toLowerCase() ===
+      'true';
   }
 
   private col() {
     return adminDb.collection('orders');
   }
-
   private productsCol() {
     return adminDb.collection('products');
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Stock helpers
-  // ───────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Idempotently decrement stock for all items in the order.
-   * Writes `stockDecrementedAt` on the order to ensure single-apply semantics.
-   */
+  // ───────────────────────── stock ─────────────────────────
   private async decrementStockForOrder(orderId: string, items: any[] = []) {
     if (!Array.isArray(items) || items.length === 0) {
       this.logger.warn(`decrementStockForOrder: no items for ${orderId}`);
@@ -147,7 +144,6 @@ export class OrdersService {
       return { updated: 0, skipped: items.length, errors: 0 };
     }
 
-    // Aggregate quantities per product (handles duplicates in cart)
     const qtyById = new Map<string, number>();
     for (const it of items) {
       const productId = String(it.productId || it.id || '').trim();
@@ -169,7 +165,7 @@ export class OrdersService {
     const res = await adminDb.runTransaction(async (tx) => {
       const orderRef = this.col().doc(orderId);
 
-      // ── PHASE A: READS (all reads BEFORE any writes)
+      // PHASE A: reads first
       const orderSnap = await tx.get(orderRef);
       const already = orderSnap.exists && orderSnap.get('stockDecrementedAt');
       if (already) return { updated: 0, skipped: 0, errors: 0, already: true };
@@ -179,7 +175,7 @@ export class OrdersService {
         productRefs.map((r) => tx.get(r)),
       );
 
-      // ── PHASE B: WRITES
+      // PHASE B: writes
       let updated = 0,
         errors = 0;
       const skipped = 0;
@@ -201,7 +197,6 @@ export class OrdersService {
         const stock = Math.max(0, Number(curr?.stock ?? 0));
         const newStock = Math.max(0, stock - need);
 
-        // If you want strict enforcement, throw when stock < need.
         tx.update(ref, {
           stock: newStock,
           sold: FieldValue.increment(need),
@@ -225,10 +220,7 @@ export class OrdersService {
     return res;
   }
 
-  /**
-   * Minimal email sender for non-Stripe/manual-paid cases.
-   * Uses MailerService if available; de-dupes via `receiptSentAt`.
-   */
+  // For manual/admin-paid orders
   private async sendManualReceiptIfNeeded(order: any) {
     try {
       if (!this.mailer?.sendOrderConfirmation) return;
@@ -293,9 +285,7 @@ export class OrdersService {
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Queries
-  // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────── queries ─────────────────────────
   async getPublicStatusByPaymentIntent(piId: string) {
     const doc = await this.col().doc(piId).get();
     if (doc.exists) {
@@ -347,9 +337,7 @@ export class OrdersService {
     return doc.exists ? (doc.data() as any) : null;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Mutations
-  // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────── mutations ─────────────────────────
   async createOrder(dto: any) {
     const id: string | undefined = dto.id;
     const ref = id ? this.col().doc(id) : this.col().doc();
@@ -377,7 +365,6 @@ export class OrdersService {
     await ref.set(payload, { merge: true });
     this.logger.log(`createOrder ${ref.id} → ${payload.status}`);
 
-    // If created as PAID (manual/admin path), decrement & email
     if (payload.status === 'paid') {
       await this.decrementStockForOrder(ref.id, payload.items || []);
       await this.sendManualReceiptIfNeeded({ id: ref.id, ...payload });
@@ -404,7 +391,6 @@ export class OrdersService {
     const afterSnap = await ref.get();
     const after = { id, ...(afterSnap.data() as any) };
 
-    // If status moved to PAID, do the side-effects
     if (prevStatus !== 'paid' && nextStatus === 'paid') {
       await this.decrementStockForOrder(id, after.items || []);
       await this.sendManualReceiptIfNeeded(after);
@@ -421,12 +407,10 @@ export class OrdersService {
     await ref.set({ status, updatedAt: nowIso() }, { merge: true });
     this.logger.log(`Order ${orderId} → ${status}`);
 
-    // If this call flips to PAID (e.g., from a webhook handler), also decrement
     if (prevStatus !== 'paid' && status === 'paid') {
       const afterSnap = await ref.get();
       const order = { id: orderId, ...(afterSnap.data() as any) };
       await this.decrementStockForOrder(orderId, order.items || []);
-      // Email handled in Stripe path by sendReceiptIfNeeded; here we do nothing.
     }
   }
 
@@ -454,9 +438,7 @@ export class OrdersService {
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Draft enrichment (called from checkout before confirm)
-  // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────── drafts ─────────────────────────
   async saveDraftCheckoutDetails(input: {
     paymentIntentId: string;
     userId: string;
@@ -517,9 +499,7 @@ export class OrdersService {
     return { id: paymentIntentId, ...(after.data() as any) };
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Cleanup helpers
-  // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────── cleanup ─────────────────────────
   async cleanupOldDrafts(userId: string, keepId?: string, aggressive = false) {
     try {
       const snap = await this.col()
@@ -549,7 +529,7 @@ export class OrdersService {
             }
           }
         } catch (e) {
-          this.logger.verbose?.(
+          this.logger.verbose(
             `cleanupOldDrafts cancel ${id}: ${(e as any)?.message || e}`,
           );
         }
@@ -568,9 +548,7 @@ export class OrdersService {
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Stripe flows
-  // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────── Stripe: create/confirm ─────────────────────────
   async createPaymentIntent(input: {
     totalMajor: number;
     currency?: string;
@@ -578,15 +556,17 @@ export class OrdersService {
     orderId?: string;
     metadata?: Record<string, string>;
     email?: string;
-    idempotencyKey?: string;
+    idempotencyKey?: string; // may be provided by client
     cart?: any[];
+    reuseIfSame?: boolean; // <-- default false (force new PI)
   }) {
     if (!this.stripe) throw new Error('Stripe not configured');
 
     const amountMinor = Math.max(0, Math.round((input.totalMajor ?? 0) * 100));
     const currency = (input.currency ?? 'ils').toLowerCase();
 
-    const baseIdempotencyKey = buildIdemKey({
+    // Base key (stable)
+    const baseKey = buildIdemKey({
       provided: input.idempotencyKey,
       userId: input.userId || 'anon',
       orderId: input.orderId,
@@ -594,18 +574,26 @@ export class OrdersService {
       currency,
     });
 
+    // 🚫 By default we SALT to avoid reusing an old PI.
+    // Pass reuseIfSame=true ONLY if you intentionally want the same PI.
+    const idemKey =
+      input.reuseIfSame === true
+        ? baseKey
+        : `${baseKey}:${Date.now().toString(36)}:${Math.random()
+            .toString(36)
+            .slice(2, 7)}`.slice(0, 255);
+
     const params: Stripe.PaymentIntentCreateParams = {
       amount: amountMinor,
       currency,
       payment_method_types: ['card'],
-      payment_method_options: {
-        card: { request_three_d_secure: 'automatic' },
-      },
+      payment_method_options: { card: { request_three_d_secure: 'automatic' } },
       metadata: {
         userId: input.userId,
         orderId: input.orderId ?? '',
         app: 'onlineShop',
         ...(input.metadata ?? {}),
+        ...(input.email ? { email: input.email } : {}),
       },
       receipt_email: input.email || undefined,
     };
@@ -615,15 +603,12 @@ export class OrdersService {
 
     let pi: Stripe.PaymentIntent;
     try {
-      pi = await tryCreate(baseIdempotencyKey);
+      pi = await tryCreate(idemKey);
     } catch (e) {
       if (!isIdempotencyParamMismatch(e)) throw e;
-      const salted = `${baseIdempotencyKey}:${Date.now().toString(36)}`.slice(
-        0,
-        255,
-      );
+      const salted = `${idemKey}:${Date.now().toString(36)}`.slice(0, 255);
       this.logger.warn(
-        `createPaymentIntent retrying with salted key due to idempotency mismatch (was=${baseIdempotencyKey})`,
+        `createPaymentIntent retrying with salted key due to idempotency mismatch (was=${idemKey})`,
       );
       pi = await tryCreate(salted);
     }
@@ -652,22 +637,18 @@ export class OrdersService {
           }),
           createdAt: nowIso(),
           updatedAt: nowIso(),
+          // debug breadcrumb:
+          _idempotencyKeyUsed: idemKey,
         }),
         { merge: true },
       );
 
     this.logger.log(`createPaymentIntent ${pi.id} ${currency} ${amountMinor}`);
-
     await this.cleanupOldDrafts(input.userId, pi.id, false);
 
     return { clientSecret: pi.client_secret, paymentIntentId: pi.id };
   }
 
-  /**
-   * CONFIRM the PI if confirmable. Always ensures there’s a single document left:
-   * - success → one PAID order with full details
-   * - failure/other → one OPEN draft (the current PI) or next_action flow
-   */
   async confirmPaymentIntent(input: {
     paymentIntentId: string;
     userId: string;
@@ -698,7 +679,6 @@ export class OrdersService {
       returnUrl,
     } = input;
 
-    // Enrich draft (+ optionally PI) before confirm
     if (customer || shippingAddress) {
       await this.saveDraftCheckoutDetails({
         paymentIntentId,
@@ -709,12 +689,10 @@ export class OrdersService {
       });
     }
 
-    // 1) Inspect current PI state
     let pi = await this.stripe.paymentIntents.retrieve(paymentIntentId, {
       expand: ['latest_charge'],
     });
 
-    // Compare first, then branch
     switch (pi.status) {
       case 'succeeded': {
         const order = await this.createOrderFromIntentById(pi.id, userId);
@@ -726,7 +704,6 @@ export class OrdersService {
           clientSecret: pi.client_secret ?? null,
         };
       }
-
       case 'requires_payment_method': {
         if (!paymentMethodId) {
           await this.cleanupOldDrafts(userId, pi.id, true);
@@ -736,11 +713,9 @@ export class OrdersService {
         }
         break;
       }
-
       case 'requires_confirmation': {
         break;
       }
-
       case 'requires_action':
       case 'processing': {
         await this.cleanupOldDrafts(userId, pi.id, true);
@@ -751,28 +726,21 @@ export class OrdersService {
           clientSecret: pi.client_secret ?? null,
         };
       }
-
       case 'canceled': {
         await this.cleanupOldDrafts(userId, pi.id, true);
         throw new ConflictException('Payment was canceled.');
       }
-
       default: {
         await this.cleanupOldDrafts(userId, pi.id, true);
         throw new ConflictException(`Cannot confirm in state: ${pi.status}`);
       }
     }
 
-    // 2) Confirm
     pi = await this.stripe.paymentIntents.confirm(
       paymentIntentId,
-      defined({
-        payment_method: paymentMethodId,
-        return_url: returnUrl,
-      }),
+      defined({ payment_method: paymentMethodId, return_url: returnUrl }),
     );
 
-    // 3) Post-confirm inspection
     switch (pi.status) {
       case 'succeeded': {
         const order = await this.createOrderFromIntentById(pi.id, userId);
@@ -807,11 +775,11 @@ export class OrdersService {
     }
   }
 
-  // ---- email helpers (Option A hybrid) --------------------------------------
+  // ───────────────────────── email helpers ─────────────────────────
   private async getRecipientEmail(opts: {
     pi: Stripe.PaymentIntent;
     draft?: any;
-  }): Promise<string | undefined> {
+  }) {
     const { pi, draft } = opts;
     const charge =
       typeof pi.latest_charge === 'string' ? undefined : pi.latest_charge;
@@ -830,7 +798,6 @@ export class OrdersService {
     return fromPi || fromCharge || fromDraft || undefined;
   }
 
-  // Plain order (no PI) → best-effort address
   private getEmailFromOrder(order: any): string | undefined {
     return (
       order?.email ||
@@ -853,9 +820,7 @@ export class OrdersService {
     if (ctx.trackingNumber)
       lines.push(`<b>Tracking:</b> ${ctx.trackingNumber}`);
     if (ctx.eta) lines.push(`<b>ETA:</b> ${ctx.eta}`);
-    return `<p>Hi,</p><p>Your order <b>${ctx.orderId}</b> was updated.</p><p>${lines.join(
-      '<br/>',
-    )}</p>`;
+    return `<p>Hi,</p><p>Your order <b>${ctx.orderId}</b> was updated.</p><p>${lines.join('<br/>')}</p>`;
   }
 
   private async sendReceiptIfNeeded(
@@ -876,15 +841,16 @@ export class OrdersService {
         ? (snap.get('receiptSentFor') as string | undefined)
         : undefined;
 
-      // ✅ Only skip if we've already sent for THIS payment intent
-      if (alreadyAt && alreadyFor === pi.id) {
+      // ⛔ If we ever stamped a receipt, skip (controllers/webhooks may have mailed it)
+      if (alreadyAt) {
         this.logger.log(
-          `receipt already sent for ${orderId} (pi=${pi.id}) @ ${alreadyAt}`,
+          `receipt already stamped for ${orderId} @ ${alreadyAt}${
+            alreadyFor ? ` (for=${alreadyFor})` : ''
+          }`,
         );
         return;
       }
 
-      // Resolve recipient
       const charge =
         typeof pi.latest_charge === 'string' ? undefined : pi.latest_charge;
       const to =
@@ -901,7 +867,6 @@ export class OrdersService {
         return;
       }
 
-      // Optional: try to mint an invoice; failure is non-fatal
       let invoiceUrl: string | undefined;
       try {
         if (this.invoice?.ensureInvoice) {
@@ -929,11 +894,7 @@ export class OrdersService {
       });
 
       await ref.set(
-        {
-          receiptSentAt: nowIso(),
-          receiptSentFor: pi.id, // bind to this transaction
-          updatedAt: nowIso(),
-        },
+        { receiptSentAt: nowIso(), receiptSentFor: pi.id, updatedAt: nowIso() },
         { merge: true },
       );
 
@@ -945,17 +906,13 @@ export class OrdersService {
     }
   }
 
-  /**
-   * Email the customer on admin updates (status, delivery, etc.).
-   * Called from the controller after a successful PATCH.
-   */
   async notifyCustomer(
     order: any,
     patch: any = {},
     actor?: { uid?: string; email?: string } | null,
   ): Promise<void> {
     try {
-      if (!this.mailer) return; // mailer not wired in env
+      if (!this.mailer) return;
       const to = this.getEmailFromOrder(order);
       if (!to) {
         this.logger.warn(`notifyCustomer: no recipient email for ${order?.id}`);
@@ -965,25 +922,20 @@ export class OrdersService {
       const ctx = {
         orderId: String(order.id || order.paymentIntentId || ''),
         status: (patch?.status ?? order?.status) as string | undefined,
-        provider:
-          patch?.delivery?.provider ??
-          (order?.delivery && order.delivery.provider),
+        provider: patch?.delivery?.provider ?? order?.delivery?.provider,
         trackingNumber:
-          patch?.delivery?.trackingNumber ??
-          (order?.delivery && order.delivery.trackingNumber),
+          patch?.delivery?.trackingNumber ?? order?.delivery?.trackingNumber,
         eta:
           patch?.delivery?.eta ??
           (order?.delivery && (order.delivery.eta as any)),
       };
 
-      // Prefer a dedicated template if your MailerService exposes it
       const hasUpdateTemplate =
         typeof (this.mailer as any)?.sendOrderUpdate === 'function';
 
       if (hasUpdateTemplate) {
         await (this.mailer as any).sendOrderUpdate.call(this.mailer, to, ctx);
       } else if (this.mailer.sendOrderConfirmation) {
-        // Fallback: reuse confirmation template (minimal info)
         const currency = (order?.currency || order?.payment?.currency || 'ILS')
           .toString()
           .toUpperCase();
@@ -1029,6 +981,7 @@ export class OrdersService {
     }
   }
 
+  // ───────────────────────── Stripe: create order ─────────────────────────
   async createOrderFromIntentById(paymentIntentId: string, userId: string) {
     if (!this.stripe) throw new Error('Stripe not configured');
 
@@ -1125,19 +1078,18 @@ export class OrdersService {
 
     await this.cleanupOldDrafts(userId, orderId, true);
 
-    // ✅ Decrement stock ONCE
     await this.decrementStockForOrder(orderId, payload.items || []);
 
-    // ✅ Send receipt (hybrid approach); de-duped via receiptSentAt/receiptSentFor
-    await this.sendReceiptIfNeeded(orderId, pi, draft);
+    // ✅ Only send from OrdersService if explicitly enabled to avoid double-send.
+    if (this.sendStripeEmailsFromOrders) {
+      await this.sendReceiptIfNeeded(orderId, pi, draft);
+    }
 
     this.logger.log(`createOrderFromIntentById ${orderId} ← ${pi.status}`);
     return payload;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Webhooks
-  // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────── webhooks ─────────────────────────
   async handleStripeWebhook(rawBody: string | Buffer, signature?: string) {
     const secret = process.env.STRIPE_WEBHOOK_SECRET ?? '';
     let event: Stripe.Event;
@@ -1188,9 +1140,7 @@ export class OrdersService {
     return { received: true };
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Tests helper
-  // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────── tests helper ─────────────────────────
   async findMostRecentOpenOrderId(): Promise<string | null> {
     const snap = await this.col()
       .where('status', '==', 'open')

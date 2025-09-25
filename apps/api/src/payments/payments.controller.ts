@@ -388,7 +388,7 @@ export class PaymentsController {
           currency: (order?.currency as string) || null,
           paymentIntentId: String(order?.paymentIntentId || ''),
           created: false,
-          invoiceUrl,
+          invoiceUrl, // ✅ include for templates
         },
         attachments ? { attachments } : undefined,
       );
