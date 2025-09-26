@@ -3,16 +3,16 @@
     "order": {
       "subject": {
         "created": "הזמנה {{id}} אושרה — {{amount}}",
-        "paid": "התשלום עבור {{id}} התקבל — {{amount}}"
+        "paid": "התשלום עבור {{id}} הושלם — {{amount}}"
       },
       "heading": "תודה על ההזמנה!",
       "received": "ההזמנה {{id}} התקבלה בהצלחה.",
       "fields": {
         "amount": "סכום",
         "currency": "מטבע",
-        "pi": "Payment Intent"
+        "pi": "מזהה כוונת תשלום (PI)"
       },
-      "invoice_link": "הורדת חשבונית (PDF)",
+      "invoice_link": "להורדת חשבונית (PDF)",
       "questions": "אם יש לך שאלות, פשוט השב/י למייל זה."
     },
     "update": {
@@ -20,12 +20,12 @@
         "updated": "עדכון להזמנה {{id}}",
         "shipped": "ההזמנה {{id}} נשלחה",
         "delivered": "ההזמנה {{id}} נמסרה",
-        "paid": "ההזמנה {{id}} שולמה",
+        "paid": "התשלום עבור {{id}} הושלם — {{amount}}",
         "canceled": "ההזמנה {{id}} בוטלה",
-        "refunded": "בוצע החזר על ההזמנה {{id}}",
+        "refunded": "בוצע החזר עבור {{id}} — {{amount}}",
         "open": "עדכון להזמנה {{id}}"
       },
-      "heading": "עדכון הזמנה.",
+      "heading": "הזמנתך עודכנה",
       "body": "ההזמנה {{id}} עודכנה.",
       "fields": {
         "status": "סטטוס",
@@ -52,6 +52,6 @@
     "shipped": "נשלחה",
     "delivered": "נמסרה",
     "canceled": "בוטלה",
-    "refunded": "הוחזרה"
+    "refunded": "זוכה"
   }
 }

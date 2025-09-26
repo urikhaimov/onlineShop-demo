@@ -16,7 +16,7 @@
         "tsConfig": "apps/api/tsconfig.app.json",
         "webpackConfig": "apps/api/webpack.config.js",
         "generatePackageJson": false,
-        "externalDependencies": ["mjml", "handlebars"],
+        "externalDependencies": "all",
         "assets": [
           { "input": "apps/api/src/i18n", "glob": "**/*", "output": "i18n" },
           {
@@ -25,9 +25,9 @@
             "output": "libs/email-templates/templates"
           },
           {
-            "input": "libs/email-templates/src/templates/assets",
-            "glob": "**/*",
-            "output": "libs/email-templates/templates/assets"
+            "input": "apps/api/src/invoice/fonts",
+            "glob": "**/*.ttf",
+            "output": "invoice/fonts"
           }
         ]
       },
