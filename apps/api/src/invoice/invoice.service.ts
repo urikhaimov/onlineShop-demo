@@ -14,17 +14,24 @@ export type InvoiceItem = {
   qty: number;
   priceCents?: number;
 };
+
 export type InvoiceInput = {
   orderId: string;
   createdAt: Date | string;
   updatedAt?: Date | string;
-  amountCents: number;
+  amountCents: number; // grand total (fallbacks still supported)
   currency: string;
   email?: string | null;
   items?: InvoiceItem[];
-  vatRate?: number;
+  vatRate?: number; // e.g. 0.17 for 17%
   storeName?: string;
+
+  // Optional breakdown (when known)
+  subtotalCents?: number; // items subtotal
+  shippingCents?: number; // delivery/shipping fee
+  discountCents?: number; // absolute discount (positive number)
 };
+
 export type InvoiceUpload = {
   buffer: Buffer;
   path: string;
@@ -33,6 +40,7 @@ export type InvoiceUpload = {
   contentType?: string;
   updatedAt?: string;
 };
+
 type InvoiceStoredMeta = {
   path: string;
   generatedAt: string;
@@ -54,6 +62,12 @@ function asQty(n: any) {
 }
 const HEBREW_RE = /[\u0590-\u05FF]/;
 const RLM = '\u200F'; // keeps colon position correct in RTL
+
+// simple env flags (defaults typical for IL)
+const VAT_APPLIES_TO_SHIPPING =
+  String(process.env.VAT_APPLIES_TO_SHIPPING ?? '1') !== '0';
+const DISCOUNT_BEFORE_TAX =
+  String(process.env.DISCOUNT_BEFORE_TAX ?? '1') !== '0';
 
 @Injectable()
 export class InvoiceService {
@@ -97,6 +111,8 @@ export class InvoiceService {
         Total: 'סה״כ',
         Subtotal: 'סיכום ביניים',
         VAT: 'מע״מ',
+        Shipping: 'משלוח',
+        Discount: 'הנחה',
         'Order payment': 'תשלום הזמנה',
       };
       return HE[key] ?? key;
@@ -115,7 +131,6 @@ export class InvoiceService {
     return null;
   }
   private registerFonts(doc: PdfKitDoc) {
-    // return loaded names
     const load = (name: string, ...rel: string[]) => {
       try {
         const p = this.resolveAsset(...rel);
@@ -162,16 +177,19 @@ export class InvoiceService {
         align: rtl ? 'left' : 'right',
       });
       doc.moveDown(0.3);
-      doc
-        .fontSize(32)
-        .text(this.t('INVOICE', locale), { align: rtl ? 'right' : 'left' });
+      doc.fontSize(32).text(this.t('INVOICE', locale), {
+        align: rtl ? 'right' : 'left',
+      });
       if (FACE) doc.font(FACE);
       doc.moveDown(0.6);
 
-      const created = new Date(data.createdAt);
+      const createdDate = new Date(data.createdAt);
+      const createdStr = isNaN(createdDate.getTime())
+        ? new Date().toLocaleDateString(locale)
+        : createdDate.toLocaleDateString(locale);
       const headerLines = [
         `${this.t('Invoice #', locale)}: ${data.orderId}`,
-        `${this.t('Date', locale)}: ${created.toLocaleDateString(locale)}`,
+        `${this.t('Date', locale)}: ${createdStr}`,
         `${this.t('Bill to', locale)}: ${data.email ?? '-'}`,
       ];
       headerLines.forEach((line) =>
@@ -201,11 +219,10 @@ export class InvoiceService {
         }
       };
 
-      // === Table header (single baseline) ===
+      // === Table header ===
       doc.fontSize(12);
       if (rtl && heb) doc.font(heb);
-      const headerY = doc.y; // lock y for all header cells
-
+      const headerY = doc.y;
       doc.text(this.t('Item', locale), x('item'), headerY, {
         width: colW.item,
         align: rtl ? 'right' : 'left',
@@ -232,7 +249,6 @@ export class InvoiceService {
         .strokeColor('#777')
         .stroke();
 
-      // start rows just below the header underline
       let y = headerLineY + 10;
 
       // Rows
@@ -251,17 +267,13 @@ export class InvoiceService {
 
       const hasRows = rows.length > 0;
       const hasPrices = rows.some((r) => typeof r.price === 'number');
-      const computedSubtotal = hasPrices
-        ? rows.reduce((s, r) => s + (r.total ?? 0), 0)
-        : data.amountCents;
 
       const lineH = 20;
 
-      // reprint header on page-break, again on a single baseline
       const ensureSpace = () => {
         if (y > doc.page.height - 140) {
           doc.addPage();
-          const hY = 56; // top margin we used
+          const hY = 56;
           doc.fontSize(12);
           if (rtl && heb) doc.font(heb);
           doc.text(this.t('Item', locale), x('item'), hY, {
@@ -281,7 +293,6 @@ export class InvoiceService {
             width: colW.total,
             align: 'right',
           });
-
           const lh = hY + doc.currentLineHeight() + 2;
           doc
             .moveTo(pageLeft, lh)
@@ -326,6 +337,7 @@ export class InvoiceService {
           y += lineH;
         }
       } else {
+        // fallback single-row invoice
         if (rtl && heb) doc.font(heb);
         doc.text(this.t('Order payment', locale), x('item'), y, {
           width: colW.item,
@@ -338,12 +350,15 @@ export class InvoiceService {
           this.formatMoney(data.amountCents, data.currency, locale),
           x('total'),
           y,
-          { width: colW.total, align: 'right' },
+          {
+            width: colW.total,
+            align: 'right',
+          },
         );
         y += lineH;
       }
 
-      // Subtotal / VAT / Total
+      // ---------- Summary separator ----------
       y += 6;
       doc
         .moveTo(pageLeft, y)
@@ -357,38 +372,94 @@ export class InvoiceService {
         rtl ? `${this.t(k, locale)}:${RLM}` : `${this.t(k, locale)}:`;
       const rightBlockX = rtl ? x('price') : 350;
 
+      const shippingCents = toInt(data.shippingCents);
+      const discountCents = toInt(data.discountCents);
+
+      // We know how to show a breakdown only if we have priced rows OR an explicit subtotal
+      const breakdownKnown =
+        hasPrices || Number.isFinite((data as any).subtotalCents);
+
+      // computedSubtotal: from rows if priced, else from provided subtotal, else 0
+      const computedSubtotal = hasPrices
+        ? rows.reduce((s, r) => s + (r.total ?? 0), 0)
+        : toInt(data.subtotalCents ?? 0);
+
       doc.fontSize(12);
-      doc.text(label('Subtotal'), rightBlockX, y, {
-        width: 120,
-        align: 'left',
-      });
-      doc.text(
-        this.formatMoney(computedSubtotal, data.currency, locale),
-        x('total'),
-        y,
-        { width: colW.total, align: 'right' },
-      );
-      y += lineH;
 
       let vatCents = 0;
-      if (typeof data.vatRate === 'number' && data.vatRate > 0) {
-        vatCents = Math.round(computedSubtotal * data.vatRate);
-        const vatLabel = `${this.t('VAT', locale)} (${Math.round(
-          data.vatRate * 100,
-        )}%)`;
-        doc.text(rtl ? `${vatLabel}:${RLM}` : `${vatLabel}:`, rightBlockX, y, {
+
+      // ---------- Breakdown (only if we actually know it) ----------
+      if (breakdownKnown) {
+        // Subtotal
+        doc.text(label('Subtotal'), rightBlockX, y, {
           width: 120,
+          align: 'left',
         });
         doc.text(
-          this.formatMoney(vatCents, data.currency, locale),
+          this.formatMoney(computedSubtotal, data.currency, locale),
           x('total'),
           y,
           { width: colW.total, align: 'right' },
         );
         y += lineH;
+
+        // Shipping (optional)
+        if (shippingCents !== 0) {
+          doc.text(label('Shipping'), rightBlockX, y, { width: 120 });
+          doc.text(
+            this.formatMoney(shippingCents, data.currency, locale),
+            x('total'),
+            y,
+            { width: colW.total, align: 'right' },
+          );
+          y += lineH;
+        }
+
+        // Discount (optional; positive value printed as negative)
+        if (discountCents > 0) {
+          doc.text(label('Discount'), rightBlockX, y, { width: 120 });
+          doc.text(
+            `-${this.formatMoney(discountCents, data.currency, locale)}`,
+            x('total'),
+            y,
+            { width: colW.total, align: 'right' },
+          );
+          y += lineH;
+        }
+
+        // VAT (optional)
+        if (typeof data.vatRate === 'number' && data.vatRate > 0) {
+          let vatBase =
+            computedSubtotal +
+            (VAT_APPLIES_TO_SHIPPING ? shippingCents : 0) -
+            (DISCOUNT_BEFORE_TAX ? discountCents : 0);
+          if (vatBase < 0) vatBase = 0;
+          vatCents = Math.round(vatBase * data.vatRate);
+
+          const vatLabel = `${this.t('VAT', locale)} (${Math.round(
+            data.vatRate * 100,
+          )}%)`;
+          doc.text(
+            rtl ? `${vatLabel}:${RLM}` : `${vatLabel}:`,
+            rightBlockX,
+            y,
+            { width: 120 },
+          );
+          doc.text(
+            this.formatMoney(vatCents, data.currency, locale),
+            x('total'),
+            y,
+            { width: colW.total, align: 'right' },
+          );
+          y += lineH;
+        }
       }
 
-      const totalCents = computedSubtotal + vatCents;
+      // ---------- Total ----------
+      const totalCents = breakdownKnown
+        ? computedSubtotal + shippingCents - discountCents + vatCents
+        : toInt(data.amountCents);
+
       doc.fontSize(13);
       doc.text(label('Total'), rightBlockX, y, { width: 120 });
       doc.text(
@@ -528,6 +599,31 @@ export class InvoiceService {
           .filter((r: InvoiceItem) => r.qty > 0)
       : undefined;
 
+    const subtotalCents =
+      toInt(o?.subtotalMinor) ||
+      toCentsFromMajor(o?.subtotal) ||
+      (Array.isArray(items)
+        ? items.reduce((s, it) => s + toInt(it.priceCents) * asQty(it.qty), 0)
+        : 0);
+
+    const shippingCents =
+      toInt(o?.shippingMinor) ||
+      toInt(o?.deliveryFeeMinor) ||
+      toInt(o?.shipping?.minor) ||
+      toCentsFromMajor(o?.shipping ?? o?.shippingMajor ?? o?.deliveryFee) ||
+      0;
+
+    const discountCents =
+      toInt(o?.discountMinor) ||
+      toInt(o?.discount?.minor) ||
+      toCentsFromMajor(
+        o?.discount ??
+          o?.discountMajor ??
+          o?.couponDiscount ??
+          o?.promoDiscount,
+      ) ||
+      0;
+
     const vatRate =
       typeof o?.vatRate === 'number'
         ? o.vatRate
@@ -547,6 +643,9 @@ export class InvoiceService {
       vatRate,
       storeName:
         process.env.STORE_NAME || process.env.SHOP_NAME || 'Online Shop',
+      subtotalCents,
+      shippingCents,
+      discountCents,
     };
 
     return this.generateAndUpload(data);

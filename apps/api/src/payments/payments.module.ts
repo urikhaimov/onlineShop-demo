@@ -9,27 +9,31 @@ import { ConfigModule } from '@nestjs/config';
 import { raw } from 'express';
 
 import { PaymentsController } from './payments.controller';
+import { StripeWebhookController } from './stripe-webhook.controller';
 import { MailerModule } from '../mailer/mailer.module';
 import { InvoiceModule } from '../invoice/invoice.module';
-
-// NOTE:
-// - Do NOT import OrdersModule here (avoids spinning up OrdersService in tests).
-// - Do NOT import or register an InvoicesPublicController here.
-//   The invoice download endpoint is implemented on PaymentsController.
+import { OrdersModule } from '../orders/orders.module'; // must export OrdersService
 
 @Module({
-  // If ConfigModule isn’t global elsewhere, switch to ConfigModule.forRoot({ isGlobal: true })
-  imports: [ConfigModule, MailerModule, InvoiceModule],
-  controllers: [PaymentsController],
+  imports: [
+    ConfigModule, // or ConfigModule.forRoot({ isGlobal: true }) in AppModule
+    MailerModule,
+    InvoiceModule,
+    OrdersModule, // <-- required for StripeWebhookController's OrdersService
+  ],
+  controllers: [PaymentsController, StripeWebhookController],
 })
 export class PaymentsModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Stripe webhook must receive the exact raw bytes (no JSON parsing)
-    consumer.apply(raw({ type: '*/*' })).forRoutes(
-      // primary webhook endpoint
-      { path: 'payments/webhooks/stripe', method: RequestMethod.POST },
-      // optional legacy alias
-      { path: 'payments/webhook', method: RequestMethod.POST },
-    );
+    // Stripe needs the exact raw bytes for signature verification
+    consumer
+      .apply(raw({ type: '*/*' }))
+      .forRoutes(
+        { path: 'webhooks/stripe', method: RequestMethod.POST },
+        { path: 'payments/webhooks/stripe', method: RequestMethod.POST },
+        { path: 'payments/webhook', method: RequestMethod.POST },
+        { path: 'stripe/webhook', method: RequestMethod.POST },
+        { path: 'orders/webhook', method: RequestMethod.POST },
+      );
   }
 }

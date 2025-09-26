@@ -129,6 +129,20 @@ function buildIdemKey(
   return key.length > 255 ? key.slice(0, 255) : key;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Money/tax helpers (server is the source of truth)
+// ─────────────────────────────────────────────────────────────────────────────
+const toMinor = (v: any) => Math.max(0, Math.round((Number(v) || 0) * 100));
+const normalizeRate = (v: any) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n <= 1 ? n : n / 100; // accepts 0.17 or 17 → 0.17
+};
+const VAT_APPLIES_TO_SHIPPING =
+  String(process.env.VAT_APPLIES_TO_SHIPPING ?? '1') !== '0';
+const DISCOUNT_BEFORE_TAX =
+  String(process.env.DISCOUNT_BEFORE_TAX ?? '1') !== '0';
+
 @Controller('payments')
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
@@ -169,7 +183,7 @@ export class PaymentsController {
   // POST /payments/create-payment-intent
   //  • Accepts optional Idempotency-Key header (recommended)
   //  • Calculates totals from Firestore products + settings (in MINOR units)
-  //  • Writes metadata (orderId, items, email)
+  //  • Writes metadata (orderId, items, email + server snapshot for invoice)
   // ----------------------------------------------------------------------------
   @Post('create-payment-intent')
   @HttpCode(201)
@@ -197,7 +211,7 @@ export class PaymentsController {
     ).toLowerCase();
     const currency = String(dto.currency ?? defaultCur).toLowerCase();
 
-    // 1) Fetch prices → subtotal **in cents**
+    // 1) Fetch prices → subtotal **in cents** (server authority)
     let subtotalCents = 0;
     for (const it of dto.items) {
       const pid = String(it.id);
@@ -215,30 +229,39 @@ export class PaymentsController {
       subtotalCents += unitCents * qty;
     }
 
-    // 2) Settings (kept in major units in DB) → convert to cents
-    const settingsSnap = await adminDb
-      .collection('settings')
-      .doc('payments')
+    // 2) Settings from unified location (with fallback), then compute tax/total
+    // Primary location:
+    let settingsSnap = await adminDb
+      .collection('order-settings')
+      .doc('default')
       .get();
 
-    const shippingMajor = Number(settingsSnap.get('shipping') ?? 0);
-    const taxRate = Number(settingsSnap.get('taxRate') ?? 0); // percent
-    const discountMajor = Number(settingsSnap.get('discount') ?? 0);
+    // Backward-compat fallback:
+    if (!settingsSnap.exists) {
+      settingsSnap = await adminDb.collection('settings').doc('payments').get();
+    }
 
-    const shippingCents = Math.round(shippingMajor * 100);
-    const discountCents = Math.round(discountMajor * 100);
-    const taxCents = Math.round(subtotalCents * (taxRate / 100));
+    const shippingMinor = toMinor(settingsSnap.get('shipping') ?? 0);
+    const discountMinor = toMinor(settingsSnap.get('discount') ?? 0);
+    const vatRate = normalizeRate(settingsSnap.get('taxRate') ?? 0);
 
+    const vatBase =
+      subtotalCents +
+      (VAT_APPLIES_TO_SHIPPING ? shippingMinor : 0) -
+      (DISCOUNT_BEFORE_TAX ? discountMinor : 0);
+    const taxCents = Math.round(Math.max(0, vatBase) * vatRate);
+
+    // Final amount (minor units)
     const amount = Math.max(
       0,
-      subtotalCents + shippingCents + taxCents - discountCents,
+      subtotalCents + shippingMinor - discountMinor + taxCents,
     );
 
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException('Cart total must be greater than zero');
     }
 
-    // 3) Metadata (write both orderId & cartId to be safe)
+    // 3) Metadata (write both orderId & cartId + snapshot for invoices)
     const itemsMeta = JSON.stringify(
       (dto.items ?? []).map((i) => ({
         id: String(i.id),
@@ -268,6 +291,11 @@ export class PaymentsController {
             cartId: orderId, // backward-compat
             items: itemsMetaSafe,
             email: emailMeta,
+            // snapshot the numbers we used:
+            subtotal_minor: String(subtotalCents),
+            shipping_minor: String(shippingMinor),
+            discount_minor: String(discountMinor),
+            vat_rate: String(vatRate), // fraction (e.g., 0.17)
           },
           receipt_email: dto.customerEmail || undefined,
         },

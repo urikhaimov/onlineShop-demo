@@ -93,6 +93,20 @@ function extractPeopleFromStripe(pi: Stripe.PaymentIntent) {
   return { shippingAddress, customer };
 }
 
+// money & tax helpers
+const toMinor = (v: any) => Math.max(0, Math.round((Number(v) || 0) * 100));
+const normalizeRate = (v: any) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n <= 1 ? n : n / 100; // accepts 0.17 or 17 → 0.17
+};
+
+// env toggles
+const VAT_APPLIES_TO_SHIPPING =
+  String(process.env.VAT_APPLIES_TO_SHIPPING ?? '1') !== '0';
+const DISCOUNT_BEFORE_TAX =
+  String(process.env.DISCOUNT_BEFORE_TAX ?? '1') !== '0';
+
 // ───────────────────────────────── service ─────────────────────────────────
 @Injectable()
 export class OrdersService {
@@ -129,6 +143,38 @@ export class OrdersService {
   }
   private productsCol() {
     return adminDb.collection('products');
+  }
+
+  // ───────────────────────── settings & subtotal helpers ─────────────────────────
+  private async loadOrderSettings() {
+    const snap = await adminDb
+      .collection('order-settings')
+      .doc('default')
+      .get();
+    const d = (snap.exists ? snap.data() : {}) as any;
+    return {
+      shippingMinor: toMinor(d?.shipping),
+      discountMinor: toMinor(d?.discount),
+      vatRate: normalizeRate(d?.taxRate), // fraction, e.g., 0.17
+    };
+  }
+
+  private async subtotalFromCart(cart?: any[]): Promise<number> {
+    if (!Array.isArray(cart) || cart.length === 0) return 0;
+    let subtotal = 0;
+    for (const it of cart) {
+      const id = String(it.productId ?? it.id ?? '').trim();
+      const qty = Math.max(0, Number(it.quantity ?? it.qty ?? 1) || 0);
+      if (!id || qty <= 0) continue;
+      const snap = await this.productsCol().doc(id).get();
+      // prefer server price; fallback to client-provided major price
+      const unitMajor =
+        Number(snap.get('price')) ?? Number(it.priceMajor ?? it.price) ?? 0;
+      if (unitMajor > 0 && qty > 0) {
+        subtotal += toMinor(unitMajor) * qty;
+      }
+    }
+    return subtotal;
   }
 
   // ───────────────────────── stock ─────────────────────────
@@ -550,22 +596,40 @@ export class OrdersService {
 
   // ───────────────────────── Stripe: create/confirm ─────────────────────────
   async createPaymentIntent(input: {
-    totalMajor: number;
+    totalMajor?: number; // optional (server will compute)
     currency?: string;
     userId: string;
     orderId?: string;
     metadata?: Record<string, string>;
     email?: string;
-    idempotencyKey?: string; // may be provided by client
-    cart?: any[];
-    reuseIfSame?: boolean; // <-- default false (force new PI)
+    idempotencyKey?: string;
+    cart?: any[]; // used to compute subtotal
+    reuseIfSame?: boolean;
   }) {
     if (!this.stripe) throw new Error('Stripe not configured');
 
-    const amountMinor = Math.max(0, Math.round((input.totalMajor ?? 0) * 100));
     const currency = (input.currency ?? 'ils').toLowerCase();
 
-    // Base key (stable)
+    // 1) Subtotal from products (minor units); fallback to provided totalMajor
+    const subtotalMinor =
+      (await this.subtotalFromCart(input.cart)) || toMinor(input.totalMajor);
+
+    // 2) Load settings from DB and compute totals
+    const { shippingMinor, discountMinor, vatRate } =
+      await this.loadOrderSettings();
+
+    const vatBase =
+      subtotalMinor +
+      (VAT_APPLIES_TO_SHIPPING ? shippingMinor : 0) -
+      (DISCOUNT_BEFORE_TAX ? discountMinor : 0);
+    const vatMinor = Math.round(Math.max(0, vatBase) * vatRate);
+
+    const amountMinor = Math.max(
+      0,
+      subtotalMinor + shippingMinor - discountMinor + vatMinor,
+    );
+
+    // 3) Idempotency key (same as before)
     const baseKey = buildIdemKey({
       provided: input.idempotencyKey,
       userId: input.userId || 'anon',
@@ -573,9 +637,6 @@ export class OrdersService {
       amount: amountMinor,
       currency,
     });
-
-    // 🚫 By default we SALT to avoid reusing an old PI.
-    // Pass reuseIfSame=true ONLY if you intentionally want the same PI.
     const idemKey =
       input.reuseIfSame === true
         ? baseKey
@@ -583,6 +644,7 @@ export class OrdersService {
             .toString(36)
             .slice(2, 7)}`.slice(0, 255);
 
+    // 4) Create PI with a snapshot of settings in metadata
     const params: Stripe.PaymentIntentCreateParams = {
       amount: amountMinor,
       currency,
@@ -594,6 +656,10 @@ export class OrdersService {
         app: 'onlineShop',
         ...(input.metadata ?? {}),
         ...(input.email ? { email: input.email } : {}),
+        subtotal_minor: String(subtotalMinor),
+        shipping_minor: String(shippingMinor),
+        discount_minor: String(discountMinor),
+        vat_rate: String(vatRate), // fraction (e.g., 0.17)
       },
       receipt_email: input.email || undefined,
     };
@@ -613,6 +679,7 @@ export class OrdersService {
       pi = await tryCreate(salted);
     }
 
+    // 5) Persist draft (also store the snapshot)
     await this.col()
       .doc(pi.id)
       .set(
@@ -635,9 +702,13 @@ export class OrdersService {
             transactionId: pi.id,
             status: 'requires_confirmation',
           }),
+          // snapshots used later by invoice:
+          subtotalMinor,
+          shippingMinor,
+          discountMinor,
+          vatRate,
           createdAt: nowIso(),
           updatedAt: nowIso(),
-          // debug breadcrumb:
           _idempotencyKeyUsed: idemKey,
         }),
         { merge: true },
@@ -1036,6 +1107,21 @@ export class OrdersService {
           ? pi.amount
           : draft.totalMinor) || 0;
 
+    // snapshots for invoice
+    const m = pi.metadata || {};
+    const subtotalMinor =
+      Number(m.subtotal_minor) || Number(draft?.subtotalMinor) || undefined;
+    const shippingMinor =
+      Number(m.shipping_minor) || Number(draft?.shippingMinor) || 0;
+    const discountMinor =
+      Number(m.discount_minor) || Number(draft?.discountMinor) || 0;
+    const vatRate =
+      m.vat_rate !== null
+        ? Number(m.vat_rate)
+        : typeof draft?.vatRate === 'number'
+          ? Number(draft.vatRate)
+          : undefined;
+
     const payload = stripUndefinedDeep({
       id: orderId,
       userId,
@@ -1057,6 +1143,11 @@ export class OrdersService {
       }),
       shippingAddress: shippingAddress ?? draft.shippingAddress,
       customer: Object.keys(customer).length ? customer : draft.customer,
+      // NEW snapshots → for invoice generation
+      subtotalMinor,
+      shippingMinor,
+      discountMinor,
+      vatRate,
       createdAt: draft?.createdAt ?? nowIso(),
       updatedAt: nowIso(),
     });
