@@ -23,6 +23,8 @@ export default [
       '**/webpack.config.*',
       '**/vite.config.*.timestamp*',
       '**/vitest.config.*.timestamp*',
+      '.nx/**',
+      '**/.nx/**',
     ],
   },
   {
