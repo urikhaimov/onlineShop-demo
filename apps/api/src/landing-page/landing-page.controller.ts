@@ -1,12 +1,14 @@
 // apps/api/src/landing-page/landing-page.controller.ts
-import { Controller, Get, Put, Body, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Put, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { LandingPageService } from './landing-page.service';
 import type { LandingPageData } from '@common/types';
 
 @Controller('landing')
 export class LandingPageController {
-  constructor(private readonly svc: LandingPageService) {}
+  constructor(
+    @Inject(LandingPageService) private readonly svc: LandingPageService,
+  ) {}
 
   @Get()
   async get(@Res({ passthrough: true }) res: Response) {
