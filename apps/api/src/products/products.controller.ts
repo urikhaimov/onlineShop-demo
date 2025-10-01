@@ -1,16 +1,17 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Inject,
+  Logger,
   Param,
   Post,
   Put,
-  Delete,
-  Req,
-  UseGuards,
-  Logger,
   Query,
+  Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
@@ -27,7 +28,7 @@ type AuthedReq = Request & {
 export class ProductsController {
   private readonly logger = new Logger(ProductsController.name);
 
-  constructor(private readonly svc: ProductsService) {}
+  constructor(@Inject(ProductsService) private readonly svc: ProductsService) {}
 
   /** Common sender for list endpoints */
   private sendList(res: Response, items: unknown[], total: number) {
