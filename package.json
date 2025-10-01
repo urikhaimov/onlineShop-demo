@@ -8,15 +8,20 @@
   "description": "",
   "author": "",
   "scripts": {
+    "dev:client": "cross-env NX_DAEMON=false npm run nx -- run client:serve",
+    "dev:api:nodbg": "cross-env NX_DAEMON=false npm run nx -- run api:serve:development -- --inspect=false",
+    "dev:auth:dbg": "cross-env NX_DAEMON=false npm run nx -- run auth:serve:development",
+    "nx:run-all": "concurrently -k -n API,AUTH,WEB -c auto \"npm run dev:api:nodbg\" \"npm run dev:auth:dbg\" \"npm run dev:client\"",
+    "nx:run-all:api-debug": "concurrently -k -n API,AUTH,WEB -c auto \"npm run nx -- run api:serve:development\" \"npm run dev:auth:dbg\" \"npm run dev:client\"",
+    "nx": "node ./node_modules/nx/bin/nx.js",
+    "dev:api:dbg": "cross-env NX_DAEMON=false npm run nx -- run api:serve:development",
+    "dev:auth:nodbg": "cross-env NX_DAEMON=false npm run nx -- run auth:serve:development -- --inspect=false",
     "test": "firebase emulators:exec \"vitest run\"",
     "test:rules": "cross-env PROJECT_ID=onlinestoretemplate-59d3e firebase emulators:exec --only firestore,storage \"vitest run -t rules\"",
     "lint": "eslint --cache --fix .",
-    "nx": "node ./node_modules/nx/bin/nx.js",
     "nx:all": "npm run nx -- run-many --target=build --all",
-    "dev:client": "nx serve client",
     "dev:api": "nx serve api",
     "dev:auth": "nx serve auth",
-    "nx:run-all": "npm run nx -- run-many --targets=serve --projects=api,auth,client --parallel=3",
     "nx:latest": "npm i -g nx && npx nx migrate latest && npx nx --version",
     "test:e2e": "playwright test apps/client-e2e",
     "e2e": "playwright test -c apps/client-e2e/playwright.config.ts",
@@ -43,7 +48,6 @@
     "smoke:all": "node scripts/auth-smoke.mjs && node scripts/client-smoke.mjs && node scripts/api-smoke.mjs && node scripts/storage-smoke.mjs",
     "api:dev": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 STORAGE_EMULATOR_HOST=http://127.0.0.1:9199 nx serve api",
     "web:dev": "nx serve client",
-    "dev": "concurrently -k -n EMU,API,WEB \"npm:emu:start\" \"npm:api:dev\" \"npm:web:dev\"",
     "export:prod:firestore": "node scripts/export-prod.js",
     "import:emu": "node scripts/import-emu.js",
     "emu:start:core": "firebase emulators:start --config ./firebase.json --project onlinestoretemplate-59d3e --only auth,firestore,storage,ui --import ./.emu-data --export-on-exit ./.emu-data",
@@ -119,6 +123,7 @@
     "commitlint": "^19.8.1",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
+    "dotenv-cli": "^10.0.0",
     "esbuild": "^0.25.8",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
@@ -140,9 +145,11 @@
     "jiti": "^2.5.1",
     "jsdom": "^26.1.0",
     "jsonc-eslint-parser": "^2.4.0",
+    "kill-port": "^2.0.1",
     "less": "^4.4.0",
     "lint-staged": "^16.1.5",
     "nock": "^14.0.10",
+    "nodemon": "^3.1.10",
     "nx": "21.3.11",
     "postcss-less": "^6.0.0",
     "prettier": "^3.6.2",
@@ -226,7 +233,7 @@
     "jspdf": "^3.0.1",
     "jwt-decode": "^4.0.0",
     "lodash": "^4.17.21",
-    "mjml": "^4.16.1",
+    "mjml": "^4.15.3",
     "motion-dom": "^12.23.12",
     "nestjs-i18n": "^10.5.1",
     "nodemailer": "^7.0.6",
@@ -263,5 +270,8 @@
   "engines": {
     "node": ">=20.10.0"
   },
-  "nx": {}
+  "nx": {},
+  "overrides": {
+    "juice": "10.0.0"
+  }
 }

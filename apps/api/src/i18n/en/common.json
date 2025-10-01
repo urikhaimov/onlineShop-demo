@@ -32,6 +32,14 @@
         "provider": "Provider",
         "tracking": "Tracking",
         "eta": "ETA"
+      },
+      "sections": {
+        "delivery": "Delivery details",
+        "shipping": "Shipping address"
+      },
+      "actions": {
+        "track": "Track package",
+        "back": "Back to {{brand}}"
       }
     },
     "refund": {

@@ -442,6 +442,16 @@ export class OrdersService {
       await this.sendManualReceiptIfNeeded(after);
     }
 
+    // 📨 NEW: notify customer when status / delivery / shippingAddress was provided
+    const shouldNotify =
+      Object.prototype.hasOwnProperty.call(dto, 'status') ||
+      Object.prototype.hasOwnProperty.call(dto, 'delivery') ||
+      Object.prototype.hasOwnProperty.call(dto, 'shippingAddress');
+
+    if (shouldNotify) {
+      await this.notifyCustomer(after, dto);
+    }
+
     return after;
   }
 
@@ -457,6 +467,7 @@ export class OrdersService {
       const afterSnap = await ref.get();
       const order = { id: orderId, ...(afterSnap.data() as any) };
       await this.decrementStockForOrder(orderId, order.items || []);
+      // (optional) you can notify here if you want: await this.notifyCustomer(order, { status });
     }
   }
 
@@ -977,6 +988,7 @@ export class OrdersService {
     }
   }
 
+  // ───────────────────────── email helpers ─────────────────────────
   async notifyCustomer(
     order: any,
     patch: any = {},
@@ -990,23 +1002,38 @@ export class OrdersService {
         return;
       }
 
-      const ctx = {
-        orderId: String(order.id || order.paymentIntentId || ''),
-        status: (patch?.status ?? order?.status) as string | undefined,
+      // gather values (patch overrides order)
+      const orderId = String(order.id || order.paymentIntentId || '');
+      const status: string | undefined = (patch?.status ??
+        order?.status) as any;
+
+      const delivery = {
         provider: patch?.delivery?.provider ?? order?.delivery?.provider,
         trackingNumber:
           patch?.delivery?.trackingNumber ?? order?.delivery?.trackingNumber,
-        eta:
-          patch?.delivery?.eta ??
-          (order?.delivery && (order.delivery.eta as any)),
+        eta: patch?.delivery?.eta ?? order?.delivery?.eta,
       };
 
-      const hasUpdateTemplate =
-        typeof (this.mailer as any)?.sendOrderUpdate === 'function';
+      const shippingAddress =
+        patch?.shippingAddress ?? order?.shippingAddress ?? undefined;
 
-      if (hasUpdateTemplate) {
-        await (this.mailer as any).sendOrderUpdate.call(this.mailer, to, ctx);
+      // pick a locale if you have one on the order; default he for IL
+      const locale: 'he' | 'en' =
+        (order?.locale as any) ||
+        ((order?.shippingAddress?.address?.country || '').toUpperCase() === 'IL'
+          ? 'he'
+          : 'en');
+
+      // ✅ send with the structure MailerService expects
+      if (typeof (this.mailer as any)?.sendOrderUpdate === 'function') {
+        await (this.mailer as any).sendOrderUpdate.call(
+          this.mailer,
+          to,
+          { orderId, status, delivery, shippingAddress, locale },
+          undefined,
+        );
       } else if (this.mailer.sendOrderConfirmation) {
+        // fallback: resend a simple receipt-style email
         const currency = (order?.currency || order?.payment?.currency || 'ILS')
           .toString()
           .toUpperCase();
@@ -1016,34 +1043,20 @@ export class OrdersService {
             Math.round((order?.total || 0) * 100),
         );
         await this.mailer.sendOrderConfirmation(to, {
-          orderId: ctx.orderId,
+          orderId,
           amount: amountMinor || 0,
           currency,
           paymentIntentId:
-            order?.paymentIntentId || order?.payment?.transactionId,
+            order?.paymentIntentId || order?.payment?.transactionId || orderId,
           created: false,
+          locale,
         });
       } else {
-        const sendRaw = (this.mailer as any).sendRaw as
-          | ((args: {
-              to: string;
-              subject: string;
-              html: string;
-            }) => Promise<void>)
-          | undefined;
-        if (sendRaw) {
-          await sendRaw({
-            to,
-            subject: `Update for order ${ctx.orderId}`,
-            html: this.renderOrderUpdateHtml(ctx),
-          });
-        } else {
-          this.logger.warn('notifyCustomer: no mailer method available');
-        }
+        this.logger.warn('notifyCustomer: no mailer method available');
       }
 
       this.logger.log(
-        `notifyCustomer: mailed ${to} for order ${ctx.orderId} (by=${actor?.uid ?? 'system'})`,
+        `notifyCustomer: mailed ${to} for order ${orderId} (by=${actor?.uid ?? 'system'})`,
       );
     } catch (e) {
       this.logger.warn(

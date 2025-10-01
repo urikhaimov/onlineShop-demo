@@ -32,6 +32,14 @@
         "provider": "חברת משלוח",
         "tracking": "מספר מעקב",
         "eta": "תאריך משוער"
+      },
+      "sections": {
+        "delivery": "פרטי משלוח",
+        "shipping": "כתובת למשלוח"
+      },
+      "actions": {
+        "track": "מעקב משלוח",
+        "back": "חזרה ל־{{brand}}"
       }
     },
     "refund": {

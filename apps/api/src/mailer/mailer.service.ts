@@ -2,6 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import nodemailer, { Transporter } from 'nodemailer';
 import sgMail, { MailDataRequired } from '@sendgrid/mail';
 
+// renderer (templates only)
+import {
+  render as renderTemplate,
+  subjects as TemplateSubjects,
+} from './templates';
+
 /** ───────────────────────── Types ───────────────────────── */
 type OrderEmailPayload = {
   orderId: string;
@@ -9,7 +15,7 @@ type OrderEmailPayload = {
   currency: string | null; // e.g., "ils"
   paymentIntentId: string;
   created: boolean;
-  invoiceUrl?: string | null; // PDF link in email body
+  invoiceUrl?: string | null;
   locale?: 'he' | 'en';
 };
 
@@ -25,11 +31,21 @@ type RefundEmailPayload = {
 
 type OrderUpdatePayload = {
   orderId: string;
-  status?: string; // open | authorized | paid | shipped | delivered | refunded | canceled
+  status?: string;
   delivery?: {
     provider?: string;
     trackingNumber?: string;
     eta?: string | null;
+  };
+  shippingAddress?: {
+    name?: string;
+    phone?: string;
+    address?: {
+      line1?: string;
+      city?: string;
+      postalCode?: string;
+      country?: string;
+    };
   };
   locale?: 'he' | 'en';
 };
@@ -47,15 +63,15 @@ type Provider = 'sendgrid' | 'smtp' | 'json';
 
 /** ───────────────────────── i18n helpers ───────────────────────── */
 type Dict = Record<string, any>;
-function safeGet(obj: any, path: string): string | undefined {
-  return String(path)
+function safeGet(obj: any, pathStr: string): string | undefined {
+  return String(pathStr)
     .split('.')
     .reduce<any>(
       (acc, k) => (acc && typeof acc === 'object' ? acc[k] : undefined),
       obj,
     );
 }
-function template(str: string, vars?: Record<string, any>): string {
+function templateStr(str: string, vars?: Record<string, any>): string {
   if (!str) return '';
   return str.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_, k) => {
     const v = vars?.[k.trim()];
@@ -63,7 +79,6 @@ function template(str: string, vars?: Record<string, any>): string {
   });
 }
 
-// Use require to avoid TS config constraints if resolveJsonModule isn't set.
 let EN: Dict = {};
 let HE: Dict = {};
 try {
@@ -72,13 +87,11 @@ try {
 try {
   HE = require('../i18n/he/common.json');
 } catch {}
-
 function getDict(locale?: string): Dict {
   const l = (locale || process.env.MAIL_LOCALE || 'he').toLowerCase();
   if (l.startsWith('he')) return Object.keys(HE).length ? HE : EN;
   return Object.keys(EN).length ? EN : HE;
 }
-
 function t(
   locale: string | undefined,
   key: string,
@@ -87,17 +100,29 @@ function t(
 ) {
   const dict = getDict(locale);
   const val = safeGet(dict, key) as string | undefined;
-  if (typeof val === 'string') return template(val, vars);
+  if (typeof val === 'string') return templateStr(val, vars);
   const en = safeGet(EN, key) as string | undefined;
-  if (typeof en === 'string') return template(en, vars);
-  return template(fallback ?? '', vars);
+  if (typeof en === 'string') return templateStr(en, vars);
+  return templateStr(fallback ?? '', vars);
+}
+
+/** ───────────────────────── Utils (shared) ───────────────────────── */
+function buildTrackingUrl(
+  provider?: string,
+  code?: string,
+): string | undefined {
+  if (!provider || !code) return undefined;
+  const p = provider.toLowerCase();
+  if (p.includes('wolt'))
+    return `https://wolt.com/en/tracking/${encodeURIComponent(code)}`;
+  return undefined;
 }
 
 /** ───────────────────────── Service ───────────────────────── */
 @Injectable()
 export class MailerService {
   private readonly logger = new Logger(MailerService.name);
-  private transporter?: Transporter; // for SMTP / JSON
+  private transporter?: Transporter;
   private provider: Provider;
   private readonly fromAddress: string;
   private readonly sandbox: boolean;
@@ -193,7 +218,6 @@ export class MailerService {
           this.provider = 'json';
         }
       }
-
       if (this.transporter) {
         this.transporter.verify().then(
           () => this.logger.log('SMTP transporter verified successfully'),
@@ -201,7 +225,6 @@ export class MailerService {
             this.logger.warn(`SMTP verify failed: ${err?.message || err}`),
         );
       }
-
       this.logger.log(
         `Mailer initialized: provider=${this.provider}${SMTP_URL ? ' (url)' : ''}`,
       );
@@ -211,123 +234,27 @@ export class MailerService {
     }
   }
 
-  /** ───────────────── Order confirmation / receipt via MJML templates ───────────────── */
+  /** ───────────────── Order confirmation / receipt (templates only) ───────────────── */
   async sendOrderConfirmation(
     to: string,
     payload: OrderEmailPayload,
     opts?: MailerOptions,
   ) {
     const { created, locale } = payload;
-
     const tplName = created ? 'order-confirmed' : 'payment-receipt';
-    const fallbackSubject = created
-      ? t(
-          locale,
-          'email.order.subject.created',
-          {
-            id: payload.orderId,
-            amount: this.formatMoney(payload.amount, payload.currency),
-          },
-          `Order ${payload.orderId} confirmed — ${this.formatMoney(payload.amount, payload.currency)}`,
-        )
-      : t(
-          locale,
-          'email.order.subject.paid',
-          {
-            id: payload.orderId,
-            amount: this.formatMoney(payload.amount, payload.currency),
-          },
-          `Payment received for ${payload.orderId} — ${this.formatMoney(payload.amount, payload.currency)}`,
-        );
 
     const rendered = await this.renderWithTemplates(
       tplName,
       locale,
-      this.payloadToVars(payload),
-      fallbackSubject,
+      { ...this.payloadToVars(payload) },
+      // used only if subject helper returns empty
+      created
+        ? `Order ${payload.orderId} confirmed — ${this.formatMoney(payload.amount, payload.currency)}`
+        : `Payment received for ${payload.orderId} — ${this.formatMoney(payload.amount, payload.currency)}`,
     );
-
     if (!rendered.ok) {
-      const { orderId, amount, currency, paymentIntentId, invoiceUrl } =
-        payload;
-      const fmt = this.formatMoney(amount, currency);
-      const subject = fallbackSubject;
-
-      const heading = t(
-        locale,
-        'email.order.heading',
-        {},
-        'Thank you for your order!',
-      );
-      const received = t(
-        locale,
-        'email.order.received',
-        { id: orderId },
-        `Order ${orderId} was received successfully.`,
-      );
-      const fAmount = t(locale, 'email.order.fields.amount', {}, 'Amount');
-      const fCurrency = t(
-        locale,
-        'email.order.fields.currency',
-        {},
-        'Currency',
-      );
-      const fPi = t(locale, 'email.order.fields.pi', {}, 'Payment Intent');
-      const invoiceLabel = t(
-        locale,
-        'email.order.invoice_link',
-        {},
-        'Download invoice (PDF)',
-      );
-      const questions = t(
-        locale,
-        'email.order.questions',
-        {},
-        'If you have any questions, just reply to this email.',
-      );
-
-      const invoiceLinkHtml = invoiceUrl
-        ? `<p style="margin:12px 0"><a href="${this.escape(
-            invoiceUrl,
-          )}" target="_blank" rel="noopener">${this.escape(
-            invoiceLabel,
-          )}</a></p>`
-        : '';
-
-      const html = `
-        <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
-          <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
-          <p style="margin:0 0 12px">${this.escape(received)}</p>
-          <ul style="margin:0 0 12px;padding-left:18px">
-            <li>${this.escape(fAmount)}: <strong>${fmt}</strong></li>
-            <li>${this.escape(fCurrency)}: <strong>${(currency || 'ILS').toUpperCase()}</strong></li>
-            <li>${this.escape(fPi)}: <code>${this.escape(paymentIntentId)}</code></li>
-          </ul>
-          ${invoiceLinkHtml}
-          <p style="margin:16px 0 0">${this.escape(questions)}</p>
-        </div>
-      `;
-
-      const text = [
-        heading,
-        template(received, { id: orderId }),
-        `${fAmount}: ${fmt}`,
-        `${fCurrency}: ${(currency || 'ILS').toUpperCase()}`,
-        `${fPi}: ${paymentIntentId}`,
-        invoiceUrl ? `${invoiceLabel}: ${invoiceUrl}` : undefined,
-        questions,
-      ]
-        .filter(Boolean)
-        .join('\n');
-
-      return this.safeSend({
-        to,
-        subject,
-        html,
-        text,
-        replyTo: opts?.replyTo,
-        attachments: opts?.attachments,
-      });
+      this.logger.warn(`[templates] ${tplName} missing/empty — email not sent`);
+      return { ok: false };
     }
 
     return this.safeSend({
@@ -340,29 +267,17 @@ export class MailerService {
     });
   }
 
-  /** ───────────────── Order update (status-specific templates) ───────────────── */
+  /** ───────────────── Order update (templates only) ───────────────── */
   async sendOrderUpdate(
     to: string,
     payload: OrderUpdatePayload,
     opts?: MailerOptions,
   ) {
-    const { orderId, status, delivery, locale } = payload;
+    const { orderId, status, delivery, shippingAddress, locale } = payload;
     const statusKey = String(status || 'open').toLowerCase();
 
-    const fallbackSubject =
-      t(locale, `email.update.subject.${statusKey}`, { id: orderId }, '') ||
-      t(
-        locale,
-        'email.update.subject.updated',
-        { id: orderId },
-        `Order ${orderId} updated`,
-      );
-
-    // Try status-specific files: order_shipped / order_delivered / order_canceled, etc.
-    const tplCandidates = [
-      `order_${statusKey}`, // underscore style we added
-      'order-update', // optional generic template if present
-    ];
+    const addr = shippingAddress?.address ?? {};
+    const brandName = process.env.MAIL_BRAND_NAME || 'Shop';
 
     const baseVars = {
       orderId,
@@ -372,136 +287,56 @@ export class MailerService {
       deliveryProvider: delivery?.provider ?? '',
       deliveryTracking: delivery?.trackingNumber ?? '',
       deliveryEta: delivery?.eta ?? '',
-      brandName: process.env.MAIL_BRAND_NAME || 'Shop',
+      deliveryTrackingUrl: buildTrackingUrl(
+        delivery?.provider,
+        delivery?.trackingNumber,
+      ),
+      shippingName: shippingAddress?.name || '',
+      shippingPhone: shippingAddress?.phone || '',
+      shippingLine1: addr.line1 || '',
+      shippingCity: addr.city || '',
+      shippingPostalCode: addr.postalCode || '',
+      shippingCountry: addr.country || '',
+      brandName,
       brandUrl: process.env.PUBLIC_BASE_URL || '',
       assetsBaseUrl: process.env.MAIL_ASSETS_URL || '',
+      isRtl: (locale || '').toLowerCase().startsWith('he'),
     };
 
-    let rendered:
-      | { ok: true; subject: string; html: string; text: string }
-      | { ok: false }
-      | undefined;
-
+    const tplCandidates = [`order_${statusKey}`, 'order-update'];
     for (const name of tplCandidates) {
-      rendered = await this.renderWithTemplates(
+      const rendered = await this.renderWithTemplates(
         name,
         locale,
         baseVars,
-        fallbackSubject,
+        `${brandName} · ${baseVars.statusLabel || baseVars.status || 'Update'}`,
       );
-      if (rendered.ok) break;
+      if (rendered.ok) {
+        return this.safeSend({
+          to,
+          subject: rendered.subject,
+          html: rendered.html,
+          text: rendered.text,
+          replyTo: opts?.replyTo,
+          attachments: opts?.attachments,
+        });
+      }
     }
 
-    if (!rendered || !rendered.ok) {
-      // Fallback to plaintext/HTML
-      const heading = t(
-        locale,
-        'email.update.heading',
-        {},
-        'Your order was updated.',
-      );
-      const fStatus = t(locale, 'email.update.fields.status', {}, 'Status');
-      const fProvider = t(
-        locale,
-        'email.update.fields.provider',
-        {},
-        'Provider',
-      );
-      const fTracking = t(
-        locale,
-        'email.update.fields.tracking',
-        {},
-        'Tracking',
-      );
-      const fEta = t(locale, 'email.update.fields.eta', {}, 'ETA');
-
-      const lines: string[] = [];
-      if (baseVars.statusLabel)
-        lines.push(
-          `<li>${this.escape(fStatus)}: <strong>${this.escape(baseVars.statusLabel)}</strong></li>`,
-        );
-      if (delivery?.provider)
-        lines.push(
-          `<li>${this.escape(fProvider)}: <strong>${this.escape(delivery.provider)}</strong></li>`,
-        );
-      if (delivery?.trackingNumber)
-        lines.push(
-          `<li>${this.escape(fTracking)}: <code>${this.escape(delivery.trackingNumber)}</code></li>`,
-        );
-      if (delivery?.eta)
-        lines.push(
-          `<li>${this.escape(fEta)}: <strong>${this.escape(delivery.eta)}</strong></li>`,
-        );
-
-      const html = `
-        <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
-          <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
-          <p style="margin:0 0 12px">${this.escape(t(locale, 'email.update.body', { id: orderId }, `Your order ${orderId} was updated.`))}</p>
-          ${lines.length ? `<ul style="margin:0 0 12px;padding-left:18px">${lines.join('')}</ul>` : ''}
-        </div>
-      `;
-
-      const textLines: string[] = [];
-      if (baseVars.statusLabel)
-        textLines.push(`${fStatus}: ${baseVars.statusLabel}`);
-      if (delivery?.provider)
-        textLines.push(`${fProvider}: ${delivery.provider}`);
-      if (delivery?.trackingNumber)
-        textLines.push(`${fTracking}: ${delivery.trackingNumber}`);
-      if (delivery?.eta) textLines.push(`${fEta}: ${delivery.eta}`);
-
-      const text = [
-        t(
-          locale,
-          'email.update.body',
-          { id: orderId },
-          `Your order ${orderId} was updated.`,
-        ),
-        ...textLines,
-      ].join('\n');
-
-      return this.safeSend({
-        to,
-        subject: fallbackSubject,
-        html,
-        text,
-        replyTo: opts?.replyTo,
-        attachments: opts?.attachments,
-      });
-    }
-
-    return this.safeSend({
-      to,
-      subject: rendered.subject,
-      html: rendered.html,
-      text: rendered.text,
-      replyTo: opts?.replyTo,
-      attachments: opts?.attachments,
-    });
+    this.logger.warn(
+      `[templates] order update templates missing/empty (status=${statusKey}) — email not sent`,
+    );
+    return { ok: false };
   }
 
-  /** ───────────────── Refund (full or partial) ───────────────── */
+  /** ───────────────── Refund (templates only) ───────────────── */
   async sendRefundEmail(
     to: string,
     payload: RefundEmailPayload,
     opts?: MailerOptions,
   ) {
-    const { orderId, amount, currency, chargeId, full, refundIds, locale } =
+    const { orderId, amount, currency, full, refundIds, locale, chargeId } =
       payload;
-
-    const fallbackSubject = full
-      ? t(
-          locale,
-          'email.refund.subject.full',
-          { id: orderId, amount: this.formatMoney(amount, currency) },
-          `Refund issued for ${orderId} — ${this.formatMoney(amount, currency)}`,
-        )
-      : t(
-          locale,
-          'email.refund.subject.partial',
-          { id: orderId, amount: this.formatMoney(amount, currency) },
-          `Partial refund for ${orderId} — ${this.formatMoney(amount, currency)}`,
-        );
 
     const rendered = await this.renderWithTemplates(
       'refund',
@@ -514,49 +349,14 @@ export class MailerService {
         currency: (currency || 'ILS').toUpperCase(),
         chargeId,
         refundIds,
+        brandName: process.env.MAIL_BRAND_NAME || 'Shop',
       },
-      fallbackSubject,
+      `${process.env.MAIL_BRAND_NAME || 'Shop'} · Refund · #${orderId}`,
     );
 
     if (!rendered.ok) {
-      const heading = full
-        ? t(locale, 'email.refund.heading.full', {}, 'Refund completed')
-        : t(locale, 'email.refund.heading.partial', {}, 'Partial refund');
-
-      const fAmount = t(locale, 'email.order.fields.amount', {}, 'Amount');
-      const html = `
-        <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.4">
-          <h2 style="margin:0 0 12px">${this.escape(heading)}</h2>
-          <p style="margin:0 0 12px">${this.escape(
-            t(
-              locale,
-              'email.refund.body',
-              { id: orderId },
-              `For order ${orderId}.`,
-            ),
-          )}</p>
-          <ul style="margin:0 0 12px;padding-left:18px">
-            <li>${this.escape(fAmount)}: <strong>${this.formatMoney(amount, currency)}</strong></li>
-            <li>Charge ID: <code>${this.escape(chargeId)}</code></li>
-            <li>Refund IDs: <code>${(refundIds || []).map(this.escape).join(', ') || '-'}</code></li>
-          </ul>
-        </div>
-      `;
-      const text =
-        `${heading}\n` +
-        `${t(locale, 'email.refund.body', { id: orderId }, `For order ${orderId}.`)}\n` +
-        `${fAmount}: ${this.formatMoney(amount, currency)}\n` +
-        `Charge: ${chargeId}\n` +
-        `Refund IDs: ${(refundIds || []).join(', ') || '-'}`;
-
-      return this.safeSend({
-        to,
-        subject: fallbackSubject,
-        html,
-        text,
-        replyTo: opts?.replyTo,
-        attachments: opts?.attachments,
-      });
+      this.logger.warn('[templates] refund template missing/empty — not sent');
+      return { ok: false };
     }
 
     return this.safeSend({
@@ -569,7 +369,7 @@ export class MailerService {
     });
   }
 
-  /** ───────────────── Core sender (provider-aware) ───────────────── */
+  /** ───────────────── Core sender ───────────────── */
   private async safeSend(opts: {
     to: string;
     subject: string;
@@ -608,7 +408,7 @@ export class MailerService {
             (resp.headers['x-message-id'.toLowerCase()] as string)) ||
           undefined;
         this.logger.log(
-          `Email sent (provider=sendgrid) to ${opts.to}: status=${resp.statusCode}${msgId ? ` id=${msgId}` : ''}`,
+          `Email sent (provider=sendgrid) to ${opts.to} | subject="${opts.subject}" | status=${resp.statusCode}`,
         );
         return { ok: true, id: msgId };
       }
@@ -623,7 +423,7 @@ export class MailerService {
         attachments: opts.attachments,
       });
       this.logger.log(
-        `Email sent (provider=${this.provider}) to ${opts.to}: ${info.messageId ?? ''}`,
+        `Email sent (provider=${this.provider}) to ${opts.to} | subject="${opts.subject}" | id=${info.messageId ?? ''}`,
       );
       return { ok: true, id: info.messageId as string | undefined };
     } catch (e) {
@@ -632,7 +432,7 @@ export class MailerService {
     }
   }
 
-  /** ───────────────── Template rendering bridge ───────────────── */
+  /** ───────────────── Template rendering bridge (templates only) ───────────────── */
   private async renderWithTemplates(
     templateName: string,
     locale: string | undefined,
@@ -642,38 +442,42 @@ export class MailerService {
     { ok: true; subject: string; html: string; text: string } | { ok: false }
   > {
     try {
-      // Import once, and treat as `any` to avoid compile-time property errors.
-      const mod = (await import('@email-templates')) as any;
+      const isRtl = (locale || process.env.MAIL_LOCALE || 'he')
+        .toLowerCase()
+        .startsWith('he');
 
-      // Accept multiple export shapes:
-      const renderFn =
-        (mod && typeof mod.render === 'function' && mod.render) ||
-        (mod?.renderer &&
-          typeof mod.renderer.render === 'function' &&
-          mod.renderer.render) ||
-        (typeof mod.renderTemplate === 'function' && mod.renderTemplate) ||
-        null;
+      const data = {
+        locale,
+        dir: isRtl ? 'rtl' : 'ltr',
+        isRtl,
+        alignStart: isRtl ? 'right' : 'left',
+        alignEnd: isRtl ? 'left' : 'right',
+        ...vars,
+      };
 
-      // Subjects helper (subjectFor/subject)
-      const subjectsObj = mod?.subjects || mod?.Subjects || {};
-      const subjectFn =
-        (typeof subjectsObj.subjectFor === 'function' &&
-          subjectsObj.subjectFor) ||
-        (typeof subjectsObj.subject === 'function' && subjectsObj.subject) ||
-        null;
+      const out = await renderTemplate(templateName, data);
+      const html = out?.html ?? '';
+      const textCandidate = out?.text ?? this.stripHtml(html).trim();
 
-      if (!renderFn) return { ok: false };
+      // subject via helper, fallback to caller-provided
+      const subjHelper = TemplateSubjects?.subjectFor?.(
+        templateName,
+        locale,
+        data,
+      );
+      const subject = subjHelper || fallbackSubject;
 
-      const data = { locale, ...vars };
-      const out = await renderFn(templateName, data);
-      const html: string = out?.html ?? '';
-      const text: string =
-        out?.text ?? (this.stripHtml(html).trim() || '[no text content]');
-      const subject: string =
-        (subjectFn ? subjectFn(templateName, locale, data) : null) ||
-        fallbackSubject;
+      // Guard: tiny/empty HTML is considered a render failure
+      const plain = this.stripHtml(html).trim();
+      const needles = [
+        String(vars.orderId || ''),
+        String(vars.statusLabel || vars.status || ''),
+      ].filter(Boolean);
+      const looksEmpty =
+        !html || plain.length < 30 || needles.every((n) => !html.includes(n));
+      if (looksEmpty) return { ok: false };
 
-      if (!html) return { ok: false };
+      const text = textCandidate || '[no text content]';
       return { ok: true, subject, html, text };
     } catch (e) {
       this.logger.warn(
@@ -683,21 +487,19 @@ export class MailerService {
     }
   }
 
-  /** Map payload → template vars (shared between order-confirmed & receipt) */
+  /** Map payload → template vars */
   private payloadToVars(p: OrderEmailPayload) {
     const amount = this.formatMoney(p.amount, p.currency);
     return {
       orderId: p.orderId,
       paymentIntentId: p.paymentIntentId,
-      amount, // formatted (₪ 12.34)
+      amount,
       amountMinor: p.amount,
       currency: (p.currency || 'ILS').toUpperCase(),
       invoiceUrl: p.invoiceUrl || null,
-
-      // Optional branding/context for templates:
       brandName: process.env.MAIL_BRAND_NAME || 'Shop',
       brandUrl: process.env.PUBLIC_BASE_URL || '',
-      assetsBaseUrl: process.env.MAIL_ASSETS_URL || '', // e.g. CDN path for /templates/assets
+      assetsBaseUrl: process.env.MAIL_ASSETS_URL || '',
     };
   }
 
@@ -717,18 +519,6 @@ export class MailerService {
       }).format(major);
     }
   }
-
-  private escape(s: string) {
-    const map: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    };
-    return String(s).replace(/[&<>"']/g, (m) => map[m]);
-  }
-
   private stripHtml(html: string) {
     return String(html)
       .replace(/<script[\s\S]*?<\/script>/gi, '')

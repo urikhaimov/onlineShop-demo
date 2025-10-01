@@ -4,7 +4,13 @@
       <mj-all
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'"
       />
-      <mj-text font-size="14px" line-height="1.6" color="#1F2937" />
+      <!-- Flip text / buttons based on RTL -->
+      <mj-text
+        font-size="14px"
+        line-height="1.6"
+        color="#1F2937"
+        align="{{#if isRtl}}right{{else}}left{{/if}}"
+      />
       <mj-button
         font-size="14px"
         padding="0"
@@ -12,17 +18,28 @@
         background-color="#111827"
         color="#ffffff"
         border-radius="8px"
+        align="{{#if isRtl}}right{{else}}left{{/if}}"
       />
       <mj-section padding="0" />
       <mj-column padding="0" />
     </mj-attributes>
 
+    <!-- Set document direction + lang -->
     <mj-html-attributes>
       <mj-selector path="html">
-        <mj-html-attribute name="dir" value="{{dir}}" />
+        <mj-html-attribute
+          name="dir"
+          value="{{#if isRtl}}rtl{{else}}ltr{{/if}}"
+        />
+        {{#if isRtl}}
+        <mj-html-attribute name="lang" value="he" />
+        {{else}}
+        <mj-html-attribute name="lang" value="en" />
+        {{/if}}
       </mj-selector>
     </mj-html-attributes>
 
+    <!-- Helpers + RTL utility -->
     <mj-style inline="inline">
       .muted {
         color: #6b7280;
@@ -59,40 +76,57 @@
       table.summary td {
         padding: 4px 0;
       }
+
+      /* RTL container – makes Gmail/Outlook behave */
+      .rtl {
+        direction: rtl;
+        text-align: right;
+      }
+      .rtl * {
+        text-align: right;
+      }
     </mj-style>
   </mj-head>
 
-  <mj-body background-color="#F9FAFB">
-    <mj-section full-width="full-width">
+  <!-- Flip overall flow via css-class; also set section direction -->
+  <mj-body background-color="#F9FAFB" css-class="{{#if isRtl}}rtl{{/if}}">
+    <mj-section
+      full-width="full-width"
+      direction="{{#if isRtl}}rtl{{else}}ltr{{/if}}"
+    >
       <mj-column>
         <mj-image
           width="140px"
           padding="24px 0 0 0"
           alt="{{brandName}}"
           src="{{logoUrl}}"
-          align="{{alignStart}}"
+          align="{{#if isRtl}}right{{else}}left{{/if}}"
         />
       </mj-column>
     </mj-section>
 
-    <mj-section padding="0 16px 24px 16px">
+    <mj-section
+      padding="0 16px 24px 16px"
+      direction="{{#if isRtl}}rtl{{else}}ltr{{/if}}"
+    >
       <mj-column>
         <mj-wrapper css-class="card" padding="16px">
           <!-- ::BODY:: -->
-          <mj-text
-            align="{{alignStart}}"
-            class="muted small"
-            padding="16px 0 0 0"
-          >
-            {{#if isHebrew}}
-            הודעה זו נשלחה אל {{ customerEmail }}. יש שאלות? כתבו לנו:
-            <a href="mailto:{{supportEmail}}">{{ supportEmail }}</a>
-            {{else}}
-            This message was sent to {{ customerEmail }}. Questions? Contact us:
-            <a href="mailto:{{supportEmail}}">{{ supportEmail }}</a>
-            {{/if}}
-          </mj-text>
         </mj-wrapper>
+
+        <mj-text
+          align="{{#if isRtl}}right{{else}}left{{/if}}"
+          class="muted small"
+          padding="16px 0 0 0"
+        >
+          {{#if isRtl}}
+          הודעה זו נשלחה אל {{ customerEmail }}. יש שאלות? כתבו לנו:
+          <a href="mailto:{{supportEmail}}">{{ supportEmail }}</a>
+          {{else}}
+          This message was sent to {{ customerEmail }}. Questions? Contact us:
+          <a href="mailto:{{supportEmail}}">{{ supportEmail }}</a>
+          {{/if}}
+        </mj-text>
 
         <mj-text align="center" class="small muted" padding="16px 0 0 0">
           © {{ year }} {{ brandName }} · <a href="{{privacyUrl}}">Privacy</a>
