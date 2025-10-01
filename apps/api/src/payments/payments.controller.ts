@@ -1,18 +1,19 @@
 // apps/api/src/payments/payments.controller.ts
 import {
   BadRequestException,
+  Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
-  Logger,
-  Post,
-  Req,
-  Body,
-  Optional,
-  Get,
   HttpException,
   HttpStatus,
+  Inject,
+  Logger,
+  Optional,
   Param,
+  Post,
+  Req,
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
@@ -23,16 +24,16 @@ import { MailerService } from '../mailer/mailer.service';
 import { InvoiceService } from '../invoice/invoice.service';
 import { adminBucket } from '../firebase/admin';
 
-import { Type, Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
-  IsArray,
-  ValidateNested,
-  IsString,
-  IsInt,
-  Min,
-  IsOptional,
   ArrayMinSize,
+  IsArray,
   IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
 } from 'class-validator';
 
 class CartItemDto {
@@ -149,7 +150,7 @@ export class PaymentsController {
   public readonly stripe: Stripe;
 
   constructor(
-    private readonly config: ConfigService,
+    @Inject(ConfigService) private readonly config: ConfigService,
     @Optional() private readonly mailer?: MailerService,
     @Optional() private readonly invoice?: InvoiceService,
   ) {

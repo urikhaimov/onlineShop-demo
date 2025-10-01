@@ -1,12 +1,12 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 
 @Controller('_health')
 export class HealthController {
-  private stripe?: Stripe;
+  private readonly stripe?: Stripe;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly config: ConfigService) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
     if (key) {
       this.stripe = new Stripe(key, {

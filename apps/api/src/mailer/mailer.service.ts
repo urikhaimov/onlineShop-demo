@@ -83,10 +83,14 @@ let EN: Dict = {};
 let HE: Dict = {};
 try {
   EN = require('../i18n/en/common.json');
-} catch {}
+} catch {
+  // TODO (teamco): Do something.
+}
 try {
   HE = require('../i18n/he/common.json');
-} catch {}
+} catch {
+  // TODO (teamco): Do something.
+}
 function getDict(locale?: string): Dict {
   const l = (locale || process.env.MAIL_LOCALE || 'he').toLowerCase();
   if (l.startsWith('he')) return Object.keys(HE).length ? HE : EN;
@@ -122,8 +126,8 @@ function buildTrackingUrl(
 @Injectable()
 export class MailerService {
   private readonly logger = new Logger(MailerService.name);
-  private transporter?: Transporter;
-  private provider: Provider;
+  private readonly transporter?: Transporter;
+  private readonly provider: Provider;
   private readonly fromAddress: string;
   private readonly sandbox: boolean;
 
@@ -219,11 +223,16 @@ export class MailerService {
         }
       }
       if (this.transporter) {
-        this.transporter.verify().then(
-          () => this.logger.log('SMTP transporter verified successfully'),
-          (err) =>
-            this.logger.warn(`SMTP verify failed: ${err?.message || err}`),
-        );
+        this.transporter.verify(function (error, success) {
+          if (error) {
+            console.error(
+              'SMTP connection verification failed:',
+              error?.message || error,
+            );
+          } else {
+            console.log('SMTP server is ready to take our messages!');
+          }
+        });
       }
       this.logger.log(
         `Mailer initialized: provider=${this.provider}${SMTP_URL ? ' (url)' : ''}`,

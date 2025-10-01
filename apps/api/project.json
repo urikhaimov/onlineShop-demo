@@ -20,6 +20,41 @@
         "assets": [
           { "input": "apps/api/src/i18n", "glob": "**/*", "output": "i18n" },
           {
+            "input": "apps/api/src/invoice/fonts",
+            "glob": "**/*.ttf",
+            "output": "invoice/fonts"
+          }
+        ]
+      },
+      "configurations": {
+        "development": {
+          "optimization": false,
+          "sourceMap": true
+        },
+        "production": {
+          "optimization": true,
+          "sourceMap": false
+        }
+      }
+    },
+    "build-fast": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{workspaceRoot}/dist/apps/api"],
+      "options": {
+        "platform": "node",
+        "outputPath": "dist/apps/api",
+        "main": "apps/api/src/main.ts",
+        "tsConfig": "apps/api/tsconfig.app.json",
+        "generatePackageJson": false,
+        "externalDependencies": "all",
+        "format": ["cjs"],
+        "assets": [
+          {
+            "input": "apps/api/src/i18n",
+            "glob": "**/*",
+            "output": "i18n"
+          },
+          {
             "input": "libs/email-templates/src/templates",
             "glob": "**/*.mjml",
             "output": "libs/email-templates/templates"
@@ -32,20 +67,36 @@
         ]
       },
       "configurations": {
-        "development": { "optimization": false, "sourceMap": true },
-        "production": { "optimization": true, "sourceMap": false }
+        "development": {
+          "minify": false,
+          "sourcemap": false
+        },
+        "production": {
+          "minify": true,
+          "sourcemap": false
+        }
       }
     },
     "serve": {
       "executor": "@nx/js:node",
       "defaultConfiguration": "development",
       "options": {
-        "buildTarget": "api:build:development",
-        "watch": true
+        "buildTarget": "api:build-fast",
+        "watch": true,
+        "inspect": false,
+        "waitUntilTargets": ["api:build-fast"]
       },
       "configurations": {
-        "development": { "buildTarget": "api:build:development" },
-        "production": { "buildTarget": "api:build:production" }
+        "development": {
+          "buildTarget": "api:build-fast:development"
+        },
+        "production": {
+          "buildTarget": "api:build:production"
+        },
+        "debug": {
+          "buildTarget": "api:build-fast:development",
+          "inspect": 9231
+        }
       }
     },
     "test": { "options": { "passWithNoTests": true } }

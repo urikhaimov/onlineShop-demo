@@ -27,7 +27,8 @@
       "dependsOn": ["build"],
       "options": {
         "buildTarget": "auth:build",
-        "runBuildTargetDependencies": false
+        "runBuildTargetDependencies": false,
+        "inspect": false
       },
       "configurations": {
         "development": {
@@ -35,6 +36,10 @@
         },
         "production": {
           "buildTarget": "auth:build:production"
+        },
+        "debug": {
+          "buildTarget": "auth:build:development",
+          "inspect": 9232
         }
       }
     },

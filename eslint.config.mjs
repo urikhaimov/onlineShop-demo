@@ -35,7 +35,7 @@ export default [
         projectService: true,
         sourceType: 'module',
         ecmaVersion: 'latest',
-        project: './tsconfig.json',
+        project: './tsconfig.base.json',
       },
       globals: {
         ...globals.node,

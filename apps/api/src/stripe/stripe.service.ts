@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import Stripe from 'stripe';
 import { ConfigService } from '@nestjs/config';
 
@@ -19,7 +19,7 @@ function buildIdemKey(params: {
 export class StripeService {
   private readonly stripe: Stripe;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly config: ConfigService) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY');
     if (!key) throw new Error('Missing STRIPE_SECRET_KEY');
     // Pin apiVersion to keep types happy across packages
