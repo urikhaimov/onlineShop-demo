@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -9,8 +10,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { adminDb } from '@common/firebase';
-import { FieldValue } from 'firebase-admin/firestore';
 import type { DocumentSnapshot } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { MailerService } from '../mailer/mailer.service';
 import { InvoiceService } from '../invoice/invoice.service';
 
@@ -117,7 +118,7 @@ export class OrdersService {
   private readonly sendStripeEmailsFromOrders: boolean;
 
   constructor(
-    private readonly config: ConfigService,
+    @Inject(ConfigService) private readonly config: ConfigService,
     @Optional() private readonly mailer?: MailerService,
     @Optional() private readonly invoice?: InvoiceService,
   ) {
@@ -169,7 +170,7 @@ export class OrdersService {
       const snap = await this.productsCol().doc(id).get();
       // prefer server price; fallback to client-provided major price
       const unitMajor =
-        Number(snap.get('price')) ?? Number(it.priceMajor ?? it.price) ?? 0;
+        Number(snap.get('price')) || Number(it.priceMajor || it.price) || 0;
       if (unitMajor > 0 && qty > 0) {
         subtotal += toMinor(unitMajor) * qty;
       }

@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { I18nModule } from 'nestjs-i18n';
+import {
+  AcceptLanguageResolver,
+  HeaderResolver,
+  I18nModule,
+  QueryResolver,
+} from 'nestjs-i18n';
 import { join } from 'path';
 
 import { PaymentsModule } from '../src/payments/payments.module';
@@ -17,6 +22,11 @@ import { PaymentsModule } from '../src/payments/payments.module';
         path: join(__dirname, '../src/app/i18n'),
         watch: false,
       },
+      resolvers: [
+        { use: QueryResolver, options: ['lang', 'locale'] },
+        { use: HeaderResolver, options: ['x-lang', 'accept-language'] },
+        AcceptLanguageResolver,
+      ],
     }),
 
     // only the feature we are testing

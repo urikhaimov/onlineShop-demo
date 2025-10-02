@@ -1,4 +1,5 @@
 // src/main.ts
+import 'reflect-metadata';
 import * as dotenv from 'dotenv';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
@@ -36,6 +37,9 @@ async function bootstrap() {
       env: process.env,
     }),
   );
+  const wsFrontendOrigin = frontendOrigin.startsWith('https://')
+    ? frontendOrigin.replace('https://', 'wss://')
+    : frontendOrigin.replace('http://', 'ws://');
   const extraOrigins = parseOrigins(process.env.ALLOWED_ORIGINS);
 
   app.setGlobalPrefix(apiPrefix);
@@ -110,7 +114,7 @@ async function bootstrap() {
           connectSrc: [
             "'self'",
             frontendOrigin,
-            frontendOrigin.replace('http://', 'ws://'),
+            wsFrontendOrigin,
             'http://localhost:5173',
             'ws://localhost:5173',
             'http://127.0.0.1:5173',
@@ -138,7 +142,7 @@ async function bootstrap() {
           frameAncestors: ["'self'"],
           objectSrc: ["'none'"],
           scriptSrcAttr: ["'none'"],
-          upgradeInsecureRequests: [],
+          upgradeInsecureRequests: isProd() ? [] : null,
         },
       },
       referrerPolicy: { policy: 'no-referrer' },
@@ -176,6 +180,7 @@ async function bootstrap() {
     });
   }
 
+  logger.info('Bootstrapping API (starting Nest HTTP server)...');
   await app.listen(appPort);
   logger.info(`🚀 Server running:  http://localhost:${appPort}/${apiPrefix}`);
   if (!isProd())

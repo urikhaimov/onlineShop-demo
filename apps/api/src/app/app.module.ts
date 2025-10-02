@@ -1,13 +1,19 @@
 // src/app/app.module.ts
 import {
-  Module,
   MiddlewareConsumer,
+  Module,
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
 import { APP_PIPE } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { I18nModule, I18nValidationPipe } from 'nestjs-i18n';
+import {
+  AcceptLanguageResolver,
+  HeaderResolver,
+  I18nModule,
+  I18nValidationPipe,
+  QueryResolver,
+} from 'nestjs-i18n';
 import { join } from 'path';
 
 import { DatabaseModule } from '../database/database.module';
@@ -57,6 +63,11 @@ const testRoutesModules =
         path: join(__dirname, 'i18n'),
         watch: process.env.NODE_ENV !== 'production',
       },
+      resolvers: [
+        { use: QueryResolver, options: ['lang', 'locale'] },
+        { use: HeaderResolver, options: ['x-lang', 'accept-language'] },
+        AcceptLanguageResolver,
+      ],
     }),
 
     // Core/feature modules
