@@ -29,9 +29,8 @@ import { AuthClientModule } from 'auth-client';
 import { AuthModule } from '../auth/auth.module';
 import { SearchModule } from '../search/search.module';
 import { HealthController } from '../health/health.controller';
-import { StripeWebhookController } from '../payments/stripe-webhook.controller';
+
 import { StripeModule } from '../stripe/stripe.module';
-import { PaymentsModule } from '../payments/payments.module';
 
 // ✅ Mailer singleton (provided & exported by MailerModule)
 import { MailerModule } from '../mailer/mailer.module';
@@ -75,7 +74,7 @@ const testRoutesModules =
     AuthClientModule,
     AuthModule,
     ProductsModule,
-    OrdersModule, // exports OrdersService (used by StripeWebhookController)
+    OrdersModule,
     UsersModule,
     CategoriesModule,
     LandingPageModule,
@@ -86,17 +85,12 @@ const testRoutesModules =
     // Integrations
     MailerModule, // if marked @Global(), import is harmless; otherwise required
     StripeModule,
-    PaymentsModule,
 
     // Dev / Test (conditional)
     ...devOnlyModules,
     ...testRoutesModules,
   ],
-  controllers: [
-    ImageProxyController,
-    HealthController,
-    StripeWebhookController, // uses OrdersService (+ optional Mailer/Invoice)
-  ],
+  controllers: [ImageProxyController, HealthController],
   providers: [
     // 🌍 Global validation pipe (i18n-aware)
     {

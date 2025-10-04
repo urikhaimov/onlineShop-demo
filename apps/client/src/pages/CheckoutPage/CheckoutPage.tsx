@@ -394,9 +394,12 @@ export default function CheckoutPage() {
               stripe={stripePromise}
               options={elementsOptions}
             >
-              {/* Form derives clientSecret from Elements; no need to pass it */}
+              {/* Pass both paymentIntentId and clientSecret to avoid relying on private internals */}
               <StripeCheckoutForm
                 paymentIntentId={paymentIntentId}
+                clientSecret={clientSecret}
+                totalMajor={totalMajor}
+                currency={currency}
                 onRefreshIntent={refresh}
               />
             </Elements>
