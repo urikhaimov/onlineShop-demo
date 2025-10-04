@@ -1,3 +1,4 @@
+// src/orders/orders.controller.ts
 import {
   BadRequestException,
   Controller,
@@ -12,6 +13,7 @@ import {
   HttpCode,
   Logger,
   NotFoundException,
+  Inject, // ⬅️ added
 } from '@nestjs/common';
 import { Request } from 'express';
 
@@ -45,7 +47,11 @@ interface RawBodyRequest extends Request {
 @UseGuards(FirebaseAuthGuard, RolesGuard)
 export class OrdersController {
   private readonly logger = new Logger(OrdersController.name);
-  constructor(private readonly ordersService: OrdersService) {}
+
+  constructor(
+    @Inject(OrdersService) // ⬅️ explicit injection to avoid undefined in prod builds
+    private readonly ordersService: OrdersService,
+  ) {}
 
   // ── Reads ───────────────────────────────────────────────────────────────────
   @Get('mine')

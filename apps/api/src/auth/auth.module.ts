@@ -1,11 +1,11 @@
+// apps/api/src/auth/auth.module.ts (or wherever you keep auth)
 import { Module } from '@nestjs/common';
-import { AuthController } from './auth.controller';
-import { firebaseAdminAuthProvider } from '../firebase/admin.provider';
-import { FirebaseAuthGuard } from './firebase-auth.guard'; // <- unified path
+import { Reflector } from '@nestjs/core';
+import { FirebaseAuthGuard } from './firebase-auth.guard';
+import { RolesGuard } from './roles.guard';
 
 @Module({
-  controllers: [AuthController],
-  providers: [firebaseAdminAuthProvider, FirebaseAuthGuard],
-  exports: [FirebaseAuthGuard], // optional, but fine to export
+  providers: [Reflector, FirebaseAuthGuard, RolesGuard],
+  exports: [FirebaseAuthGuard, RolesGuard],
 })
 export class AuthModule {}
