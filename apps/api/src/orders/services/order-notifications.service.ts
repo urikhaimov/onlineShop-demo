@@ -23,6 +23,71 @@ export class OrderNotificationsService {
       undefined
     );
   }
+  private getLocaleForOrder(order?: any): 'he' | 'en' {
+    const c =
+      order?.locale ||
+      order?.shippingAddress?.address?.country ||
+      order?.payment?.charges?.data?.[0]?.billing_details?.address?.country ||
+      '';
+    return String(c).toUpperCase() === 'IL' ? 'he' : 'en';
+  }
+
+  /** New: send "order-confirmed" (created=true) once per order */
+  async sendCreatedConfirmationIfNeeded(order: any) {
+    try {
+      if (!this.mailer?.sendOrderConfirmation) return;
+
+      const ref = this.repo.ordersCol().doc(order.id);
+      const snap = await ref.get();
+      const already = snap.exists
+        ? (snap.get('confirmationSentAt') as string | undefined)
+        : undefined;
+      if (already) {
+        this.logger.log(
+          `confirmation already sent for ${order.id} @ ${already}`,
+        );
+        return;
+      }
+
+      const to = this.getEmailFromOrder(order);
+      if (!to) {
+        this.logger.warn(`no recipient email for order ${order.id}`);
+        return;
+      }
+
+      const currency = (order?.currency || order?.payment?.currency || 'ILS')
+        .toString()
+        .toUpperCase();
+      const amountMinor = Number(
+        order?.totalMinor ??
+          order?.payment?.totalMinor ??
+          Math.round((order?.total || 0) * 100),
+      );
+      const locale = this.getLocaleForOrder(order);
+
+      await this.mailer.sendOrderConfirmation(to, {
+        orderId: String(order.id || order.paymentIntentId || ''),
+        amount: amountMinor || 0,
+        currency,
+        paymentIntentId:
+          order?.paymentIntentId ||
+          order?.payment?.transactionId ||
+          String(order.id),
+        created: true,
+        locale,
+      });
+
+      await ref.set(
+        { confirmationSentAt: nowIso(), updatedAt: nowIso() },
+        { merge: true },
+      );
+      this.logger.log(`order confirmation sent for ${order.id} → ${to}`);
+    } catch (e) {
+      this.logger.warn(
+        `sendCreatedConfirmationIfNeeded failed for ${order?.id}: ${(e as Error).message}`,
+      );
+    }
+  }
 
   async sendManualReceiptIfNeeded(order: any) {
     try {
@@ -74,6 +139,7 @@ export class OrderNotificationsService {
           order?.paymentIntentId || order?.payment?.transactionId,
         created: false,
         invoiceUrl,
+        locale: this.getLocaleForOrder(order),
       });
 
       await this.repo.saveOrderMerge(order.id, {
@@ -115,11 +181,7 @@ export class OrderNotificationsService {
       const shippingAddress =
         patch?.shippingAddress ?? order?.shippingAddress ?? undefined;
 
-      const locale: 'he' | 'en' =
-        (order?.locale as any) ||
-        ((order?.shippingAddress?.address?.country || '').toUpperCase() === 'IL'
-          ? 'he'
-          : 'en');
+      const locale: 'he' | 'en' = this.getLocaleForOrder(order);
 
       if (typeof (this.mailer as any)?.sendOrderUpdate === 'function') {
         await (this.mailer as any).sendOrderUpdate.call(
@@ -179,7 +241,9 @@ export class OrderNotificationsService {
         : undefined;
       if (alreadyAt) {
         this.logger.log(
-          `receipt already stamped for ${orderId} @ ${alreadyAt}${alreadyFor ? ` (for=${alreadyFor})` : ''}`,
+          `receipt already stamped for ${orderId} @ ${alreadyAt}${
+            alreadyFor ? ` (for=${alreadyFor})` : ''
+          }`,
         );
         return;
       }
@@ -224,6 +288,9 @@ export class OrderNotificationsService {
         paymentIntentId: pi.id,
         created: false,
         invoiceUrl,
+        locale: this.getLocaleForOrder({
+          shippingAddress: draft?.shippingAddress,
+        }),
       });
 
       await ref.set(

@@ -345,7 +345,10 @@ export class OrdersPaymentFlowService {
     await this.repo.decrementStockForOrder(orderId, payload.items || []);
 
     if (SEND_FROM_ORDERS) {
-      await this.notify?.sendReceiptIfNeeded(orderId, pi, draft);
+      this.logger.log('[email] SEND_FROM_ORDERS=true; sending receipt');
+      await this.notify.sendReceiptIfNeeded(orderId, pi, draft);
+    } else {
+      this.logger.log('[email] SEND_FROM_ORDERS=false; skipping receipt');
     }
 
     this.logger.log(`createOrderFromIntentById ${orderId} ← ${pi.status}`);

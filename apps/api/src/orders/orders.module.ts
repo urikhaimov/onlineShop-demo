@@ -17,15 +17,14 @@ import { OrdersDraftsService } from './services/orders-drafts.service';
 import { OrdersPaymentFlowService } from './services/orders-payment-flow.service';
 import { OrdersWebhookService } from './services/orders-webhook.service';
 
-import { MailerModule } from '../mailer/mailer.module';
+import { MailerModule } from '../mailer'; // ← use barrel export
 import { InvoiceService } from '../invoice/invoice.service';
 
-// If not global / not imported via AuthModule, uncomment:
-// import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
-// import { RolesGuard } from '../auth/roles.guard';
-
 @Module({
-  imports: [ConfigModule, MailerModule],
+  imports: [
+    ConfigModule,
+    MailerModule, // ← provides MailerService to OrderNotificationsService, etc.
+  ],
   controllers: [
     OrdersController,
     OrdersPublicController,
@@ -39,7 +38,7 @@ import { InvoiceService } from '../invoice/invoice.service';
     OrdersRepository,
     OrdersPricingService,
     StripePaymentsService,
-    OrderNotificationsService,
+    OrderNotificationsService, // ← injects MailerService internally
     OrdersQueriesService,
     OrdersLifecycleService,
     OrdersDraftsService,
@@ -48,18 +47,10 @@ import { InvoiceService } from '../invoice/invoice.service';
 
     // Invoice provider (until moved to its own module)
     InvoiceService,
-
-    // If not using global guards / AuthModule:
-    // FirebaseAuthGuard,
-    // RolesGuard,
   ],
-  // Export more if other modules use them:
   exports: [
     OrdersService,
-    // OrdersRepository,
-    // OrdersPricingService,
-    // OrdersPaymentFlowService,
-    // OrdersQueriesService,
+    // export others only if needed elsewhere
   ],
 })
 export class OrdersModule {}
