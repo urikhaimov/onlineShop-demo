@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OrdersRepository } from '../repositories/orders.repository';
-import { StripePaymentsService } from './stripe-payments.service';
 import { nowIso, stripUndefinedDeep } from '../utils/orders.helpers';
 
 @Injectable()
@@ -9,12 +8,10 @@ export class OrdersDraftsService {
 
   constructor(
     @Inject(OrdersRepository) private readonly repo: OrdersRepository,
-    @Inject(StripePaymentsService)
-    private readonly stripeSvc: StripePaymentsService,
   ) {}
 
   async saveDraftCheckoutDetails(input: {
-    paymentIntentId: string;
+    paypalOrderId: string;
     userId: string;
     items?: any[];
     customer?: { name?: string; email?: string; phone?: string };
@@ -28,21 +25,13 @@ export class OrdersDraftsService {
         country?: string;
       };
     };
-    updateStripePI?: boolean;
   }) {
-    const {
-      paymentIntentId,
-      userId,
-      items,
-      customer,
-      shippingAddress,
-      updateStripePI,
-    } = input;
+    const { paypalOrderId, userId, items, customer, shippingAddress } = input;
 
     await this.repo.saveDraftMerge(
-      paymentIntentId,
+      paypalOrderId,
       stripUndefinedDeep({
-        id: paymentIntentId,
+        id: paypalOrderId,
         userId,
         items: Array.isArray(items) ? items : undefined,
         customer,
@@ -51,21 +40,8 @@ export class OrdersDraftsService {
       }),
     );
 
-    if (updateStripePI && shippingAddress?.address) {
-      await this.stripeSvc.updateShipping(paymentIntentId, {
-        name: shippingAddress.name || customer?.name || undefined,
-        phone: shippingAddress.phone || customer?.phone || undefined,
-        address: {
-          line1: shippingAddress.address.line1,
-          city: shippingAddress.address.city,
-          postal_code: shippingAddress.address.postalCode,
-          country: shippingAddress.address.country,
-        },
-      });
-    }
-
-    this.logger.log(`saveDraftCheckoutDetails ${paymentIntentId}`);
-    return this.repo.getOrder(paymentIntentId);
+    this.logger.log(`saveDraftCheckoutDetails ${paypalOrderId}`);
+    return this.repo.getOrder(paypalOrderId);
   }
 
   async cleanupOldDrafts(userId: string, keepId?: string, aggressive = false) {
@@ -76,29 +52,20 @@ export class OrdersDraftsService {
       for (const d of recents) {
         const id = d.id;
         if (id === keepId) continue;
-        if ((d as any)?.paymentIntentId === keepId) continue;
+        if ((d as any)?.paypalOrderId === keepId) continue;
         if ((d as any)?.status !== 'open') continue;
 
         const createdAtMs = Date.parse((d as any)?.createdAt || '') || 0;
         if (!aggressive && createdAtMs > twoMinAgo) continue;
 
         try {
-          const pi = await this.stripeSvc.retrieve(id);
-          if (!['succeeded', 'canceled', 'processing'].includes(pi.status)) {
-            await this.stripeSvc.cancel(id);
-          }
-        } catch {
-          // Ignore errors
-        }
-
-        try {
           await this.repo.deleteOrder(id);
         } catch {
-          // Ignore errors
+          // ignore
         }
       }
     } catch {
-      // Ignore errors
+      // ignore
     }
   }
 

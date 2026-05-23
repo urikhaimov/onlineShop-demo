@@ -9,11 +9,10 @@ import {
   Param,
   Req,
   UseGuards,
-  Headers,
   HttpCode,
   Logger,
   NotFoundException,
-  Inject, // ⬅️ added
+  Inject,
 } from '@nestjs/common';
 import { Request } from 'express';
 
@@ -24,24 +23,18 @@ import { Public } from '../auth/public.decorator';
 
 import { OrdersService } from './orders.service';
 
-// ── utils ─────────────────────────────────────────────────────────────────────
 import { minorToMajor } from './utils/currency.util';
 import { clampMinorForCurrency } from './utils/payment.util';
 import { cartSignature } from './utils/cart.util';
 import {
-  isValidPaymentIntentId,
-  composePIIdempotencyKey,
-} from './utils/stripe.util';
-import { getStripeRawBody } from './utils/request.util';
+  isValidPayPalOrderId,
+  composeOrderRequestId,
+} from './utils/paypal.util';
 
-// ✅ DTO for PATCH validation
 import { UpdateOrderDto } from './dto/update-order.dto';
 
 type AuthedUser = { uid: string; role?: string; email?: string };
 type AuthedRequest = Request & { user: AuthedUser };
-interface RawBodyRequest extends Request {
-  rawBody?: Buffer;
-}
 
 @Controller('orders')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
@@ -49,22 +42,21 @@ export class OrdersController {
   private readonly logger = new Logger(OrdersController.name);
 
   constructor(
-    @Inject(OrdersService) // ⬅️ explicit injection to avoid undefined in prod builds
+    @Inject(OrdersService)
     private readonly ordersService: OrdersService,
   ) {}
 
   // ── Reads ───────────────────────────────────────────────────────────────────
+
   @Get('mine')
   @Roles('user', 'admin', 'superadmin')
   getMyOrders(@Req() req: AuthedRequest) {
-    this.logger.log(`GET /orders/mine uid=${req.user.uid}`);
     return this.ordersService.getOrdersByUserId(req.user.uid);
   }
 
   @Get()
   @Roles('admin', 'superadmin')
   getAllOrders() {
-    this.logger.log('GET /orders');
     return this.ordersService.getAllOrders();
   }
 
@@ -72,7 +64,6 @@ export class OrdersController {
   @Roles('user', 'admin', 'superadmin')
   getOrderById(@Req() req: AuthedRequest, @Param('id') id: string) {
     const orderId = (id || '').trim();
-    this.logger.log(`GET /orders/${orderId} uid=${req.user.uid}`);
     return this.ordersService.getOrderById(
       req.user.uid,
       orderId,
@@ -80,15 +71,14 @@ export class OrdersController {
     );
   }
 
-  // Public polling by PaymentIntent id
+  /** Public polling by PayPal order ID */
   @Public()
-  @Get('public/:piId')
-  getPublicByPaymentIntent(@Param('piId') piId: string) {
-    const safe = (piId || '').trim();
-    if (!isValidPaymentIntentId(safe)) {
-      throw new BadRequestException('Invalid payment intent id');
+  @Get('public/:orderId')
+  getPublicByOrderId(@Param('orderId') orderId: string) {
+    const safe = (orderId || '').trim();
+    if (!isValidPayPalOrderId(safe)) {
+      throw new BadRequestException('Invalid order id');
     }
-    this.logger.log(`GET /orders/public/${safe}`);
     return this.ordersService.getPublicStatusByPaymentIntent(safe);
   }
 
@@ -111,36 +101,26 @@ export class OrdersController {
 
   @Post()
   @Roles('user', 'admin', 'superadmin')
-  async createOrder(@Req() req: AuthedRequest, @Body() dto: any) {
-    this.logger.log(`POST /orders uid=${req.user.uid}`);
+  createOrder(@Req() req: AuthedRequest, @Body() dto: any) {
     return this.ordersService.createOrder({ ...dto, userId: req.user.uid });
   }
 
-  // Client -> create PaymentIntent
-  @Post('create-payment-intent')
+  /** Create a PayPal order and return the PayPal orderId for the frontend. */
+  @Post('create-paypal-order')
   @Roles('user', 'admin', 'superadmin')
-  async createPaymentIntent(
+  async createPayPalOrder(
     @Req() req: AuthedRequest,
     @Body()
     body: {
       amount: number; // MINOR
-      currency?: string; // 'ILS'
-      cart?: any[]; // richer cart from client
+      currency?: string;
+      cart?: any[];
       shipping?: number; // MAJOR
-      taxRate?: number; // fraction (e.g., 0.17)
+      taxRate?: number; // fraction (e.g. 0.17)
       discount?: number; // MINOR
-      // optional linkage (helps webhook):
       orderId?: string | null;
-      // customer fields (optional)
-      ownerName?: string | null;
-      passportId?: string | null;
       email?: string | null;
-      phone?: string | null;
-      shippingAddress?: Record<string, any> | null;
-      metadata?: Record<string, any>;
-      // idempotency controls:
-      idempotencyKey?: string | null; // explicit override
-      nonce?: string | null; // ⬅️ new: per-checkout unique value to force a fresh PI
+      nonce?: string | null;
     },
   ) {
     const currencyUpper = (body.currency ?? 'ILS').toUpperCase();
@@ -148,68 +128,46 @@ export class OrdersController {
     const amountMinor = clampMinorForCurrency(minorRaw, currencyUpper);
     const totalMajor = minorToMajor(amountMinor, currencyUpper);
 
-    // Cart signature participates in key
     const sig = cartSignature(body.cart ?? []);
-
-    // Include extras so Stripe doesn’t trip idempotency mismatch
     const shipMinor = Math.max(
       0,
       Math.round(((body.shipping ?? 0) as number) * 100),
     );
-    const taxBps = Math.round(((body.taxRate ?? 0) as number) * 10_000); // 0.17 -> 1700 bps
+    const taxBps = Math.round(((body.taxRate ?? 0) as number) * 10_000);
     const discountMinor = Math.max(0, Math.round(Number(body.discount) || 0));
 
-    // Prefer caller key if given; otherwise compose a stable key + optional nonce
-    // Example: pi-ILS-299-<sig>::s599-t1700-d300-n<uuid>
-    const composedKey = `${composePIIdempotencyKey({
+    const requestId = `${composeOrderRequestId({
       uid: req.user.uid,
       currency: currencyUpper,
       amountMinor,
       cartSig: sig,
     })}::s${shipMinor}-t${taxBps}-d${discountMinor}${
       body.nonce ? `-n${body.nonce}` : ''
-    }`;
-
-    const idempotencyKey = (body.idempotencyKey || composedKey).slice(0, 255);
+    }`.slice(0, 255);
 
     this.logger.log(
-      `POST /orders/create-payment-intent uid=${req.user.uid} currency=${currencyUpper} minor=${amountMinor} cart=${body.cart?.length ?? 0}`,
+      `POST /orders/create-paypal-order uid=${req.user.uid} currency=${currencyUpper} minor=${amountMinor}`,
     );
 
-    return this.ordersService.createPaymentIntent({
+    return this.ordersService.createPayPalOrder({
       totalMajor,
-      currency: currencyUpper.toLowerCase(), // service expects lower-case (e.g., 'ils')
+      currency: currencyUpper.toLowerCase(),
       userId: req.user.uid,
       email: body.email ?? undefined,
-      idempotencyKey,
+      requestId,
       cart: body.cart ?? [],
-      orderId:
-        (body.orderId ?? undefined) ||
-        (body.metadata?.orderId as string | undefined),
-      metadata: {
-        // Stripe metadata MUST be strings:
-        shippingMajor: String(body.shipping ?? 0),
-        taxRate: String(body.taxRate ?? 0),
-        discountMinor: String(body.discount ?? 0),
-        ownerName: body.ownerName ?? undefined,
-        passportId: body.passportId ?? undefined,
-        phone: body.phone ?? undefined,
-        ...(body.metadata ?? {}),
-      },
-    } as any);
+      orderId: body.orderId ?? undefined,
+    });
   }
 
-  /**
-   * Save/merge draft checkout details into the current PI document.
-   * Optionally mirrors shipping to Stripe PI (set `mirrorToStripe: true`).
-   */
+  /** Save draft items/customer/shipping against a PayPal order ID. */
   @Post('save-draft')
   @Roles('user', 'admin', 'superadmin')
   async saveDraft(
     @Req() req: AuthedRequest,
     @Body()
     body: {
-      paymentIntentId: string;
+      paypalOrderId: string;
       items?: any[];
       customer?: { name?: string; email?: string; phone?: string };
       shippingAddress?: {
@@ -222,39 +180,29 @@ export class OrdersController {
           country?: string;
         };
       };
-      mirrorToStripe?: boolean;
     },
   ) {
-    const paymentIntentId = (body?.paymentIntentId || '').trim();
-    if (!isValidPaymentIntentId(paymentIntentId)) {
-      throw new BadRequestException('Valid paymentIntentId is required');
+    const paypalOrderId = (body?.paypalOrderId || '').trim();
+    if (!isValidPayPalOrderId(paypalOrderId)) {
+      throw new BadRequestException('Valid paypalOrderId is required');
     }
-    this.logger.log(
-      `POST /orders/save-draft uid=${req.user.uid} pi=${paymentIntentId}`,
-    );
     return this.ordersService.saveDraftCheckoutDetails({
-      paymentIntentId,
+      paypalOrderId,
       userId: req.user.uid,
       items: body.items,
       customer: body.customer,
       shippingAddress: body.shippingAddress,
-      updateStripePI: !!body.mirrorToStripe,
     });
   }
 
-  /**
-   * Server-side confirm (single source of truth).
-   * Accepts a PaymentMethod ID and optional customer/shipping data.
-   * May return { status: 'requires_action' } if 3DS is needed.
-   */
-  @Post('confirm')
+  /** Capture an approved PayPal order and create the Firestore order record. */
+  @Post('capture-paypal-order')
   @Roles('user', 'admin', 'superadmin')
-  async confirm(
+  async capturePayPalOrder(
     @Req() req: AuthedRequest,
     @Body()
     body: {
-      paymentIntentId?: string;
-      paymentMethodId?: string;
+      orderId: string;
       customer?: { name?: string; email?: string; phone?: string };
       shippingAddress?: {
         name?: string;
@@ -266,70 +214,35 @@ export class OrdersController {
           country?: string;
         };
       };
-      mirrorToStripe?: boolean;
-      returnUrl?: string;
     },
   ) {
-    const paymentIntentId = (body?.paymentIntentId || '').trim();
-    if (!isValidPaymentIntentId(paymentIntentId)) {
-      throw new BadRequestException('Valid paymentIntentId is required');
+    const orderId = (body?.orderId || '').trim();
+    if (!isValidPayPalOrderId(orderId)) {
+      throw new BadRequestException('Valid PayPal orderId is required');
     }
     this.logger.log(
-      `POST /orders/confirm uid=${req.user.uid} pi=${paymentIntentId}`,
+      `POST /orders/capture-paypal-order uid=${req.user.uid} orderId=${orderId}`,
     );
-    // delegate to the new flow that handles confirm + cleanup
-    return this.ordersService.confirmPaymentIntent({
-      paymentIntentId,
+    return this.ordersService.capturePayPalOrder({
+      orderId,
       userId: req.user.uid,
-      paymentMethodId: body.paymentMethodId,
       customer: body.customer,
       shippingAddress: body.shippingAddress,
-      mirrorToStripe: !!body.mirrorToStripe,
-      returnUrl: body.returnUrl,
     });
   }
 
-  /**
-   * Best-effort post-success inventory/email ensure (idempotent).
-   * Used by the client after returning from Stripe success page.
-   */
-  @Post('confirm-inventory')
-  @Roles('user', 'admin', 'superadmin')
-  async confirmInventory(
-    @Req() req: AuthedRequest,
-    @Body() body: { paymentIntentId: string },
-  ) {
-    const paymentIntentId = (body?.paymentIntentId || '').trim();
-    if (!isValidPaymentIntentId(paymentIntentId)) {
-      throw new BadRequestException('Valid paymentIntentId is required');
-    }
-    this.logger.log(
-      `POST /orders/confirm-inventory uid=${req.user.uid} pi=${paymentIntentId}`,
-    );
-    // This call is safe: it’s idempotent and will only decrement once + dedupe email
-    const order = await this.ordersService.createOrderFromIntentById(
-      paymentIntentId,
-      req.user.uid,
-    );
-    return { ok: true, orderId: order.id, status: order.status };
-  }
-
-  // PATCH (used by Admin Edit page)
   @Patch(':id')
   @Roles('admin', 'superadmin')
   async updateOrder(
     @Req() req: AuthedRequest,
     @Param('id') id: string,
-    @Body() dto: UpdateOrderDto, // ✅ validate body
+    @Body() dto: UpdateOrderDto,
   ) {
     const safeId = (id || '').trim();
-
-    // Helpful log to debug any remaining 4xx/5xx responses
     this.logger.log(
       `PATCH /orders/${safeId} by=${req.user.uid} body=${JSON.stringify(dto)}`,
     );
 
-    // Only forward whitelisted keys to the service
     const patch: any = {};
     if (dto.status !== undefined) patch.status = dto.status;
     if (dto.notes !== undefined) patch.notes = dto.notes;
@@ -341,7 +254,6 @@ export class OrdersController {
       req.user.uid,
     );
 
-    // Optional: notify customer
     if (dto.notifyCustomer && (this.ordersService as any)?.notifyCustomer) {
       try {
         await (this.ordersService as any).notifyCustomer(
@@ -359,31 +271,9 @@ export class OrdersController {
     return updated;
   }
 
-  /**
-   * 🔔 Stripe webhook — must be PUBLIC and receive RAW body (Buffer).
-   */
-  @Post('webhook')
-  @Public()
-  @HttpCode(200)
-  async handleStripeWebhook(
-    @Req() req: Request & { rawBody?: Buffer },
-    @Headers('stripe-signature') signature: string,
-  ) {
-    this.logger.log('POST /orders/webhook (Stripe)');
-    const raw = getStripeRawBody(req as any);
-    if (!raw || !signature) {
-      throw new BadRequestException(
-        'Missing raw body or stripe-signature header',
-      );
-    }
-    await this.ordersService.handleStripeWebhook(raw, signature);
-    return { received: true };
-  }
-
   @Get('debug/ping')
   @Roles('user', 'admin', 'superadmin')
   debugPing() {
-    this.logger.log('GET /orders/debug/ping');
     return { ok: true, ts: new Date().toISOString() };
   }
 }

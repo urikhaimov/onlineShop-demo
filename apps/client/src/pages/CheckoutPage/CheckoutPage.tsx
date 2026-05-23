@@ -10,16 +10,13 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import { Elements } from '@stripe/react-stripe-js';
-import type { StripeElementsOptions } from '@stripe/stripe-js';
 
 import { useCartStore } from '../../stores/useCartStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 
-import StripeCheckoutForm from './StripeCheckoutForm';
-import { useStripeClientSecret } from '../../hooks/useStripeClientSecret';
+import PayPalCheckoutForm from './PayPalCheckoutForm';
+import { usePayPalOrder } from '../../hooks/usePayPalOrder';
 import { useOrderSettings } from '../../hooks/useOrderSettings';
-import { stripePromise } from '../../stripe/StripeProvider';
 
 import { PageLayout } from '../../layouts/page.layout';
 import {
@@ -32,7 +29,6 @@ import LoadingProgress from '@client/components/LoadingProgress';
 import { useSnackbar } from 'notistack';
 import api from '../../api/axiosInstance';
 
-// small helpers to avoid `any`
 type WithImage = { image?: string };
 type WithImages = { images?: string[] };
 function pickImage(it: unknown): string {
@@ -47,30 +43,20 @@ function pickImage(it: unknown): string {
   return '';
 }
 
-// client_secret -> pi_XXXX
-function getPiIdFromClientSecret(cs?: string | null) {
-  if (!cs) return '';
-  const m = cs.match(/^(pi_[^_]+)_secret_/);
-  return m?.[1] ?? '';
-}
-
 export default function CheckoutPage() {
   const theme = useTheme();
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
   const { themeSettings } = useThemeStore();
 
-  // ---- Theme-aware tokens
   const isDark =
     themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
   const radius = (themeSettings?.borderRadius ??
     theme.shape.borderRadius) as number;
 
-  // Scalars that respect spacing scale
   const pad = 2 * spacingScale;
 
-  // Vars-safe background & outline
   const paperBg = theme.vars?.palette?.background?.paperChannel
     ? `rgba(${theme.vars.palette.background.paperChannel} / 1)`
     : theme.palette.background.paper;
@@ -81,7 +67,6 @@ export default function CheckoutPage() {
 
   const baseShadow = isDark ? theme.shadows[3] : theme.shadows[1];
 
-  // ---- Data hooks
   const cart = useCartStore((s) => s.items);
   const {
     data: settings,
@@ -90,13 +75,11 @@ export default function CheckoutPage() {
     error: settingsErr,
   } = useOrderSettings();
 
-  // Settings with safe fallbacks (can be read while loading)
   const currency = (settings?.currency as string) || CDefaultCurrency || 'ILS';
   const shippingMajor = Number(settings?.shipping ?? 0);
-  const taxRatePercent = Number(settings?.taxRate ?? 0); // percent (e.g., 17)
+  const taxRatePercent = Number(settings?.taxRate ?? 0);
   const discountMajor = Number(settings?.discount ?? 0);
 
-  // Totals in MAJOR units (memoized)
   const { subtotal, tax, totalMajor } = useMemo(() => {
     const subtotalCalc = cart.reduce(
       (sum, item) =>
@@ -113,68 +96,47 @@ export default function CheckoutPage() {
     return { subtotal: subtotalCalc, tax: taxCalc, totalMajor: totalCalc };
   }, [cart, taxRatePercent, shippingMajor, discountMajor]);
 
-  // Number formatter (memoize to avoid re-creating on each render)
   const fmt = useMemo(
     () => new Intl.NumberFormat(undefined, { style: 'currency', currency }),
     [currency],
   );
 
-  // ✅ Gate PI creation until settings are loaded & totals are stable
   const ready = !settingsLoading && cart.length > 0 && totalMajor > 0;
 
-  // ✅ Create / refresh PaymentIntent only when ready (hook is still always called)
-  const { clientSecret, loading, error, refresh } = useStripeClientSecret(
+  const { orderId, loading, error, refresh } = usePayPalOrder(
     ready
       ? {
           totalMajor,
           currency,
           cart,
           shippingMajor,
-          taxRatePercent, // percent, e.g. 17
+          taxRatePercent,
           discountMajor,
         }
       : undefined,
   );
 
-  // Current PI id (from client secret)
-  const paymentIntentId = useMemo(
-    () => getPiIdFromClientSecret(clientSecret),
-    [clientSecret],
-  );
-
-  // --- Elements options (MUST be declared before any early return) ---
-  const elementsOptions = useMemo<StripeElementsOptions>(
-    () => ({
-      clientSecret: clientSecret ?? undefined,
-      appearance: {
-        theme: isDark ? 'night' : 'stripe',
-        rules: { '.Input': { borderRadius: '8px' } },
-      },
-      // REQUIRED when using stripe.createPaymentMethod with the Payment Element
-      paymentMethodCreation: 'manual',
-      loader: 'auto',
-    }),
-    [clientSecret, isDark],
-  );
-
-  // 🔄 As soon as we have a PI, persist the draft items on the server.
+  // Persist draft items once we have an orderId
   useEffect(() => {
     (async () => {
-      if (!paymentIntentId || cart.length === 0) return;
+      if (!orderId || cart.length === 0) return;
       try {
         await api.post('/orders/save-draft', {
-          paymentIntentId,
+          paypalOrderId: orderId,
           items: cart.map((i) => ({
-            productId: (i as any).id,
-            name: (i as any).name,
-            price: Number((i as any).price) || 0,
-            quantity: Number((i as any).quantity) || 0,
+            productId: (i as Record<string, unknown>).id,
+            name: (i as Record<string, unknown>).name,
+            price: Number((i as Record<string, unknown>).price) || 0,
+            quantity: Number((i as Record<string, unknown>).quantity) || 0,
             image: pickImage(i),
           })),
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const axiosErr = e as { response?: { data?: { message?: unknown } } };
         enqueueSnackbar(
-          e?.response?.data?.message ??
+          (typeof axiosErr?.response?.data?.message === 'string'
+            ? axiosErr.response!.data!.message
+            : undefined) ??
             t('checkout.draftSaveFailed', {
               defaultValue: 'Failed to sync draft items.',
             }),
@@ -182,9 +144,8 @@ export default function CheckoutPage() {
         );
       }
     })();
-  }, [paymentIntentId, cart, enqueueSnackbar, t]);
+  }, [orderId, cart, enqueueSnackbar, t]);
 
-  // Toast errors
   useEffect(() => {
     if (error) {
       enqueueSnackbar(String(error), {
@@ -203,7 +164,6 @@ export default function CheckoutPage() {
     }
   }, [settingsLoading, settingsError, settingsErr, enqueueSnackbar]);
 
-  // Loading gate AFTER all hooks (so hook order is stable)
   if (settingsLoading) return <LoadingProgress />;
 
   return (
@@ -251,7 +211,7 @@ export default function CheckoutPage() {
             </Alert>
           )}
 
-          {/* --- Items List --- */}
+          {/* Items list */}
           {cart.length > 0 ? (
             <>
               <Typography variant="subtitle2" mb={0.5 * spacingScale}>
@@ -275,13 +235,15 @@ export default function CheckoutPage() {
                 <Stack spacing={0.75 * spacingScale}>
                   {cart.map((item) => {
                     const img = pickImage(item);
-                    const qty = Number((item as any).quantity) || 0;
-                    const price = Number((item as any).price) || 0;
+                    const qty =
+                      Number((item as Record<string, unknown>).quantity) || 0;
+                    const price =
+                      Number((item as Record<string, unknown>).price) || 0;
                     const lineTotal = +(price * qty).toFixed(2);
 
                     return (
                       <Stack
-                        key={(item as any).id}
+                        key={(item as Record<string, unknown>).id as string}
                         direction="row"
                         alignItems="center"
                         spacing={1.25 * spacingScale}
@@ -297,7 +259,9 @@ export default function CheckoutPage() {
                           <Box
                             component="img"
                             src={img}
-                            alt={(item as any).name}
+                            alt={
+                              (item as Record<string, unknown>).name as string
+                            }
                             sx={{
                               width: 56,
                               height: 56,
@@ -326,9 +290,11 @@ export default function CheckoutPage() {
                           <Typography
                             variant="body2"
                             noWrap
-                            title={(item as any).name}
+                            title={
+                              (item as Record<string, unknown>).name as string
+                            }
                           >
-                            {(item as any).name}
+                            {(item as Record<string, unknown>).name as string}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {t('checkout.qty', { defaultValue: 'Qty' })}: {qty}{' '}
@@ -347,13 +313,11 @@ export default function CheckoutPage() {
             </>
           ) : (
             <Alert severity="info" sx={{ mb: 1.5 * spacingScale }}>
-              {t('checkout.emptyCart', {
-                defaultValue: 'Your cart is empty',
-              })}
+              {t('checkout.emptyCart', { defaultValue: 'Your cart is empty' })}
             </Alert>
           )}
 
-          {/* --- Totals --- */}
+          {/* Totals */}
           <Stack spacing={0.75 * spacingScale} mb={1.5 * spacingScale}>
             <Typography>
               {t('checkout.subtotal', { defaultValue: 'Subtotal' })}:{' '}
@@ -383,26 +347,18 @@ export default function CheckoutPage() {
             </Typography>
           </Stack>
 
-          {/* --- Stripe --- */}
+          {/* PayPal checkout */}
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
               <CircularProgress />
             </Box>
-          ) : clientSecret ? (
-            <Elements
-              key={clientSecret}
-              stripe={stripePromise}
-              options={elementsOptions}
-            >
-              {/* Pass both paymentIntentId and clientSecret to avoid relying on private internals */}
-              <StripeCheckoutForm
-                paymentIntentId={paymentIntentId}
-                clientSecret={clientSecret}
-                totalMajor={totalMajor}
-                currency={currency}
-                onRefreshIntent={refresh}
-              />
-            </Elements>
+          ) : orderId ? (
+            <PayPalCheckoutForm
+              paypalOrderId={orderId}
+              totalMajor={totalMajor}
+              currency={currency}
+              onRefreshOrder={refresh}
+            />
           ) : (
             <Alert severity="error">
               {error ??

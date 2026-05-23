@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { MailerService } from '../../mailer/mailer.service';
 import { InvoiceService } from '../../invoice/invoice.service';
-import Stripe from 'stripe';
+import type { PayPalOrder } from './paypal-payments.service';
 import { nowIso } from '../utils/orders.helpers';
 import { OrdersRepository } from '../repositories/orders.repository';
 
@@ -222,9 +222,9 @@ export class OrderNotificationsService {
     }
   }
 
-  async sendReceiptIfNeeded(
+  async sendReceiptForPayPalOrder(
     orderId: string,
-    pi: Stripe.PaymentIntent,
+    captureResult: PayPalOrder,
     draft?: any,
   ) {
     try {
@@ -248,18 +248,14 @@ export class OrderNotificationsService {
         return;
       }
 
-      const charge =
-        typeof pi.latest_charge === 'string' ? undefined : pi.latest_charge;
       const to =
-        (pi.metadata?.email as string | undefined) ||
-        (pi.receipt_email as string | undefined) ||
-        (charge?.billing_details?.email as string | undefined) ||
+        captureResult.payer?.email_address?.trim() ||
         (draft?.customer?.email as string | undefined) ||
         (draft?.email as string | undefined);
 
       if (!to) {
         this.logger.warn(
-          `no recipient email for order ${orderId} (pi=${pi.id})`,
+          `no recipient email for order ${orderId} (paypalOrder=${captureResult.id})`,
         );
         return;
       }
@@ -278,14 +274,21 @@ export class OrderNotificationsService {
         );
       }
 
-      const amountMinor = Number(pi.amount_received ?? pi.amount ?? 0);
-      const currency = (pi.currency ?? 'ILS').toUpperCase();
+      const unit = captureResult.purchase_units?.[0];
+      const capture = unit?.payments?.captures?.[0];
+      const amountValue = capture?.amount?.value ?? unit?.amount?.value ?? '0';
+      const amountMinor = Math.round(parseFloat(amountValue) * 100);
+      const currency = (
+        capture?.amount?.currency_code ??
+        unit?.amount?.currency_code ??
+        'ILS'
+      ).toUpperCase();
 
       await this.mailer.sendOrderConfirmation(to, {
         orderId,
         amount: amountMinor,
         currency,
-        paymentIntentId: pi.id,
+        paymentIntentId: captureResult.id,
         created: false,
         invoiceUrl,
         locale: this.getLocaleForOrder({
@@ -294,13 +297,19 @@ export class OrderNotificationsService {
       });
 
       await ref.set(
-        { receiptSentAt: nowIso(), receiptSentFor: pi.id, updatedAt: nowIso() },
+        {
+          receiptSentAt: nowIso(),
+          receiptSentFor: captureResult.id,
+          updatedAt: nowIso(),
+        },
         { merge: true },
       );
-      this.logger.log(`receipt sent for ${orderId} (pi=${pi.id}) → ${to}`);
+      this.logger.log(
+        `receipt sent for ${orderId} (paypalOrder=${captureResult.id}) → ${to}`,
+      );
     } catch (e) {
       this.logger.warn(
-        `sendReceiptIfNeeded failed for ${orderId}: ${(e as Error).message}`,
+        `sendReceiptForPayPalOrder failed for ${orderId}: ${(e as Error).message}`,
       );
     }
   }

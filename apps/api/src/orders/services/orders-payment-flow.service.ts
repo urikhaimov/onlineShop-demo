@@ -5,23 +5,21 @@ import {
   Inject,
   Optional,
 } from '@nestjs/common';
-import type Stripe from 'stripe';
 
 import { OrdersRepository } from '../repositories/orders.repository';
 import { OrdersPricingService } from './orders-pricing.service';
-import { StripePaymentsService } from './stripe-payments.service';
+import { PayPalPaymentsService, PayPalOrder } from './paypal-payments.service';
 import { OrderNotificationsService } from './order-notifications.service';
 import { OrdersDraftsService } from './orders-drafts.service';
 
+import { defined, nowIso, stripUndefinedDeep } from '../utils/orders.helpers';
 import {
-  defined,
-  extractPeopleFromStripe,
-  nowIso,
-  stripUndefinedDeep,
-} from '../utils/orders.helpers';
+  extractPeopleFromCapture,
+  extractCaptureId,
+} from '../utils/paypal-parse.util';
 
 const SEND_FROM_ORDERS =
-  String(process.env.SEND_STRIPE_EMAILS_FROM_ORDERS || '').toLowerCase() ===
+  String(process.env.SEND_PAYPAL_EMAILS_FROM_ORDERS || '').toLowerCase() ===
   'true';
 
 @Injectable()
@@ -35,8 +33,8 @@ export class OrdersPaymentFlowService {
     @Inject(OrdersPricingService)
     private readonly pricing: OrdersPricingService,
 
-    @Inject(StripePaymentsService)
-    private readonly stripeSvc: StripePaymentsService,
+    @Inject(PayPalPaymentsService)
+    private readonly paypalSvc: PayPalPaymentsService,
 
     @Optional()
     @Inject(OrderNotificationsService)
@@ -46,16 +44,14 @@ export class OrdersPaymentFlowService {
     private readonly drafts: OrdersDraftsService,
   ) {}
 
-  async createPaymentIntent(input: {
+  async createPayPalOrder(input: {
     totalMajor?: number;
     currency?: string;
     userId: string;
     orderId?: string;
-    metadata?: Record<string, string>;
     email?: string;
-    idempotencyKey?: string;
+    requestId?: string;
     cart?: any[];
-    reuseIfSame?: boolean;
   }) {
     const currency = (input.currency ?? 'ils').toLowerCase();
     const totals = await this.pricing.computeTotals(
@@ -63,31 +59,17 @@ export class OrdersPaymentFlowService {
       input.totalMajor,
     );
 
-    const pi = await this.stripeSvc.createPaymentIntent({
-      userId: input.userId,
-      orderId: input.orderId,
+    const paypalOrder = await this.paypalSvc.createOrder({
       amountMinor: totals.amountMinor,
       currency,
-      email: input.email,
-      idempotencyKey: input.idempotencyKey,
-      reuseIfSame: input.reuseIfSame,
-      metadata: {
-        userId: input.userId,
-        orderId: input.orderId ?? '',
-        app: 'onlineShop',
-        ...(input.metadata ?? {}),
-        ...(input.email ? { email: input.email } : {}),
-        subtotal_minor: String(totals.subtotalMinor),
-        shipping_minor: String(totals.shippingMinor),
-        discount_minor: String(totals.discountMinor),
-        vat_rate: String(totals.vatRate),
-      },
+      orderId: input.orderId,
+      requestId: input.requestId,
     });
 
     await this.repo.saveDraftMerge(
-      pi.id,
+      paypalOrder.id,
       stripUndefinedDeep({
-        id: pi.id,
+        id: paypalOrder.id,
         userId: input.userId,
         status: 'open',
         total: totals.amountMinor / 100,
@@ -95,37 +77,38 @@ export class OrdersPaymentFlowService {
         totalMinor: totals.amountMinor,
         currency,
         items: Array.isArray(input.cart) ? input.cart : [],
-        paymentIntentId: pi.id,
+        paypalOrderId: paypalOrder.id,
         payment: defined({
-          provider: 'stripe',
-          method: 'card',
+          provider: 'paypal',
+          method: 'paypal',
           currency,
           totalMinor: totals.amountMinor,
           totalMajor: totals.amountMinor / 100,
-          transactionId: pi.id,
-          status: 'requires_confirmation',
+          transactionId: paypalOrder.id,
+          status: 'pending',
         }),
         subtotalMinor: totals.subtotalMinor,
         shippingMinor: totals.shippingMinor,
         discountMinor: totals.discountMinor,
         vatRate: totals.vatRate,
+        ...(input.email ? { email: input.email } : {}),
         createdAt: nowIso(),
         updatedAt: nowIso(),
       }),
     );
 
-    this.logger.log(
-      `createPaymentIntent ${pi.id} ${currency} ${totals.amountMinor}`,
-    );
-    await this.drafts.cleanupOldDrafts(input.userId, pi.id, false);
+    await this.drafts.cleanupOldDrafts(input.userId, paypalOrder.id, false);
 
-    return { clientSecret: pi.client_secret, paymentIntentId: pi.id };
+    this.logger.log(
+      `createPayPalOrder ${paypalOrder.id} ${currency} ${totals.amountMinor}`,
+    );
+
+    return { orderId: paypalOrder.id };
   }
 
-  async confirmPaymentIntent(input: {
-    paymentIntentId: string;
+  async capturePayPalOrder(input: {
+    orderId: string;
     userId: string;
-    paymentMethodId?: string;
     customer?: { name?: string; email?: string; phone?: string };
     shippingAddress?: {
       name?: string;
@@ -137,166 +120,77 @@ export class OrdersPaymentFlowService {
         country?: string;
       };
     };
-    mirrorToStripe?: boolean;
-    returnUrl?: string;
   }) {
-    const {
-      paymentIntentId,
-      userId,
-      paymentMethodId,
-      customer,
-      shippingAddress,
-      mirrorToStripe,
-      returnUrl,
-    } = input;
+    const { orderId, userId } = input;
 
-    if (customer || shippingAddress) {
-      await this.drafts.saveDraftCheckoutDetails({
-        paymentIntentId,
-        userId,
-        customer,
-        shippingAddress,
-        updateStripePI: mirrorToStripe,
-      });
+    const captureResult = await this.paypalSvc.captureOrder(orderId);
+
+    if (captureResult.status !== 'COMPLETED') {
+      throw new ConflictException(
+        `PayPal order ${orderId} capture ended in status: ${captureResult.status}`,
+      );
     }
 
-    let pi = await this.stripeSvc.retrieve(paymentIntentId, ['latest_charge']);
+    const order = await this.createOrderFromCapture(captureResult, userId, {
+      customer: input.customer,
+      shippingAddress: input.shippingAddress,
+    });
 
-    switch (pi.status) {
-      case 'succeeded': {
-        const order = await this.createOrderFromIntentById(pi.id, userId);
-        await this.drafts.cleanupOldDrafts(userId, order.id, true);
-        return {
-          ok: true,
-          status: 'succeeded',
-          order,
-          clientSecret: pi.client_secret ?? null,
-        };
-      }
-      case 'requires_payment_method': {
-        if (!paymentMethodId) {
-          await this.drafts.cleanupOldDrafts(userId, pi.id, true);
-          throw new ConflictException(
-            'Payment method is missing. Attach a payment method and try again.',
-          );
-        }
-        break;
-      }
-      case 'requires_confirmation': {
-        break;
-      }
-      case 'requires_action':
-      case 'processing': {
-        await this.drafts.cleanupOldDrafts(userId, pi.id, true);
-        return {
-          ok: true,
-          status: pi.status,
-          nextAction: (pi as any).next_action ?? null,
-          clientSecret: pi.client_secret ?? null,
-        };
-      }
-      case 'canceled': {
-        await this.drafts.cleanupOldDrafts(userId, pi.id, true);
-        throw new ConflictException('Payment was canceled.');
-      }
-      default: {
-        await this.drafts.cleanupOldDrafts(userId, pi.id, true);
-        throw new ConflictException(`Cannot confirm in state: ${pi.status}`);
-      }
-    }
-
-    pi = await this.stripeSvc.confirm(
-      paymentIntentId,
-      defined({ paymentMethodId, returnUrl }),
-    );
-
-    switch (pi.status) {
-      case 'succeeded': {
-        const order = await this.createOrderFromIntentById(pi.id, userId);
-        await this.drafts.cleanupOldDrafts(userId, order.id, true);
-        return {
-          ok: true,
-          status: 'succeeded',
-          order,
-          clientSecret: pi.client_secret ?? null,
-        };
-      }
-      case 'requires_action':
-      case 'processing': {
-        await this.drafts.cleanupOldDrafts(userId, pi.id, true);
-        return {
-          ok: true,
-          status: pi.status,
-          nextAction: (pi as any).next_action ?? null,
-          clientSecret: pi.client_secret ?? null,
-        };
-      }
-      case 'canceled': {
-        await this.drafts.cleanupOldDrafts(userId, pi.id, true);
-        throw new ConflictException('Payment was canceled.');
-      }
-      default: {
-        await this.drafts.cleanupOldDrafts(userId, pi.id, true);
-        throw new ConflictException(
-          `Confirmation ended in state: ${pi.status}`,
-        );
-      }
-    }
+    await this.drafts.cleanupOldDrafts(userId, order.id, true);
+    return { ok: true, status: 'succeeded', order };
   }
 
-  async createOrderFromIntentById(paymentIntentId: string, userId: string) {
-    const pi = await this.stripeSvc.retrieve(paymentIntentId, [
-      'latest_charge',
-    ]);
-    const draft = await this.repo.getOrderRaw(pi.id);
-    const { shippingAddress, customer } = extractPeopleFromStripe(pi);
-
-    if (pi.status !== 'succeeded') {
-      await this.repo.saveDraftMerge(
-        pi.id,
-        stripUndefinedDeep({
-          status: 'open',
-          shippingAddress: shippingAddress ?? (draft as any)?.shippingAddress,
-          customer: Object.keys(customer).length
-            ? customer
-            : (draft as any)?.customer,
-          updatedAt: nowIso(),
-        }),
-      );
-      await this.drafts.cleanupOldDrafts(userId, pi.id, true);
+  async createOrderFromCapture(
+    captureResult: PayPalOrder,
+    userId: string,
+    overrides?: {
+      customer?: { name?: string; email?: string; phone?: string };
+      shippingAddress?: {
+        name?: string;
+        phone?: string;
+        address?: {
+          line1?: string;
+          city?: string;
+          postalCode?: string;
+          country?: string;
+        };
+      };
+    },
+  ) {
+    if (captureResult.status !== 'COMPLETED') {
       throw new ConflictException(
-        `PaymentIntent ${pi.id} is ${pi.status}; cannot create order until it succeeds.`,
+        `PayPal order ${captureResult.id} is ${captureResult.status}; cannot create order.`,
       );
     }
 
-    const orderId = (pi.metadata?.orderId as string) || paymentIntentId;
-    const currency = (
-      pi.currency ||
-      (draft as any)?.currency ||
-      'ils'
-    ).toLowerCase();
-    const amountMinor =
-      (typeof pi.amount_received === 'number' && pi.amount_received > 0
-        ? pi.amount_received
-        : typeof pi.amount === 'number'
-          ? pi.amount
-          : (draft as any)?.totalMinor) || 0;
+    const draft = await this.repo.getOrderRaw(captureResult.id);
+    const { shippingAddress: capturedShipping, customer: capturedCustomer } =
+      extractPeopleFromCapture(captureResult);
+    const captureId = extractCaptureId(captureResult);
 
-    const m = pi.metadata || {};
-    const subtotalMinor =
-      Number(m.subtotal_minor) ||
-      Number((draft as any)?.subtotalMinor) ||
-      undefined;
-    const shippingMinor =
-      Number(m.shipping_minor) || Number((draft as any)?.shippingMinor) || 0;
-    const discountMinor =
-      Number(m.discount_minor) || Number((draft as any)?.discountMinor) || 0;
-    const vatRate =
-      m.vat_rate !== null && m.vat_rate !== undefined
-        ? Number(m.vat_rate)
-        : typeof (draft as any)?.vatRate === 'number'
-          ? Number((draft as any).vatRate)
-          : undefined;
+    const unit = captureResult.purchase_units?.[0];
+    const capture = unit?.payments?.captures?.[0];
+    const amountValue = capture?.amount?.value ?? unit?.amount?.value ?? '0';
+    const amountMinor = Math.round(parseFloat(amountValue) * 100);
+    const currency = (
+      capture?.amount?.currency_code ??
+      unit?.amount?.currency_code ??
+      (draft as any)?.currency ??
+      'ILS'
+    ).toLowerCase();
+
+    const orderId = (draft as any)?.id ?? captureResult.id;
+
+    const customer =
+      overrides?.customer ??
+      (Object.keys(capturedCustomer).length
+        ? capturedCustomer
+        : (draft as any)?.customer) ??
+      {};
+    const shippingAddress =
+      overrides?.shippingAddress ??
+      capturedShipping ??
+      (draft as any)?.shippingAddress;
 
     const payload = stripUndefinedDeep({
       id: orderId,
@@ -307,31 +201,30 @@ export class OrdersPaymentFlowService {
       totalMinor: amountMinor,
       currency,
       items: Array.isArray((draft as any)?.items) ? (draft as any).items : [],
-      paymentIntentId: pi.id,
+      paypalOrderId: captureResult.id,
+      paypalCaptureId: captureId,
       payment: {
-        provider: 'stripe',
-        method: 'card',
+        provider: 'paypal',
+        method: 'paypal',
         currency,
         totalMinor: amountMinor,
         totalMajor: amountMinor / 100,
-        transactionId: pi.id,
-        status: pi.status,
+        transactionId: captureId ?? captureResult.id,
+        status: 'COMPLETED',
       },
-      shippingAddress: shippingAddress ?? (draft as any)?.shippingAddress,
-      customer: Object.keys(customer).length
-        ? customer
-        : (draft as any)?.customer,
-      subtotalMinor,
-      shippingMinor,
-      discountMinor,
-      vatRate,
+      shippingAddress,
+      customer,
+      subtotalMinor: (draft as any)?.subtotalMinor,
+      shippingMinor: (draft as any)?.shippingMinor,
+      discountMinor: (draft as any)?.discountMinor,
+      vatRate: (draft as any)?.vatRate,
       createdAt: (draft as any)?.createdAt ?? nowIso(),
       updatedAt: nowIso(),
     });
 
     await this.repo.saveOrderMerge(orderId, payload);
     await this.repo.saveDraftMerge(
-      pi.id,
+      captureResult.id,
       stripUndefinedDeep({
         status: 'paid',
         linkedOrderId: orderId,
@@ -341,17 +234,18 @@ export class OrdersPaymentFlowService {
       }),
     );
 
-    await this.drafts.cleanupOldDrafts(userId, orderId, true);
     await this.repo.decrementStockForOrder(orderId, payload.items || []);
 
-    if (SEND_FROM_ORDERS) {
+    if (SEND_FROM_ORDERS && this.notify) {
       this.logger.log('[email] SEND_FROM_ORDERS=true; sending receipt');
-      await this.notify.sendReceiptIfNeeded(orderId, pi, draft);
-    } else {
-      this.logger.log('[email] SEND_FROM_ORDERS=false; skipping receipt');
+      await this.notify.sendReceiptForPayPalOrder(
+        orderId,
+        captureResult,
+        draft,
+      );
     }
 
-    this.logger.log(`createOrderFromIntentById ${orderId} ← ${pi.status}`);
+    this.logger.log(`createOrderFromCapture ${orderId} ← COMPLETED`);
     return payload;
   }
 }

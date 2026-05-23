@@ -1,6 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-// (Optional) Remove if unused:
-// import type Stripe from 'stripe';
 
 import { OrdersQueriesService } from './services/orders-queries.service';
 import { OrdersLifecycleService } from './services/orders-lifecycle.service';
@@ -29,8 +27,8 @@ export class OrdersService {
   ) {}
 
   // Queries
-  getPublicStatusByPaymentIntent(piId: string) {
-    return this.queries.getPublicStatusByPaymentIntent(piId);
+  getPublicStatusByPaymentIntent(orderId: string) {
+    return this.queries.getPublicStatusByPaymentIntent(orderId);
   }
   getOrdersByUserId(userId: string) {
     return this.queries.getOrdersByUserId(userId);
@@ -38,11 +36,7 @@ export class OrdersService {
   getAllOrders() {
     return this.queries.getAllOrders();
   }
-  getOrderById(
-    userId: string,
-    orderId: string,
-    role: 'admin' | 'user' | string = 'user',
-  ) {
+  getOrderById(userId: string, orderId: string, role = 'user') {
     return this.queries.getOrderById(userId, orderId, role);
   }
   getOrderDoc(orderId: string) {
@@ -59,13 +53,13 @@ export class OrdersService {
   updateStatus(orderId: string, status: OrderStatus) {
     return this.lifecycle.updateStatus(orderId, status);
   }
-  markPaidByPaymentIntentId(paymentIntentId: string) {
-    return this.lifecycle.markPaidByPaymentIntentId(paymentIntentId);
+  markPaidByPaymentIntentId(orderId: string) {
+    return this.lifecycle.markPaidByPaymentIntentId(orderId);
   }
 
   // Drafts
   saveDraftCheckoutDetails(input: {
-    paymentIntentId: string;
+    paypalOrderId: string;
     userId: string;
     items?: any[];
     customer?: { name?: string; email?: string; phone?: string };
@@ -79,7 +73,6 @@ export class OrdersService {
         country?: string;
       };
     };
-    updateStripePI?: boolean;
   }) {
     return this.drafts.saveDraftCheckoutDetails(input);
   }
@@ -91,23 +84,20 @@ export class OrdersService {
   }
 
   // Payment flows
-  createPaymentIntent(input: {
+  createPayPalOrder(input: {
     totalMajor?: number;
     currency?: string;
     userId: string;
     orderId?: string;
-    metadata?: Record<string, string>;
     email?: string;
-    idempotencyKey?: string;
+    requestId?: string;
     cart?: any[];
-    reuseIfSame?: boolean;
   }) {
-    return this.payments.createPaymentIntent(input);
+    return this.payments.createPayPalOrder(input);
   }
-  confirmPaymentIntent(input: {
-    paymentIntentId: string;
+  capturePayPalOrder(input: {
+    orderId: string;
     userId: string;
-    paymentMethodId?: string;
     customer?: { name?: string; email?: string; phone?: string };
     shippingAddress?: {
       name?: string;
@@ -119,17 +109,21 @@ export class OrdersService {
         country?: string;
       };
     };
-    mirrorToStripe?: boolean;
-    returnUrl?: string;
   }) {
-    return this.payments.confirmPaymentIntent(input);
-  }
-  createOrderFromIntentById(paymentIntentId: string, userId: string) {
-    return this.payments.createOrderFromIntentById(paymentIntentId, userId);
+    return this.payments.capturePayPalOrder(input);
   }
 
   // Webhooks
-  handleStripeWebhook(rawBody: string | Buffer, signature?: string) {
-    return this.webhooks.handleStripeWebhook(rawBody, signature);
+  handlePayPalWebhook(
+    rawBody: string | Buffer,
+    headers: {
+      authAlgo?: string;
+      certUrl?: string;
+      transmissionId?: string;
+      transmissionSig?: string;
+      transmissionTime?: string;
+    },
+  ) {
+    return this.webhooks.handlePayPalWebhook(rawBody, headers);
   }
 }

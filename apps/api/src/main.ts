@@ -65,14 +65,9 @@ async function bootstrap() {
     next();
   };
 
-  // Add other webhook paths here (Stripe + any partner webhooks)
   const webhookPaths = [
     `/${apiPrefix}/orders/webhook`,
-    `/${apiPrefix}/payments/webhooks/stripe`,
-    // extra aliases so CLI/tests always hit a raw-body route:
-    `/${apiPrefix}/payments/webhook`,
-    `/${apiPrefix}/webhooks/stripe`,
-    `/${apiPrefix}/stripe/webhook`,
+    `/${apiPrefix}/webhooks/paypal`,
     // partners
     `/${apiPrefix}/webhooks/wolt`,
   ];
@@ -123,19 +118,24 @@ async function bootstrap() {
             'https://storage.googleapis.com',
             'https://*.googleapis.com',
             'https://*.googleusercontent.com',
-            // Stripe
-            'https://api.stripe.com',
-            'https://hooks.stripe.com',
+            // PayPal
+            'https://api-m.paypal.com',
+            'https://api-m.sandbox.paypal.com',
+            'https://*.paypal.com',
           ],
           scriptSrc: [
             "'self'",
             "'unsafe-inline'",
             "'unsafe-eval'",
-            'https://js.stripe.com',
+            'https://www.paypal.com',
+            'https://www.paypalobjects.com',
           ],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          fontSrc: ["'self'", 'data:'],
-          frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com'],
+          fontSrc: ["'self'", 'data:', 'https://www.paypalobjects.com'],
+          frameSrc: [
+            'https://www.paypal.com',
+            'https://www.sandbox.paypal.com',
+          ],
           // (helmet useDefaults already sets these, but keeping explicit is fine)
           baseUri: ["'self'"],
           formAction: ["'self'"],
@@ -165,8 +165,11 @@ async function bootstrap() {
       'Authorization',
       'Accept-Language',
       'x-lang',
-      'stripe-signature',
-      'Stripe-Signature',
+      'paypal-auth-algo',
+      'paypal-cert-url',
+      'paypal-transmission-id',
+      'paypal-transmission-sig',
+      'paypal-transmission-time',
       'x-signature',
       'X-Signature',
     ],

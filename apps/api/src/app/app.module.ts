@@ -30,7 +30,7 @@ import { AuthModule } from '../auth/auth.module';
 import { SearchModule } from '../search/search.module';
 import { HealthController } from '../health/health.controller';
 
-import { StripeModule } from '../stripe/stripe.module';
+import { PayPalModule } from '../paypal/paypal.module';
 
 // ✅ Mailer singleton (provided & exported by MailerModule)
 import { MailerModule } from '../mailer/mailer.module';
@@ -84,7 +84,7 @@ const testRoutesModules =
 
     // Integrations
     MailerModule, // if marked @Global(), import is harmless; otherwise required
-    StripeModule,
+    PayPalModule,
 
     // Dev / Test (conditional)
     ...devOnlyModules,
