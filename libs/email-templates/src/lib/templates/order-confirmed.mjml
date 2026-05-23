@@ -23,6 +23,12 @@
       {{formatDate orderDate lang}}</mj-text
     >
 
+    {{#if paymentIntentId}}
+    <mj-text align="{{alignStart}}" padding="0 0 12px 0" class="small muted">
+      Payment Intent: {{paymentIntentId}}
+    </mj-text>
+    {{/if}}
+
     <mj-text align="{{alignStart}}" font-weight="600" padding="8px 0 4px 0"
       >{{#if isHebrew}}פריטים{{else}}Items{{/if}}</mj-text
     >
@@ -71,5 +77,19 @@
     <mj-button href="{{orderUrl}}" align="{{alignStart}}" padding="16px 0 0 0">
       {{#if isHebrew}}צפייה בהזמנה{{else}}View Order{{/if}}
     </mj-button>
+
+    {{#if invoiceUrl}}
+    <mj-button
+      href="{{invoiceUrl}}"
+      align="{{alignStart}}"
+      padding="8px 0 0 0"
+      background-color="#374151"
+    >
+      {{#if isHebrew}}הורדת חשבונית (PDF){{else}}Download invoice (PDF){{/if}}
+    </mj-button>
+    <mj-text align="{{alignStart}}" class="small muted" padding="4px 0 0 0">
+      Invoice: {{invoiceUrl}}
+    </mj-text>
+    {{/if}}
   </mj-column>
 </mj-section>

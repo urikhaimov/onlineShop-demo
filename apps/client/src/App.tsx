@@ -10,6 +10,7 @@ import { getThemeFromSettings } from './utils/themeBuilder';
 import { appRoutes } from './config/routesConfig';
 import { handleGoogleRedirectResultOnce } from './auth/auth-google';
 import GlobalBackground from './components/background/GlobalBackground';
+import LoadingProgress from './components/LoadingProgress';
 import './App.css';
 
 export default function App() {
@@ -40,7 +41,9 @@ export default function App() {
       >
         <CssBaseline />
         <GlobalBackground />
-        <AnimatePresence mode="wait">{routes}</AnimatePresence>
+        <React.Suspense fallback={<LoadingProgress />}>
+          <AnimatePresence mode="wait">{routes}</AnimatePresence>
+        </React.Suspense>
       </SnackbarProvider>
     </MuiThemeProvider>
   );

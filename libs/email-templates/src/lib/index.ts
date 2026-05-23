@@ -3,6 +3,9 @@
 // 1) Subjects (named exports)
 export { Subjects, subjectFor } from './subjects';
 
+// 1b) Handlebars helpers
+export { registerEmailHelpers } from './helpers';
+
 // 2) Renderer facade: guarantee a named `render(...)` no matter renderer shape
 import * as Renderer from './renderer';
 import * as subjectsNS from './subjects';

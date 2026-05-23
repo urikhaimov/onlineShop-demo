@@ -19,6 +19,7 @@ export type CombinedImage = {
   id: string;
   url: string;
   type: 'existing' | 'new';
+  progress?: number;
 };
 
 // Define ImageUploaderProps

@@ -124,10 +124,10 @@ export default function CheckoutPage() {
         await api.post('/orders/save-draft', {
           paypalOrderId: orderId,
           items: cart.map((i) => ({
-            productId: (i as Record<string, unknown>).id,
-            name: (i as Record<string, unknown>).name,
-            price: Number((i as Record<string, unknown>).price) || 0,
-            quantity: Number((i as Record<string, unknown>).quantity) || 0,
+            productId: i.id,
+            name: i.name,
+            price: Number(i.price) || 0,
+            quantity: Number(i.quantity) || 0,
             image: pickImage(i),
           })),
         });
@@ -235,15 +235,13 @@ export default function CheckoutPage() {
                 <Stack spacing={0.75 * spacingScale}>
                   {cart.map((item) => {
                     const img = pickImage(item);
-                    const qty =
-                      Number((item as Record<string, unknown>).quantity) || 0;
-                    const price =
-                      Number((item as Record<string, unknown>).price) || 0;
+                    const qty = Number(item.quantity) || 0;
+                    const price = Number(item.price) || 0;
                     const lineTotal = +(price * qty).toFixed(2);
 
                     return (
                       <Stack
-                        key={(item as Record<string, unknown>).id as string}
+                        key={item.id}
                         direction="row"
                         alignItems="center"
                         spacing={1.25 * spacingScale}
@@ -259,9 +257,7 @@ export default function CheckoutPage() {
                           <Box
                             component="img"
                             src={img}
-                            alt={
-                              (item as Record<string, unknown>).name as string
-                            }
+                            alt={item.name}
                             sx={{
                               width: 56,
                               height: 56,
@@ -287,14 +283,8 @@ export default function CheckoutPage() {
                         )}
 
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            title={
-                              (item as Record<string, unknown>).name as string
-                            }
-                          >
-                            {(item as Record<string, unknown>).name as string}
+                          <Typography variant="body2" noWrap title={item.name}>
+                            {item.name}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {t('checkout.qty', { defaultValue: 'Qty' })}: {qty}{' '}

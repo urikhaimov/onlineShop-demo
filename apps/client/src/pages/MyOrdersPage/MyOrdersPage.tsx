@@ -4,7 +4,7 @@ import { Box, Divider, Button, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useQuery } from '@tanstack/react-query';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
@@ -380,7 +380,7 @@ export default function MyOrdersPage() {
         )}
 
         {/* ✅ Date pickers need LocalizationProvider */}
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
           {/* Keep drawer mounted but closed in tests */}
           <RightFiltersDrawer
             title={t('filters.open')}

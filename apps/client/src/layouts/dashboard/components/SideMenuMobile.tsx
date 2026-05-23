@@ -26,12 +26,12 @@ export default function SideMenuMobile({
   open,
   toggleDrawer,
 }: SideMenuMobileProps) {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      await logout();
       navigate(ROUTES.LOGIN, { replace: true }); // ← important
     } catch (err) {
       console.error('❌ Logout failed:', err);

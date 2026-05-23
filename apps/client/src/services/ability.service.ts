@@ -39,7 +39,7 @@ export function defineAbilityFor({
   role,
 }: {
   user: User | null;
-  role: EUserRole | null;
+  role: EUserRole | string | null;
 }) {
   const { can, cannot, build } = new AbilityBuilder(createMongoAbility);
 

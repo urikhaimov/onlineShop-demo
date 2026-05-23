@@ -1,8 +1,12 @@
 // libs/mailer/src/templates/renderer.ts
 import mjml2html from 'mjml';
 import Handlebars from 'handlebars';
+import { registerEmailHelpers } from '@email-templates';
 import { loadTemplateSource } from './paths';
 import { subjectFor } from './subjects';
+
+// Register Handlebars helpers (formatDate, price, eq, etc.) once at module load.
+registerEmailHelpers(Handlebars);
 
 export type RenderOut =
   | { ok: true; subject: string; html: string; text: string }
@@ -19,6 +23,20 @@ function stripHtml(html: string) {
     .trim();
 }
 
+/** Wrap a fragment template into base.mjml; if it's already a full <mjml> doc, return as-is. */
+function composeFullMjml(src: string, locale?: string): string {
+  if (/<mjml[\s>]/i.test(src)) return src;
+  const base = loadTemplateSource('base', locale);
+  if (!base.src) return src;
+  if (base.src.includes('<!-- ::BODY:: -->')) {
+    return base.src.replace('<!-- ::BODY:: -->', src);
+  }
+  return base.src.replace(
+    /<mj-wrapper([^>]*)>([\s\S]*?)<\/mj-wrapper>/,
+    `<mj-wrapper$1>${src}</mj-wrapper>`,
+  );
+}
+
 export class TemplateRenderer {
   constructor(private readonly brandName: string) {}
 
@@ -31,20 +49,25 @@ export class TemplateRenderer {
     const { file, src } = loadTemplateSource(name, locale);
     if (!src) return { ok: false };
 
-    const key = file || `inline:${name}`;
+    const composedSrc = composeFullMjml(src, locale);
+    const key = file ? `${file}::composed` : `inline:${name}`;
     let tpl = cache.get(key);
     if (!tpl) {
-      tpl = Handlebars.compile(src, { noEscape: true });
+      tpl = Handlebars.compile(composedSrc, { noEscape: true });
       cache.set(key, tpl);
     }
 
     const isRtl = (locale || 'he').toLowerCase().startsWith('he');
+    const isHebrew = isRtl;
     const mjml = tpl({
       locale,
       dir: isRtl ? 'rtl' : 'ltr',
       isRtl,
+      isHebrew,
       alignStart: isRtl ? 'right' : 'left',
       alignEnd: isRtl ? 'left' : 'right',
+      year: new Date().getFullYear(),
+      brandName: this.brandName,
       ...vars,
     });
 

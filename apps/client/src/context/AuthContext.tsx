@@ -29,7 +29,7 @@ import { useQueryClient } from '@tanstack/react-query';
 export const isAdmin = (role: EUserRole | string | null | undefined): boolean =>
   role === 'admin' || role === EUserRole.ADMIN || role === 'ADMIN';
 
-type RoleString = 'viewer' | 'editor' | 'admin' | null;
+type RoleString = 'viewer' | 'editor' | 'admin' | 'superadmin' | null;
 
 export type AuthContextType = {
   user: User | null;
@@ -58,7 +58,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const normalizeRole = (raw: any): RoleString => {
     const lower = typeof raw === 'string' ? raw.toLowerCase() : null;
-    if (lower === 'viewer' || lower === 'editor' || lower === 'admin')
+    if (
+      lower === 'viewer' ||
+      lower === 'editor' ||
+      lower === 'admin' ||
+      lower === 'superadmin'
+    )
       return lower;
     return null;
   };
@@ -86,19 +91,29 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const hardClear: AuthContextType['hardClear'] = useCallback(async () => {
     try {
       runAllStoreResets();
-    } catch {}
+    } catch {
+      // ignore
+    }
     try {
       queryClient.clear();
-    } catch {}
+    } catch {
+      // ignore
+    }
     try {
       indexedDB.deleteDatabase('firebaseLocalStorageDb');
-    } catch {}
+    } catch {
+      // ignore
+    }
     try {
       sessionStorage.clear();
-    } catch {}
+    } catch {
+      // ignore
+    }
     try {
       localStorage.clear();
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, [queryClient]);
 
   const hardClearAndKick = useCallback(async () => {
@@ -137,7 +152,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   // Bootstrap flow: if signed-in but role is missing, try to ensure it
   useEffect(() => {
-    if (user && role == null) {
+    if (user && role === null) {
       void ensureRoleIfMissing(user);
     }
   }, [user, role, ensureRoleIfMissing]);
@@ -156,6 +171,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       await fbSignOut(auth);
     } catch {
+      // ignore
     } finally {
       setUser(null);
       setRole(null);

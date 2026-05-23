@@ -464,6 +464,15 @@ export default function AdminProductsPage() {
             >
               {t('filters.reset')}
             </Button>
+
+            <Button
+              variant={reorderMode ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setReorderMode((m) => !m)}
+              aria-label={reorderMode ? 'Reorder: On' : 'Reorder: Off'}
+            >
+              {reorderMode ? 'Reorder: On' : 'Reorder: Off'}
+            </Button>
           </Stack>
         </Box>
 

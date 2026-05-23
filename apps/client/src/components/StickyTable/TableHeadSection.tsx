@@ -40,31 +40,31 @@ export default function TableHeadSection<T extends object>({
 
             // precompute helper outputs
 
-            const stickySx: SxProps<Theme> = getStickyStyles(theme, meta);
-            const hiddenSx: SxProps<Theme> = responsiveVisibility(meta);
+            const stickySx = getStickyStyles(theme, meta);
+            const hiddenSx = responsiveVisibility(meta);
 
             return (
               <TableCell
                 key={header.id}
-                sx={(th) => ({
-                  // merge helper styles
-                  ...stickySx,
-                  ...hiddenSx,
-
-                  top: 0,
-                  zIndex: 10,
-                  minWidth: {
-                    xs: 60,
-                    sm:
-                      (header.column.columnDef.size as number | undefined) ??
-                      100,
-                  },
-                  backgroundColor: th.palette.grey[50],
-                  textAlign: 'left',
-                  verticalAlign: 'top',
-                  px: denseMode ? 0.5 : 1,
-                  py: denseMode ? 0.25 : 0.5,
-                })}
+                sx={[
+                  stickySx,
+                  hiddenSx,
+                  (th) => ({
+                    top: 0,
+                    zIndex: 10,
+                    minWidth: {
+                      xs: 60,
+                      sm:
+                        (header.column.columnDef.size as number | undefined) ??
+                        100,
+                    },
+                    backgroundColor: th.palette.grey[50],
+                    textAlign: 'left',
+                    verticalAlign: 'top',
+                    px: denseMode ? 0.5 : 1,
+                    py: denseMode ? 0.25 : 0.5,
+                  }),
+                ]}
               >
                 <Stack spacing={0.25} alignItems="flex-start">
                   <Typography variant="caption" fontWeight={600}>

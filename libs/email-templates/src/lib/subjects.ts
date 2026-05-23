@@ -104,7 +104,7 @@ export function subjectFor(
   locale: string | undefined,
   vars: Record<string, any> = {},
 ): string {
-  const lang: Lang = (locale || process.env.MAIL_LOCALE || 'he')
+  const lang: Lang = (locale || process.env['MAIL_LOCALE'] || 'he')
     .toLowerCase()
     .startsWith('he')
     ? 'he'

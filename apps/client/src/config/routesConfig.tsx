@@ -3,38 +3,81 @@ import {
   AdminProtectedRoute,
   ProtectedRoute,
 } from '../components/ProtectedRoutes';
-import AdminDashboardLayout from '../layouts/AdminDashboardLayout';
-import AdminCategoriesPage from '../pages/admin/AdminCategoriesPage';
-import EditOrderPage from '../pages/admin/AdminEditOrderPage';
-import AdminHomePage from '../pages/admin/AdminHomePage';
-import AdminLandingPage from '../pages/admin/AdminLandingPage';
-import AdminLogsPage from '../pages/admin/AdminLogsPage';
-import AdminOrdersPage from '../pages/admin/AdminOrdersPage';
-import {
-  AdminProductsPage,
-  ProductFormPage,
-} from '../pages/admin/AdminProductsPage';
-import AdminUsersPage from '../pages/admin/AdminUsersPage';
-import CartPage from '../pages/CartPage';
-import HomePage from '../pages/HomePage';
-import LoginPage from '../pages/LoginPage';
-import MyOrdersPage from '../pages/MyOrdersPage';
-import OrderDetailPage from '../pages/OrderDetailPage';
-import ProductPage from '../pages/ProductPage';
-import ProductsPage from '../pages/ProductsPage';
-import ResetPasswordPage from '../pages/ResetPasswordPage';
-import SignupPage from '../pages/SignupPage';
-import UserProfilePage from '../pages/UserProfilePage';
 import { type Location, Route, Routes } from 'react-router-dom';
-import AdminThemePage from '../pages/admin/AdminThemePage';
+
+// Eagerly loaded — always needed
+import LoginPage from '../pages/LoginPage';
+import SignupPage from '../pages/SignupPage';
+import ResetPasswordPage from '../pages/ResetPasswordPage';
+import HomePage from '../pages/HomePage';
+import ProductsPage from '../pages/ProductsPage';
+import ProductPage from '../pages/ProductPage';
+import CartPage from '../pages/CartPage';
 import NotFoundPage from '../pages/NotFoundPage';
-import AdminSecurityLogsPage from '../pages/admin/AdminSecurityLogsPage';
-import CheckoutPage from '../pages/CheckoutPage';
-import CheckoutSuccessPage from '../pages/CheckoutPage/CheckoutSuccessPage';
 import DashboardLayout from '../layouts/dashboard/DashboardLayout';
-import AddCategoryPage from '../pages/admin/AdminCategoriesPage/AddCategoryPage';
-import EditCategoryPage from '../pages/admin/AdminCategoriesPage/EditCategoryPage';
-import OrderSettingsPage from '../pages/admin/OrderSettingsPage';
+
+// Lazily loaded — authenticated-only or heavy
+const CheckoutPage = React.lazy(() => import('../pages/CheckoutPage'));
+const CheckoutSuccessPage = React.lazy(
+  () => import('../pages/CheckoutPage/CheckoutSuccessPage'),
+);
+const OrderDetailPage = React.lazy(() => import('../pages/OrderDetailPage'));
+const UserProfilePage = React.lazy(() => import('../pages/UserProfilePage'));
+const MyOrdersPage = React.lazy(() => import('../pages/MyOrdersPage'));
+
+// Admin — lazily loaded
+const AdminDashboardLayout = React.lazy(
+  () => import('../layouts/AdminDashboardLayout'),
+);
+const AdminHomePage = React.lazy(() => import('../pages/admin/AdminHomePage'));
+const AdminLandingPage = React.lazy(
+  () => import('../pages/admin/AdminLandingPage'),
+);
+const AdminCategoriesPage = React.lazy(
+  () => import('../pages/admin/AdminCategoriesPage'),
+);
+const AddCategoryPage = React.lazy(
+  () => import('../pages/admin/AdminCategoriesPage/AddCategoryPage'),
+);
+const EditCategoryPage = React.lazy(
+  () => import('../pages/admin/AdminCategoriesPage/EditCategoryPage'),
+);
+const AdminOrdersPage = React.lazy(
+  () => import('../pages/admin/AdminOrdersPage'),
+);
+const EditOrderPage = React.lazy(
+  () => import('../pages/admin/AdminEditOrderPage'),
+);
+const AdminUsersPage = React.lazy(
+  () => import('../pages/admin/AdminUsersPage'),
+);
+const AdminLogsPage = React.lazy(() => import('../pages/admin/AdminLogsPage'));
+const AdminSecurityLogsPage = React.lazy(
+  () => import('../pages/admin/AdminSecurityLogsPage'),
+);
+const AdminThemePage = React.lazy(
+  () => import('../pages/admin/AdminThemePage'),
+);
+const OrderSettingsPage = React.lazy(
+  () => import('../pages/admin/OrderSettingsPage'),
+);
+
+// AdminProductsPage exports two components — use a wrapper
+const AdminProductsPageLazy = React.lazy(() =>
+  import('../pages/admin/AdminProductsPage').then((m) => ({
+    default: m.AdminProductsPage,
+  })),
+);
+const ProductFormPageAdd = React.lazy(() =>
+  import('../pages/admin/AdminProductsPage').then((m) => ({
+    default: () => <m.ProductFormPage mode="add" />,
+  })),
+);
+const ProductFormPageEdit = React.lazy(() =>
+  import('../pages/admin/AdminProductsPage').then((m) => ({
+    default: () => <m.ProductFormPage mode="edit" />,
+  })),
+);
 
 export enum ERoutePaths {
   HOME = '/',
@@ -66,7 +109,6 @@ export enum ERoutePaths {
   ADMIN_DASHBOARD = '/admin/*',
 }
 
-// src/routes/appRoutes.tsx
 export const appRoutes = (location: Location) => (
   <Routes location={location} key={location.pathname}>
     {/* Auth routes WITHOUT app shell */}
@@ -139,14 +181,14 @@ export const appRoutes = (location: Location) => (
         <Route path="orders/:id" element={<EditOrderPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="logs" element={<AdminLogsPage />} />
-        <Route path="products" element={<AdminProductsPage />} />
-        <Route path="products/add" element={<ProductFormPage mode="add" />} />
+        <Route path="products" element={<AdminProductsPageLazy />} />
+        <Route path="products/add" element={<ProductFormPageAdd />} />
         <Route path="categories/add" element={<AddCategoryPage />} />
         <Route path="categories/edit/:id" element={<EditCategoryPage />} />
         <Route path="orders/settings" element={<OrderSettingsPage />} />
         <Route
           path="products/edit/:productId"
-          element={<ProductFormPage mode="edit" />}
+          element={<ProductFormPageEdit />}
         />
         <Route path="theme" element={<AdminThemePage />} />
         <Route path="security-logs" element={<AdminSecurityLogsPage />} />

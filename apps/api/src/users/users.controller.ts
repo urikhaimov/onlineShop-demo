@@ -3,26 +3,41 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   InternalServerErrorException,
   NotFoundException,
   Param,
   Post,
   Put,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import type { FirebaseRequest } from '../auth/firebase-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as mime from 'mime-types';
 import { admin, adminDb } from '@common/firebase';
 
+function assertOwnerOrAdmin(req: FirebaseRequest, id: string) {
+  const uid = req.user?.uid;
+  const role = req.user?.role;
+  const isAdmin = role === 'admin' || role === 'superadmin';
+  if (!uid) throw new ForbiddenException('Not authenticated');
+  if (uid !== id && !isAdmin) throw new ForbiddenException('Access denied');
+}
+
 @Controller('users')
 @UseGuards(FirebaseAuthGuard)
 export class UsersController {
-  // GET /users
+  // GET /users — admin only
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
   @Get()
   async findAll() {
     const snapshot = await adminDb.collection('users').get();
@@ -32,18 +47,24 @@ export class UsersController {
     }));
   }
 
-  // GET /users/:id
+  // GET /users/:id — own profile or admin
   @Get(':id')
-  async getOne(@Param('id') id: string) {
+  async getOne(@Param('id') id: string, @Req() req: FirebaseRequest) {
+    assertOwnerOrAdmin(req, id);
     const docRef = adminDb.collection('users').doc(id);
     const snap = await docRef.get();
     if (!snap.exists) throw new NotFoundException('User not found');
     return snap.data();
   }
 
-  // PUT /users/:id
+  // PUT /users/:id — own profile or admin
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: UpdateUserDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() body: UpdateUserDto,
+    @Req() req: FirebaseRequest,
+  ) {
+    assertOwnerOrAdmin(req, id);
     try {
       const docRef = adminDb.collection('users').doc(id);
       const snap = await docRef.get();
@@ -56,18 +77,23 @@ export class UsersController {
       await docRef.update(updateData);
       return { success: true };
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      )
+        throw error;
       console.error('🔥 Update error:', error);
       throw new InternalServerErrorException('Failed to update user profile');
     }
   }
 
-  // DELETE /users/:id/avatar
+  // DELETE /users/:id/avatar — own profile or admin
   @Delete(':id/avatar')
-  async deleteAvatar(@Param('id') id: string) {
+  async deleteAvatar(@Param('id') id: string, @Req() req: FirebaseRequest) {
+    assertOwnerOrAdmin(req, id);
     const bucket = admin.storage().bucket();
 
     try {
-      // Optionally, delete all versions of avatar by prefix:
       const [files] = await bucket.getFiles({ prefix: `avatars/${id}/` });
       await Promise.all(files.map((file) => file.delete()));
 
@@ -79,13 +105,15 @@ export class UsersController {
     }
   }
 
-  // POST /users/:id/avatar
+  // POST /users/:id/avatar — own profile or admin
   @Post(':id/avatar')
   @UseInterceptors(FileInterceptor('file'))
   async uploadAvatar(
     @Param('id') id: string,
     @UploadedFile() file: any,
+    @Req() req: FirebaseRequest,
   ): Promise<{ photoURL: string }> {
+    assertOwnerOrAdmin(req, id);
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
@@ -101,7 +129,7 @@ export class UsersController {
         contentType: file.mimetype,
         public: true,
         metadata: {
-          cacheControl: 'public,max-age=60', // Encourage fresh fetches
+          cacheControl: 'public,max-age=60',
         },
       });
 

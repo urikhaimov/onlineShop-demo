@@ -95,7 +95,7 @@ export function renderEmail(opts: RenderOpts): string {
     isHebrew: opts.lang === 'he',
     alignStart: dir === 'rtl' ? 'right' : 'left',
     alignEnd: dir === 'rtl' ? 'left' : 'right',
-    year: opts.data?.year ?? new Date().getFullYear(),
+    year: opts.data?.['year'] ?? new Date().getFullYear(),
   };
 
   const mjml = hb(ctx);

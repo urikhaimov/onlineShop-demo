@@ -15,6 +15,8 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { ProductsService } from './products.service';
 import { SaveProductDto } from './dto/save-product.dto';
 import { ReorderProductsDto } from './dto/reorder-products.dto';
@@ -71,7 +73,8 @@ export class ProductsController {
     return this.svc.getById(id);
   }
 
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
   @Post()
   create(@Req() req: AuthedReq, @Body() dto: SaveProductDto) {
     // Dev-only diagnostics to verify images flow through the ValidationPipe/DTO
@@ -94,7 +97,8 @@ export class ProductsController {
   }
 
   // Keep specific route BEFORE the param route
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
   @Put('reorder')
   reorder(@Req() req: AuthedReq, @Body() dto: ReorderProductsDto) {
     if (process.env.NODE_ENV !== 'production') {
@@ -104,7 +108,8 @@ export class ProductsController {
     return this.svc.reorder(req.user!.uid, actorName, dto.orderList);
   }
 
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
   @Put(':id')
   update(
     @Req() req: AuthedReq,
@@ -130,7 +135,8 @@ export class ProductsController {
     return this.svc.update(req.user!.uid, actorName, id, dto);
   }
 
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.svc.remove(id);

@@ -54,7 +54,7 @@ export const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
   const { setRedirectTo, setMessage } = useRedirect();
   const notified = React.useRef(false);
 
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'superadmin';
 
   React.useEffect(() => {
     if (!loading && (!user || !isAdmin) && !notified.current) {

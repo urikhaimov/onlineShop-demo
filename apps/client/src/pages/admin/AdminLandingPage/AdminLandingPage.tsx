@@ -49,7 +49,7 @@ const DEFAULT_FORM: LandingPageData = {
     { title: 'Eco materials', body: 'Consciously sourced' },
     { title: '4.9 ★', body: '2,400+ reviews' },
     { title: 'New drops', body: 'Every Friday 10:00' },
-    { title: 'Secure checkout', body: 'Stripe + 3D Secure' },
+    { title: 'Secure checkout', body: 'PayPal secured' },
   ],
 };
 

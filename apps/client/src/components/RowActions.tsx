@@ -19,6 +19,8 @@ export type RowAction<T> = {
   onClick: (ctx: T) => void;
   disabled?: (ctx: T) => boolean;
   tooltip?: (ctx: T) => string;
+  /** Render with a destructive/danger visual style */
+  danger?: boolean;
 };
 
 export type RowActionsProps<T> = {

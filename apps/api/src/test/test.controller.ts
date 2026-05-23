@@ -25,7 +25,7 @@ export class TestController {
       userId: 'e2e',
       items: [],
       status: 'pending',
-      payment: { method: 'stripe', status: 'requires_payment_method' },
+      payment: { method: 'paypal', status: 'requires_payment_method' },
       shippingAddress: null,
       notes: 'seeded-for-e2e',
       createdAt: now,
