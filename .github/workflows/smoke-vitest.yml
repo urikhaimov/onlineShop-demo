@@ -1,99 +1,48 @@
-name: Daily API E2E
+name: Vitest
 
 on:
-  workflow_dispatch: {}
-  schedule:
-    # 07:35 Asia/Jerusalem == 04:35 UTC
-    - cron: '35 4 * * *'
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: vitest-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
-  e2e:
+  vitest:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    concurrency:
-      group: e2e-api-${{ github.ref }}
-      cancel-in-progress: true
+    timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
 
       - name: Install deps
         run: npm ci
 
-      - name: Run API e2e
+      - name: Run Vitest (non-emulator)
         env:
           CI: 'true'
           NODE_ENV: 'test'
-          STRIPE_SECRET: 'sk_test_dummy'
-          STRIPE_WEBHOOK_SECRET: 'whsec_dummy'
-          EMAIL_FROM: 'ci@example.test'
-          SMTP_HOST: 'localhost'
-          SMTP_PORT: '2525'
-        run: |
-          set -o pipefail
-          npm run test:api:e2e 2>&1 | tee jest-e2e.log
+        run: npx vitest run apps/client/src/tests/stores apps/client/src/tests/components apps/client/src/tests/pages
 
-      - name: Upload logs (always)
+      - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: api-e2e-logs
-          path: jest-e2e.log
+          name: vitest-output
+          path: |
+            coverage/
+            **/vitest-report.json
           if-no-files-found: ignore
-
-      - name: Create/Update issue on failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const title = 'Daily API E2E failed';
-            const issues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'ci,e2e' });
-            const existing = issues.data.find(i => i.title === title);
-            const body = [
-              `**Run:** https://github.com/${owner}/${repo}/actions/runs/${context.runId}`,
-              `**Branch:** ${context.ref}`,
-              `**Commit:** ${process.env.GITHUB_SHA}`,
-              '',
-              'Artifacts: `api-e2e-logs`.',
-              '',
-              '_This issue will auto-close on the next successful run._'
-            ].join('\n');
-            if (existing) {
-              await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body });
-            } else {
-              await github.rest.issues.create({ owner, repo, title, body, labels: ['ci','e2e'] });
-            }
-
-      - name: Job summary
-        if: always()
-        run: |
-          {
-            echo "## Daily API E2E"
-            echo ""
-            echo "**Status:** ${{ job.status }}"
-            echo "- Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            echo "- Branch: ${{ github.ref }}"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Close failure issue on success
-        if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const title = 'Daily API E2E failed';
-            const issues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'ci,e2e' });
-            const existing = issues.data.find(i => i.title === title);
-            if (existing) {
-              await github.rest.issues.update({ owner, repo, issue_number: existing.number, state: 'closed' });
-            }

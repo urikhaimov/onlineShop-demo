@@ -70,11 +70,50 @@ export default defineConfig(async () => {
     },
 
     build: {
-      rollupOptions: { external: ['motion-dom'] },
+      rollupOptions: {
+        external: ['motion-dom'],
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            if (id.includes('@mui') || id.includes('@emotion'))
+              return 'vendor-mui';
+            if (id.includes('firebase')) return 'vendor-firebase';
+            if (id.includes('@paypal')) return 'vendor-paypal';
+            if (id.includes('@tanstack')) return 'vendor-tanstack';
+            if (id.includes('@dnd-kit')) return 'vendor-dnd';
+            if (id.includes('framer-motion') || id.includes('motion-dom'))
+              return 'vendor-motion';
+            if (id.includes('react-router')) return 'vendor-router';
+            if (
+              id.includes('react-hook-form') ||
+              id.includes('@hookform') ||
+              id.includes('/zod/') ||
+              id.includes('/yup/')
+            )
+              return 'vendor-forms';
+            if (id.includes('@casl')) return 'vendor-casl';
+            if (
+              id.includes('/lodash') ||
+              id.includes('date-fns') ||
+              id.includes('/dayjs')
+            )
+              return 'vendor-utils';
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('scheduler')
+            )
+              return 'vendor-react';
+            if (id.includes('i18next')) return 'vendor-i18n';
+            return 'vendor';
+          },
+        },
+      },
       emptyOutDir: true,
       outDir: '../../dist/apps/client',
       reportCompressedSize: true,
       commonjsOptions: { transformMixedEsModules: true },
+      chunkSizeWarningLimit: 1000,
     },
 
     // 👇 Expose E2E flag to the client code
