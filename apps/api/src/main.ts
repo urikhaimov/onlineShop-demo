@@ -1,16 +1,29 @@
 // src/main.ts
 import 'reflect-metadata';
 import * as dotenv from 'dotenv';
+dotenv.config();
+
+// Sentry must be initialized BEFORE the app module is loaded so it can
+// instrument http/postgres/etc.
+import * as Sentry from '@sentry/node';
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'development',
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0.1),
+    release: process.env.SENTRY_RELEASE,
+  });
+}
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { getEnv, isProd, logger } from '@common/utils';
 import { setupSwagger } from './swagger';
 import helmet from 'helmet';
+import compression from 'compression';
 import { I18nValidationPipe } from 'nestjs-i18n';
 import * as bodyParser from 'body-parser';
-
-dotenv.config();
 
 function parseOrigins(v?: string): (string | RegExp)[] {
   if (!v) return [];
@@ -73,6 +86,10 @@ async function bootstrap() {
   ];
   webhookPaths.forEach((p) => app.use(p, webhookRaw, ensureRawBody));
   // -------------------------------------------------------------------------------------
+
+  // Gzip/deflate compression for non-webhook responses.
+  // Skips small bodies (<1 KB) and already-compressed types automatically.
+  app.use(compression());
 
   // Standard parsers for the rest of the app (mounted AFTER raw webhook parsers)
   app.use(bodyParser.json({ limit: '1mb' }));

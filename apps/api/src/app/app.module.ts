@@ -5,7 +5,7 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
-import { APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import {
   AcceptLanguageResolver,
@@ -43,6 +43,9 @@ import { TestModule } from '../test/test.module';
 
 // 🔒 Rate limit (toggleable per request via env)
 import rateLimit from 'express-rate-limit';
+
+// 🛰️ Global exception filter (Sentry capture + safe response shape)
+import { SentryFilter } from '../sentry.filter';
 
 const devOnlyModules = process.env.NODE_ENV === 'production' ? [] : [DevModule];
 const testRoutesModules =
@@ -103,24 +106,32 @@ const testRoutesModules =
           validationError: { target: false, value: false },
         }),
     },
+    // 🛰️ Global exception filter — captures to Sentry and returns safe response
+    { provide: APP_FILTER, useClass: SentryFilter },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // ⏱️ Apply a 10 req/min/IP limiter to create-intent.
-    // Enabled only when RATE_LIMIT_ENABLED=1 (useful for e2e that assert 429).
-    const createIntentLimiter = rateLimit({
+    // ⏱️ Per-IP limiter for payment-creation endpoints. Tighter cap because
+    // each call costs an outbound PayPal API request.
+    // Enabled by default in production; toggleable via RATE_LIMIT_ENABLED.
+    const enabled =
+      process.env.RATE_LIMIT_ENABLED === '1' ||
+      process.env.NODE_ENV === 'production';
+    const paymentsLimiter = rateLimit({
       windowMs: 60_000,
       max: 10,
       standardHeaders: true,
       legacyHeaders: false,
       keyGenerator: (req: any) => req.ip ?? 'unknown',
-      skip: () => process.env.RATE_LIMIT_ENABLED !== '1',
+      skip: () => !enabled,
     });
 
-    consumer.apply(createIntentLimiter).forRoutes({
-      path: 'payments/create-payment-intent',
-      method: RequestMethod.POST,
-    });
+    consumer
+      .apply(paymentsLimiter)
+      .forRoutes(
+        { path: 'orders/create-paypal-order', method: RequestMethod.POST },
+        { path: 'orders/capture-paypal-order', method: RequestMethod.POST },
+      );
   }
 }
