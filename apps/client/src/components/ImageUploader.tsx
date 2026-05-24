@@ -183,6 +183,8 @@ export default function ImageUploader({
                 component="img"
                 src={img.url}
                 alt="preview"
+                loading="lazy"
+                decoding="async"
                 sx={{
                   maxHeight: '100%',
                   maxWidth: '100%',

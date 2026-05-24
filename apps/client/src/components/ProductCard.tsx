@@ -52,6 +52,7 @@ export default function ProductCard({
       {hasImage && (
         <CardMedia
           component="img"
+          loading="lazy"
           image={
             product.images && product.images.length > 0
               ? product.images[0]

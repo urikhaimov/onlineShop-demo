@@ -180,9 +180,25 @@ export default [
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        // don’t require the file to belong to a tsconfig project
         projectService: false,
       },
+    },
+  },
+
+  /** ⬇️ Relax rules in test files — empty no-op stubs for browser APIs
+   * (IntersectionObserver, MediaQueryList) and library inits are intentional. */
+  {
+    files: [
+      '**/tests/**/*.ts',
+      '**/tests/**/*.tsx',
+      '**/*.spec.ts',
+      '**/*.spec.tsx',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+    ],
+    rules: {
+      '@typescript-eslint/no-empty-function': 'off',
+      'no-empty': 'off',
     },
   },
 ];

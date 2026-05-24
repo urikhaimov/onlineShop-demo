@@ -258,6 +258,8 @@ export default function CheckoutPage() {
                             component="img"
                             src={img}
                             alt={item.name}
+                            loading="lazy"
+                            decoding="async"
                             sx={{
                               width: 56,
                               height: 56,

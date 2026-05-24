@@ -200,6 +200,10 @@ async function bootstrap() {
     });
   }
 
+  // Allow SIGTERM/SIGINT to drain in-flight requests, close DB connections,
+  // and fire Nest module onModuleDestroy / beforeApplicationShutdown hooks.
+  app.enableShutdownHooks();
+
   logger.info('Bootstrapping API (starting Nest HTTP server)...');
   await app.listen(appPort);
   logger.info(`🚀 Server running:  http://localhost:${appPort}/${apiPrefix}`);

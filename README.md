@@ -1,89 +1,182 @@
 [![Build CI](https://github.com/Bunder-shop/React-NestJS-FireBase-store/actions/workflows/build.yml/badge.svg)](https://github.com/Bunder-shop/React-NestJS-FireBase-store/actions/workflows/build.yml)
 [![Linter CI](https://github.com/Bunder-shop/React-NestJS-FireBase-store/actions/workflows/linter.yml/badge.svg)](https://github.com/Bunder-shop/React-NestJS-FireBase-store/actions/workflows/linter.yml)
 
-# 🛍️ My Online Store Template
+# 🛍️ Online Store — NX Monorepo
 
-A modern e-commerce web app built with **React + Vite**, styled using **Material UI**, and powered by **Firebase** for authentication, Firestore, and Cloud Functions.
+Full-stack e-commerce: NestJS API + React/Vite client + dedicated NestJS auth microservice, backed by Firebase (Auth, Firestore, Storage) and PayPal Orders REST API v2.
 
 ## 🚀 Features
 
-- 🔐 Firebase Authentication with Role-Based Access
-- 🛒 Shopping Cart with Zustand Global Store
-- 🧑‍💼 Admin Dashboard with Logs, User Management, and Category Management
-- 📦 Product Detail Pages
-- 💳 Stripe Checkout Integration (Test Key)
-- 🔄 Zustand for State Management
-- 📊 Firebase Functions for Admin Role Assignment
+- 🔐 Firebase Authentication with role-based access (`viewer`, `editor`, `admin`, `superadmin`)
+- 🛒 Shopping cart + Zustand state
+- 🧑‍💼 Admin dashboard (orders, products, categories, users, theme, security logs)
+- 📦 Product catalog, lazy-loaded routes & images
+- 💳 PayPal checkout (server-side Orders REST API v2 + webhooks)
+- 📧 Transactional email via SendGrid (MJML/Handlebars templates)
+- 🛰️ Sentry-backed global exception filter
+- ⏱️ Per-IP rate limiting on payment endpoints
+- 🗜️ Response gzip compression
 
 ## 🧱 Tech Stack
 
-- React 19 + Vite
-- TypeScript
-- Material UI 5
-- Zustand (State Management)
-- Firebase (Auth, Firestore, Functions)
-- Stripe (Client Integration)
-- React Router v6
+| Layer | Stack |
+|---|---|
+| API | NestJS 11, esbuild (dev) / webpack (prod), Sentry, Winston |
+| Client | React 18, Vite 7, MUI 7, Zustand 5, React Query 5, React Router 7, react-hook-form |
+| Auth MS | NestJS TCP microservice (port 4002) |
+| DB | Firestore (Firebase) |
+| Payments | PayPal Orders REST API v2 + `@paypal/react-paypal-js` |
+| Mail | SendGrid + MJML/Handlebars |
+| Tests | Vitest (unit), Jest (API e2e), Playwright (client e2e) |
+| CI | GitHub Actions (build, lint, vitest, daily api-e2e) |
 
 ## 📂 Project Structure
 
 ```
-src/
-├── api/                # Firebase API functions
-├── components/         # UI components
-├── context/            # Legacy (now replaced with Zustand)
-├── hooks/              # Custom hooks
-├── layouts/            # Main Layouts
-├── pages/              # Route Pages
-├── stores/             # Zustand state stores
-├── types/              # Shared TS types
-├── utils/              # Utility functions
-functions/              # Firebase Functions & Role Scripts
-public/                 # Static files
+apps/
+├── api/                   NestJS API (port 3000)
+├── auth/                  NestJS auth microservice (TCP 4002)
+├── client/                React + Vite (port 5173)
+├── api-e2e/               Jest API e2e tests
+└── client-e2e/            Playwright client e2e tests
+libs/
+├── auth-client/           NestJS TCP client for the auth MS
+├── email-templates/       MJML templates + Handlebars helpers
+├── firebase/              Shared Firebase admin/client config
+├── types/                 Shared TypeScript types
+└── utils/                 Shared utilities
 ```
+
+## ⚙️ Prerequisites
+
+- Node 20+ (24 works; ignore EBADENGINE warnings from firebase-tools)
+- npm 10+
+- Java 17+ JDK (only needed for `emu:start:core` — Firebase emulators run on the JVM)
+  - Windows: `winget install EclipseAdoptium.Temurin.17.JDK`
+
+## 🛠️ Setup
+
+```bash
+npm install
+cp apps/api/.env.example apps/api/.env   # fill in real values
+```
+
+Edit `apps/api/.env` and `apps/client/.env` (see env table below). For local dev, set `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080` etc. so the API talks to the local emulators instead of production.
 
 ## 🧪 Scripts
 
 ```bash
-npm install              # Install dependencies
-npm run dev              # Start local dev server
-npm run build            # Build for production
-npm run preview          # Preview production build
-npm run setRole <email>  # Manually assign admin role via Firebase Admin SDK
+# Start everything together (API + auth MS + client)
+npm run nx:run-all-concurrently
+
+# Or individually
+npm run dev:client             # client only on :5173
+npm run dev:api:nodbg          # API only on :3000
+npm run dev:auth:nodbg         # auth microservice on TCP :4002
+
+# Firebase emulators (separate terminal — requires Java)
+npm run emu:start:core         # auth + firestore + storage + UI on :4000
+
+# Seed emulators with demo data
+npm run emu:seed:auth
+npm run emu:seed:firestore
+npm run emu:seed:storage
+
+# Tests
+npm test                       # vitest (runs against emulators)
+npm run test:api:e2e           # API e2e via Jest
+npm run e2e                    # Playwright client e2e
+npm run lint                   # ESLint --fix
+
+# Production build
+npx nx run api:build:production
+npx nx run client:build
 ```
 
-## 📝 .env Example
+## 🔑 Environment Variables
 
-```env
-# Firebase client config
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-VITE_FIREBASE_MEASUREMENT_ID=...
+### `apps/api/.env` (server)
 
-# Stripe public key
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxxxx
-```
+| Variable | Required | Notes |
+|---|---|---|
+| `NODE_ENV` | ✓ | `development` \| `production` \| `test` |
+| `APP_PORT` | ✓ | API HTTP port (default 3000) |
+| `API_PREFIX` | ✓ | Route prefix (default `api`) |
+| `FRONTEND_ORIGIN` | ✓ | CORS allowed origin |
+| `ALLOWED_ORIGINS` | – | CSV of extra CORS origins |
+| `ADMIN_PROJECT_ID` | ✓ | Firebase project ID |
+| `ADMIN_CLIENT_EMAIL` | ✓ | Service account email |
+| `ADMIN_PRIVATE_KEY` | ✓ | Service account RSA key (escape newlines as `\n`) |
+| `FB_ADMIN_PROJECT_ID` | ✓ | Same project ID — used by Firestore DI |
+| `FB_ADMIN_CLIENT_EMAIL` | ✓ | Same client email |
+| `FB_ADMIN_PRIVATE_KEY` | ✓ | Same private key |
+| `FIRESTORE_EMULATOR_HOST` | – | Set to `127.0.0.1:8080` in dev to use the emulator |
+| `FIREBASE_AUTH_EMULATOR_HOST` | – | `127.0.0.1:9099` in dev |
+| `FIREBASE_STORAGE_EMULATOR_HOST` | – | `127.0.0.1:9199` in dev |
+| `PAYPAL_CLIENT_ID` | for checkout | From https://developer.paypal.com/dashboard/applications/sandbox |
+| `PAYPAL_CLIENT_SECRET` | for checkout | Pair with the above |
+| `PAYPAL_WEBHOOK_ID` | for webhooks | From the PayPal app's webhook config |
+| `PAYPAL_SANDBOX` | – | `true` (default) \| `false` |
+| `SEND_PAYPAL_EMAILS_FROM_ORDERS` | – | Send receipts after capture (default `true`) |
+| `SENDGRID_API_KEY` | for email | Starts with `SG.` |
+| `MAIL_FROM` / `MAIL_FROM_NAME` | for email | Verified sender |
+| `SENTRY_DSN` | – | Enable Sentry capture (no-op if unset) |
+| `RATE_LIMIT_ENABLED` | – | `1` to force on (auto-on in production) |
+| `ENABLE_TEST_ROUTES` | – | `1` exposes `/api/test/*` seed endpoints |
 
-## ⚙️ Admin Role Management
+### `apps/client/.env` (browser-safe)
 
-Firebase Admin SDK script to assign roles manually:
+| Variable | Notes |
+|---|---|
+| `VITE_API_BASE_URL` | `http://localhost:3000/api` in dev |
+| `VITE_FIREBASE_*` | Public Firebase client config |
+| `VITE_PAYPAL_CLIENT_ID` | Same as server `PAYPAL_CLIENT_ID` (safe to expose) |
+
+A starter template lives at [`apps/api/.env.example`](apps/api/.env.example).
+
+## 💳 PayPal Checkout
+
+Flow:
+
+1. Browser calls `POST /api/orders/create-paypal-order` → server creates a PayPal order via OAuth2 + REST → returns `{ orderId }`.
+2. Browser renders `<PayPalButtons createOrder={() => orderId} ... />`. User approves in the PayPal popup.
+3. Browser calls `POST /api/orders/capture-paypal-order` → server captures the order → writes the paid order to Firestore.
+4. PayPal also POSTs `PAYMENT.CAPTURE.COMPLETED` to `/api/webhooks/paypal` (signature-verified).
+
+Endpoints are rate-limited to 10 req/min/IP in production.
+
+## 🌐 Default Ports
+
+| Service | URL |
+|---|---|
+| Client | http://localhost:5173 |
+| API | http://localhost:3000/api |
+| Swagger (dev only) | http://localhost:3000/docs |
+| Auth microservice | tcp://127.0.0.1:4002 |
+| Firestore emulator | http://127.0.0.1:8080 |
+| Auth emulator | http://127.0.0.1:9099 |
+| Storage emulator | http://127.0.0.1:9199 |
+| Emulator UI | http://127.0.0.1:4000 |
+
+## ⚙️ Admin Roles
+
+Roles are stored as Firebase custom claims (`viewer` / `editor` / `admin` / `superadmin`). The `ADMINS_LIST` env var (CSV of emails) auto-promotes those addresses on first login.
+
+To set a role manually from CLI:
 ```bash
 npm run setRole admin@example.com
 ```
 
-Make sure you have `serviceAccountKey.json` in the `functions/` folder.
-
 ## 📦 Deployment
 
-You can deploy with Firebase Hosting + Functions:
-```bash
-firebase deploy --only "functions,hosting"
-```
+- **API**: build with `npx nx run api:build:production`, run `dist/apps/api/main.cjs` with the production `.env`. Sentry, rate limiting, and HTTPS enforcement auto-enable when `NODE_ENV=production`.
+- **Client**: build with `npx nx run client:build`, deploy `dist/apps/client/` to any static host (Firebase Hosting, Vercel, S3+CloudFront, etc.).
+- **Auth MS**: separate process listening on TCP 4002 (NestJS microservice).
+
+## 🤝 Contributing
+
+PRs target `main`. The `Build CI`, `Linter CI`, and `Vitest` workflows must pass.
 
 ## 👨‍💻 Author
 
-Built by [Uri Khaimov](https://github.com/urikhaimov)
+Built by [Uri Khaimov](https://github.com/urikhaimov).
