@@ -60,6 +60,29 @@ async function bootstrap() {
   // If behind a proxy (Heroku/Render/Nginx/etc.)
   app.getHttpAdapter().getInstance().set?.('trust proxy', 1);
 
+  // ── Request ID + structured access log ─────────────────────────────────────
+  // Assign or accept an X-Request-Id, log {requestId, method, url, status, ms}
+  // on every response. Webhook noise (raw bodies, large payloads) is excluded
+  // from the body of the log to keep the line size small.
+  app.use((req: any, res, next) => {
+    const incoming = (req.headers['x-request-id'] as string) || '';
+    const requestId =
+      incoming ||
+      `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    req.requestId = requestId;
+    res.setHeader('x-request-id', requestId);
+
+    const start = Date.now();
+    res.on('finish', () => {
+      const ms = Date.now() - start;
+      const line = `${req.method} ${req.originalUrl ?? req.url} ${res.statusCode} ${ms}ms id=${requestId}`;
+      if (res.statusCode >= 500) logger.error(line);
+      else if (res.statusCode >= 400) logger.warn(line);
+      else logger.info(line);
+    });
+    next();
+  });
+
   // ── Enforce HTTPS in production (respects X-Forwarded-Proto) ────────────────
   app.use((req, res, next) => {
     if (isProd()) {
@@ -140,13 +163,22 @@ async function bootstrap() {
             'https://api-m.sandbox.paypal.com',
             'https://*.paypal.com',
           ],
-          scriptSrc: [
-            "'self'",
-            "'unsafe-inline'",
-            "'unsafe-eval'",
-            'https://www.paypal.com',
-            'https://www.paypalobjects.com',
-          ],
+          // In dev, Vite's HMR runtime needs unsafe-inline + unsafe-eval.
+          // In prod, the built bundle does not — drop both for a tighter
+          // CSP (mitigates XSS that injects <script> or eval()).
+          scriptSrc: isProd()
+            ? [
+                "'self'",
+                'https://www.paypal.com',
+                'https://www.paypalobjects.com',
+              ]
+            : [
+                "'self'",
+                "'unsafe-inline'",
+                "'unsafe-eval'",
+                'https://www.paypal.com',
+                'https://www.paypalobjects.com',
+              ],
           styleSrc: ["'self'", "'unsafe-inline'"],
           fontSrc: ["'self'", 'data:', 'https://www.paypalobjects.com'],
           frameSrc: [
