@@ -83,7 +83,31 @@ npm run smoke:all
 
 ## API Modules
 
-`auth`, `products`, `orders`, `users`, `categories`, `landing-page`, `theme-settings`, `security-logs`, `search`, `mailer`, `stripe`, `image-proxy`, `health`, `dev` (dev-only), `test` (test-only, behind `ENABLE_TEST_ROUTES=1`).
+`auth`, `products`, `orders`, `users`, `categories`, `landing-page`, `theme-settings`, `security-logs`, `search`, `mailer`, `paypal`, `image-proxy`, `health`, `dev` (dev-only), `test` (test-only, behind `ENABLE_TEST_ROUTES=1`).
+
+## API DI conventions
+
+The API's `build-fast` target uses esbuild, which does **not** emit
+`design:paramtypes` decorator metadata. NestJS therefore cannot infer
+constructor parameter types from TypeScript annotations. **Always use
+explicit `@Inject(Token)` on every constructor parameter:**
+
+```ts
+// ✅ Works under esbuild
+constructor(
+  @Inject(ConfigService) private readonly config: ConfigService,
+  @Inject(SecurityLogsService) private readonly auditLog: SecurityLogsService,
+) {}
+
+// ❌ Compiles, fails at runtime — `config` will be undefined
+constructor(private readonly config: ConfigService) {}
+```
+
+A provider must live in exactly **one** module's `providers[]` array.
+Other modules that need it import that module instead of re-providing
+the class (otherwise NestJS instantiates it twice and the second copy
+fails DI). `MailerModule`, `PayPalModule`, and `SecurityLogsModule` are
+`@Global` — no imports needed to inject their services.
 
 ## Key Env Vars
 
