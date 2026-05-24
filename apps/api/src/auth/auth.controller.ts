@@ -10,6 +10,7 @@ import { Auth } from 'firebase-admin/auth';
 import { FIREBASE_ADMIN_AUTH } from '../firebase/admin.provider';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
 import type { FirebaseRequest } from './firebase-auth.guard';
+import { SecurityLogsService } from '../security-logs/security-logs.service';
 
 const VALID_ROLES = new Set(['admin', 'editor', 'viewer', 'superadmin']);
 
@@ -25,7 +26,11 @@ function computeRoleForEmail(email?: string | null) {
 
 @Controller('auth') // final path => /api/auth/* because of your global prefix
 export class AuthController {
-  constructor(@Inject(FIREBASE_ADMIN_AUTH) private readonly adminAuth: Auth) {}
+  constructor(
+    @Inject(FIREBASE_ADMIN_AUTH) private readonly adminAuth: Auth,
+    @Inject(SecurityLogsService)
+    private readonly auditLog: SecurityLogsService,
+  ) {}
 
   @Post('set-role')
   @UseGuards(FirebaseAuthGuard)
@@ -44,6 +49,14 @@ export class AuthController {
 
     const role = computeRoleForEmail(email);
     await this.adminAuth.setCustomUserClaims(uid, { role });
+
+    void this.auditLog.log({
+      type: 'AUTH_ROLE_ASSIGNED',
+      details: `Initial role '${role}' assigned to ${email ?? uid}`,
+      collection: 'users',
+      affectedDocId: uid,
+      actor: { uid, email },
+    });
 
     // Client should refresh ID token after this call
     return { role, from: 'set' };

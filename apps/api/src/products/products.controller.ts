@@ -21,6 +21,7 @@ import { ProductsService } from './products.service';
 import { SaveProductDto } from './dto/save-product.dto';
 import { ReorderProductsDto } from './dto/reorder-products.dto';
 import { ListProductsDto } from './dto/list-products.dto';
+import { SecurityLogsService } from '../security-logs/security-logs.service';
 
 type AuthedReq = Request & {
   user?: { uid: string; email?: string; name?: string };
@@ -30,7 +31,11 @@ type AuthedReq = Request & {
 export class ProductsController {
   private readonly logger = new Logger(ProductsController.name);
 
-  constructor(@Inject(ProductsService) private readonly svc: ProductsService) {}
+  constructor(
+    @Inject(ProductsService) private readonly svc: ProductsService,
+    @Inject(SecurityLogsService)
+    private readonly auditLog: SecurityLogsService,
+  ) {}
 
   /** Common sender for list endpoints */
   private sendList(res: Response, items: unknown[], total: number) {
@@ -76,7 +81,7 @@ export class ProductsController {
   @UseGuards(FirebaseAuthGuard, RolesGuard)
   @Roles('admin', 'superadmin')
   @Post()
-  create(@Req() req: AuthedReq, @Body() dto: SaveProductDto) {
+  async create(@Req() req: AuthedReq, @Body() dto: SaveProductDto) {
     // Dev-only diagnostics to verify images flow through the ValidationPipe/DTO
     if (process.env.NODE_ENV !== 'production') {
       const raw = (req as any)?.body;
@@ -93,25 +98,49 @@ export class ProductsController {
     }
 
     const actorName = req.user?.name || req.user?.email;
-    return this.svc.create(req.user!.uid, actorName, dto);
+    const result = await this.svc.create(req.user!.uid, actorName, dto);
+
+    void this.auditLog.log({
+      type: 'PRODUCT_CREATED',
+      details: `Created product '${dto.name ?? '(no name)'}'`,
+      collection: 'products',
+      affectedDocId: (result as any)?.id ?? '(unknown)',
+      actor: { uid: req.user?.uid, email: req.user?.email },
+    });
+
+    return result;
   }
 
   // Keep specific route BEFORE the param route
   @UseGuards(FirebaseAuthGuard, RolesGuard)
   @Roles('admin', 'superadmin')
   @Put('reorder')
-  reorder(@Req() req: AuthedReq, @Body() dto: ReorderProductsDto) {
+  async reorder(@Req() req: AuthedReq, @Body() dto: ReorderProductsDto) {
     if (process.env.NODE_ENV !== 'production') {
       this.logger.debug(`[reorder] body: ${JSON.stringify(dto)}`);
     }
     const actorName = req.user?.name || req.user?.email;
-    return this.svc.reorder(req.user!.uid, actorName, dto.orderList);
+    const result = await this.svc.reorder(
+      req.user!.uid,
+      actorName,
+      dto.orderList,
+    );
+
+    void this.auditLog.log({
+      type: 'PRODUCT_REORDERED',
+      details: `Reordered ${dto.orderList?.length ?? 0} products`,
+      collection: 'products',
+      affectedDocId: 'bulk',
+      actor: { uid: req.user?.uid, email: req.user?.email },
+    });
+
+    return result;
   }
 
   @UseGuards(FirebaseAuthGuard, RolesGuard)
   @Roles('admin', 'superadmin')
   @Put(':id')
-  update(
+  async update(
     @Req() req: AuthedReq,
     @Param('id') id: string,
     @Body() dto: SaveProductDto,
@@ -132,13 +161,33 @@ export class ProductsController {
     }
 
     const actorName = req.user?.name || req.user?.email;
-    return this.svc.update(req.user!.uid, actorName, id, dto);
+    const result = await this.svc.update(req.user!.uid, actorName, id, dto);
+
+    void this.auditLog.log({
+      type: 'PRODUCT_UPDATED',
+      details: `Updated product '${dto.name ?? id}'`,
+      collection: 'products',
+      affectedDocId: id,
+      actor: { uid: req.user?.uid, email: req.user?.email },
+    });
+
+    return result;
   }
 
   @UseGuards(FirebaseAuthGuard, RolesGuard)
   @Roles('admin', 'superadmin')
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.svc.remove(id);
+  async remove(@Req() req: AuthedReq, @Param('id') id: string) {
+    const result = await this.svc.remove(id);
+
+    void this.auditLog.log({
+      type: 'PRODUCT_DELETED',
+      details: `Deleted product ${id}`,
+      collection: 'products',
+      affectedDocId: id,
+      actor: { uid: req.user?.uid, email: req.user?.email },
+    });
+
+    return result;
   }
 }

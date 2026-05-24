@@ -5,6 +5,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Inject,
   InternalServerErrorException,
   NotFoundException,
   Param,
@@ -23,6 +24,7 @@ import { Roles } from '../auth/roles.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as mime from 'mime-types';
 import { admin, adminDb } from '@common/firebase';
+import { SecurityLogsService } from '../security-logs/security-logs.service';
 
 function assertOwnerOrAdmin(req: FirebaseRequest, id: string) {
   const uid = req.user?.uid;
@@ -35,6 +37,11 @@ function assertOwnerOrAdmin(req: FirebaseRequest, id: string) {
 @Controller('users')
 @UseGuards(FirebaseAuthGuard)
 export class UsersController {
+  constructor(
+    @Inject(SecurityLogsService)
+    private readonly auditLog: SecurityLogsService,
+  ) {}
+
   // GET /users — admin only
   @UseGuards(RolesGuard)
   @Roles('admin', 'superadmin')
@@ -75,6 +82,15 @@ export class UsersController {
       if (body.photoURL !== undefined) updateData.photoURL = body.photoURL;
 
       await docRef.update(updateData);
+
+      void this.auditLog.log({
+        type: 'USER_PROFILE_UPDATED',
+        details: `Updated fields: ${Object.keys(updateData).join(', ') || 'none'}`,
+        collection: 'users',
+        affectedDocId: id,
+        actor: { uid: req.user?.uid, email: req.user?.email },
+      });
+
       return { success: true };
     } catch (error) {
       if (
@@ -98,6 +114,15 @@ export class UsersController {
       await Promise.all(files.map((file) => file.delete()));
 
       await adminDb.collection('users').doc(id).update({ photoURL: null });
+
+      void this.auditLog.log({
+        type: 'USER_AVATAR_DELETED',
+        details: 'Avatar files and photoURL cleared',
+        collection: 'users',
+        affectedDocId: id,
+        actor: { uid: req.user?.uid, email: req.user?.email },
+      });
+
       return { success: true };
     } catch (error) {
       console.error('🔥 Error deleting avatar:', error.message);

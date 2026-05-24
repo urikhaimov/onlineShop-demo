@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { OrdersRepository } from '../repositories/orders.repository';
 import { OrderNotificationsService } from './order-notifications.service';
+import { SecurityLogsService } from '../../security-logs/security-logs.service';
 import { nowIso, stripUndefinedDeep } from '../utils/orders.helpers';
 
 export type OrderStatus = 'open' | 'paid' | 'refunded' | 'canceled';
@@ -18,6 +19,8 @@ export class OrdersLifecycleService {
 
   constructor(
     @Inject(OrdersRepository) private readonly repo: OrdersRepository,
+    @Inject(SecurityLogsService)
+    private readonly auditLog: SecurityLogsService,
     @Optional()
     @Inject(OrderNotificationsService)
     private readonly notify?: OrderNotificationsService,
@@ -85,16 +88,44 @@ export class OrdersLifecycleService {
 
     if (shouldNotify) await this.notify?.notifyCustomer(after, dto);
 
+    if (prevStatus !== nextStatus) {
+      void this.auditLog.log({
+        type: 'ORDER_STATUS_CHANGED',
+        details: `Order ${id}: ${prevStatus ?? 'unknown'} → ${nextStatus}`,
+        collection: 'orders',
+        affectedDocId: id,
+        actor: { uid: byUserId },
+      });
+    } else {
+      void this.auditLog.log({
+        type: 'ORDER_UPDATED',
+        details: `Order ${id} updated (fields: ${Object.keys(dto).join(', ')})`,
+        collection: 'orders',
+        affectedDocId: id,
+        actor: { uid: byUserId },
+      });
+    }
+
     return after;
   }
 
   async updateStatus(orderId: string, status: OrderStatus) {
     const before = await this.repo.getOrder(orderId);
+    const prev = before?.status as OrderStatus | undefined;
     await this.repo.saveOrderMerge(orderId, { status, updatedAt: nowIso() });
 
-    if ((before?.status as OrderStatus) !== 'paid' && status === 'paid') {
+    if (prev !== 'paid' && status === 'paid') {
       const after = await this.repo.getOrder(orderId);
       await this.repo.decrementStockForOrder(orderId, after?.items || []);
+    }
+
+    if (prev !== status) {
+      void this.auditLog.log({
+        type: 'ORDER_STATUS_CHANGED',
+        details: `Order ${orderId}: ${prev ?? 'unknown'} → ${status}`,
+        collection: 'orders',
+        affectedDocId: orderId,
+      });
     }
   }
 
