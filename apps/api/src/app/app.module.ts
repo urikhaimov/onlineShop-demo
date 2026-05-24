@@ -42,7 +42,7 @@ import { DevModule } from '../dev/dev.module';
 import { TestModule } from '../test/test.module';
 
 // 🔒 Rate limit (toggleable per request via env)
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 // 🛰️ Global exception filter (Sentry capture + safe response shape)
 import { SentryFilter } from '../sentry.filter';
@@ -123,7 +123,8 @@ export class AppModule implements NestModule {
       max: 10,
       standardHeaders: true,
       legacyHeaders: false,
-      keyGenerator: (req: any) => req.ip ?? 'unknown',
+      // ipKeyGenerator handles IPv6 safely; required by express-rate-limit v7
+      keyGenerator: (req: any) => (req.ip ? ipKeyGenerator(req.ip) : 'unknown'),
       skip: () => !enabled,
     });
 

@@ -9,7 +9,6 @@ import { OrdersService } from './orders.service';
 import { OrdersRepository } from './repositories/orders.repository';
 
 import { OrdersPricingService } from './services/orders-pricing.service';
-import { PayPalPaymentsService } from './services/paypal-payments.service';
 import { OrderNotificationsService } from './services/order-notifications.service';
 import { OrdersQueriesService } from './services/orders-queries.service';
 import { OrdersLifecycleService } from './services/orders-lifecycle.service';
@@ -19,9 +18,10 @@ import { OrdersWebhookService } from './services/orders-webhook.service';
 
 import { MailerModule } from '../mailer';
 import { InvoiceService } from '../invoice/invoice.service';
+import { PayPalModule } from '../paypal/paypal.module';
 
 @Module({
-  imports: [ConfigModule, MailerModule],
+  imports: [ConfigModule, MailerModule, PayPalModule],
   controllers: [
     OrdersController,
     OrdersPublicController,
@@ -31,7 +31,6 @@ import { InvoiceService } from '../invoice/invoice.service';
     OrdersService,
     OrdersRepository,
     OrdersPricingService,
-    PayPalPaymentsService,
     OrderNotificationsService,
     OrdersQueriesService,
     OrdersLifecycleService,

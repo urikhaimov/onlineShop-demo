@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
@@ -53,7 +58,7 @@ export class PayPalPaymentsService {
   private readonly clientSecret: string;
   private readonly webhookId: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly config: ConfigService) {
     this.clientId = config.get<string>('PAYPAL_CLIENT_ID') ?? '';
     this.clientSecret = config.get<string>('PAYPAL_CLIENT_SECRET') ?? '';
     this.webhookId = config.get<string>('PAYPAL_WEBHOOK_ID') ?? '';
@@ -65,11 +70,25 @@ export class PayPalPaymentsService {
       : 'https://api-m.paypal.com';
 
     if (!this.clientId || !this.clientSecret) {
-      throw new Error('Missing PAYPAL_CLIENT_ID or PAYPAL_CLIENT_SECRET');
+      // Don't crash on boot — let the rest of the API start so non-payment
+      // routes still work in dev / partial environments. Throw at the first
+      // payment call instead.
+      this.logger.warn(
+        'PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set — PayPal endpoints will return 503 until configured.',
+      );
+    }
+  }
+
+  private assertConfigured() {
+    if (!this.clientId || !this.clientSecret) {
+      throw new ServiceUnavailableException(
+        'PayPal is not configured. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.',
+      );
     }
   }
 
   private async getAccessToken(): Promise<string> {
+    this.assertConfigured();
     const res = await axios.post<{ access_token: string }>(
       `${this.baseUrl}/v1/oauth2/token`,
       'grant_type=client_credentials',
