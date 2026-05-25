@@ -171,6 +171,9 @@ async function bootstrap() {
                 "'self'",
                 'https://www.paypal.com',
                 'https://www.paypalobjects.com',
+                'https://apis.google.com',
+                'https://accounts.google.com',
+                'https://www.gstatic.com',
               ]
             : [
                 "'self'",
@@ -178,12 +181,17 @@ async function bootstrap() {
                 "'unsafe-eval'",
                 'https://www.paypal.com',
                 'https://www.paypalobjects.com',
+                'https://apis.google.com',
+                'https://accounts.google.com',
+                'https://www.gstatic.com',
               ],
           styleSrc: ["'self'", "'unsafe-inline'"],
           fontSrc: ["'self'", 'data:', 'https://www.paypalobjects.com'],
           frameSrc: [
             'https://www.paypal.com',
             'https://www.sandbox.paypal.com',
+            'https://accounts.google.com',
+            'https://online-shop-75482.firebaseapp.com',
           ],
           // (helmet useDefaults already sets these, but keeping explicit is fine)
           baseUri: ["'self'"],

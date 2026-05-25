@@ -134,6 +134,52 @@ npx nx run client:build
 
 A starter template lives at [`apps/api/.env.example`](apps/api/.env.example).
 
+## 🎭 Demo Admin Mode
+
+Lets a portfolio reviewer explore the full admin panel in one click — no Firebase account required.
+
+### Enabling it
+
+```bash
+# 1. Uncomment the last line in apps/client/.env:
+VITE_DEMO_ADMIN=true
+
+# 2. Start the client (API is optional — public data still loads without it)
+npm run dev:client
+
+# 3. Open http://localhost:5173/admin
+#    You land directly on the admin dashboard — no login screen.
+```
+
+An orange **DEMO MODE** badge is pinned to the top-right of every admin page. The browser console also prints a styled warning so the bypass is always visible during development.
+
+### How it works
+
+`isDemoAdmin()` in [`apps/client/src/lib/demo-mode.ts`](apps/client/src/lib/demo-mode.ts) runs three guards. All three must pass:
+
+1. **`import.meta.env.PROD === false`** — Vite dead-code-eliminates the entire bypass in production bundles. The code does not exist in any deployed artifact.
+2. **`VITE_DEMO_ADMIN === 'true'`** — explicit opt-in; commented out by default.
+3. **`hostname === 'localhost'`** — blocks activation on staging or tunnel URLs that might inherit the env var by mistake.
+
+When active, `AuthProvider` skips all Firebase Auth listeners and injects a synthetic `{ uid: 'demo-admin', role: 'admin' }` directly into React context. CASL abilities, protected routes, and the admin UI all behave exactly as they would for a real admin.
+
+### What demo mode cannot do
+
+- Issue a real Firebase ID token — API endpoints that verify tokens will reject requests from the client SDK.
+- Persist state across tabs or hard-reloads (no real session).
+- Activate in a production build or outside `localhost`.
+
+### Key files
+
+| File | Role |
+|---|---|
+| `apps/client/src/lib/demo-mode.ts` | `isDemoAdmin()` guard + synthetic user object |
+| `apps/client/src/context/AuthContext.tsx` | Bypasses Firebase listeners; injects synthetic context |
+| `apps/client/src/components/ProtectedRoutes.tsx` | Short-circuits auth/admin checks in demo mode |
+| `apps/client/src/components/DemoModeBadge.tsx` | Orange badge rendered in the admin layout |
+
+---
+
 ## 💳 PayPal Checkout
 
 Flow:

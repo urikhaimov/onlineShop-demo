@@ -32,9 +32,9 @@ export class AuthController {
     private readonly auditLog: SecurityLogsService,
   ) {}
 
-  @Post('set-role')
+  @Post('ensure-role')
   @UseGuards(FirebaseAuthGuard)
-  async setRole(@Req() req: FirebaseRequest) {
+  async ensureRole(@Req() req: FirebaseRequest) {
     const { uid, email, role: currentRole } = req.firebaseUser || {};
 
     if (!uid) {

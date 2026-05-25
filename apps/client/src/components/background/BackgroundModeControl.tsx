@@ -104,11 +104,21 @@ export default function BackgroundModeControl() {
         ))}
       </Menu>
 
-      {/* On / Off toggle stays the same */}
+      {/* Text labels hidden on narrow screens to save header space */}
       <Stack direction="row" alignItems="center" spacing={0.5}>
-        <Typography variant="caption">Off</Typography>
+        <Typography
+          variant="caption"
+          sx={{ display: { xs: 'none', sm: 'block' } }}
+        >
+          Off
+        </Typography>
         <Switch checked={enabled} onChange={toggle} size="small" />
-        <Typography variant="caption">On</Typography>
+        <Typography
+          variant="caption"
+          sx={{ display: { xs: 'none', sm: 'block' } }}
+        >
+          On
+        </Typography>
       </Stack>
     </Stack>
   );

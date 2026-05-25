@@ -24,6 +24,7 @@ import { EUserRole } from '@common/types';
 import { defineAbilityFor } from '../services/ability.service';
 import { runAllStoreResets } from '../state/resetRegistry';
 import { useQueryClient } from '@tanstack/react-query';
+import { isDemoAdmin, DEMO_ADMIN_USER } from '../lib/demo-mode';
 
 /** Simple role helper exported for consumers (e.g., ability.service) */
 export const isAdmin = (role: EUserRole | string | null | undefined): boolean =>
@@ -45,6 +46,10 @@ export type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  // Computed once per mount — never changes at runtime.
+  // Kept outside state so consumers get a stable reference with no re-renders.
+  const demoMode = isDemoAdmin();
+
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<RoleString>(null); // ✅ lowercase role
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -140,22 +145,38 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [readRoleFromClaims, hardClearAndKick],
   );
 
-  // Listener: detects user + claim updates
+  // Warn once when demo mode is active (visible in DevTools console)
   useEffect(() => {
+    if (!demoMode) return;
+    console.warn(
+      '%c[DEMO MODE] Admin bypass active — no real Firebase session.\n' +
+        'This feature is NEVER present in production builds.',
+      'color: #ff9800; font-weight: bold; font-size: 13px;',
+    );
+  }, [demoMode]);
+
+  // Listener: detects user + claim updates — skipped in demo mode
+  useEffect(() => {
+    if (demoMode) {
+      // Mark ready immediately; synthetic context is returned below
+      setIsAuthReady(true);
+      return;
+    }
     const unsub = onIdTokenChanged(auth, async (u) => {
       setUser(u ?? null);
       await readRoleFromClaims(u ?? null, false);
       setIsAuthReady(true);
     });
     return unsub;
-  }, [readRoleFromClaims]);
+  }, [readRoleFromClaims, demoMode]);
 
-  // Bootstrap flow: if signed-in but role is missing, try to ensure it
+  // Bootstrap flow: if signed-in but role is missing, try to ensure it — skipped in demo mode
   useEffect(() => {
+    if (demoMode) return;
     if (user && role === null) {
       void ensureRoleIfMissing(user);
     }
-  }, [user, role, ensureRoleIfMissing]);
+  }, [user, role, ensureRoleIfMissing, demoMode]);
 
   const ability = useMemo(() => defineAbilityFor({ user, role }), [user, role]);
 
@@ -182,6 +203,32 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     }
   }, [hardClear]);
+
+  // ── Demo Admin bypass ──────────────────────────────────────────────────────
+  // Returns a fully-formed admin context with a synthetic user — no real
+  // Firebase session, no network calls. Guards in isDemoAdmin() ensure this
+  // path is unreachable in production builds and on non-localhost origins.
+  if (demoMode) {
+    const demoAbility = defineAbilityFor({
+      user: DEMO_ADMIN_USER as unknown as User,
+      role: 'admin',
+    });
+    return (
+      <AuthContext.Provider
+        value={{
+          user: DEMO_ADMIN_USER as unknown as User,
+          role: 'admin',
+          ability: demoAbility,
+          isAuthReady: true,
+          signInWithEmail: () => Promise.resolve(),
+          hardClear: () => Promise.resolve(),
+          logout: () => Promise.resolve(),
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    );
+  }
 
   // Optional E2E bypass
   if (typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true) {

@@ -50,7 +50,11 @@ export function buildAdminProductColumns(
     enableColumnFilter: false,
     enableSorting: false,
     size: 36,
-    meta: { sticky: 'left' as const, align: 'center' as const },
+    meta: {
+      sticky: 'left' as const,
+      align: 'center' as const,
+      hiddenOnMobile: true,
+    },
     cell: () => null,
   };
 
@@ -71,7 +75,12 @@ export function buildAdminProductColumns(
     enableSorting: true,
     size: 180,
     filterFn: 'equals',
-    meta: { filterVariant: 'select', align: 'left', selectOptions },
+    meta: {
+      filterVariant: 'select',
+      align: 'left',
+      selectOptions,
+      hiddenOnMobile: true,
+    },
     cell: ({ getValue }) => {
       const id = getValue<string>();
       return categories.find((c) => c.id === id)?.name ?? DASH;
@@ -84,7 +93,6 @@ export function buildAdminProductColumns(
       t('table.stock', { defaultValue: 'Stock' }),
       { align: 'right', enableFilter: true, size: 110, hiddenOnMobile: true },
     ),
-    meta: { filterVariant: 'number' },
     filterFn: betweenNumberRange,
   };
 
@@ -96,7 +104,6 @@ export function buildAdminProductColumns(
       { align: 'right', enableFilter: true, size: 120, hiddenOnMobile: true },
     ),
     filterFn: betweenNumberRange,
-    meta: { filterVariant: 'number' },
   };
 
   const createdCol: ColumnDef<IProduct> = {

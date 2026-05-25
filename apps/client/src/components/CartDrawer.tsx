@@ -13,6 +13,7 @@ import {
   SwipeableDrawer,
   Typography,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import { useCartStore } from '../stores/useCartStore';
 import { useSwipeable } from 'react-swipeable';
@@ -143,6 +144,10 @@ function SwipeableCartItem({
 const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const theme = useTheme();
+  // In LTR the cart slides in from the right; in RTL from the left.
+  // swipeAreaWidth gives fingers a generous 48px edge target on both sides.
+  const anchor = theme.direction === 'rtl' ? 'left' : 'right';
   const { enqueueSnackbar } = useSnackbar();
 
   const items = useCartStore((s) => s.items);
@@ -168,10 +173,11 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ open, onClose }) => {
 
   return (
     <SwipeableDrawer
-      anchor="right"
+      anchor={anchor}
       open={open}
       onClose={onClose}
       onOpen={noop}
+      disableSwipeToOpen
       data-testid="cart-drawer"
     >
       <Box

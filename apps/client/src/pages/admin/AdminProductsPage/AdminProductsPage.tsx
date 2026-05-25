@@ -11,6 +11,8 @@ import {
   DialogContent,
   DialogActions,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
@@ -73,6 +75,8 @@ function toDate(value: unknown): Date | null {
 export default function AdminProductsPage() {
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const {
     products,
@@ -504,7 +508,7 @@ export default function AdminProductsPage() {
                 categoryName={getCategoryName(product.categoryId)}
               />
             )}
-            bodyMaxHeight="60vh"
+            bodyMaxHeight={isMobile ? 'none' : '60vh'}
             onReorder={handleReorder}
             getRowId={(p) => p.id}
           />
