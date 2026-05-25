@@ -25,6 +25,7 @@ export default [
       '**/vitest.config.*.timestamp*',
       '.nx/**',
       '**/.nx/**',
+      'scripts/**',
     ],
   },
   {
@@ -166,6 +167,17 @@ export default [
         'warn',
         { contexts: ['TSPropertySignature'] },
       ],
+    },
+  },
+
+  /** ⬇️ Disable type-aware linting for plain JS scripts outside the TS project */
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        projectService: false,
+      },
     },
   },
 
