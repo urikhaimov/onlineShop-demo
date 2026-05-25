@@ -169,6 +169,14 @@ When active, `AuthProvider` skips all Firebase Auth listeners and injects a synt
 - Persist state across tabs or hard-reloads (no real session).
 - Activate in a production build or outside `localhost`.
 
+### Testing the checkout flow
+
+Demo mode covers the **admin panel only**. To test the full PayPal checkout:
+
+1. Sign up for a regular account at `/signup` (or use the emulator seed credentials).
+2. Use a [PayPal sandbox buyer account](https://developer.paypal.com/dashboard/accounts) — the app always runs in sandbox mode (`PAYPAL_SANDBOX=true`).
+3. Add items to cart → proceed to checkout → approve in the PayPal popup → order is captured and written to Firestore.
+
 ### Key files
 
 | File | Role |
