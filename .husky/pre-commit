@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Ensure Node.js is on PATH (needed on Windows where git-bash PATH differs)
+export PATH="/c/Program Files/nodejs:$PATH"
+
 MAX_FILES=100  # Set the limit
 
 FILES_CHANGED=$(git diff --cached --name-only | wc -l)
