@@ -69,60 +69,8 @@ export default defineConfig(async () => {
       preprocessorOptions: { less: { javascriptEnabled: true } },
     },
 
-    optimizeDeps: {
-      include: ['framer-motion', 'motion-dom'],
-    },
-
     build: {
-      rollupOptions: {
-        output: {
-          // Prevent Rollup from hoisting transitively-imported bindings across
-          // chunks — avoids TDZ "Cannot access X before initialization" errors
-          // that appear when framer-motion / motion-dom are code-split.
-          hoistTransitiveImports: false,
-          manualChunks(id) {
-            if (!id.includes('node_modules')) return;
-            if (id.includes('@mui') || id.includes('@emotion'))
-              return 'vendor-mui';
-            if (id.includes('firebase')) return 'vendor-firebase';
-            if (id.includes('@paypal')) return 'vendor-paypal';
-            if (id.includes('@tanstack')) return 'vendor-tanstack';
-            if (id.includes('@dnd-kit')) return 'vendor-dnd';
-            // Keep framer-motion and all its deps (motion-dom, motion-utils, etc.)
-            // in the same chunk to avoid TDZ initialization order errors
-            if (
-              id.includes('framer-motion') ||
-              id.includes('motion-dom') ||
-              id.includes('motion-utils') ||
-              id.includes('motion-v')
-            )
-              return 'vendor-motion';
-            if (id.includes('react-router')) return 'vendor-router';
-            if (
-              id.includes('react-hook-form') ||
-              id.includes('@hookform') ||
-              id.includes('/zod/') ||
-              id.includes('/yup/')
-            )
-              return 'vendor-forms';
-            if (id.includes('@casl')) return 'vendor-casl';
-            if (
-              id.includes('/lodash') ||
-              id.includes('date-fns') ||
-              id.includes('/dayjs')
-            )
-              return 'vendor-utils';
-            if (
-              id.includes('/react/') ||
-              id.includes('/react-dom/') ||
-              id.includes('scheduler')
-            )
-              return 'vendor-react';
-            if (id.includes('i18next')) return 'vendor-i18n';
-            return 'vendor';
-          },
-        },
-      },
+      rollupOptions: {},
       emptyOutDir: true,
       outDir: '../../dist/apps/client',
       reportCompressedSize: true,
