@@ -60,8 +60,6 @@ export function defineAbilityFor({
     cannot([EAbilityActions.READ], EAbilitySubjects.LOGIN);
   } else {
     can([EAbilityActions.READ], EAbilitySubjects.LOGIN);
-    can([EAbilityActions.READ], EAbilitySubjects.PRODUCTS);
-    can([EAbilityActions.READ], EAbilitySubjects.PRODUCT);
   }
 
   can([EAbilityActions.READ], EAbilitySubjects.HOME);
