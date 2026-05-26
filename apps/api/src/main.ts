@@ -40,8 +40,9 @@ async function bootstrap() {
     rawBody: true,
   });
 
+  // Railway injects PORT; APP_PORT is the local override. Fall back to 3000.
   const appPort = Number(
-    getEnv('APP_PORT', { defaultValue: 3000, env: process.env }),
+    process.env['PORT'] || process.env['APP_PORT'] || 3000,
   );
   const apiPrefix = process.env.API_PREFIX ?? 'api';
   const frontendOrigin = String(
@@ -245,7 +246,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   logger.info('Bootstrapping API (starting Nest HTTP server)...');
-  await app.listen(appPort);
+  await app.listen(appPort, '0.0.0.0');
   logger.info(`🚀 Server running:  http://localhost:${appPort}/${apiPrefix}`);
   if (!isProd())
     logger.info(`📚 Swagger:         http://localhost:${appPort}/docs`);
