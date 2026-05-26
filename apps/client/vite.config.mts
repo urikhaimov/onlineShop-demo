@@ -71,7 +71,6 @@ export default defineConfig(async () => {
 
     build: {
       rollupOptions: {
-        external: ['motion-dom'],
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
