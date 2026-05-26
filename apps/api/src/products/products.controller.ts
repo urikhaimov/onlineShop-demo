@@ -57,6 +57,12 @@ export class ProductsController {
     return this.sendList(res, items, total);
   }
 
+  // GET /products/public/:id — single product, no auth required
+  @Get('public/:id')
+  getPublic(@Param('id') id: string) {
+    return this.svc.getById(id);
+  }
+
   // ===========================================================================
   // ADMIN / AUTH PROTECTED
   // ===========================================================================
