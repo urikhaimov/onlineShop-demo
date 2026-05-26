@@ -39,7 +39,17 @@
     "clear": "Clear",
     "close": "Close",
     "openFilters": "Open Filters",
-    "addToCart": "Add to cart"
+    "addToCart": "Add to cart",
+    "retry": "Retry"
+  },
+  "a11y": {
+    "openFilters": "Open filters",
+    "resetFilters": "Reset filters",
+    "tableView": "Table view",
+    "cardsView": "Cards view"
+  },
+  "errors": {
+    "failedToLoadOrders": "Failed to load orders."
   },
   "toasts": {
     "addedToCart": "Added to cart"
@@ -96,6 +106,7 @@
     "delivered": "Delivered"
   },
   "orders": {
+    "search": "Order ID",
     "status": {
       "pending": "Pending",
       "confirmed": "Confirmed",
@@ -132,6 +143,7 @@
     "dialog": {
       "title": "Delete category?",
       "warning": "This will permanently delete the category. This action cannot be undone.",
+      "warningCascade": "This will permanently delete the category AND all products in it. This action cannot be undone.",
       "confirm": "Are you sure you want to delete category {{name}}?",
       "cancel": "Cancel",
       "deleting": "Deleting…",
@@ -288,7 +300,15 @@
   "adminProductsPage": {
     "title": "Manage Products",
     "addProduct": "Add Product",
-    "snackbarReordered": "Product order updated"
+    "snackbarReordered": "Product order updated",
+    "dialog": {
+      "title": "Delete product?",
+      "warning": "This will permanently delete the product. This action cannot be undone.",
+      "confirm": "Are you sure you want to delete {{name}}?",
+      "cancel": "Cancel",
+      "deleting": "Deleting…",
+      "delete": "Delete"
+    }
   },
   "adminProducts": {
     "actions": {

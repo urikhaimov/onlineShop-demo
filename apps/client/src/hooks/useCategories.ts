@@ -8,6 +8,11 @@ import { useSnackbar } from 'notistack';
 import api from '../api/axiosInstance';
 import { useOptimisticMutation } from './useOptimisticMutation';
 import type { TCategory as Category } from '@common/types';
+import { isDemoAdmin } from '../lib/demo-mode';
+
+const CATEGORIES_ENDPOINT = isDemoAdmin()
+  ? '/categories/publiclist'
+  : '/categories';
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Types
@@ -81,7 +86,7 @@ export const useCategories = (params?: ListParams, options?: QueryOptions) =>
   useQuery<Category[]>({
     queryKey: ['categories', paramsKey(params)],
     queryFn: async () => {
-      const res = await api.get('/categories', {
+      const res = await api.get(CATEGORIES_ENDPOINT, {
         params: { ...baseParams, ...(params ?? {}) },
       });
       return normalizeCategories(res.data).items;
@@ -101,7 +106,7 @@ export const useCategoriesResult = (
   useQuery<CategoriesResult>({
     queryKey: ['categories', 'result', paramsKey(params)],
     queryFn: async () => {
-      const res = await api.get('/categories', {
+      const res = await api.get(CATEGORIES_ENDPOINT, {
         params: { ...baseParams, ...(params ?? {}) },
       });
       return normalizeCategories(res.data);

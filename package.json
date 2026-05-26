@@ -40,6 +40,7 @@
     "emu:exec": "firebase emulators:exec --project onlinestoretemplate-59d3e",
     "emu:seed:auth": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/seed-auth.js",
     "emu:seed:firestore": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node scripts/seed-firestore.js",
+    "emu:seed:catalog": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node scripts/seed-catalog.js",
     "emu:seed:storage": "cross-env GCLOUD_PROJECT=onlinestoretemplate-59d3e GOOGLE_CLOUD_PROJECT=onlinestoretemplate-59d3e STORAGE_EMULATOR_HOST=http://127.0.0.1:9199 node scripts/seed-storage.js",
     "emu:purge-seed": "node scripts/emu-purge-seed.js",
     "smoke:auth": "node scripts/auth-smoke.mjs",

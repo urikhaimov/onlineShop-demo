@@ -39,7 +39,17 @@
     "clear": "נקה",
     "close": "סגור",
     "openFilters": "פתח מסננים",
-    "addToCart": "הוסף לעגלה"
+    "addToCart": "הוסף לעגלה",
+    "retry": "נסה שנית"
+  },
+  "a11y": {
+    "openFilters": "פתח מסננים",
+    "resetFilters": "איפוס מסננים",
+    "tableView": "תצוגת טבלה",
+    "cardsView": "תצוגת כרטיסים"
+  },
+  "errors": {
+    "failedToLoadOrders": "טעינת ההזמנות נכשלה."
   },
   "toasts": {
     "addedToCart": "הוסף לעגלה"
@@ -96,6 +106,7 @@
     "delivered": "סופק"
   },
   "orders": {
+    "search": "מספר הזמנה",
     "status": {
       "pending": "ממתין",
       "confirmed": "אושר",
@@ -132,6 +143,7 @@
     "dialog": {
       "title": "למחוק קטגוריה?",
       "warning": "הפעולה תמחק את הקטגוריה לצמיתות ולא ניתנת לביטול.",
+      "warningCascade": "הפעולה תמחק לצמיתות את הקטגוריה וכל המוצרים שבה. לא ניתן לבטל פעולה זו.",
       "confirm": "האם למחוק את הקטגוריה {{name}}?",
       "cancel": "ביטול",
       "deleting": "מוחק…",
@@ -288,7 +300,15 @@
   "adminProductsPage": {
     "title": "ניהול מוצרים",
     "addProduct": "הוסף מוצר",
-    "snackbarReordered": "סדר המוצרים עודכן"
+    "snackbarReordered": "סדר המוצרים עודכן",
+    "dialog": {
+      "title": "למחוק מוצר?",
+      "warning": "הפעולה תמחק את המוצר לצמיתות ולא ניתנת לביטול.",
+      "confirm": "האם למחוק את {{name}}?",
+      "cancel": "ביטול",
+      "deleting": "מוחק…",
+      "delete": "מחיקה"
+    }
   },
   "adminProducts": {
     "actions": {
