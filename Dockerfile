@@ -18,5 +18,5 @@ RUN npm install --omit=dev --ignore-scripts
 
 COPY --from=builder /app/dist/apps/api .
 
-EXPOSE 8080
+EXPOSE 3000
 CMD ["node", "main.js"]
