@@ -60,8 +60,8 @@ export function defineAbilityFor({
     cannot([EAbilityActions.READ], EAbilitySubjects.LOGIN);
   } else {
     can([EAbilityActions.READ], EAbilitySubjects.LOGIN);
-    // If product page is public, uncomment:
-    // can([EAbilityActions.READ], EAbilitySubjects.PRODUCT);
+    can([EAbilityActions.READ], EAbilitySubjects.PRODUCTS);
+    can([EAbilityActions.READ], EAbilitySubjects.PRODUCT);
   }
 
   can([EAbilityActions.READ], EAbilitySubjects.HOME);
