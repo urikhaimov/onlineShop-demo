@@ -15,7 +15,7 @@
         "main": "apps/api/src/main.ts",
         "tsConfig": "apps/api/tsconfig.app.json",
         "webpackConfig": "apps/api/webpack.config.js",
-        "generatePackageJson": false,
+        "generatePackageJson": true,
         "externalDependencies": "all",
         "assets": [
           { "input": "apps/api/src/i18n", "glob": "**/*", "output": "i18n" },
