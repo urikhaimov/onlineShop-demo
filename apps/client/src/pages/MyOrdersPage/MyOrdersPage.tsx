@@ -40,6 +40,7 @@ import ResponsiveCardsGrid from '../../components/ResponsiveCardsGrid';
 import RightFiltersDrawer from '../../components/RightFiltersDrawer';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { isDemoAdmin } from '../../lib/demo-mode';
 
 type OrdersResponse =
   | TOrder[]
@@ -61,7 +62,7 @@ export default function MyOrdersPage() {
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
 
   // 🧩 Theme tokens
-  const { themeSettings } = useThemeStore();
+  const themeSettings = useThemeStore((s) => s.themeSettings);
   const isDark =
     themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
@@ -194,7 +195,7 @@ export default function MyOrdersPage() {
       });
       return res.data as OrdersResponse;
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoAdmin(),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     retry: 2,
