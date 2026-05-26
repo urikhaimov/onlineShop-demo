@@ -1,11 +1,15 @@
+const DEMO_HOSTNAMES = ['online-shop-demo-bice.vercel.app'];
+
 /**
  * DEMO ADMIN MODE
  * ─────────────────────────────────────────────────────────────────────────────
- * Lets portfolio visitors explore the full admin panel without a real account.
- * Activated by VITE_DEMO_ADMIN=true (set in Vercel env vars for the demo site).
+ * Activates on the public demo site (matched by hostname) or when
+ * VITE_DEMO_ADMIN=true is baked in via Vercel env vars.
  */
 export const isDemoAdmin = (): boolean => {
-  return import.meta.env.VITE_DEMO_ADMIN === 'true';
+  if (import.meta.env.VITE_DEMO_ADMIN === 'true') return true;
+  if (typeof window === 'undefined') return false;
+  return DEMO_HOSTNAMES.includes(window.location.hostname);
 };
 
 /**
