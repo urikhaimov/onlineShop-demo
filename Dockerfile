@@ -18,6 +18,5 @@ RUN npm install --omit=dev --ignore-scripts
 
 COPY --from=builder /app/dist/apps/api .
 
-EXPOSE 3000
-# Railway injects PORT; APP_PORT is what the NestJS app reads
+EXPOSE 8080
 CMD ["node", "main.js"]

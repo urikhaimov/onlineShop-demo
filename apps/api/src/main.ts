@@ -235,7 +235,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   logger.info('Bootstrapping API (starting Nest HTTP server)...');
-  await app.listen(appPort, '0.0.0.0');
+  await app.listen(appPort);
   logger.info(`🚀 Server running:  http://localhost:${appPort}/${apiPrefix}`);
   if (!isProd())
     logger.info(`📚 Swagger:         http://localhost:${appPort}/docs`);
