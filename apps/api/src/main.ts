@@ -84,17 +84,6 @@ async function bootstrap() {
     next();
   });
 
-  // ── Enforce HTTPS in production (respects X-Forwarded-Proto) ────────────────
-  app.use((req, res, next) => {
-    if (isProd()) {
-      const xfp = (req.headers['x-forwarded-proto'] as string) || '';
-      const secure =
-        (req as any).secure || xfp.split(',')[0]?.trim()?.includes('https');
-      if (!secure) return res.status(403).send('HTTPS required');
-    }
-    next();
-  });
-
   // --- Webhook raw body (must be BEFORE any JSON/urlencoded parser for those paths) ---
   const webhookRaw = bodyParser.raw({ type: '*/*', limit: '2mb' });
   const ensureRawBody = (req: any, _res: any, next: any) => {
