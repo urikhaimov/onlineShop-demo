@@ -69,9 +69,17 @@ export default defineConfig(async () => {
       preprocessorOptions: { less: { javascriptEnabled: true } },
     },
 
+    optimizeDeps: {
+      include: ['framer-motion', 'motion-dom'],
+    },
+
     build: {
       rollupOptions: {
         output: {
+          // Prevent Rollup from hoisting transitively-imported bindings across
+          // chunks — avoids TDZ "Cannot access X before initialization" errors
+          // that appear when framer-motion / motion-dom are code-split.
+          hoistTransitiveImports: false,
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
             if (id.includes('@mui') || id.includes('@emotion'))
@@ -80,7 +88,14 @@ export default defineConfig(async () => {
             if (id.includes('@paypal')) return 'vendor-paypal';
             if (id.includes('@tanstack')) return 'vendor-tanstack';
             if (id.includes('@dnd-kit')) return 'vendor-dnd';
-            if (id.includes('framer-motion') || id.includes('motion-dom'))
+            // Keep framer-motion and all its deps (motion-dom, motion-utils, etc.)
+            // in the same chunk to avoid TDZ initialization order errors
+            if (
+              id.includes('framer-motion') ||
+              id.includes('motion-dom') ||
+              id.includes('motion-utils') ||
+              id.includes('motion-v')
+            )
               return 'vendor-motion';
             if (id.includes('react-router')) return 'vendor-router';
             if (
