@@ -26,6 +26,22 @@ import { runAllStoreResets } from '../state/resetRegistry';
 import { useQueryClient } from '@tanstack/react-query';
 import { isDemoAdmin, DEMO_ADMIN_USER } from '../lib/demo-mode';
 
+// Stable module-level constants so the demo context value never changes reference.
+const _DEMO_NOOP = () => Promise.resolve();
+const _DEMO_ABILITY = defineAbilityFor({
+  user: DEMO_ADMIN_USER as unknown as User,
+  role: 'admin',
+});
+const _DEMO_CTX: AuthContextType = {
+  user: DEMO_ADMIN_USER as unknown as User,
+  role: 'admin',
+  ability: _DEMO_ABILITY,
+  isAuthReady: true,
+  signInWithEmail: _DEMO_NOOP,
+  hardClear: _DEMO_NOOP,
+  logout: _DEMO_NOOP,
+};
+
 /** Simple role helper exported for consumers (e.g., ability.service) */
 export const isAdmin = (role: EUserRole | string | null | undefined): boolean =>
   role === 'admin' || role === EUserRole.ADMIN || role === 'ADMIN';
@@ -206,27 +222,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   // ── Demo Admin bypass ──────────────────────────────────────────────────────
   // Returns a fully-formed admin context with a synthetic user — no real
-  // Firebase session, no network calls. Guards in isDemoAdmin() ensure this
-  // path is unreachable in production builds and on non-localhost origins.
+  // Firebase session, no network calls. Uses module-level constants so the
+  // Provider value never changes reference and consumers don't re-render.
   if (demoMode) {
-    const demoAbility = defineAbilityFor({
-      user: DEMO_ADMIN_USER as unknown as User,
-      role: 'admin',
-    });
     return (
-      <AuthContext.Provider
-        value={{
-          user: DEMO_ADMIN_USER as unknown as User,
-          role: 'admin',
-          ability: demoAbility,
-          isAuthReady: true,
-          signInWithEmail: () => Promise.resolve(),
-          hardClear: () => Promise.resolve(),
-          logout: () => Promise.resolve(),
-        }}
-      >
-        {children}
-      </AuthContext.Provider>
+      <AuthContext.Provider value={_DEMO_CTX}>{children}</AuthContext.Provider>
     );
   }
 
