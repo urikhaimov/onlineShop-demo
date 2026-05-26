@@ -20,4 +20,4 @@ COPY --from=builder /app/dist/apps/api .
 
 EXPOSE 3000
 # Railway injects PORT; APP_PORT is what the NestJS app reads
-CMD ["sh", "-c", "APP_PORT=${PORT:-3000} node main.cjs"]
+CMD ["sh", "-c", "APP_PORT=${PORT:-3000} node main.js"]
