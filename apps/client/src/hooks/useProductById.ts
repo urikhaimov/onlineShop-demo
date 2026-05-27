@@ -19,5 +19,6 @@ export function useProductById(id?: string) {
       return res.data;
     },
     enabled: !!id,
+    retry: false,
   });
 }
