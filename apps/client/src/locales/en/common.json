@@ -40,7 +40,8 @@
     "close": "Close",
     "openFilters": "Open Filters",
     "addToCart": "Add to cart",
-    "retry": "Retry"
+    "retry": "Retry",
+    "exportCsv": "Export CSV"
   },
   "a11y": {
     "openFilters": "Open filters",
@@ -57,7 +58,8 @@
   "validation": {
     "name_required": "Name is required.",
     "name_minLen": "Name must be at least 2 characters.",
-    "price_required": "Price is required."
+    "price_required": "Price is required.",
+    "min2": "Too short"
   },
   "table": {
     "image": "Image",
@@ -203,6 +205,7 @@
     "Story": "Story"
   },
   "adminOrdersPage": {
+    "title": "Orders",
     "failedToDeleteFallback": "Failed to delete order.",
     "failedToLoad": "Failed to load orders: {{message}}",
     "notFound": "No orders found",
@@ -295,7 +298,9 @@
     "stock": "Stock",
     "category": "Category",
     "invalidCategory": "Invalid category ID: {{id}}",
-    "images": "Images"
+    "images": "Images",
+    "imagesHint": "Drag or click to upload (max 5MB each). Slots remaining: {{count}}",
+    "descriptionPlaceholder": "Write a short, attractive description…"
   },
   "adminProductsPage": {
     "title": "Manage Products",

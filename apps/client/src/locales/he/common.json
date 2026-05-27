@@ -40,7 +40,8 @@
     "close": "סגור",
     "openFilters": "פתח מסננים",
     "addToCart": "הוסף לעגלה",
-    "retry": "נסה שנית"
+    "retry": "נסה שנית",
+    "exportCsv": "ייצוא CSV"
   },
   "a11y": {
     "openFilters": "פתח מסננים",
@@ -57,7 +58,8 @@
   "validation": {
     "name_required": "יש להזין שם.",
     "name_minLen": "השם חייב להכיל לפחות 2 תווים.",
-    "price_required": "יש להזין מחיר."
+    "price_required": "יש להזין מחיר.",
+    "min2": "קצר מדי"
   },
   "table": {
     "image": "תמונה",
@@ -203,6 +205,7 @@
     "Story": "Story"
   },
   "adminOrdersPage": {
+    "title": "הזמנות",
     "failedToDeleteFallback": "מחיקת ההזמנה נכשלה.",
     "failedToLoad": "טעינת הזמנות נכשלה: {{message}}",
     "notFound": "לא נמצאו הזמנות",
@@ -295,7 +298,9 @@
     "stock": "מלאי",
     "category": "קטגוריה",
     "invalidCategory": "מזהה קטגוריה שגוי: {{id}}",
-    "images": "תמונות"
+    "images": "תמונות",
+    "imagesHint": "גרור או לחץ להעלאה (מקסימום 5MB לכל תמונה). מקומות פנויים: {{count}}",
+    "descriptionPlaceholder": "כתוב תיאור קצר ומושך…"
   },
   "adminProductsPage": {
     "title": "ניהול מוצרים",
