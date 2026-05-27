@@ -1,6 +1,7 @@
 // apps/client/src/pages/admin/products/ProductFormPage.tsx
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { isDemoAdmin } from '../../../lib/demo-mode';
 import {
   Box,
   Typography,
@@ -47,6 +48,7 @@ export type FormState = {
 
 const MAX_IMAGES = 5;
 type UploadableImage = CombinedImage & { file?: File };
+const demoMode = isDemoAdmin();
 
 export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   const { t, i18n } = useTranslation();
@@ -54,6 +56,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+  const [imagesDirty, setImagesDirty] = useState(false);
 
   const {
     combinedImages,
@@ -219,6 +222,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
 
     setProduct(productData);
     setCombinedImages(formattedImages);
+    setImagesDirty(false);
     setReady(true);
     bootstrappedForIdRef.current = productId;
   }, [
@@ -235,6 +239,13 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
   ]);
 
   const handleImageDrop = (files: File[]) => {
+    if (demoMode) {
+      enqueueSnackbar('Image uploads are not available in demo mode.', {
+        variant: 'info',
+        autoHideDuration: 4000,
+      });
+      return;
+    }
     if (!files?.length) return;
     const allowed = Math.max(0, MAX_IMAGES - combinedImagesRef.current.length);
     const useFiles = files.slice(0, allowed);
@@ -248,7 +259,10 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
       progress: 0,
     }));
 
-    if (newImages.length) addCombinedImages(newImages);
+    if (newImages.length) {
+      addCombinedImages(newImages);
+      setImagesDirty(true);
+    }
   };
 
   const handleClickSave = () => {
@@ -393,7 +407,10 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 variant="contained"
                 onClick={handleClickSave}
                 disabled={
-                  isSubmitting || isUploadingImages || !isValid || !isDirty
+                  isSubmitting ||
+                  isUploadingImages ||
+                  !isValid ||
+                  (!isDirty && !imagesDirty)
                 }
               >
                 {t('actions.save', { defaultValue: 'Save' })}
@@ -594,6 +611,7 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                     setCombinedImages(
                       combinedImagesRef.current.filter((img) => img.id !== id),
                     );
+                    setImagesDirty(true);
                   }}
                   onReorderAll={(newOrder) => setCombinedImages(newOrder)}
                   showSnackbar={false}
@@ -636,7 +654,10 @@ export default function ProductFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 variant="contained"
                 onClick={handleClickSave}
                 disabled={
-                  isSubmitting || isUploadingImages || !isValid || !isDirty
+                  isSubmitting ||
+                  isUploadingImages ||
+                  !isValid ||
+                  (!isDirty && !imagesDirty)
                 }
               >
                 {t('actions.save', { defaultValue: 'Save' })}
