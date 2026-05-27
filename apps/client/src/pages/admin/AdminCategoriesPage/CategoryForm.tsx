@@ -9,6 +9,10 @@ import { useCategoryById } from '../../../hooks/useCategories';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useTranslation } from 'react-i18next';
+import { isDemoAdmin } from '../../../lib/demo-mode';
+import { useSnackbar } from 'notistack';
+
+const demoMode = isDemoAdmin();
 
 export interface CategoryFormValues {
   name: string;
@@ -34,6 +38,7 @@ export default function CategoryForm({
   onSubmit,
 }: Props) {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const isEdit = mode === 'edit';
 
   const {
@@ -77,16 +82,26 @@ export default function CategoryForm({
     setValue('imageUrl', images[0]?.url ?? '', { shouldDirty: true });
   }, [images, setValue]);
 
-  const handleDrop = React.useCallback((files: File[]) => {
-    if (!files?.length) return;
-    const file = files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setImages([{ id: genId(), url: dataUrl, type: 'new' }]);
-    };
-    reader.readAsDataURL(file);
-  }, []);
+  const handleDrop = React.useCallback(
+    (files: File[]) => {
+      if (demoMode) {
+        enqueueSnackbar('Image uploads are not available in demo mode.', {
+          variant: 'info',
+          autoHideDuration: 4000,
+        });
+        return;
+      }
+      if (!files?.length) return;
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setImages([{ id: genId(), url: dataUrl, type: 'new' }]);
+      };
+      reader.readAsDataURL(file);
+    },
+    [enqueueSnackbar],
+  );
 
   const handleRemove = React.useCallback(() => {
     setImages([]);

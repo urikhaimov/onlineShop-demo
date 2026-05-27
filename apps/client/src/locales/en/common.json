@@ -172,6 +172,7 @@
   "adminCategoriesForm": {
     "name": "Name",
     "description": "Description",
+    "image": "Image",
     "update": "Update Category",
     "create": "Create Category"
   },

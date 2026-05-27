@@ -172,6 +172,7 @@
   "adminCategoriesForm": {
     "name": "שם",
     "description": "תיאור",
+    "image": "תמונה",
     "update": "עדכון קטגוריה",
     "create": "יצירת קטגוריה"
   },
