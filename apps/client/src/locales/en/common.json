@@ -412,7 +412,10 @@
     "thankYouTitle": "Thank You for Your Order!",
     "thankYouBody": "We’ve received your payment and your order is being processed.",
     "goHome": "Go to Home",
-    "viewOrders": "View My Orders"
+    "viewOrders": "View My Orders",
+    "items": "Items",
+    "qty": "Qty",
+    "failedToLoad": "Failed to load payment form. Please try again later."
   },
   "checkoutForm": {
     "paymentDetails": "Payment Details",
