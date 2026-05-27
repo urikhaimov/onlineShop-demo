@@ -31,6 +31,8 @@ export default function TableHeadSection<T extends object>({
 }: Props<T>) {
   const theme = useTheme();
 
+  const stickyRightGap = enableRowExpansion ? EXPAND_COL_WIDTH + RIGHT_GAP : 0;
+
   return (
     <TableHead>
       {table.getHeaderGroups().map((group) => (
@@ -38,9 +40,7 @@ export default function TableHeadSection<T extends object>({
           {group.headers.map((header) => {
             const meta = header.column.columnDef.meta as ColumnMeta | undefined;
 
-            // precompute helper outputs
-
-            const stickySx = getStickyStyles(theme, meta);
+            const stickySx = getStickyStyles(theme, meta, stickyRightGap);
             const hiddenSx = responsiveVisibility(meta);
 
             return (
