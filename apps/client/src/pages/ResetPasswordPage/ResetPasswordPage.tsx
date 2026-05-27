@@ -83,13 +83,17 @@ export default function ResetPasswordPage() {
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          data-testid="reset-password-form"
+        >
           <Stack spacing={3} mt={2}>
             <TextField
               label="Email"
               type="email"
               autoComplete="email"
               fullWidth
+              inputProps={{ 'data-testid': 'reset-email' }}
               {...register('email', {
                 required: 'Email is required',
                 // allow spaces; we strip them before sending
@@ -106,6 +110,7 @@ export default function ResetPasswordPage() {
               variant="contained"
               fullWidth
               disabled={isSubmitting}
+              data-testid="reset-submit"
               sx={{ py: 1.5, fontWeight: 600 }}
             >
               {isSubmitting ? 'Sending…' : 'Send Reset Link'}

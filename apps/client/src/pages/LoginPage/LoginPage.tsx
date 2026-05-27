@@ -95,18 +95,25 @@ const LoginPage = () => {
           </Box>
 
           {message && (
-            <Typography variant="body2" color="error" textAlign="center" mb={2}>
+            <Typography
+              variant="body2"
+              color="error"
+              textAlign="center"
+              mb={2}
+              data-testid="login-error"
+            >
               {message}
             </Typography>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)}>
+          <form onSubmit={handleSubmit(onSubmit)} data-testid="login-form">
             <Stack spacing={3}>
               <TextField
                 label="Email"
                 fullWidth
                 inputRef={emailRef}
                 autoFocus
+                inputProps={{ 'data-testid': 'login-email' }}
                 {...register('email', { required: 'Email is required' })}
                 error={!!errors.email}
                 helperText={errors.email?.message}
@@ -116,6 +123,7 @@ const LoginPage = () => {
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
                 fullWidth
+                inputProps={{ 'data-testid': 'login-password' }}
                 {...register('password', { required: 'Password is required' })}
                 error={!!errors.password}
                 helperText={errors.password?.message}
@@ -140,6 +148,7 @@ const LoginPage = () => {
                 color="primary"
                 fullWidth
                 disabled={isSubmitting}
+                data-testid="login-submit"
                 sx={{ py: 1.5, fontWeight: 600 }}
               >
                 {isSubmitting ? 'Logging in...' : 'Log in'}

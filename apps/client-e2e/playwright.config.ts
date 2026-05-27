@@ -15,12 +15,22 @@ export default defineConfig({
     '**/*.pw.spec.cts',
     '**/*.pw.spec.*',
     '**/*.spec.*',
-    '**/*.spec.mts', // ✅ add thi
+    '**/*.spec.mts',
   ],
+
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 2 : 0,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  workers: process.env.CI ? 4 : undefined,
+  fullyParallel: true,
+
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'playwright-report' }],
+    ...(process.env.CI
+      ? ([['junit', { outputFile: 'playwright-report/results.xml' }]] as any)
+      : []),
+  ],
 
   use: {
     baseURL: BASE_URL,
@@ -30,12 +40,12 @@ export default defineConfig({
     video: 'retain-on-failure',
     testIdAttribute: 'data-testid',
     viewport: { width: 1280, height: 900 },
+    // CI-friendly: ignore HTTPS errors from self-signed certs
+    ignoreHTTPSErrors: true,
   },
 
-  // Start app server for tests. Preview = build + serve /dist; else dev server.
   webServer: usePreview
     ? {
-        // You can override with PW_PREVIEW_CMD if needed.
         command:
           process.env.PW_PREVIEW_CMD ??
           [
@@ -46,7 +56,7 @@ export default defineConfig({
         reuseExistingServer: true,
         timeout: 180_000,
         cwd: cwdRoot,
-        env: { E2E: '1' }, // disables proxy/CSP etc. in your vite config
+        env: { E2E: '1' },
       }
     : {
         command: `npx vite --host ${HOST} --port ${PORT} --strictPort --config apps/client/vite.config.mts`,
@@ -57,5 +67,34 @@ export default defineConfig({
         env: { E2E: '1' },
       },
 
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    // ─── Desktop ───────────────────────────────────────────────────────────
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+
+    // ─── Mobile ────────────────────────────────────────────────────────────
+    {
+      name: 'mobile-chrome',
+      use: { ...devices['Pixel 5'] },
+      testMatch: ['**/responsive.spec.*', '**/cart.spec.*', '**/auth.spec.*'],
+    },
+    {
+      name: 'mobile-safari',
+      use: { ...devices['iPhone 13'] },
+      testMatch: ['**/responsive.spec.*'],
+    },
+
+    // ─── Tablet ────────────────────────────────────────────────────────────
+    {
+      name: 'tablet',
+      use: { ...devices['iPad (gen 7)'] },
+      testMatch: ['**/responsive.spec.*'],
+    },
+  ],
 });
