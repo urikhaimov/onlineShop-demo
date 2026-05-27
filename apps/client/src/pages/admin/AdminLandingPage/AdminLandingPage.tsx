@@ -29,6 +29,9 @@ import {
   EAbilitySubjects,
 } from '../../../services/ability.service';
 import { storage } from '../../../firebase';
+import { isDemoAdmin } from '../../../lib/demo-mode';
+
+const demoMode = isDemoAdmin();
 
 const DEFAULT_FORM: LandingPageData = {
   title: 'Welcome to Bunder Shop',
@@ -134,6 +137,13 @@ export default function AdminLandingPage() {
   };
 
   const handleBannerCropUpload = async (file: File) => {
+    if (demoMode) {
+      enqueueSnackbar('Image uploads are not available in demo mode.', {
+        variant: 'info',
+        autoHideDuration: 4000,
+      });
+      return;
+    }
     const url = await uploadBannerToStorage(file);
     setValue('bannerImageUrl', url, {
       shouldDirty: true,

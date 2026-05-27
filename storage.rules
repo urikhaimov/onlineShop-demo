@@ -57,6 +57,13 @@ service firebase.storage {
                    max10mb();
     }
 
+    // === Landing page banner ===
+    // Example: landing/banner_1234567890.jpg
+    match /landing/{file=**} {
+      allow read: if true;
+      allow write: if isAdminOrSuperadmin() && isImage() && max10mb();
+    }
+
     // === Temporary uploads ===
     // Example: temp/{uid}/anything.tmp
     match /temp/{uid}/{file=**} {
