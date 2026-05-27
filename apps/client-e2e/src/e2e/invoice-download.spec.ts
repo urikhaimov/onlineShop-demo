@@ -46,7 +46,7 @@ async function waitForInvoiceReady(
 test.describe('Invoice PDF generation', () => {
   test.setTimeout(120_000);
 
-  test('create → webhook → download invoice PDF', async (_, testInfo) => {
+  test('create → webhook → download invoice PDF', async (_fixtures, testInfo) => {
     const paypalOrderId = `E2ETEST${Date.now()}`;
     const api = await request.newContext({ baseURL: API });
 

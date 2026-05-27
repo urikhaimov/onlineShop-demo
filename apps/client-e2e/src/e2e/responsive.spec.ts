@@ -116,7 +116,7 @@ test.describe('Mobile navigation', () => {
     if (await form.count()) {
       const emailInput = page.getByTestId('login-email');
       if (await emailInput.count()) {
-        await emailInput.tap();
+        await emailInput.click();
         await emailInput.fill('test@example.com');
         const val = await emailInput.inputValue();
         expect(val).toBe('test@example.com');

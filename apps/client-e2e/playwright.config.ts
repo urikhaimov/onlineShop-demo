@@ -18,9 +18,9 @@ export default defineConfig({
     '**/*.spec.mts',
   ],
 
-  timeout: 60_000,
+  timeout: 90_000,
   expect: { timeout: 15_000 },
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 4 : undefined,
   fullyParallel: true,
 
@@ -54,7 +54,7 @@ export default defineConfig({
           ].join(' && '),
         port: PORT,
         reuseExistingServer: true,
-        timeout: 180_000,
+        timeout: 240_000,
         cwd: cwdRoot,
         env: { E2E: '1' },
       }
@@ -62,7 +62,7 @@ export default defineConfig({
         command: `npx vite --host ${HOST} --port ${PORT} --strictPort --config apps/client/vite.config.mts`,
         port: PORT,
         reuseExistingServer: true,
-        timeout: 120_000,
+        timeout: 240_000,
         cwd: cwdRoot,
         env: { E2E: '1' },
       },

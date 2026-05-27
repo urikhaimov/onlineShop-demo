@@ -85,6 +85,7 @@ export default function ResetPasswordPage() {
 
         <form
           onSubmit={handleSubmit(onSubmit)}
+          noValidate
           data-testid="reset-password-form"
         >
           <Stack spacing={3} mt={2}>
