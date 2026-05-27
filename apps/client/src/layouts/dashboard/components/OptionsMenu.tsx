@@ -101,6 +101,7 @@ export default function OptionsMenu() {
         <StyledListItemButton
           onClick={handleLogout}
           disabled={busy} // ✨ NEW
+          data-testid="logout-btn"
           sx={{
             [`& .${listItemIconClasses.root}`]: { ml: 'auto', minWidth: 0 },
           }}

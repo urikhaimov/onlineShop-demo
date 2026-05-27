@@ -128,7 +128,7 @@ export async function installHarness(page: Page) {
     },
     async (route) => {
       const js = `
-        export function useAuth(){return {user:{id:'u_test',email:'test@example.com',roles:['admin']},loading:false,error:null,signIn:async()=>{},signOut:async()=>{}}}
+        export function useAuth(){return {user:{id:'u_test',email:'test@example.com',roles:['admin']},loading:false,error:null,signIn:async()=>{},signOut:async()=>{},logout:async()=>{}}}
         export default useAuth;`;
       await route.fulfill({
         status: 200,
