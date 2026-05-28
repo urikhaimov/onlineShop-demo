@@ -3,6 +3,7 @@ import {
   AdminProtectedRoute,
   ProtectedRoute,
 } from '../components/ProtectedRoutes';
+import PayPalProvider from '../paypal/PayPalProvider';
 import { type Location, Route, Routes } from 'react-router-dom';
 
 // Eagerly loaded — always needed
@@ -128,7 +129,9 @@ export const appRoutes = (location: Location) => (
         path={ERoutePaths.CHECKOUT}
         element={
           <ProtectedRoute>
-            <CheckoutPage />
+            <PayPalProvider>
+              <CheckoutPage />
+            </PayPalProvider>
           </ProtectedRoute>
         }
       />
