@@ -14,7 +14,7 @@ const PayPalProvider = ({ children }: { children: React.ReactNode }) => {
   if (!paypalClientId) return <>{children}</>;
   return (
     <PayPalScriptProvider
-      options={{ clientId: paypalClientId, currency: 'USD' }}
+      options={{ clientId: paypalClientId, currency: 'ILS' }}
     >
       {children}
     </PayPalScriptProvider>
