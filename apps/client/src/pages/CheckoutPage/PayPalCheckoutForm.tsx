@@ -13,6 +13,7 @@ import axiosInstance from '../../api/axiosInstance';
 
 type ShippingAddress = {
   fullName: string;
+  email: string;
   phone: string;
   street: string;
   city: string;
@@ -151,6 +152,7 @@ export default function PayPalCheckoutForm({
             paypalOrderId,
             customer: {
               name: formData.ownerName || addr.fullName,
+              email: addr.email,
               phone: addr.phone,
             },
             shippingAddress: {
@@ -174,6 +176,7 @@ export default function PayPalCheckoutForm({
             orderId: paypalOrderId,
             customer: {
               name: formData.ownerName || addr.fullName,
+              email: addr.email,
               phone: addr.phone,
             },
             shippingAddress: {
@@ -303,6 +306,20 @@ export default function PayPalCheckoutForm({
           }) as string,
         })}
         errorObject={errors.shippingAddress?.fullName}
+      />
+      <FormTextField
+        label={t('checkoutForm.email', { defaultValue: 'Email' })}
+        register={register('shippingAddress.email', {
+          required: t('checkoutForm.emailRequired', {
+            defaultValue: 'Email is required',
+          }) as string,
+          pattern: {
+            value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+            message: 'Invalid email address',
+          },
+        })}
+        errorObject={errors.shippingAddress?.email}
+        type="email"
       />
       <FormTextField
         label={t('checkoutForm.phone', { defaultValue: 'Phone' })}

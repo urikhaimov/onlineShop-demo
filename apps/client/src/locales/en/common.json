@@ -436,6 +436,8 @@
     "shippingAddress": "Shipping Address",
     "fullName": "Full Name",
     "fullNameRequired": "Full name is required",
+    "email": "Email",
+    "emailRequired": "Email is required",
     "phone": "Phone",
     "phoneRequired": "Phone is required",
     "street": "Street",

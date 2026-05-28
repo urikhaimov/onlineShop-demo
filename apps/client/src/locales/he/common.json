@@ -436,6 +436,8 @@
     "shippingAddress": "כתובת משלוח",
     "fullName": "שם מלא",
     "fullNameRequired": "יש להזין שם מלא",
+    "email": "אימייל",
+    "emailRequired": "יש להזין כתובת אימייל",
     "phone": "טלפון",
     "phoneRequired": "יש להזין מספר טלפון",
     "street": "רחוב",
