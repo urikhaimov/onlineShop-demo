@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Auth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import { FIREBASE_ADMIN_AUTH } from '../firebase/admin.provider';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
 import type { FirebaseRequest } from './firebase-auth.guard';
@@ -48,6 +49,16 @@ export class AuthController {
     }
 
     await this.adminAuth.setCustomUserClaims(uid, { role });
+
+    // Keep Firestore user document in sync
+    try {
+      await getFirestore()
+        .collection('users')
+        .doc(uid)
+        .set({ role }, { merge: true });
+    } catch {
+      // non-fatal — JWT claim is the source of truth
+    }
 
     void this.auditLog.log({
       type: 'AUTH_ROLE_ASSIGNED',
