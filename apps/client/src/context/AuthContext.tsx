@@ -214,9 +214,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setRole(null);
       setIsAuthReady(true);
       await hardClear();
-      if (typeof window !== 'undefined') {
-        window.location.assign('/login');
-      }
     }
   }, [hardClear]);
 

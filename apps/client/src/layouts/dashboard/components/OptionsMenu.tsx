@@ -53,7 +53,6 @@ export default function OptionsMenu() {
     setBusy(true);
     try {
       await logout();
-      // logout() already clears state; navigate is a nice extra
       navigate(ROUTES.LOGIN, { replace: true });
     } catch (error) {
       console.error('Logout failed:', error);
