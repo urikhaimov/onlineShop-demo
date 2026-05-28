@@ -31,6 +31,9 @@ const AdminDashboardLayout = React.lazy(
   () => import('../layouts/AdminDashboardLayout'),
 );
 const AdminHomePage = React.lazy(() => import('../pages/admin/AdminHomePage'));
+const AdminSetupWizardPage = React.lazy(
+  () => import('../pages/admin/AdminSetupWizardPage/AdminSetupWizardPage'),
+);
 const AdminLandingPage = React.lazy(
   () => import('../pages/admin/AdminLandingPage'),
 );
@@ -178,6 +181,7 @@ export const appRoutes = (location: Location) => (
         }
       >
         <Route index element={<AdminHomePage />} />
+        <Route path="setup" element={<AdminSetupWizardPage />} />
         <Route path="landingPage" element={<AdminLandingPage />} />
         <Route path="categories" element={<AdminCategoriesPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />

@@ -9,6 +9,7 @@
   },
   "admin": {
     "dashboardHome": "בית הניהול",
+    "setupWizard": "אשף הגדרות",
     "categories": "קטגוריות",
     "users": "משתמשים",
     "products": "מוצרים",

@@ -9,6 +9,7 @@
   },
   "admin": {
     "dashboardHome": "Admin Home",
+    "setupWizard": "Setup Wizard",
     "categories": "Categories",
     "users": "Users",
     "products": "Products",
