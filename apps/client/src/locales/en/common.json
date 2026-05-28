@@ -426,6 +426,7 @@
     "passportId": "Passport ID",
     "passportIdRequired": "Passport ID is required",
     "payNow": "Pay Now",
+    "paypalCanceled": "Payment canceled.",
     "errors": {
       "stripeNotReady": "Stripe is not ready yet",
       "paymentFailed": "Payment failed",

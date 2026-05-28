@@ -426,6 +426,7 @@
     "passportId": "מספר דרכון",
     "passportIdRequired": "נדרש מספר דרכון",
     "payNow": "שלם עכשיו",
+    "paypalCanceled": "התשלום בוטל.",
     "errors": {
       "stripeNotReady": "Stripe עדיין לא מוכן",
       "paymentFailed": "התשלום נכשל",
