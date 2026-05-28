@@ -7,6 +7,7 @@ const DEMO_HOSTNAMES = ['online-shop-demo-bice.vercel.app'];
  * VITE_DEMO_ADMIN=true is baked in via Vercel env vars.
  */
 export const isDemoAdmin = (): boolean => {
+  if (import.meta.env.VITE_DEMO_ADMIN === 'false') return false;
   if (import.meta.env.VITE_DEMO_ADMIN === 'true') return true;
   if (typeof window === 'undefined') return false;
   return DEMO_HOSTNAMES.includes(window.location.hostname);
