@@ -68,6 +68,7 @@ jobs:
           PW_HOST: 127.0.0.1
           PW_PORT: 5173
           VITE_DEMO_ADMIN: 'false'
+          VITE_PAYPAL_CLIENT_ID: 'sb-test-client-id-e2e'
           E2E: '1'
           NODE_ENV: test
 
