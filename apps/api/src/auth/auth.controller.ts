@@ -12,8 +12,6 @@ import { FirebaseAuthGuard } from './firebase-auth.guard';
 import type { FirebaseRequest } from './firebase-auth.guard';
 import { SecurityLogsService } from '../security-logs/security-logs.service';
 
-const VALID_ROLES = new Set(['admin', 'editor', 'viewer', 'superadmin']);
-
 function computeRoleForEmail(email?: string | null) {
   const adminsCsv = (process.env.ADMINS_LIST || '').toLowerCase();
   const admins = adminsCsv
