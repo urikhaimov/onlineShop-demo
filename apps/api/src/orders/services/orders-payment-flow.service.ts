@@ -237,12 +237,12 @@ export class OrdersPaymentFlowService {
     await this.repo.decrementStockForOrder(orderId, payload.items || []);
 
     if (SEND_FROM_ORDERS && this.notify) {
-      this.logger.log('[email] SEND_FROM_ORDERS=true; sending receipt');
-      await this.notify.sendReceiptForPayPalOrder(
-        orderId,
-        captureResult,
-        draft,
-      );
+      this.logger.log('[email] SEND_FROM_ORDERS=true; sending receipt (async)');
+      void this.notify
+        .sendReceiptForPayPalOrder(orderId, captureResult, draft)
+        .catch((e: Error) =>
+          this.logger.warn(`sendReceiptForPayPalOrder failed: ${e?.message}`),
+        );
     }
 
     this.logger.log(`createOrderFromCapture ${orderId} ← COMPLETED`);
