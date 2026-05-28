@@ -23,6 +23,11 @@
             "input": "apps/api/src/invoice/fonts",
             "glob": "**/*.ttf",
             "output": "invoice/fonts"
+          },
+          {
+            "input": "libs/email-templates/src/lib/templates",
+            "glob": "**/*.mjml",
+            "output": "templates"
           }
         ]
       },
