@@ -26,13 +26,18 @@ export function loadMailerConfig(): MailerConfig {
     sandbox: String(env.SENDGRID_SANDBOX ?? '').toLowerCase() === 'true',
     smtp: {
       url: env.SMTP_URL,
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT ? Number(env.SMTP_PORT) : undefined,
+      host: env.SMTP_HOST || env.EMAIL_HOST,
+      port: env.SMTP_PORT
+        ? Number(env.SMTP_PORT)
+        : env.EMAIL_PORT
+          ? Number(env.EMAIL_PORT)
+          : undefined,
       secure:
         String(env.SMTP_SECURE ?? '').toLowerCase() === 'true' ||
-        env.SMTP_PORT === '465',
-      user: env.SMTP_USER,
-      pass: env.SMTP_PASS,
+        env.SMTP_PORT === '465' ||
+        env.EMAIL_PORT === '465',
+      user: env.SMTP_USER || env.EMAIL_USER,
+      pass: env.SMTP_PASS || env.EMAIL_PASS,
     },
     sendgrid: env.SENDGRID_API_KEY
       ? { apiKey: env.SENDGRID_API_KEY }
