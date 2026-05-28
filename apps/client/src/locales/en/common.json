@@ -416,7 +416,8 @@
     "viewOrders": "View My Orders",
     "items": "Items",
     "qty": "Qty",
-    "failedToLoad": "Failed to load payment form. Please try again later."
+    "failedToLoad": "Failed to load payment form. Please try again later.",
+    "settingsFallback": "Order settings failed to load. Using defaults (0)."
   },
   "checkoutForm": {
     "paymentDetails": "Payment Details",

@@ -35,9 +35,14 @@ service cloud.firestore {
       allow create, update, delete: if isAdminOrSuperadmin();
     }
 
-    match /landingPage/{pageId} {
+    match /landingPages/{pageId} {
       allow read: if true;
       allow create, update, delete: if isAdminOrSuperadmin();
+    }
+
+    match /order-settings/{docId} {
+      allow read: if true;
+      allow write: if isAdminOrSuperadmin();
     }
 
     match /users/{userId} {
