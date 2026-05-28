@@ -16,6 +16,7 @@ import { useThemeStore } from '../../stores/useThemeStore';
 
 import PayPalCheckoutForm from './PayPalCheckoutForm';
 import { usePayPalOrder } from '../../hooks/usePayPalOrder';
+import { paypalClientId } from '../../paypal/PayPalProvider';
 import { useOrderSettings } from '../../hooks/useOrderSettings';
 
 import { PageLayout } from '../../layouts/page.layout';
@@ -340,7 +341,14 @@ export default function CheckoutPage() {
           </Stack>
 
           {/* PayPal checkout */}
-          {loading ? (
+          {!paypalClientId ? (
+            <Alert severity="error">
+              {t('checkout.failedToLoad', {
+                defaultValue:
+                  'Failed to load payment form. Please try again later.',
+              })}
+            </Alert>
+          ) : loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
               <CircularProgress />
             </Box>
