@@ -10,10 +10,13 @@ if (!clientId) {
   console.error('Missing VITE_PAYPAL_CLIENT_ID');
 }
 
-const PayPalProvider = ({ children }: { children: React.ReactNode }) => (
-  <PayPalScriptProvider options={{ clientId: clientId ?? '', currency: 'USD' }}>
-    {children}
-  </PayPalScriptProvider>
-);
+const PayPalProvider = ({ children }: { children: React.ReactNode }) => {
+  if (!clientId) return <>{children}</>;
+  return (
+    <PayPalScriptProvider options={{ clientId, currency: 'USD' }}>
+      {children}
+    </PayPalScriptProvider>
+  );
+};
 
 export default PayPalProvider;
