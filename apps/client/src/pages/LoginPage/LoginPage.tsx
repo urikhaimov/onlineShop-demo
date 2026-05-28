@@ -174,6 +174,7 @@ const LoginPage = () => {
             variant="outlined"
             fullWidth
             startIcon={<Google />}
+            sx={{ textTransform: 'none', fontWeight: 500 }}
           >
             Sign in with Google
           </Button>
