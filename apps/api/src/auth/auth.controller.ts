@@ -42,12 +42,13 @@ export class AuthController {
       throw new UnauthorizedException('No UID found on request');
     }
 
-    // If already has a valid role, don't change it
-    if (currentRole && VALID_ROLES.has(currentRole)) {
+    const role = computeRoleForEmail(email);
+
+    // If already has the correct role, nothing to do
+    if (currentRole === role) {
       return { role: currentRole, from: 'claims' };
     }
 
-    const role = computeRoleForEmail(email);
     await this.adminAuth.setCustomUserClaims(uid, { role });
 
     void this.auditLog.log({
