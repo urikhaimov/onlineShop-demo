@@ -23,7 +23,9 @@ import {
   Image,
   ShoppingCart,
   CheckCircle,
+  Payment,
 } from '@mui/icons-material';
+import axiosInstance from '../../../api/axiosInstance';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
@@ -44,6 +46,7 @@ const STEPS = [
   { label: 'Branding', icon: <Palette /> },
   { label: 'Landing Page', icon: <Image /> },
   { label: 'Order Settings', icon: <ShoppingCart /> },
+  { label: 'PayPal', icon: <Payment /> },
   { label: 'Done!', icon: <CheckCircle /> },
 ];
 
@@ -331,7 +334,83 @@ function OrderSettingsStep({
   );
 }
 
-// ─── Step 5: Done ─────────────────────────────────────────────────────────────
+// ─── Step 5: PayPal ───────────────────────────────────────────────────────────
+function PayPalStep({
+  onNext,
+  onBack,
+}: {
+  onNext: (data: Record<string, unknown>) => void;
+  onBack: () => void;
+}) {
+  const { register, handleSubmit } = useForm({
+    defaultValues: { clientId: '', clientSecret: '', sandbox: true },
+  });
+
+  return (
+    <form onSubmit={handleSubmit(onNext)}>
+      <Stack spacing={3}>
+        <Typography variant="body2" color="text.secondary">
+          Enter the client's PayPal credentials so payments go into their
+          account. Get these from{' '}
+          <strong>developer.paypal.com → Apps & Credentials</strong>.
+        </Typography>
+
+        <Alert severity="info" sx={{ fontSize: 13 }}>
+          Each client needs their own PayPal developer account. Money goes
+          directly to them — not to you.
+        </Alert>
+
+        <TextField
+          label="PayPal Client ID"
+          fullWidth
+          {...register('clientId')}
+          placeholder="AWoE5q_vJY..."
+          helperText="From developer.paypal.com → your app → Client ID"
+        />
+        <TextField
+          label="PayPal Client Secret"
+          fullWidth
+          type="password"
+          {...register('clientSecret')}
+          placeholder="••••••••••••••••"
+          helperText="Keep this secret — it's stored encrypted in Firestore"
+        />
+
+        <Controller
+          name="sandbox"
+          control={useForm().control}
+          defaultValue={true}
+          render={({ field }) => (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                />
+              }
+              label="Use sandbox mode (for testing)"
+            />
+          )}
+        />
+
+        <Stack direction="row" spacing={2}>
+          <Button variant="outlined" onClick={onBack} sx={{ flex: 1 }}>
+            Back
+          </Button>
+          <Button type="submit" variant="contained" sx={{ flex: 2 }}>
+            Save & Finish
+          </Button>
+        </Stack>
+
+        <Button variant="text" size="small" onClick={() => onNext({})}>
+          Skip (configure later)
+        </Button>
+      </Stack>
+    </form>
+  );
+}
+
+// ─── Step 6: Done ─────────────────────────────────────────────────────────────
 function DoneStep({ storeName }: { storeName: string }) {
   const navigate = useNavigate();
 
@@ -450,6 +529,13 @@ export default function AdminSetupWizardPage() {
           discount: Number(data.discount),
         });
       }
+      if (step === 4 && (data.clientId || data.clientSecret)) {
+        await axiosInstance.patch('/settings/paypal', {
+          clientId: data.clientId,
+          clientSecret: data.clientSecret,
+          sandbox: data.sandbox !== false,
+        });
+      }
       setActiveStep((s) => s + 1);
     } catch {
       enqueueSnackbar(
@@ -506,7 +592,13 @@ export default function AdminSetupWizardPage() {
             onBack={() => setActiveStep(2)}
           />
         )}
-        {!saving && activeStep === 4 && <DoneStep storeName={storeName} />}
+        {!saving && activeStep === 4 && (
+          <PayPalStep
+            onNext={(d) => save(4, d)}
+            onBack={() => setActiveStep(3)}
+          />
+        )}
+        {!saving && activeStep === 5 && <DoneStep storeName={storeName} />}
       </Paper>
     </Box>
   );

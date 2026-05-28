@@ -2,9 +2,11 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Firestore } from '@google-cloud/firestore';
 import axios from 'axios';
 
 export interface PayPalOrder {
@@ -53,47 +55,86 @@ export interface PayPalPayer {
 @Injectable()
 export class PayPalPaymentsService {
   private readonly logger = new Logger(PayPalPaymentsService.name);
-  private readonly baseUrl: string;
-  private readonly clientId: string;
-  private readonly clientSecret: string;
   private readonly webhookId: string;
 
-  constructor(@Inject(ConfigService) private readonly config: ConfigService) {
-    this.clientId = config.get<string>('PAYPAL_CLIENT_ID') ?? '';
-    this.clientSecret = config.get<string>('PAYPAL_CLIENT_SECRET') ?? '';
-    this.webhookId = config.get<string>('PAYPAL_WEBHOOK_ID') ?? '';
+  // Resolved lazily — Firestore takes priority over env vars
+  private _clientId = '';
+  private _clientSecret = '';
+  private _baseUrl = '';
+  private _credentialsLoaded = false;
 
+  constructor(
+    @Inject(ConfigService) private readonly config: ConfigService,
+    @Optional() @Inject(Firestore) private readonly db?: Firestore,
+  ) {
+    this.webhookId = config.get<string>('PAYPAL_WEBHOOK_ID') ?? '';
+  }
+
+  private async resolveCredentials() {
+    if (this._credentialsLoaded) return;
+
+    // Try Firestore first
+    if (this.db) {
+      try {
+        const snap = await this.db.collection('settings').doc('paypal').get();
+        if (snap.exists) {
+          const data = snap.data() as {
+            clientId?: string;
+            clientSecret?: string;
+            sandbox?: boolean;
+          };
+          if (data.clientId) this._clientId = data.clientId;
+          if (data.clientSecret) this._clientSecret = data.clientSecret;
+          const sandbox = data.sandbox !== false;
+          this._baseUrl = sandbox
+            ? 'https://api-m.sandbox.paypal.com'
+            : 'https://api-m.paypal.com';
+          this._credentialsLoaded = true;
+          return;
+        }
+      } catch {
+        // fall through to env vars
+      }
+    }
+
+    // Fallback to env vars
+    this._clientId = this.config.get<string>('PAYPAL_CLIENT_ID') ?? '';
+    this._clientSecret = this.config.get<string>('PAYPAL_CLIENT_SECRET') ?? '';
     const sandbox =
-      (config.get<string>('PAYPAL_SANDBOX') ?? 'true') !== 'false';
-    this.baseUrl = sandbox
+      (this.config.get<string>('PAYPAL_SANDBOX') ?? 'true') !== 'false';
+    this._baseUrl = sandbox
       ? 'https://api-m.sandbox.paypal.com'
       : 'https://api-m.paypal.com';
+    this._credentialsLoaded = true;
 
-    if (!this.clientId || !this.clientSecret) {
-      // Don't crash on boot — let the rest of the API start so non-payment
-      // routes still work in dev / partial environments. Throw at the first
-      // payment call instead.
+    if (!this._clientId || !this._clientSecret) {
       this.logger.warn(
-        'PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set — PayPal endpoints will return 503 until configured.',
+        'PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set — configure via wizard or env vars.',
       );
     }
   }
 
-  private assertConfigured() {
-    if (!this.clientId || !this.clientSecret) {
+  /** Call when settings change so next request reloads from Firestore */
+  invalidateCredentials() {
+    this._credentialsLoaded = false;
+  }
+
+  private async assertConfigured() {
+    await this.resolveCredentials();
+    if (!this._clientId || !this._clientSecret) {
       throw new ServiceUnavailableException(
-        'PayPal is not configured. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.',
+        'PayPal is not configured. Use the Setup Wizard or set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.',
       );
     }
   }
 
   private async getAccessToken(): Promise<string> {
-    this.assertConfigured();
+    await this.assertConfigured();
     const res = await axios.post<{ access_token: string }>(
-      `${this.baseUrl}/v1/oauth2/token`,
+      `${this._baseUrl}/v1/oauth2/token`,
       'grant_type=client_credentials',
       {
-        auth: { username: this.clientId, password: this.clientSecret },
+        auth: { username: this._clientId, password: this._clientSecret },
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       },
     );
@@ -127,7 +168,7 @@ export class PayPalPaymentsService {
     }
 
     const res = await axios.post<PayPalOrder>(
-      `${this.baseUrl}/v2/checkout/orders`,
+      `${this._baseUrl}/v2/checkout/orders`,
       {
         intent: 'CAPTURE',
         purchase_units: [
@@ -163,7 +204,7 @@ export class PayPalPaymentsService {
     }
 
     const res = await axios.post<PayPalOrder>(
-      `${this.baseUrl}/v2/checkout/orders/${orderId}/capture`,
+      `${this._baseUrl}/v2/checkout/orders/${orderId}/capture`,
       {},
       { headers },
     );
@@ -175,7 +216,7 @@ export class PayPalPaymentsService {
   async retrieveOrder(orderId: string): Promise<PayPalOrder> {
     const token = await this.getAccessToken();
     const res = await axios.get<PayPalOrder>(
-      `${this.baseUrl}/v2/checkout/orders/${orderId}`,
+      `${this._baseUrl}/v2/checkout/orders/${orderId}`,
       { headers: this.authHeader(token) },
     );
     return res.data;
@@ -194,7 +235,7 @@ export class PayPalPaymentsService {
     try {
       const token = await this.getAccessToken();
       const res = await axios.post<{ verification_status: string }>(
-        `${this.baseUrl}/v1/notifications/verify-webhook-signature`,
+        `${this._baseUrl}/v1/notifications/verify-webhook-signature`,
         {
           auth_algo: params.authAlgo,
           cert_url: params.certUrl,

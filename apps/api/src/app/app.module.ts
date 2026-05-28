@@ -23,6 +23,7 @@ import { UsersModule } from '../users/users.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { ImageProxyController } from '../image-proxy/image-proxy.controller';
 import { ThemeSettingsModule } from '../theme/theme-settings.module';
+import { SettingsModule } from '../settings/settings.module';
 import { LandingPageModule } from '../landing-page/landing-page.module';
 import { SecurityLogsModule } from '../security-logs/security-logs.module';
 import { AuthClientModule } from 'auth-client';
@@ -82,6 +83,7 @@ const testRoutesModules =
     CategoriesModule,
     LandingPageModule,
     ThemeSettingsModule,
+    SettingsModule,
     SecurityLogsModule,
     SearchModule,
 
