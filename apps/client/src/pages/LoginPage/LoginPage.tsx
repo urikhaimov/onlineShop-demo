@@ -176,7 +176,7 @@ const LoginPage = () => {
             startIcon={<Google />}
             sx={{ textTransform: 'none', fontWeight: 500 }}
           >
-            Sign in with Google
+            Log in with Google
           </Button>
 
           <motion.div
