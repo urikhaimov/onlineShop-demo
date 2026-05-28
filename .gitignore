@@ -36,3 +36,4 @@ vitest.config.*.timestamp*
 
 .eslintcache
 .vercel
+clients/
