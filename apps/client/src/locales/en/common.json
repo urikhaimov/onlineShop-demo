@@ -26,7 +26,8 @@
     "openAria": "Open menu",
     "profile": "Profile",
     "account": "Account",
-    "logout": "Logout"
+    "logout": "Logout",
+    "loggingOut": "Logging out…"
   },
   "actions": {
     "edit": "Edit",

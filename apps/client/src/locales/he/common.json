@@ -26,7 +26,8 @@
     "openAria": "פתח תפריט",
     "profile": "פרופיל",
     "account": "חשבון",
-    "logout": "התנתקות"
+    "logout": "התנתקות",
+    "loggingOut": "מתנתק…"
   },
   "actions": {
     "edit": "עריכה",
