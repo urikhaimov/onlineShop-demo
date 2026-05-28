@@ -249,9 +249,9 @@ export class OrderNotificationsService {
       }
 
       const to =
-        captureResult.payer?.email_address?.trim() ||
         (draft?.customer?.email as string | undefined) ||
-        (draft?.email as string | undefined);
+        (draft?.email as string | undefined) ||
+        captureResult.payer?.email_address?.trim();
 
       if (!to) {
         this.logger.warn(
