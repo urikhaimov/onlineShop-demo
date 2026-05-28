@@ -30,14 +30,23 @@ export default function ResetPasswordPage() {
 
     const normalizedEmail = email.trim().replace(/\s+/g, '').toLowerCase();
 
-    try {
-      // Hosted UI flow: after the user clicks "Save" → Firebase redirects to /login
-      const actionCodeSettings = {
-        url: `${window.location.origin}/login`,
-        handleCodeInApp: false, // IMPORTANT: hosted page, not in-app
-      };
+    const tryReset = async (withContinueUrl: boolean) => {
+      const opts = withContinueUrl
+        ? { url: `${window.location.origin}/login`, handleCodeInApp: false }
+        : undefined;
+      await sendPasswordResetEmail(auth, normalizedEmail, opts);
+    };
 
-      await sendPasswordResetEmail(auth, normalizedEmail, actionCodeSettings);
+    try {
+      try {
+        await tryReset(true);
+      } catch (err: any) {
+        if (err?.code === 'auth/unauthorized-continue-uri') {
+          await tryReset(false);
+        } else {
+          throw err;
+        }
+      }
       setSuccessMessage(
         `Password reset email sent to ${normalizedEmail}. Please check your inbox (and Spam).`,
       );
@@ -47,7 +56,7 @@ export default function ResetPasswordPage() {
         code === 'auth/invalid-email'
           ? 'Invalid email address.'
           : code === 'auth/user-not-found'
-            ? 'No user found with this email in this Firebase project.'
+            ? 'No user found with this email.'
             : code === 'auth/too-many-requests'
               ? 'Too many attempts. Try again later.'
               : 'Failed to send reset email.';
