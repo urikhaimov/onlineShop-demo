@@ -92,16 +92,17 @@
   <mj-body background-color="#F9FAFB" css-class="{{#if isRtl}}rtl{{/if}}">
     <mj-section
       full-width="full-width"
+      background-color="#111827"
       direction="{{#if isRtl}}rtl{{else}}ltr{{/if}}"
     >
-      <mj-column>
-        <mj-image
-          width="140px"
-          padding="24px 0 0 0"
-          alt="{{brandName}}"
-          src="{{logoUrl}}"
+      <mj-column padding="16px 24px">
+        <mj-text
+          font-size="18px"
+          font-weight="700"
+          color="#ffffff"
           align="{{#if isRtl}}right{{else}}left{{/if}}"
-        />
+          padding="0"
+        >{{brandName}}</mj-text>
       </mj-column>
     </mj-section>
 
