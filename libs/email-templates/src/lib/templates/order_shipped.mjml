@@ -1,26 +1,32 @@
-<mj-section padding="0 0 8px 0">
+<!-- ── Hero ── -->
+<mj-section padding="8px 0 0 0">
   <mj-column>
-    <mj-text align="center" font-size="36px" padding="20px 0 4px 0" line-height="1">📦</mj-text>
-    <mj-text align="center" font-size="20px" font-weight="700" color="#111827" padding="0 0 4px 0">
+    <mj-text align="center" font-size="40px" padding="24px 0 4px 0" line-height="1">📦</mj-text>
+    <mj-text align="center" font-size="22px" font-weight="700" color="#111827" padding="0 0 4px 0">
       {{#if isRtl}}ההזמנה שלך בדרך!{{else}}Your order is on its way!{{/if}}
     </mj-text>
-    <mj-text align="center" font-size="14px" color="#6b7280" padding="0 0 20px 0">
-      {{#if isRtl}}הזמנה מספר <strong>#{{orderId}}</strong> נשלחה.{{else}}Order <strong>#{{orderId}}</strong> has been shipped.{{/if}}
+    <mj-text align="center" font-size="13px" color="#6b7280" padding="0 0 4px 0">
+      {{#if isRtl}}הזמנה מספר{{else}}Order{{/if}}
+    </mj-text>
+    <mj-text align="center" font-size="14px" font-weight="700" color="#111827" padding="0 0 20px 0">
+      #{{orderId}}
     </mj-text>
   </mj-column>
 </mj-section>
 
+<!-- ── Delivery info (only when carrier/tracking provided) ── -->
 {{#if deliveryProvider}}
-<mj-section background-color="#F3F4F6" border-radius="10px" padding="16px 24px">
-  <mj-column>
+<mj-section background-color="#F3F4F6" border-radius="10px" padding="0 0 16px 0">
+  <mj-column padding="20px 24px">
     <mj-text font-size="11px" font-weight="700" color="#9ca3af" padding="0 0 10px 0" align="{{alignStart}}">
       {{#if isRtl}}פרטי משלוח{{else}}DELIVERY INFO{{/if}}
     </mj-text>
+    <mj-divider border-color="#e5e7eb" border-width="1px" padding="0 0 10px 0" />
 
     <mj-text font-size="13px" color="#6b7280" padding="0 0 2px 0" align="{{alignStart}}">
       {{#if isRtl}}ספק{{else}}Carrier{{/if}}
     </mj-text>
-    <mj-text font-size="14px" font-weight="600" color="#111827" padding="0 0 10px 0" align="{{alignStart}}">
+    <mj-text font-size="14px" font-weight="600" color="#111827" padding="0 0 {{#if deliveryTracking}}10px{{else}}0{{/if}}" align="{{alignStart}}">
       {{deliveryProvider}}
     </mj-text>
 
@@ -29,7 +35,7 @@
     <mj-text font-size="13px" color="#6b7280" padding="0 0 2px 0" align="{{alignStart}}">
       {{#if isRtl}}מספר מעקב{{else}}Tracking number{{/if}}
     </mj-text>
-    <mj-text font-size="14px" font-weight="600" color="#111827" padding="0 0 4px 0" align="{{alignStart}}">
+    <mj-text font-size="14px" font-weight="600" color="#111827" padding="0 0 {{#if deliveryEta}}10px{{else}}0{{/if}}" align="{{alignStart}}">
       {{deliveryTracking}}
     </mj-text>
     {{/if}}
@@ -47,6 +53,7 @@
 </mj-section>
 {{/if}}
 
+<!-- ── Track button ── -->
 {{#if deliveryTrackingUrl}}
 <mj-section padding="16px 0 0 0">
   <mj-column>
@@ -59,6 +66,7 @@
       border-radius="8px"
       background-color="#111827"
       color="#ffffff"
+      padding="0"
       rel="noopener"
       target="_blank"
     >
@@ -68,17 +76,19 @@
 </mj-section>
 {{/if}}
 
+<!-- ── Shipping address ── -->
 {{#if shippingName}}
 <mj-section padding="16px 0 0 0">
   <mj-column>
     <mj-divider border-color="#e5e7eb" border-width="1px" padding="0 0 12px 0" />
-    <mj-text font-size="13px" font-weight="600" color="#111827" padding="0 0 4px 0" align="{{alignStart}}">
+    <mj-text font-size="13px" font-weight="600" color="#111827" padding="0 0 6px 0" align="{{alignStart}}">
       {{#if isRtl}}כתובת משלוח{{else}}Shipping to{{/if}}
     </mj-text>
-    <mj-text font-size="13px" color="#6b7280" padding="0" align="{{alignStart}}">
-      {{shippingName}}{{#if shippingPhone}}<br/>{{shippingPhone}}{{/if}}
-      {{#if shippingLine1}}<br/>{{shippingLine1}}{{/if}}
-      {{#if shippingCity}}, {{shippingCity}}{{/if}}
+    <mj-text font-size="13px" color="#6b7280" line-height="1.8" padding="0" align="{{alignStart}}">
+      {{shippingName}}<br/>
+      {{#if shippingPhone}}{{shippingPhone}}<br/>{{/if}}
+      {{#if shippingLine1}}{{shippingLine1}},{{/if}}
+      {{#if shippingCity}} {{shippingCity}}{{/if}}
       {{#if shippingPostalCode}} {{shippingPostalCode}}{{/if}}
     </mj-text>
   </mj-column>
