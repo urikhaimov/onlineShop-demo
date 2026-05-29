@@ -115,22 +115,23 @@
           <!-- ::BODY:: -->
         </mj-wrapper>
 
+        {{#if supportEmail}}
         <mj-text
-          align="{{#if isRtl}}right{{else}}left{{/if}}"
+          align="center"
           class="muted small"
           padding="16px 0 0 0"
         >
-          {{#if isRtl}}
-          הודעה זו נשלחה אל {{ customerEmail }}. יש שאלות? כתבו לנו:
-          <a href="mailto:{{supportEmail}}">{{ supportEmail }}</a>
-          {{else}}
-          This message was sent to {{ customerEmail }}. Questions? Contact us:
-          <a href="mailto:{{supportEmail}}">{{ supportEmail }}</a>
-          {{/if}}
+          {{#if isRtl}}יש שאלות? כתבו לנו:{{else}}Questions? Contact us:{{/if}}
+          <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>
         </mj-text>
+        {{/if}}
 
-        <mj-text align="center" class="small muted" padding="16px 0 0 0">
+        <mj-text align="center" class="small muted" padding="8px 0 0 0">
+          {{#if privacyUrl}}
           © {{ year }} {{ brandName }} · <a href="{{privacyUrl}}">Privacy</a>
+          {{else}}
+          © {{ year }} {{ brandName }}
+          {{/if}}
         </mj-text>
       </mj-column>
     </mj-section>

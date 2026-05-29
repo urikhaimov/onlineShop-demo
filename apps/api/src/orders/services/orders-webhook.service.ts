@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PayPalPaymentsService } from './paypal-payments.service';
 import { OrdersPaymentFlowService } from './orders-payment-flow.service';
@@ -9,9 +9,12 @@ export class OrdersWebhookService {
   private readonly logger = new Logger(OrdersWebhookService.name);
 
   constructor(
-    private readonly config: ConfigService,
+    @Inject(ConfigService) private readonly config: ConfigService,
+    @Inject(PayPalPaymentsService)
     private readonly paypalSvc: PayPalPaymentsService,
+    @Inject(OrdersPaymentFlowService)
     private readonly payments: OrdersPaymentFlowService,
+    @Inject(OrdersLifecycleService)
     private readonly lifecycle: OrdersLifecycleService,
   ) {}
 

@@ -74,6 +74,10 @@ export class MailerService {
       brandName: this.cfg.brandName,
       brandUrl: this.cfg.publicBaseUrl || '',
       assetsBaseUrl: this.cfg.assetsBaseUrl || '',
+      supportEmail: this.supportEmail(),
+      privacyUrl: this.cfg.publicBaseUrl
+        ? `${this.cfg.publicBaseUrl}/privacy`
+        : '',
       isRtl: (p.locale || this.cfg.defaultLocale) === 'he',
     };
 
@@ -149,7 +153,16 @@ export class MailerService {
       brandName: this.cfg.brandName,
       brandUrl: this.cfg.publicBaseUrl || '',
       assetsBaseUrl: this.cfg.assetsBaseUrl || '',
+      supportEmail: this.supportEmail(),
+      privacyUrl: this.cfg.publicBaseUrl
+        ? `${this.cfg.publicBaseUrl}/privacy`
+        : '',
     };
+  }
+
+  private supportEmail() {
+    const m = this.cfg.fromAddress.match(/<(.+)>/);
+    return m ? m[1].trim() : this.cfg.fromAddress;
   }
 
   private formatMoney(minor: number, currency: string | null) {

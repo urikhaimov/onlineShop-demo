@@ -1,49 +1,86 @@
-<mjml>
-  <mj-head>
-    <mj-include path="./base.mjml" />
-  </mj-head>
+<mj-section padding="0 0 8px 0">
+  <mj-column>
+    <mj-text align="center" font-size="36px" padding="20px 0 4px 0" line-height="1">📦</mj-text>
+    <mj-text align="center" font-size="20px" font-weight="700" color="#111827" padding="0 0 4px 0">
+      {{#if isRtl}}ההזמנה שלך בדרך!{{else}}Your order is on its way!{{/if}}
+    </mj-text>
+    <mj-text align="center" font-size="14px" color="#6b7280" padding="0 0 20px 0">
+      {{#if isRtl}}הזמנה מספר <strong>#{{orderId}}</strong> נשלחה.{{else}}Order <strong>#{{orderId}}</strong> has been shipped.{{/if}}
+    </mj-text>
+  </mj-column>
+</mj-section>
 
-  <mj-body css-class="{{#if isRtl}}rtl{{/if}}">
-    <mj-section>
-      <mj-column>
-        <mj-text font-size="20px" font-weight="700">
-          {{ statusLabel }} — #{{ orderId }}
-        </mj-text>
+{{#if deliveryProvider}}
+<mj-section background-color="#F3F4F6" border-radius="10px" padding="16px 24px">
+  <mj-column>
+    <mj-text font-size="11px" font-weight="700" color="#9ca3af" padding="0 0 10px 0" align="{{alignStart}}">
+      {{#if isRtl}}פרטי משלוח{{else}}DELIVERY INFO{{/if}}
+    </mj-text>
 
-        <mj-text>{{ i.body }}</mj-text>
+    <mj-text font-size="13px" color="#6b7280" padding="0 0 2px 0" align="{{alignStart}}">
+      {{#if isRtl}}ספק{{else}}Carrier{{/if}}
+    </mj-text>
+    <mj-text font-size="14px" font-weight="600" color="#111827" padding="0 0 10px 0" align="{{alignStart}}">
+      {{deliveryProvider}}
+    </mj-text>
 
-        <mj-divider border-color="#E5E7EB" />
+    {{#if deliveryTracking}}
+    <mj-divider border-color="#e5e7eb" border-width="1px" padding="0 0 10px 0" />
+    <mj-text font-size="13px" color="#6b7280" padding="0 0 2px 0" align="{{alignStart}}">
+      {{#if isRtl}}מספר מעקב{{else}}Tracking number{{/if}}
+    </mj-text>
+    <mj-text font-size="14px" font-weight="600" color="#111827" padding="0 0 4px 0" align="{{alignStart}}">
+      {{deliveryTracking}}
+    </mj-text>
+    {{/if}}
 
-        <mj-text font-weight="600">{{ i.sections.delivery }}</mj-text>
-        <mj-text>
-          {{#if deliveryProvider}}{{ i.fields.provider }}: {{ deliveryProvider
-          }}<br />{{/if}} {{#if deliveryTracking}}{{ i.fields.tracking }}:
-          {{ deliveryTracking }}<br />{{/if}} {{#if deliveryEta
-          }}{{ i.fields.eta }}: {{ deliveryEta }}{{/if}}
-        </mj-text>
+    {{#if deliveryEta}}
+    <mj-divider border-color="#e5e7eb" border-width="1px" padding="0 0 10px 0" />
+    <mj-text font-size="13px" color="#6b7280" padding="0 0 2px 0" align="{{alignStart}}">
+      {{#if isRtl}}זמן אספקה משוער{{else}}Estimated arrival{{/if}}
+    </mj-text>
+    <mj-text font-size="14px" font-weight="600" color="#111827" padding="0" align="{{alignStart}}">
+      {{deliveryEta}}
+    </mj-text>
+    {{/if}}
+  </mj-column>
+</mj-section>
+{{/if}}
 
-        {{#if deliveryTrackingUrl}}
-        <mj-spacer height="8px" />
-        <mj-button href="{{ deliveryTrackingUrl }}">{{
-          i.actions.track
-        }}</mj-button>
-        {{/if}}
+{{#if deliveryTrackingUrl}}
+<mj-section padding="16px 0 0 0">
+  <mj-column>
+    <mj-button
+      href="{{deliveryTrackingUrl}}"
+      align="center"
+      inner-padding="14px 32px"
+      font-size="15px"
+      font-weight="600"
+      border-radius="8px"
+      background-color="#111827"
+      color="#ffffff"
+      rel="noopener"
+      target="_blank"
+    >
+      {{#if isRtl}}מעקב אחר המשלוח{{else}}Track My Order{{/if}}
+    </mj-button>
+  </mj-column>
+</mj-section>
+{{/if}}
 
-        <mj-divider border-color="#E5E7EB" />
-
-        <mj-text font-weight="600">{{ i.sections.shipping }}</mj-text>
-        <mj-text>
-          {{#if shippingName}}{{ shippingName }}<br />{{/if}}
-          {{#if shippingPhone}}{{ shippingPhone }}<br />{{/if}}
-          {{#if shippingLine1}}{{ shippingLine1 }}{{/if}}{{#if shippingCity}},
-          {{ shippingCity }}{{/if}}{{#if shippingPostalCode}}
-          {{ shippingPostalCode }}{{/if}}<br />
-          {{#if shippingCountry}}{{ shippingCountry }}{{/if}}
-        </mj-text>
-
-        <mj-spacer height="16px" />
-        <mj-button href="{{ brandUrl }}">{{ i.actions.back }}</mj-button>
-      </mj-column>
-    </mj-section>
-  </mj-body>
-</mjml>
+{{#if shippingName}}
+<mj-section padding="16px 0 0 0">
+  <mj-column>
+    <mj-divider border-color="#e5e7eb" border-width="1px" padding="0 0 12px 0" />
+    <mj-text font-size="13px" font-weight="600" color="#111827" padding="0 0 4px 0" align="{{alignStart}}">
+      {{#if isRtl}}כתובת משלוח{{else}}Shipping to{{/if}}
+    </mj-text>
+    <mj-text font-size="13px" color="#6b7280" padding="0" align="{{alignStart}}">
+      {{shippingName}}{{#if shippingPhone}}<br/>{{shippingPhone}}{{/if}}
+      {{#if shippingLine1}}<br/>{{shippingLine1}}{{/if}}
+      {{#if shippingCity}}, {{shippingCity}}{{/if}}
+      {{#if shippingPostalCode}} {{shippingPostalCode}}{{/if}}
+    </mj-text>
+  </mj-column>
+</mj-section>
+{{/if}}
