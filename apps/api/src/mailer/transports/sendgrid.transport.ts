@@ -8,26 +8,34 @@ export class SendgridTransport implements MailTransport {
     sgMail.setApiKey(cfg.sendgrid!.apiKey);
   }
   async send(msg: MailMessage) {
-    const [resp] = await sgMail.send({
-      from: this.cfg.fromAddress,
-      to: msg.to,
-      subject: msg.subject,
-      html: msg.html,
-      text: msg.text,
-      replyTo: msg.replyTo,
-      attachments: (msg.attachments || []).map((a) => ({
-        filename: a.filename,
-        type: a.contentType || 'application/octet-stream',
-        content: a.content.toString('base64'),
-        disposition: 'attachment',
-      })),
-      mailSettings: this.cfg.sandbox
-        ? { sandboxMode: { enable: true } }
-        : undefined,
-    });
-    const id =
-      (resp.headers['x-message-id'] as string) ||
-      (resp.headers['x-message-id'.toLowerCase()] as string);
-    return { ok: true, id };
+    try {
+      const [resp] = await sgMail.send({
+        from: this.cfg.fromAddress,
+        to: msg.to,
+        subject: msg.subject,
+        html: msg.html,
+        text: msg.text,
+        replyTo: msg.replyTo,
+        attachments: (msg.attachments || []).map((a) => ({
+          filename: a.filename,
+          type: a.contentType || 'application/octet-stream',
+          content: a.content.toString('base64'),
+          disposition: 'attachment',
+        })),
+        mailSettings: this.cfg.sandbox
+          ? { sandboxMode: { enable: true } }
+          : undefined,
+      });
+      const id =
+        (resp.headers['x-message-id'] as string) ||
+        (resp.headers['x-message-id'.toLowerCase()] as string);
+      return { ok: true, id };
+    } catch (err: any) {
+      const body = err?.response?.body;
+      const details = body
+        ? JSON.stringify(body)
+        : (err?.message ?? String(err));
+      throw new Error(`SendGrid error: ${details}`);
+    }
   }
 }

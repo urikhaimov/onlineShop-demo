@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { MailerService } from '../../mailer/mailer.service';
 import { InvoiceService } from '../../invoice/invoice.service';
 import type { PayPalOrder } from './paypal-payments.service';
@@ -10,9 +10,11 @@ export class OrderNotificationsService {
   private readonly logger = new Logger(OrderNotificationsService.name);
 
   constructor(
-    private readonly repo: OrdersRepository,
-    @Optional() private readonly mailer?: MailerService,
-    @Optional() private readonly invoice?: InvoiceService,
+    @Inject(OrdersRepository) private readonly repo: OrdersRepository,
+    @Optional() @Inject(MailerService) private readonly mailer?: MailerService,
+    @Optional()
+    @Inject(InvoiceService)
+    private readonly invoice?: InvoiceService,
   ) {}
 
   private getEmailFromOrder(order: any): string | undefined {
