@@ -211,21 +211,24 @@ export class InvoiceService {
       ];
       let metaY = 112;
       for (const [lbl, val] of meta) {
+        // Label and value in non-overlapping columns
+        const labelX = rtl ? pageRight - 140 : pageLeft + 12;
+        const valX = rtl ? pageLeft + 12 : pageLeft + 12;
+        const valW = rtl
+          ? pageRight - 140 - pageLeft - 8
+          : pageW - margin * 2 - 24;
+
         if (rtl && heb) doc.font(heb);
-        doc
-          .fontSize(9)
-          .fillColor('#6B7280')
-          .text(lbl, margin + 12, metaY, {
-            width: 100,
-            align: rtl ? 'right' : 'left',
-            continued: false,
-          });
+        doc.fontSize(9).fillColor('#6B7280').text(lbl, labelX, metaY, {
+          width: 140,
+          align: 'right',
+        });
         if (FACE) doc.font(FACE);
         doc
           .fontSize(9)
           .fillColor('#111827')
-          .text(val, margin + 12, metaY, {
-            width: pageW - margin * 2 - 24,
+          .text(val, valX, metaY, {
+            width: valW,
             align: rtl ? 'left' : 'right',
           });
         metaY += 18;
@@ -392,18 +395,22 @@ export class InvoiceService {
         .stroke();
       y += 12;
 
+      // RTL: no colon (layout separates label/value visually); LTR: trailing colon
       const label = (k: string) =>
-        rtl ? `${this.t(k, locale)}:${RLM}` : `${this.t(k, locale)}:`;
-      const rightBlockX = rtl ? pageLeft : pageRight - 200;
+        rtl ? this.t(k, locale) : `${this.t(k, locale)}:`;
+
+      // Summary block: label + value anchored to right edge of page
+      const summaryValW = colW.total;
+      const summaryLabelW = 120;
+      const summaryValX = pageRight - summaryValW;
+      const summaryLabelX = summaryValX - summaryLabelW - 8;
 
       const shippingCents = toInt(data.shippingCents);
       const discountCents = toInt(data.discountCents);
 
-      // We know how to show a breakdown only if we have priced rows OR an explicit subtotal
       const breakdownKnown =
         hasPrices || Number.isFinite((data as any).subtotalCents);
 
-      // computedSubtotal: from rows if priced, else from provided subtotal, else 0
       const computedSubtotal = hasPrices
         ? rows.reduce((s, r) => s + (r.total ?? 0), 0)
         : toInt(data.subtotalCents ?? 0);
@@ -411,22 +418,20 @@ export class InvoiceService {
       doc.fontSize(11).fillColor('#374151');
 
       let vatCents = 0;
-      const summaryLabelW = 110;
-      const summaryValX = x('total');
 
       const summaryRow = (lbl: string, val: string, bold = false) => {
         if (rtl && heb) doc.font(heb);
         else if (FACE) doc.font(FACE);
         if (bold) doc.fontSize(12).fillColor('#111827');
         else doc.fontSize(11).fillColor('#6B7280');
-        doc.text(lbl, rightBlockX, y, {
+        doc.text(lbl, summaryLabelX, y, {
           width: summaryLabelW,
           align: rtl ? 'right' : 'left',
         });
         if (FACE) doc.font(FACE);
         if (bold) doc.fontSize(12).fillColor('#111827');
         else doc.fontSize(11).fillColor('#111827');
-        doc.text(val, summaryValX, y, { width: colW.total, align: 'right' });
+        doc.text(val, summaryValX, y, { width: summaryValW, align: 'right' });
         y += lineH;
       };
 
@@ -470,7 +475,12 @@ export class InvoiceService {
         : toInt(data.amountCents);
 
       doc
-        .rect(rightBlockX - 8, y - 2, pageRight - rightBlockX + 8, lineH + 4)
+        .rect(
+          summaryLabelX - 8,
+          y - 2,
+          pageRight - summaryLabelX + 8,
+          lineH + 4,
+        )
         .fill('#F3F4F6');
       summaryRow(
         label('Total'),
