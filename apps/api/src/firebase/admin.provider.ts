@@ -16,8 +16,9 @@ function ensureAdminInitialized() {
     FB_ADMIN_CLIENT_EMAIL,
     FB_ADMIN_PRIVATE_KEY,
     FIREBASE_AUTH_EMULATOR_HOST,
-    ADMIN_STORAGE_BUCKET, // server env
-    VITE_FIREBASE_STORAGE_BUCKET, // optional fallback if reused
+    ADMIN_STORAGE_BUCKET,
+    FIREBASE_STORAGE_BUCKET,
+    VITE_FIREBASE_STORAGE_BUCKET,
   } = process.env;
 
   const projectId = FB_ADMIN_PROJECT_ID || 'onlinestoretemplate-59d3e';
@@ -26,8 +27,11 @@ function ensureAdminInitialized() {
     (b || '').trim().replace(/^gs:\/\//i, '');
 
   const storageBucket =
-    normalizeBucket(ADMIN_STORAGE_BUCKET || VITE_FIREBASE_STORAGE_BUCKET) ||
-    `${projectId}.firebasestorage.app`;
+    normalizeBucket(
+      ADMIN_STORAGE_BUCKET ||
+        FIREBASE_STORAGE_BUCKET ||
+        VITE_FIREBASE_STORAGE_BUCKET,
+    ) || `${projectId}.firebasestorage.app`;
 
   if (!getApps().length) {
     if (FIREBASE_AUTH_EMULATOR_HOST) {

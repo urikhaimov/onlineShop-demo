@@ -17,7 +17,8 @@ const {
   FB_ADMIN_PRIVATE_KEY,
   FIREBASE_AUTH_EMULATOR_HOST,
   ADMIN_STORAGE_BUCKET,
-  VITE_FIREBASE_STORAGE_BUCKET, // optional fallback if reused
+  FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_STORAGE_BUCKET,
   GCLOUD_PROJECT,
   GOOGLE_CLOUD_PROJECT,
   // set to "false" ONLY if you intentionally want the Storage emulator
@@ -43,7 +44,9 @@ function resolveProjectId(app?: App): string {
 function resolveBucketName(app?: App): string | undefined {
   const pid = resolveProjectId(app);
   const fromEnv = cleanBucketName(
-    ADMIN_STORAGE_BUCKET || VITE_FIREBASE_STORAGE_BUCKET,
+    ADMIN_STORAGE_BUCKET ||
+      FIREBASE_STORAGE_BUCKET ||
+      VITE_FIREBASE_STORAGE_BUCKET,
   );
   return fromEnv || (pid ? `${pid}.firebasestorage.app` : undefined);
 }
