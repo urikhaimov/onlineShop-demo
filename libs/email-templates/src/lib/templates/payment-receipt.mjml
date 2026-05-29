@@ -12,8 +12,8 @@
 </mj-section>
 
 <!-- ── Order summary card ── -->
-<mj-section background-color="#F3F4F6" border-radius="10px" padding="20px 24px">
-  <mj-column>
+<mj-section padding="0 0 16px 0">
+  <mj-column background-color="#F3F4F6" border-radius="10px" padding="20px 24px">
     <mj-text font-size="11px" font-weight="700" color="#9ca3af" padding="0 0 10px 0" align="{{alignStart}}">
       {{#if isHebrew}}פרטי הזמנה{{else}}ORDER SUMMARY{{/if}}
     </mj-text>
