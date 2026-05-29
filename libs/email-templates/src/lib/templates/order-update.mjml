@@ -22,7 +22,7 @@
 <mj-section padding="16px 0 0 0">
   <mj-column>
     <mj-button
-      href="{{brandUrl}}/orders"
+      href="{{brandUrl}}/my-orders"
       align="center"
       inner-padding="14px 32px"
       font-size="15px"
