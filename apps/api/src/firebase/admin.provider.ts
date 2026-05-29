@@ -23,14 +23,11 @@ function ensureAdminInitialized() {
   const projectId = FB_ADMIN_PROJECT_ID || 'onlinestoretemplate-59d3e';
 
   const normalizeBucket = (b?: string) =>
-    (b || '')
-      .trim()
-      .replace(/^gs:\/\//i, '')
-      .replace(/\.firebasestorage\.app$/i, '.appspot.com');
+    (b || '').trim().replace(/^gs:\/\//i, '');
 
   const storageBucket =
     normalizeBucket(ADMIN_STORAGE_BUCKET || VITE_FIREBASE_STORAGE_BUCKET) ||
-    `${projectId}.appspot.com`;
+    `${projectId}.firebasestorage.app`;
 
   if (!getApps().length) {
     if (FIREBASE_AUTH_EMULATOR_HOST) {
