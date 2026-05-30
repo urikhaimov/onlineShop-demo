@@ -29,9 +29,11 @@ export const ProtectedRoute: React.FC<Props> = ({ children }) => {
   }, [loading, user, location, setRedirectTo, setMessage]);
 
   // Demo mode: AuthProvider already provides a synthetic admin user.
-  // Skipped in E2E (VITE_E2E=true) so harness-injected useAuth() controls access.
-  if (isDemoAdmin() && import.meta.env.VITE_E2E !== 'true')
-    return <>{children}</>;
+  // Skipped in E2E so harness-injected useAuth() controls access.
+  const isE2E =
+    import.meta.env.VITE_E2E === 'true' ||
+    (window as any).__E2E_ALLOW__ === true;
+  if (isDemoAdmin() && !isE2E) return <>{children}</>;
 
   if (loading) {
     return (

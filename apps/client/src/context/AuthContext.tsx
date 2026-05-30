@@ -217,13 +217,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, [hardClear]);
 
-  // ── E2E bypass (build-time flag takes priority over demo mode) ────────────
-  // VITE_E2E=true is set in .env.e2e so every page uses reactive auth state
-  // (user starts null, isAuthReady always true) without the demo-admin
-  // synthetic user. Auth pages render their forms; protected pages redirect.
-  // Harness tests override useAuth() at the module level, so they still get
-  // the admin context injected by the fixture.
-  if (import.meta.env.VITE_E2E === 'true') {
+  // ── E2E bypass — must run BEFORE demoMode ─────────────────────────────────
+  // Two signals: build-time VITE_E2E=true (set via .env.e2e) OR runtime
+  // window.__E2E_ALLOW__ (injected by the Playwright page fixture).
+  // Either one means: return reactive auth state (user starts null,
+  // isAuthReady=true). Auth pages see an unauthenticated user and render
+  // their forms; harness tests override useAuth() at module level anyway.
+  const isE2E =
+    import.meta.env.VITE_E2E === 'true' ||
+    (typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true);
+
+  if (isE2E) {
     const e2eAbility = defineAbilityFor({
       user: (user ?? ({} as any)) as User,
       role: (role ?? 'admin') as any,
@@ -252,29 +256,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
   if (demoMode) {
     return (
       <AuthContext.Provider value={_DEMO_CTX}>{children}</AuthContext.Provider>
-    );
-  }
-
-  // Optional runtime E2E bypass (window.__E2E_ALLOW__ set by harness)
-  if (typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true) {
-    const e2eAbility = defineAbilityFor({
-      user: (user ?? ({} as any)) as User,
-      role: (role ?? 'admin') as any,
-    });
-    return (
-      <AuthContext.Provider
-        value={{
-          user,
-          role: (role ?? 'admin') as any,
-          ability: e2eAbility,
-          isAuthReady: true,
-          signInWithEmail,
-          hardClear,
-          logout,
-        }}
-      >
-        {children}
-      </AuthContext.Provider>
     );
   }
 

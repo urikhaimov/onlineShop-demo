@@ -18,6 +18,16 @@ type AppFixtures = {
 // ─── Extended test ───────────────────────────────────────────────────────────
 
 export const test = base.extend<AppFixtures>({
+  // Override the base page so __E2E_ALLOW__ is set on every page — including
+  // bare { page } tests. AuthContext checks this flag before demoMode so that
+  // auth pages see an unauthenticated user and render their forms correctly.
+  page: async ({ page }, use) => {
+    await page.addInitScript(() => {
+      (window as any).__E2E_ALLOW__ = true;
+    });
+    await use(page);
+  },
+
   // Full harness — most tests use this
   app: async ({ page }, use) => {
     await installHarness(page);
