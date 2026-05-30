@@ -17,10 +17,12 @@ import {
 import { Google, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useRedirect } from '../../context/RedirectContext';
 import type { LoginFormData } from '../../services/schemas/auth.schema';
 import { signInWithGoogleOrLink } from '../../auth/auth-google';
+import { isDemoAdmin } from '../../lib/demo-mode';
 
 type LoginFormInputs = { email: string; password: string };
 
@@ -55,6 +57,14 @@ const LoginPage = () => {
       navigate(fromState || redirectTo || fallback, { replace: true });
     }
   }, [user, redirectTo, location.state, navigate]);
+
+  // Demo mode: no login needed — go straight to the app.
+  // Skip in E2E (__E2E_ALLOW__) so auth-form tests can still run.
+  const isE2E =
+    typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true;
+  if (isDemoAdmin() && !isE2E) {
+    return <Navigate to={redirectTo || '/'} replace />;
+  }
 
   const onSubmit = async (data: LoginFormData) => {
     try {
