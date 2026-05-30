@@ -54,7 +54,10 @@ jobs:
 
       - name: Copy env file
         run: |
-          if [ -f .env.e2e ]; then cp .env.e2e .env; fi
+          if [ -f .env.e2e ]; then
+            cp .env.e2e .env
+            cp .env.e2e apps/client/.env
+          fi
 
       - name: Run Playwright tests (shard ${{ matrix.shard }})
         run: |
@@ -67,10 +70,19 @@ jobs:
           CI: true
           PW_HOST: 127.0.0.1
           PW_PORT: 5173
-          VITE_DEMO_ADMIN: 'false'
-          VITE_PAYPAL_CLIENT_ID: 'sb-test-client-id-e2e'
           E2E: '1'
           NODE_ENV: test
+          # Firebase (dummy values — all calls are mocked by Playwright harness)
+          VITE_FIREBASE_API_KEY: AIzaSyE2E_DUMMY_KEY_FOR_CI_TESTS_ONLY
+          VITE_FIREBASE_AUTH_DOMAIN: e2e-dummy-project.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: e2e-dummy-project
+          VITE_FIREBASE_STORAGE_BUCKET: e2e-dummy-project.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+          VITE_FIREBASE_APP_ID: '1:000000000000:web:e2etestdummyappid'
+          VITE_PAYPAL_CLIENT_ID: sb-e2e-dummy-paypal-client-id
+          VITE_DEMO_ADMIN: 'false'
+          VITE_API_BASE: http://127.0.0.1:3000/api
+          VITE_API_BASE_URL: http://127.0.0.1:3000/api
 
       - name: Upload test results
         if: always()
