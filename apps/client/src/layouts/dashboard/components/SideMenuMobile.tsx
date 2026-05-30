@@ -26,12 +26,12 @@ export default function SideMenuMobile({
   open,
   toggleDrawer,
 }: SideMenuMobileProps) {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      await logout();
       navigate(ROUTES.LOGIN, { replace: true }); // ← important
     } catch (err) {
       console.error('❌ Logout failed:', err);
@@ -66,7 +66,7 @@ export default function SideMenuMobile({
               <>
                 <Avatar
                   sizes="small"
-                  src={user.photoURL || '/default-avatar.png'}
+                  src={user.photoURL ?? undefined}
                   sx={{ width: 24, height: 24 }}
                 />
                 <Typography component="p" variant="h6">

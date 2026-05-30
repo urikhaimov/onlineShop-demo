@@ -12,6 +12,8 @@ export function useLandingPage() {
 
       return data;
     },
+    staleTime: 5 * 60 * 1000, // 5 min — admin can update via dashboard
+    gcTime: 30 * 60 * 1000,
   });
 }
 

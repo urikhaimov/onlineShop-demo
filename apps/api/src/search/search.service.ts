@@ -1,5 +1,5 @@
 // apps/server/src/search/search.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { SuggestionDTO } from './dto/suggestion.dto';
 import * as admin from 'firebase-admin';
@@ -42,7 +42,7 @@ export class SearchService {
   private readonly logger = new Logger(SearchService.name);
   private readonly fakeMode: boolean;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly config: ConfigService) {
     this.fakeMode = this.config.get('SEARCH_FAKE') === '1';
   }
 

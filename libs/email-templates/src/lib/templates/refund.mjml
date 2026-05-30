@@ -1,0 +1,29 @@
+<mj-section>
+  <mj-column>
+    <mj-text font-size="20px" font-weight="700" align="{{alignStart}}">
+      {{#if isHebrew}}{{#if isFull}}החזר מלא בוצע{{else}}החזר חלקי בוצע{{/if}}{{else}}{{#if isFull}}Full refund issued{{else}}Partial refund issued{{/if}}{{/if}}
+    </mj-text>
+
+    <mj-text align="{{alignStart}}" padding="8px 0">
+      {{#if isHebrew}}
+      הזמנה {{orderId}} זוכתה בסך {{amount}}.
+      {{else}}
+      Order {{orderId}} was refunded {{amount}}.
+      {{/if}}
+    </mj-text>
+
+    <mj-text align="{{alignStart}}" padding="4px 0">
+      <span class="muted small">{{#if isHebrew}}אמצעי תשלום{{else}}Charge{{/if}}</span>
+      <strong>{{chargeId}}</strong>
+    </mj-text>
+
+    {{#if refundIds.length}}
+    <mj-text align="{{alignStart}}" padding="8px 0 4px 0" font-weight="600">
+      {{#if isHebrew}}מזהי החזר{{else}}Refund IDs{{/if}}
+    </mj-text>
+    <mj-text align="{{alignStart}}" padding="0">
+      Refund IDs: {{#each refundIds}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+    </mj-text>
+    {{/if}}
+  </mj-column>
+</mj-section>

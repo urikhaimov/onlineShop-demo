@@ -156,7 +156,7 @@ export class InvoiceService {
   // ---------- PDF ----------
   async generatePdfBuffer(data: InvoiceInput): Promise<Buffer> {
     return await new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 56 });
+      const doc = new PDFDocument({ size: 'A4', margin: 0 });
       const chunks: Buffer[] = [];
       doc.on('data', (d) => chunks.push(d));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -166,39 +166,79 @@ export class InvoiceService {
       const locale = this.detectLocale(data);
       const rtl = locale.startsWith('he');
       const FACE = rtl && heb ? heb : (base ?? undefined);
-      if (FACE) doc.font(FACE);
 
-      const pageRight = 550,
-        pageLeft = 50;
+      const pageW = 595,
+        margin = 48,
+        pageRight = pageW - margin,
+        pageLeft = margin;
 
-      // Header
+      // ── Dark header band ──────────────────────────────────────────────────
+      doc.rect(0, 0, pageW, 80).fill('#1F2937');
+
+      const storeName = data.storeName ?? 'Store';
       if (rtl && heb) doc.font(heb);
-      doc.fontSize(22).text(data.storeName ?? 'Your Store', {
-        align: rtl ? 'left' : 'right',
-      });
-      doc.moveDown(0.3);
-      doc.fontSize(32).text(this.t('INVOICE', locale), {
-        align: rtl ? 'right' : 'left',
-      });
+      else if (FACE) doc.font(FACE);
+      doc
+        .fillColor('#ffffff')
+        .fontSize(14)
+        .text(storeName, margin, 22, {
+          width: pageW - margin * 2,
+          align: rtl ? 'right' : 'left',
+        });
+
+      doc
+        .fillColor('#9CA3AF')
+        .fontSize(11)
+        .text(this.t('INVOICE', locale), margin, 46, {
+          width: pageW - margin * 2,
+          align: rtl ? 'right' : 'left',
+        });
+
+      // ── Metadata box ─────────────────────────────────────────────────────
+      doc.rect(margin, 100, pageW - margin * 2, 72).fill('#F3F4F6');
+      doc.fillColor('#374151');
       if (FACE) doc.font(FACE);
-      doc.moveDown(0.6);
 
       const createdDate = new Date(data.createdAt);
       const createdStr = isNaN(createdDate.getTime())
         ? new Date().toLocaleDateString(locale)
         : createdDate.toLocaleDateString(locale);
-      const headerLines = [
-        `${this.t('Invoice #', locale)}: ${data.orderId}`,
-        `${this.t('Date', locale)}: ${createdStr}`,
-        `${this.t('Bill to', locale)}: ${data.email ?? '-'}`,
+
+      const meta = [
+        [`${this.t('Invoice #', locale)}:`, data.orderId],
+        [`${this.t('Date', locale)}:`, createdStr],
+        [`${this.t('Bill to', locale)}:`, data.email ?? '-'],
       ];
-      headerLines.forEach((line) =>
-        doc.fontSize(11).text(line, { align: rtl ? 'right' : 'left' }),
-      );
-      doc.moveDown(0.6);
+      let metaY = 112;
+      for (const [lbl, val] of meta) {
+        // Label and value in non-overlapping columns
+        const labelX = rtl ? pageRight - 140 : pageLeft + 12;
+        const valX = rtl ? pageLeft + 12 : pageLeft + 12;
+        const valW = rtl
+          ? pageRight - 140 - pageLeft - 8
+          : pageW - margin * 2 - 24;
+
+        if (rtl && heb) doc.font(heb);
+        doc.fontSize(9).fillColor('#6B7280').text(lbl, labelX, metaY, {
+          width: 140,
+          align: 'right',
+        });
+        if (FACE) doc.font(FACE);
+        doc
+          .fontSize(9)
+          .fillColor('#111827')
+          .text(val, valX, metaY, {
+            width: valW,
+            align: rtl ? 'left' : 'right',
+          });
+        metaY += 18;
+      }
+
+      doc.fillColor('#111827');
+      let y = 196;
 
       // Columns (flip for RTL)
-      const colW = { item: 300, qty: 50, price: 80, total: 80 };
+      const colW = { item: 270, qty: 50, price: 80, total: 80 };
       const x = (name: 'item' | 'qty' | 'price' | 'total') => {
         if (!rtl) {
           if (name === 'item') return pageLeft;
@@ -219,37 +259,29 @@ export class InvoiceService {
         }
       };
 
-      // === Table header ===
-      doc.fontSize(12);
+      // === Table header (gray band) ===
+      doc.rect(pageLeft, y, pageRight - pageLeft, 22).fill('#E5E7EB');
+      doc.fillColor('#374151').fontSize(10);
       if (rtl && heb) doc.font(heb);
-      const headerY = doc.y;
-      doc.text(this.t('Item', locale), x('item'), headerY, {
+      doc.text(this.t('Item', locale), x('item'), y + 6, {
         width: colW.item,
         align: rtl ? 'right' : 'left',
       });
       if (FACE) doc.font(FACE);
-      doc.text(this.t('Qty', locale), x('qty'), headerY, {
+      doc.text(this.t('Qty', locale), x('qty'), y + 6, {
         width: colW.qty,
         align: 'right',
       });
-      doc.text(this.t('Price', locale), x('price'), headerY, {
+      doc.text(this.t('Price', locale), x('price'), y + 6, {
         width: colW.price,
         align: 'right',
       });
-      doc.text(this.t('Total', locale), x('total'), headerY, {
+      doc.text(this.t('Total', locale), x('total'), y + 6, {
         width: colW.total,
         align: 'right',
       });
-
-      const headerLineY = headerY + doc.currentLineHeight() + 2;
-      doc
-        .moveTo(pageLeft, headerLineY)
-        .lineTo(pageRight, headerLineY)
-        .lineWidth(0.5)
-        .strokeColor('#777')
-        .stroke();
-
-      let y = headerLineY + 10;
+      y += 28;
+      doc.fillColor('#111827');
 
       // Rows
       type Row = { label: string; qty: number; price?: number; total?: number };
@@ -273,34 +305,29 @@ export class InvoiceService {
       const ensureSpace = () => {
         if (y > doc.page.height - 140) {
           doc.addPage();
-          const hY = 56;
-          doc.fontSize(12);
+          const hY = 48;
+          doc.rect(pageLeft, hY, pageRight - pageLeft, 22).fill('#E5E7EB');
+          doc.fillColor('#374151').fontSize(10);
           if (rtl && heb) doc.font(heb);
-          doc.text(this.t('Item', locale), x('item'), hY, {
+          doc.text(this.t('Item', locale), x('item'), hY + 6, {
             width: colW.item,
             align: rtl ? 'right' : 'left',
           });
           if (FACE) doc.font(FACE);
-          doc.text(this.t('Qty', locale), x('qty'), hY, {
+          doc.text(this.t('Qty', locale), x('qty'), hY + 6, {
             width: colW.qty,
             align: 'right',
           });
-          doc.text(this.t('Price', locale), x('price'), hY, {
+          doc.text(this.t('Price', locale), x('price'), hY + 6, {
             width: colW.price,
             align: 'right',
           });
-          doc.text(this.t('Total', locale), x('total'), hY, {
+          doc.text(this.t('Total', locale), x('total'), hY + 6, {
             width: colW.total,
             align: 'right',
           });
-          const lh = hY + doc.currentLineHeight() + 2;
-          doc
-            .moveTo(pageLeft, lh)
-            .lineTo(pageRight, lh)
-            .lineWidth(0.5)
-            .strokeColor('#777')
-            .stroke();
-          y = lh + 10;
+          doc.fillColor('#111827');
+          y = hY + 28;
         }
       };
 
@@ -359,75 +386,74 @@ export class InvoiceService {
       }
 
       // ---------- Summary separator ----------
-      y += 6;
+      y += 8;
       doc
         .moveTo(pageLeft, y)
         .lineTo(pageRight, y)
         .lineWidth(0.5)
-        .strokeColor('#777')
+        .strokeColor('#E5E7EB')
         .stroke();
-      y += 10;
+      y += 12;
 
+      // RTL: no colon (layout separates label/value visually); LTR: trailing colon
       const label = (k: string) =>
-        rtl ? `${this.t(k, locale)}:${RLM}` : `${this.t(k, locale)}:`;
-      const rightBlockX = rtl ? x('price') : 350;
+        rtl ? this.t(k, locale) : `${this.t(k, locale)}:`;
+
+      // Summary block: label + value anchored to right edge of page
+      const summaryValW = colW.total;
+      const summaryLabelW = 120;
+      const summaryValX = pageRight - summaryValW;
+      const summaryLabelX = summaryValX - summaryLabelW - 8;
 
       const shippingCents = toInt(data.shippingCents);
       const discountCents = toInt(data.discountCents);
 
-      // We know how to show a breakdown only if we have priced rows OR an explicit subtotal
       const breakdownKnown =
         hasPrices || Number.isFinite((data as any).subtotalCents);
 
-      // computedSubtotal: from rows if priced, else from provided subtotal, else 0
       const computedSubtotal = hasPrices
         ? rows.reduce((s, r) => s + (r.total ?? 0), 0)
         : toInt(data.subtotalCents ?? 0);
 
-      doc.fontSize(12);
+      doc.fontSize(11).fillColor('#374151');
 
       let vatCents = 0;
 
+      const summaryRow = (lbl: string, val: string, bold = false) => {
+        if (rtl && heb) doc.font(heb);
+        else if (FACE) doc.font(FACE);
+        if (bold) doc.fontSize(12).fillColor('#111827');
+        else doc.fontSize(11).fillColor('#6B7280');
+        doc.text(lbl, summaryLabelX, y, {
+          width: summaryLabelW,
+          align: rtl ? 'right' : 'left',
+        });
+        if (FACE) doc.font(FACE);
+        if (bold) doc.fontSize(12).fillColor('#111827');
+        else doc.fontSize(11).fillColor('#111827');
+        doc.text(val, summaryValX, y, { width: summaryValW, align: 'right' });
+        y += lineH;
+      };
+
       // ---------- Breakdown (only if we actually know it) ----------
       if (breakdownKnown) {
-        // Subtotal
-        doc.text(label('Subtotal'), rightBlockX, y, {
-          width: 120,
-          align: 'left',
-        });
-        doc.text(
+        summaryRow(
+          label('Subtotal'),
           this.formatMoney(computedSubtotal, data.currency, locale),
-          x('total'),
-          y,
-          { width: colW.total, align: 'right' },
         );
-        y += lineH;
 
-        // Shipping (optional)
-        if (shippingCents !== 0) {
-          doc.text(label('Shipping'), rightBlockX, y, { width: 120 });
-          doc.text(
+        if (shippingCents !== 0)
+          summaryRow(
+            label('Shipping'),
             this.formatMoney(shippingCents, data.currency, locale),
-            x('total'),
-            y,
-            { width: colW.total, align: 'right' },
           );
-          y += lineH;
-        }
 
-        // Discount (optional; positive value printed as negative)
-        if (discountCents > 0) {
-          doc.text(label('Discount'), rightBlockX, y, { width: 120 });
-          doc.text(
+        if (discountCents > 0)
+          summaryRow(
+            label('Discount'),
             `-${this.formatMoney(discountCents, data.currency, locale)}`,
-            x('total'),
-            y,
-            { width: colW.total, align: 'right' },
           );
-          y += lineH;
-        }
 
-        // VAT (optional)
         if (typeof data.vatRate === 'number' && data.vatRate > 0) {
           let vatBase =
             computedSubtotal +
@@ -435,38 +461,31 @@ export class InvoiceService {
             (DISCOUNT_BEFORE_TAX ? discountCents : 0);
           if (vatBase < 0) vatBase = 0;
           vatCents = Math.round(vatBase * data.vatRate);
-
-          const vatLabel = `${this.t('VAT', locale)} (${Math.round(
-            data.vatRate * 100,
-          )}%)`;
-          doc.text(
+          const vatLabel = `${this.t('VAT', locale)} (${Math.round(data.vatRate * 100)}%)`;
+          summaryRow(
             rtl ? `${vatLabel}:${RLM}` : `${vatLabel}:`,
-            rightBlockX,
-            y,
-            { width: 120 },
-          );
-          doc.text(
             this.formatMoney(vatCents, data.currency, locale),
-            x('total'),
-            y,
-            { width: colW.total, align: 'right' },
           );
-          y += lineH;
         }
       }
 
-      // ---------- Total ----------
+      // ---------- Total (highlighted row) ----------
       const totalCents = breakdownKnown
         ? computedSubtotal + shippingCents - discountCents + vatCents
         : toInt(data.amountCents);
 
-      doc.fontSize(13);
-      doc.text(label('Total'), rightBlockX, y, { width: 120 });
-      doc.text(
+      doc
+        .rect(
+          summaryLabelX - 8,
+          y - 2,
+          pageRight - summaryLabelX + 8,
+          lineH + 4,
+        )
+        .fill('#F3F4F6');
+      summaryRow(
+        label('Total'),
         this.formatMoney(totalCents, data.currency, locale),
-        x('total'),
-        y,
-        { width: colW.total, align: 'right' },
+        true,
       );
 
       doc.end();

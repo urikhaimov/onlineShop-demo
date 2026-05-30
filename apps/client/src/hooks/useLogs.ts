@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import axiosInstance from '../api/axiosInstance';
 import { SecurityLog } from '../api/logs';
+import { isDemoAdmin } from '../lib/demo-mode';
 
 export async function fetchLogs(categoryId?: string): Promise<SecurityLog[]> {
   // Adjust your API endpoint as needed
@@ -15,5 +16,6 @@ export function useLogs(categoryId?: string) {
     queryFn: () => fetchLogs(categoryId),
     staleTime: 1000 * 60 * 2, // 2-minute cache
     refetchOnWindowFocus: false,
+    enabled: !isDemoAdmin(),
   });
 }

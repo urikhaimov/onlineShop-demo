@@ -1,18 +1,43 @@
-// src/orders/orders.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+
 import { OrdersController } from './orders.controller';
 import { OrdersPublicController } from './orders.public.controller';
+import { OrdersPayPalWebhookController } from './orders.webhook.controller';
+
 import { OrdersService } from './orders.service';
-import { MailerModule } from '../mailer/mailer.module';
+import { OrdersRepository } from './repositories/orders.repository';
+
+import { OrdersPricingService } from './services/orders-pricing.service';
+import { OrderNotificationsService } from './services/order-notifications.service';
+import { OrdersQueriesService } from './services/orders-queries.service';
+import { OrdersLifecycleService } from './services/orders-lifecycle.service';
+import { OrdersDraftsService } from './services/orders-drafts.service';
+import { OrdersPaymentFlowService } from './services/orders-payment-flow.service';
+import { OrdersWebhookService } from './services/orders-webhook.service';
+
+import { MailerModule } from '../mailer';
 import { InvoiceService } from '../invoice/invoice.service';
+import { PayPalModule } from '../paypal/paypal.module';
 
 @Module({
-  imports: [ConfigModule, MailerModule],
-  controllers: [OrdersController, OrdersPublicController],
+  imports: [ConfigModule, MailerModule, PayPalModule],
+  controllers: [
+    OrdersController,
+    OrdersPublicController,
+    OrdersPayPalWebhookController,
+  ],
   providers: [
     OrdersService,
-    InvoiceService, // keep here unless you also make an InvoiceModule
+    OrdersRepository,
+    OrdersPricingService,
+    OrderNotificationsService,
+    OrdersQueriesService,
+    OrdersLifecycleService,
+    OrdersDraftsService,
+    OrdersPaymentFlowService,
+    OrdersWebhookService,
+    InvoiceService,
   ],
   exports: [OrdersService],
 })

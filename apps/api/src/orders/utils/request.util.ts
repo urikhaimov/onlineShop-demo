@@ -4,8 +4,8 @@ import type { Request } from 'express';
 /** Request shape when Nest is created with { rawBody: true } or route uses bodyParser.raw() */
 export type NestRawRequest = Request & { rawBody?: Buffer };
 
-/** Safely grab the raw Buffer that Stripe needs for signature verification. */
-export function getStripeRawBody(req: NestRawRequest): Buffer | undefined {
+/** Safely grab the raw Buffer needed for webhook signature verification. */
+export function getRawBody(req: NestRawRequest): Buffer | undefined {
   if (!req) return undefined;
 
   // Preferred: NestFactory.create(..., { rawBody: true })

@@ -1,13 +1,19 @@
 // src/app/app.module.ts
 import {
-  Module,
   MiddlewareConsumer,
+  Module,
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
-import { APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { I18nModule, I18nValidationPipe } from 'nestjs-i18n';
+import {
+  AcceptLanguageResolver,
+  HeaderResolver,
+  I18nModule,
+  I18nValidationPipe,
+  QueryResolver,
+} from 'nestjs-i18n';
 import { join } from 'path';
 
 import { DatabaseModule } from '../database/database.module';
@@ -17,15 +23,15 @@ import { UsersModule } from '../users/users.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { ImageProxyController } from '../image-proxy/image-proxy.controller';
 import { ThemeSettingsModule } from '../theme/theme-settings.module';
+import { SettingsModule } from '../settings/settings.module';
 import { LandingPageModule } from '../landing-page/landing-page.module';
 import { SecurityLogsModule } from '../security-logs/security-logs.module';
 import { AuthClientModule } from 'auth-client';
 import { AuthModule } from '../auth/auth.module';
 import { SearchModule } from '../search/search.module';
 import { HealthController } from '../health/health.controller';
-import { StripeWebhookController } from '../payments/stripe-webhook.controller';
-import { StripeModule } from '../stripe/stripe.module';
-import { PaymentsModule } from '../payments/payments.module';
+
+import { PayPalModule } from '../paypal/paypal.module';
 
 // ✅ Mailer singleton (provided & exported by MailerModule)
 import { MailerModule } from '../mailer/mailer.module';
@@ -37,7 +43,10 @@ import { DevModule } from '../dev/dev.module';
 import { TestModule } from '../test/test.module';
 
 // 🔒 Rate limit (toggleable per request via env)
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+
+// 🛰️ Global exception filter (Sentry capture + safe response shape)
+import { SentryFilter } from '../sentry.filter';
 
 const devOnlyModules = process.env.NODE_ENV === 'production' ? [] : [DevModule];
 const testRoutesModules =
@@ -57,6 +66,11 @@ const testRoutesModules =
         path: join(__dirname, 'i18n'),
         watch: process.env.NODE_ENV !== 'production',
       },
+      resolvers: [
+        { use: QueryResolver, options: ['lang', 'locale'] },
+        { use: HeaderResolver, options: ['x-lang', 'accept-language'] },
+        AcceptLanguageResolver,
+      ],
     }),
 
     // Core/feature modules
@@ -64,28 +78,24 @@ const testRoutesModules =
     AuthClientModule,
     AuthModule,
     ProductsModule,
-    OrdersModule, // exports OrdersService (used by StripeWebhookController)
+    OrdersModule,
     UsersModule,
     CategoriesModule,
     LandingPageModule,
     ThemeSettingsModule,
+    SettingsModule,
     SecurityLogsModule,
     SearchModule,
 
     // Integrations
     MailerModule, // if marked @Global(), import is harmless; otherwise required
-    StripeModule,
-    PaymentsModule,
+    PayPalModule,
 
     // Dev / Test (conditional)
     ...devOnlyModules,
     ...testRoutesModules,
   ],
-  controllers: [
-    ImageProxyController,
-    HealthController,
-    StripeWebhookController, // uses OrdersService (+ optional Mailer/Invoice)
-  ],
+  controllers: [ImageProxyController, HealthController],
   providers: [
     // 🌍 Global validation pipe (i18n-aware)
     {
@@ -98,24 +108,33 @@ const testRoutesModules =
           validationError: { target: false, value: false },
         }),
     },
+    // 🛰️ Global exception filter — captures to Sentry and returns safe response
+    { provide: APP_FILTER, useClass: SentryFilter },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // ⏱️ Apply a 10 req/min/IP limiter to create-intent.
-    // Enabled only when RATE_LIMIT_ENABLED=1 (useful for e2e that assert 429).
-    const createIntentLimiter = rateLimit({
+    // ⏱️ Per-IP limiter for payment-creation endpoints. Tighter cap because
+    // each call costs an outbound PayPal API request.
+    // Enabled by default in production; toggleable via RATE_LIMIT_ENABLED.
+    const enabled =
+      process.env.RATE_LIMIT_ENABLED === '1' ||
+      process.env.NODE_ENV === 'production';
+    const paymentsLimiter = rateLimit({
       windowMs: 60_000,
       max: 10,
       standardHeaders: true,
       legacyHeaders: false,
-      keyGenerator: (req: any) => req.ip ?? 'unknown',
-      skip: () => process.env.RATE_LIMIT_ENABLED !== '1',
+      // ipKeyGenerator handles IPv6 safely; required by express-rate-limit v7
+      keyGenerator: (req: any) => (req.ip ? ipKeyGenerator(req.ip) : 'unknown'),
+      skip: () => !enabled,
     });
 
-    consumer.apply(createIntentLimiter).forRoutes({
-      path: 'payments/create-payment-intent',
-      method: RequestMethod.POST,
-    });
+    consumer
+      .apply(paymentsLimiter)
+      .forRoutes(
+        { path: 'orders/create-paypal-order', method: RequestMethod.POST },
+        { path: 'orders/capture-paypal-order', method: RequestMethod.POST },
+      );
   }
 }

@@ -70,11 +70,12 @@ export default defineConfig(async () => {
     },
 
     build: {
-      rollupOptions: { external: ['motion-dom'] },
+      rollupOptions: {},
       emptyOutDir: true,
       outDir: '../../dist/apps/client',
       reportCompressedSize: true,
       commonjsOptions: { transformMixedEsModules: true },
+      chunkSizeWarningLimit: 1000,
     },
 
     // 👇 Expose E2E flag to the client code

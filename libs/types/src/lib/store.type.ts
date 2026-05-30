@@ -6,6 +6,6 @@ export interface IStoreConfig {
   font: string;
   layout: 'grid' | 'list';
   currency: string;
-  stripeKey: string;
+  paypalClientId?: string;
   mode?: 'light' | 'dark'; // optional for dark mode support
 }

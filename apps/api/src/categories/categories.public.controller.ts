@@ -1,5 +1,5 @@
 // src/categories/categories.public.controller.ts
-import { Controller, Get, Query, Res, Logger } from '@nestjs/common';
+import { Controller, Get, Inject, Logger, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { CategoriesService } from './categories.service';
 import { ListCategoriesDto } from './dto/list-categories.dto';
@@ -7,7 +7,9 @@ import { ListCategoriesDto } from './dto/list-categories.dto';
 @Controller('categories/public')
 export class CategoriesPublicController {
   private readonly logger = new Logger(CategoriesPublicController.name);
-  constructor(private readonly svc: CategoriesService) {}
+  constructor(
+    @Inject(CategoriesService) private readonly svc: CategoriesService,
+  ) {}
 
   @Get()
   async list(@Query() q: ListCategoriesDto, @Res() res: Response) {

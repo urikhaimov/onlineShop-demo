@@ -1,11 +1,12 @@
-import type { SxProps, Theme } from '@mui/material';
+import type { Theme } from '@mui/material';
+import type { SystemStyleObject } from '@mui/system';
 import type { ColumnMeta } from './columnMeta';
 
 export const getStickyStyles = (
   theme: Theme,
   meta?: ColumnMeta,
   rightGap = 0,
-): SxProps<Theme> => {
+): SystemStyleObject<Theme> => {
   if (meta?.sticky === 'left') {
     return {
       position: 'sticky',
@@ -25,7 +26,9 @@ export const getStickyStyles = (
   return {};
 };
 
-export const responsiveVisibility = (meta?: ColumnMeta): SxProps<Theme> =>
+export const responsiveVisibility = (
+  meta?: ColumnMeta,
+): SystemStyleObject<Theme> =>
   meta?.hiddenOnMobile
     ? { display: { xs: 'none', sm: 'none', md: 'none', lg: 'table-cell' } }
     : {};

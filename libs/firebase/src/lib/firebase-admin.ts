@@ -6,46 +6,58 @@ import { cert } from 'firebase-admin/app';
 const isTest =
   process.env['NODE_ENV'] === 'test' || !!process.env['JEST_WORKER_ID'];
 
-const projectId = process.env['FB_ADMIN_PROJECT_ID'];
-const clientEmail = process.env['FB_ADMIN_CLIENT_EMAIL'];
-// Handle escaped newlines coming from env files/CI
-const rawPk = process.env['FB_ADMIN_PRIVATE_KEY'];
-const privateKey =
-  rawPk && rawPk.includes('\\n') ? rawPk.replace(/\\n/g, '\n') : rawPk;
+function parsePrivateKey(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  // Strip surrounding quotes that some platforms add
+  let key = raw.replace(/^["']|["']$/g, '');
+  // Replace literal \n (two chars) with real newlines
+  if (key.includes('\\n')) key = key.replace(/\\n/g, '\n');
+  return key;
+}
 
-const hasServiceAccount = !!projectId && !!clientEmail && !!privateKey;
+function resolveCredential() {
+  // Prefer a full service-account JSON blob — avoids all newline-escaping issues
+  const jsonBlob = process.env['FB_ADMIN_SERVICE_ACCOUNT_JSON'];
+  if (jsonBlob) {
+    try {
+      return JSON.parse(jsonBlob);
+    } catch {
+      throw new Error('FB_ADMIN_SERVICE_ACCOUNT_JSON is not valid JSON');
+    }
+  }
+
+  const projectId = process.env['FB_ADMIN_PROJECT_ID'];
+  const clientEmail = process.env['FB_ADMIN_CLIENT_EMAIL'];
+  const privateKey = parsePrivateKey(process.env['FB_ADMIN_PRIVATE_KEY']);
+  if (!projectId || !clientEmail || !privateKey) return null;
+
+  return {
+    projectId,
+    privateKeyId: process.env['FB_ADMIN_PRIVATE_KEY_ID'],
+    privateKey,
+    clientEmail,
+    clientId: process.env['FB_ADMIN_CLIENT_ID'],
+    authUri: process.env['FB_ADMIN_AUTH_URI'],
+    tokenUri: process.env['FB_ADMIN_TOKEN_URI'],
+    authProviderX509CertUrl:
+      process.env['FB_ADMIN_AUTH_PROVIDER_X509_CERT_URL'],
+    clientX509CertUrl: process.env['FB_ADMIN_CLIENT_X509_CERT_URL'],
+  };
+}
+
+const projectId = process.env['FB_ADMIN_PROJECT_ID'];
 
 if (!admin.apps.length) {
   if (isTest) {
-    // ✅ In tests, avoid real credentials. Use a dummy project id.
-    admin.initializeApp({
-      projectId: projectId || 'demo-test',
-    });
-  } else if (hasServiceAccount) {
-    admin.initializeApp({
-      credential: cert({
-        projectId,
-        privateKeyId: process.env['FB_ADMIN_PRIVATE_KEY_ID'],
-        privateKey,
-        clientEmail,
-        // The extra fields below are optional; kept for completeness.
-        clientId: process.env['FB_ADMIN_CLIENT_ID'],
-        authUri: process.env['FB_ADMIN_AUTH_URI'],
-        tokenUri: process.env['FB_ADMIN_TOKEN_URI'],
-        authProviderX509CertUrl:
-          process.env['FB_ADMIN_AUTH_PROVIDER_X509_CERT_URL'],
-        // Fix typo: clientX509CertUrl (not clientC509CertUrl)
-        clientX509CertUrl: process.env['FB_ADMIN_CLIENT_X509_CERT_URL'],
-        // ❌ no `type`
-        // ❌ no `universe_domain`
-      } as any),
-      projectId,
-    });
+    admin.initializeApp({ projectId: projectId || 'demo-test' });
   } else {
-    // Fallback: try ADC (e.g., GOOGLE_APPLICATION_CREDENTIALS) if present.
-    // If not configured, admin SDK will throw on first access — which is fine for environments
-    // that mock @common/firebase in tests.
-    admin.initializeApp();
+    const credential = resolveCredential();
+    if (credential) {
+      admin.initializeApp({ credential: cert(credential as any), projectId });
+    } else {
+      // Fallback: ADC (GOOGLE_APPLICATION_CREDENTIALS) or throws on first use
+      admin.initializeApp();
+    }
   }
 }
 

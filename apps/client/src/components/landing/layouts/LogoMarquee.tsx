@@ -9,7 +9,8 @@ const scroll = keyframes`
 `;
 
 type LogoMarqueeProps = {
-  logos: { src: string; alt?: string; width?: number; height?: number }[];
+  logos?: { src: string; alt?: string; width?: number; height?: number }[];
+  children?: React.ReactNode;
   speedSec?: number; // default 40
   gap?: number; // default 24
   height?: number; // optional fixed row height
@@ -17,6 +18,7 @@ type LogoMarqueeProps = {
 
 export default function LogoMarquee({
   logos = [],
+  children,
   speedSec = 40,
   gap = 24,
   height,
@@ -26,6 +28,14 @@ export default function LogoMarquee({
 
   // Duplicate the list so it loops seamlessly
   const track = React.useMemo(() => [...logos, ...logos], [logos]);
+  const childArray = React.useMemo(
+    () => React.Children.toArray(children),
+    [children],
+  );
+  const childTrack = React.useMemo(
+    () => [...childArray, ...childArray],
+    [childArray],
+  );
 
   return (
     <Box
@@ -55,17 +65,23 @@ export default function LogoMarquee({
           },
         }}
       >
-        {track.map((logo, i) => (
-          <Box key={`${logo.src}-${i}`} sx={{ display: 'inline-flex' }}>
-            <img
-              src={logo.src}
-              alt={logo.alt ?? 'logo'}
-              width={logo.width}
-              height={logo.height}
-              draggable={false}
-            />
-          </Box>
-        ))}
+        {childArray.length > 0
+          ? childTrack.map((child, i) => (
+              <Box key={i} sx={{ display: 'inline-flex' }}>
+                {child}
+              </Box>
+            ))
+          : track.map((logo, i) => (
+              <Box key={`${logo.src}-${i}`} sx={{ display: 'inline-flex' }}>
+                <img
+                  src={logo.src}
+                  alt={logo.alt ?? 'logo'}
+                  width={logo.width}
+                  height={logo.height}
+                  draggable={false}
+                />
+              </Box>
+            ))}
       </Box>
     </Box>
   );

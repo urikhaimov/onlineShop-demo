@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAdminOrdersStore } from '../stores/useAdminOrdersStore';
+import {
+  useAdminOrdersStore,
+  type AdminOrderFilterState,
+} from '../stores/useAdminOrdersStore';
 
 export const ADMIN_ORDER_FILTER_PARAM_KEYS = [
   'f_email',
@@ -21,7 +24,7 @@ export const clearAdminOrderFiltersInSearchParams = (
   ADMIN_ORDER_FILTER_PARAM_KEYS.forEach((k) => params.delete(k));
 };
 
-type AdminOrderFilters = ReturnType<typeof useAdminOrdersStore>['filters'];
+type AdminOrderFilters = AdminOrderFilterState;
 
 const toNum = (v: string | null): number | null => {
   if (v === null || v === '') return null;

@@ -17,7 +17,8 @@ const {
   FB_ADMIN_PRIVATE_KEY,
   FIREBASE_AUTH_EMULATOR_HOST,
   ADMIN_STORAGE_BUCKET,
-  VITE_FIREBASE_STORAGE_BUCKET, // optional fallback if reused
+  FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_STORAGE_BUCKET,
   GCLOUD_PROJECT,
   GOOGLE_CLOUD_PROJECT,
   // set to "false" ONLY if you intentionally want the Storage emulator
@@ -43,9 +44,36 @@ function resolveProjectId(app?: App): string {
 function resolveBucketName(app?: App): string | undefined {
   const pid = resolveProjectId(app);
   const fromEnv = cleanBucketName(
-    ADMIN_STORAGE_BUCKET || VITE_FIREBASE_STORAGE_BUCKET,
+    ADMIN_STORAGE_BUCKET ||
+      FIREBASE_STORAGE_BUCKET ||
+      VITE_FIREBASE_STORAGE_BUCKET,
   );
   return fromEnv || (pid ? `${pid}.firebasestorage.app` : undefined);
+}
+
+function resolveCredential() {
+  if (FIREBASE_AUTH_EMULATOR_HOST) return null;
+  if (FB_ADMIN_CLIENT_EMAIL && FB_ADMIN_PRIVATE_KEY) {
+    return cert({
+      projectId: resolveProjectId(),
+      clientEmail: FB_ADMIN_CLIENT_EMAIL,
+      privateKey: FB_ADMIN_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    });
+  }
+  const jsonBlob = process.env.FB_ADMIN_SERVICE_ACCOUNT_JSON;
+  if (jsonBlob) {
+    try {
+      const sa = JSON.parse(jsonBlob);
+      return cert({
+        projectId: sa.project_id,
+        clientEmail: sa.client_email,
+        privateKey: sa.private_key,
+      });
+    } catch {
+      // fall through to applicationDefault
+    }
+  }
+  return applicationDefault();
 }
 
 export function getAdminApp(): App {
@@ -54,19 +82,9 @@ export function getAdminApp(): App {
 
   const projectId = resolveProjectId();
   const storageBucket = resolveBucketName();
+  const credential = resolveCredential();
 
-  const base = FIREBASE_AUTH_EMULATOR_HOST
-    ? { projectId }
-    : FB_ADMIN_CLIENT_EMAIL && FB_ADMIN_PRIVATE_KEY
-      ? {
-          credential: cert({
-            projectId,
-            clientEmail: FB_ADMIN_CLIENT_EMAIL,
-            privateKey: FB_ADMIN_PRIVATE_KEY.replace(/\\n/g, '\n'),
-          }),
-          projectId,
-        }
-      : { credential: applicationDefault(), projectId };
+  const base = credential ? { credential, projectId } : { projectId };
 
   return initializeApp({ ...base, storageBucket });
 }

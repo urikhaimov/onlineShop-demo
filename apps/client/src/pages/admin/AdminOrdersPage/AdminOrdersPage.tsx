@@ -49,6 +49,7 @@ import { db } from '../../../firebase';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 import { useOrdersQuery } from '../../../hooks/useOrdersQuery';
+import { isDemoAdmin } from '../../../lib/demo-mode';
 
 // ⬇️ NEW: header + CSV
 import AdminHeaderBar from '../../../components/AdminHeaderBar';
@@ -226,7 +227,7 @@ export default function AdminOrdersPage() {
     isError,
     error,
     refetch,
-  } = useOrdersQuery(serverParams, { enabled: true });
+  } = useOrdersQuery(serverParams, { enabled: !isDemoAdmin() });
 
   const data = orderResult?.items ?? [];
 
@@ -334,7 +335,9 @@ export default function AdminOrdersPage() {
 
         <Divider sx={{ my: 2 }} />
 
-        {isFetching ? (
+        {isDemoAdmin() ? (
+          <NotFound message={t('adminOrdersPage.notFound')} />
+        ) : isFetching ? (
           <LoadingProgress />
         ) : isError ? (
           <Typography color="error" sx={{ p: 2 }}>

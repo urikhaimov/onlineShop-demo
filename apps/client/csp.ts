@@ -17,11 +17,28 @@ const GCP = [
   'https://*.gstatic.com',
 ];
 
-// Stripe endpoints we need
-const STRIPE = {
-  script: ['https://js.stripe.com'],
-  connect: ['https://api.stripe.com', 'https://m.stripe.network'],
-  frame: ['https://js.stripe.com', 'https://hooks.stripe.com'],
+// Domains that Google Sign-In and Firebase Auth need to LOAD scripts from
+// (separate from connect/frame; CSP differentiates).
+const GOOGLE_SCRIPTS = [
+  'https://apis.google.com',
+  'https://accounts.google.com',
+  'https://www.gstatic.com',
+];
+
+// Google Sign-In renders its consent popup in an iframe from these origins.
+const GOOGLE_FRAMES = [
+  'https://accounts.google.com',
+  'https://online-shop-75482.firebaseapp.com',
+];
+
+const PAYPAL = {
+  script: ['https://www.paypal.com', 'https://www.paypalobjects.com'],
+  connect: [
+    'https://api-m.paypal.com',
+    'https://api-m.sandbox.paypal.com',
+    'https://*.paypal.com',
+  ],
+  frame: ['https://www.paypal.com', 'https://www.sandbox.paypal.com'],
 };
 
 export const csp = isDev
@@ -32,26 +49,26 @@ export const csp = isDev
       // scheme-level in dev so emulators are always allowed
       "connect-src 'self' http: https: ws: wss: data: blob:",
       "img-src 'self' data: blob: http: https:",
-      // allow Stripe JS in dev
-      `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${STRIPE.script.join(' ')}`,
+      // allow PayPal + Google Sign-In scripts in dev
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${PAYPAL.script.join(' ')} ${GOOGLE_SCRIPTS.join(' ')}`,
       "style-src 'self' 'unsafe-inline'",
-      "font-src 'self' data:",
-      // allow Stripe frames in dev
-      `frame-src https://accounts.google.com ${STRIPE.frame.join(' ')}`,
+      "font-src 'self' data: https://www.paypalobjects.com",
+      // allow PayPal + Google Sign-In iframes in dev
+      `frame-src ${GOOGLE_FRAMES.join(' ')} ${PAYPAL.frame.join(' ')}`,
       "worker-src 'self' blob:",
     ].join('; ')
   : [
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
-      // add Stripe connect targets in prod
-      `connect-src 'self' ${GCP.join(' ')} ${STRIPE.connect.join(' ')}`,
+      // add PayPal connect targets in prod
+      `connect-src 'self' ${GCP.join(' ')} ${PAYPAL.connect.join(' ')}`,
       "img-src 'self' data: blob: https://*.gstatic.com https://*.googleapis.com",
-      // allow loading Stripe JS in prod
-      `script-src 'self' ${STRIPE.script.join(' ')}`,
+      // allow loading PayPal + Google Sign-In scripts in prod
+      `script-src 'self' ${PAYPAL.script.join(' ')} ${GOOGLE_SCRIPTS.join(' ')}`,
       "style-src 'self' 'unsafe-inline'",
-      "font-src 'self' data:",
-      // allow Stripe frames in prod
-      `frame-src https://accounts.google.com ${STRIPE.frame.join(' ')}`,
+      "font-src 'self' data: https://www.paypalobjects.com",
+      // allow PayPal + Google Sign-In iframes in prod
+      `frame-src ${GOOGLE_FRAMES.join(' ')} ${PAYPAL.frame.join(' ')}`,
       "worker-src 'self' blob:",
     ].join('; ');

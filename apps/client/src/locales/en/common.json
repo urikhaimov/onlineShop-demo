@@ -9,6 +9,7 @@
   },
   "admin": {
     "dashboardHome": "Admin Home",
+    "setupWizard": "Setup Wizard",
     "categories": "Categories",
     "users": "Users",
     "products": "Products",
@@ -26,7 +27,8 @@
     "openAria": "Open menu",
     "profile": "Profile",
     "account": "Account",
-    "logout": "Logout"
+    "logout": "Logout",
+    "loggingOut": "Logging out…"
   },
   "actions": {
     "edit": "Edit",
@@ -39,7 +41,18 @@
     "clear": "Clear",
     "close": "Close",
     "openFilters": "Open Filters",
-    "addToCart": "Add to cart"
+    "addToCart": "Add to cart",
+    "retry": "Retry",
+    "exportCsv": "Export CSV"
+  },
+  "a11y": {
+    "openFilters": "Open filters",
+    "resetFilters": "Reset filters",
+    "tableView": "Table view",
+    "cardsView": "Cards view"
+  },
+  "errors": {
+    "failedToLoadOrders": "Failed to load orders."
   },
   "toasts": {
     "addedToCart": "Added to cart"
@@ -47,7 +60,8 @@
   "validation": {
     "name_required": "Name is required.",
     "name_minLen": "Name must be at least 2 characters.",
-    "price_required": "Price is required."
+    "price_required": "Price is required.",
+    "min2": "Too short"
   },
   "table": {
     "image": "Image",
@@ -96,6 +110,7 @@
     "delivered": "Delivered"
   },
   "orders": {
+    "search": "Order ID",
     "status": {
       "pending": "Pending",
       "confirmed": "Confirmed",
@@ -132,6 +147,7 @@
     "dialog": {
       "title": "Delete category?",
       "warning": "This will permanently delete the category. This action cannot be undone.",
+      "warningCascade": "This will permanently delete the category AND all products in it. This action cannot be undone.",
       "confirm": "Are you sure you want to delete category {{name}}?",
       "cancel": "Cancel",
       "deleting": "Deleting…",
@@ -158,6 +174,7 @@
   "adminCategoriesForm": {
     "name": "Name",
     "description": "Description",
+    "image": "Image",
     "update": "Update Category",
     "create": "Create Category"
   },
@@ -191,6 +208,7 @@
     "Story": "Story"
   },
   "adminOrdersPage": {
+    "title": "Orders",
     "failedToDeleteFallback": "Failed to delete order.",
     "failedToLoad": "Failed to load orders: {{message}}",
     "notFound": "No orders found",
@@ -283,12 +301,22 @@
     "stock": "Stock",
     "category": "Category",
     "invalidCategory": "Invalid category ID: {{id}}",
-    "images": "Images"
+    "images": "Images",
+    "imagesHint": "Drag or click to upload (max 5MB each). Slots remaining: {{count}}",
+    "descriptionPlaceholder": "Write a short, attractive description…"
   },
   "adminProductsPage": {
     "title": "Manage Products",
     "addProduct": "Add Product",
-    "snackbarReordered": "Product order updated"
+    "snackbarReordered": "Product order updated",
+    "dialog": {
+      "title": "Delete product?",
+      "warning": "This will permanently delete the product. This action cannot be undone.",
+      "confirm": "Are you sure you want to delete {{name}}?",
+      "cancel": "Cancel",
+      "deleting": "Deleting…",
+      "delete": "Delete"
+    }
   },
   "adminProducts": {
     "actions": {
@@ -386,7 +414,11 @@
     "thankYouTitle": "Thank You for Your Order!",
     "thankYouBody": "We’ve received your payment and your order is being processed.",
     "goHome": "Go to Home",
-    "viewOrders": "View My Orders"
+    "viewOrders": "View My Orders",
+    "items": "Items",
+    "qty": "Qty",
+    "failedToLoad": "Failed to load payment form. Please try again later.",
+    "settingsFallback": "Order settings failed to load. Using defaults (0)."
   },
   "checkoutForm": {
     "paymentDetails": "Payment Details",
@@ -395,6 +427,7 @@
     "passportId": "Passport ID",
     "passportIdRequired": "Passport ID is required",
     "payNow": "Pay Now",
+    "paypalCanceled": "Payment canceled.",
     "errors": {
       "stripeNotReady": "Stripe is not ready yet",
       "paymentFailed": "Payment failed",
@@ -404,6 +437,8 @@
     "shippingAddress": "Shipping Address",
     "fullName": "Full Name",
     "fullNameRequired": "Full name is required",
+    "email": "Email",
+    "emailRequired": "Email is required",
     "phone": "Phone",
     "phoneRequired": "Phone is required",
     "street": "Street",

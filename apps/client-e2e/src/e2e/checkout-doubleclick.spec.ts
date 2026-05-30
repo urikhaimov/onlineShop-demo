@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { installHarness, ensureCheckoutForm } from './_harness';
 
 test.beforeEach(async ({ page }) => {
-  // Install network stubs, auth/cart seeds, and Stripe stub
+  // Install network stubs, auth/cart seeds, and PayPal stubs
   await installHarness(page);
 });
 
@@ -17,11 +17,15 @@ test('declined card shows friendly error and stays on /checkout', async ({
   await page
     .locator('input[name="ownerName"]')
     .fill('אורי חיימוב')
-    .catch(() => {});
+    .catch(() => {
+      // ignore
+    });
   await page
     .locator('input[name="shippingAddress.city"]')
     .fill('ת״א')
-    .catch(() => {});
+    .catch(() => {
+      // ignore
+    });
 
   // Double-click rapidly
   await Promise.all([

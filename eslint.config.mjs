@@ -25,6 +25,7 @@ export default [
       '**/vitest.config.*.timestamp*',
       '.nx/**',
       '**/.nx/**',
+      'scripts/**',
     ],
   },
   {
@@ -35,7 +36,7 @@ export default [
         projectService: true,
         sourceType: 'module',
         ecmaVersion: 'latest',
-        project: './tsconfig.json',
+        project: './tsconfig.base.json',
       },
       globals: {
         ...globals.node,
@@ -169,6 +170,17 @@ export default [
     },
   },
 
+  /** ⬇️ Disable type-aware linting for plain JS scripts outside the TS project */
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        projectService: false,
+      },
+    },
+  },
+
   /** ⬇️ Disable type-aware linting for build/test config files */
   {
     files: [
@@ -180,9 +192,25 @@ export default [
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        // don’t require the file to belong to a tsconfig project
         projectService: false,
       },
+    },
+  },
+
+  /** ⬇️ Relax rules in test files — empty no-op stubs for browser APIs
+   * (IntersectionObserver, MediaQueryList) and library inits are intentional. */
+  {
+    files: [
+      '**/tests/**/*.ts',
+      '**/tests/**/*.tsx',
+      '**/*.spec.ts',
+      '**/*.spec.tsx',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+    ],
+    rules: {
+      '@typescript-eslint/no-empty-function': 'off',
+      'no-empty': 'off',
     },
   },
 ];

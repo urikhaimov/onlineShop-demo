@@ -4,7 +4,7 @@ import { Box, Divider, Button, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useQuery } from '@tanstack/react-query';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 
 import StickyTable from '../../components/StickyTable';
 import { useAuth } from '../../hooks/useAuth';
@@ -40,6 +40,7 @@ import ResponsiveCardsGrid from '../../components/ResponsiveCardsGrid';
 import RightFiltersDrawer from '../../components/RightFiltersDrawer';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { isDemoAdmin } from '../../lib/demo-mode';
 
 type OrdersResponse =
   | TOrder[]
@@ -61,7 +62,7 @@ export default function MyOrdersPage() {
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
 
   // 🧩 Theme tokens
-  const { themeSettings } = useThemeStore();
+  const themeSettings = useThemeStore((s) => s.themeSettings);
   const isDark =
     themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);
@@ -194,7 +195,7 @@ export default function MyOrdersPage() {
       });
       return res.data as OrdersResponse;
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoAdmin(),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     retry: 2,
@@ -380,7 +381,7 @@ export default function MyOrdersPage() {
         )}
 
         {/* ✅ Date pickers need LocalizationProvider */}
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
           {/* Keep drawer mounted but closed in tests */}
           <RightFiltersDrawer
             title={t('filters.open')}

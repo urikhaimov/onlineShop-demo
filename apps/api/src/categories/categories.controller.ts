@@ -14,6 +14,7 @@ import {
   Logger,
   BadRequestException,
   ConflictException,
+  Inject, // ⬅️ add this
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
@@ -24,7 +25,11 @@ import { CategoriesService } from './categories.service';
 @Controller('categories')
 export class CategoriesController {
   private readonly logger = new Logger(CategoriesController.name);
-  constructor(private readonly categoriesService: CategoriesService) {}
+
+  constructor(
+    @Inject(CategoriesService) // ⬅️ explicit token fixes DI when metadata is stripped
+    private readonly categoriesService: CategoriesService,
+  ) {}
 
   // ────────────────────────────────────────────────────────────────────────────
   // PUBLIC LIST  →  GET /api/categories/publiclist
@@ -34,6 +39,7 @@ export class CategoriesController {
   async publiclist(@Query() q: ListCategoriesDto, @Res() res: Response) {
     const { items, total } = await this.categoriesService.list(q);
     res.setHeader('X-Total-Count', String(total));
+    res.setHeader('Cache-Control', 'no-store');
     return res.json({ items, total });
   }
 
@@ -45,6 +51,7 @@ export class CategoriesController {
   async list(@Query() q: ListCategoriesDto, @Res() res: Response) {
     const { items, total } = await this.categoriesService.list(q);
     res.setHeader('X-Total-Count', String(total));
+    res.setHeader('Cache-Control', 'no-store');
     return res.json({ items, total });
   }
 

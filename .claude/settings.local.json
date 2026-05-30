@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C c:/Projects/onlineShop/shop ls-files apps/api/.env)",
+      "Bash(npx nx *)",
+      "Bash(cat C:/Users/user/AppData/Local/Temp/nx-api-build.txt | tail -120)",
+      "Read(//c/Users/user/AppData/Local/Temp/**)",
+      "Bash(npx --version)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

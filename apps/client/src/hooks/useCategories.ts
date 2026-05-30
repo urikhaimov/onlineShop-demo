@@ -8,6 +8,13 @@ import { useSnackbar } from 'notistack';
 import api from '../api/axiosInstance';
 import { useOptimisticMutation } from './useOptimisticMutation';
 import type { TCategory as Category } from '@common/types';
+import { isDemoAdmin } from '../lib/demo-mode';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+
+const CATEGORIES_ENDPOINT = isDemoAdmin()
+  ? '/categories/publiclist'
+  : '/categories';
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Types
@@ -81,7 +88,7 @@ export const useCategories = (params?: ListParams, options?: QueryOptions) =>
   useQuery<Category[]>({
     queryKey: ['categories', paramsKey(params)],
     queryFn: async () => {
-      const res = await api.get('/categories', {
+      const res = await api.get(CATEGORIES_ENDPOINT, {
         params: { ...baseParams, ...(params ?? {}) },
       });
       return normalizeCategories(res.data).items;
@@ -101,7 +108,7 @@ export const useCategoriesResult = (
   useQuery<CategoriesResult>({
     queryKey: ['categories', 'result', paramsKey(params)],
     queryFn: async () => {
-      const res = await api.get('/categories', {
+      const res = await api.get(CATEGORIES_ENDPOINT, {
         params: { ...baseParams, ...(params ?? {}) },
       });
       return normalizeCategories(res.data);
@@ -118,9 +125,13 @@ export const useCategoryById = (id?: string, options?: QueryOptions) =>
     queryKey: ['category', id ?? ''],
     enabled: !!id && (options?.enabled ?? true),
     queryFn: async () => {
+      if (isDemoAdmin()) {
+        const snap = await getDoc(doc(db, 'categories', id!));
+        if (!snap.exists()) return null as unknown as Category;
+        return { id: snap.id, ...snap.data() } as Category;
+      }
       const res = await api.get(`/categories/${id}`);
       const one = res.data as Category | undefined;
-      // Defensive: ensure id present in detail view too
       if (one && !('id' in one)) {
         (one as any).id = String(id);
       }

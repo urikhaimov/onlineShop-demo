@@ -10,7 +10,7 @@ export const defaultConfig: StoreConfig = {
   font: 'Noto Sans Hebrew',
   layout: 'grid',
   currency: CDefaultCurrency,
-  stripeKey: 'pk_test_default_123456',
+  paypalClientId: '',
   mode: 'light',
 };
 

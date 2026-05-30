@@ -22,6 +22,8 @@ import {
 } from '../../../services/ability.service';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 import type { IUser as User, TUserRole as Role } from '@common/types';
+import { isDemoAdmin } from '../../../lib/demo-mode';
+import NotFound from '../../../components/NotFound';
 
 // URL sync for table
 import { useStickyTableQuerySync } from '../../../hooks/useStickyTableQuerySync';
@@ -110,6 +112,22 @@ export default function AdminUsersPage() {
       setDeleteBusy(false);
     }
   };
+
+  if (isDemoAdmin()) {
+    return (
+      <PageLayout
+        action={EAbilityActions.MANAGE}
+        subject={EAbilitySubjects.ALL}
+      >
+        <Box px={5} py={4}>
+          <Typography variant="h6" gutterBottom>
+            Manage Users
+          </Typography>
+          <NotFound message="User management is not available in demo mode." />
+        </Box>
+      </PageLayout>
+    );
+  }
 
   if (isLoading) return <Typography p={4}>Loading...</Typography>;
   if (error) return <Typography p={4}>❌ Error loading users</Typography>;
