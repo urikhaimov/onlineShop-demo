@@ -90,10 +90,12 @@ jobs:
       - name: Show failed test summary
         if: failure()
         run: |
-          echo "=== Playwright test failures ==="
-          find test-results -name "*.txt" 2>/dev/null | head -5 | xargs cat 2>/dev/null || true
-          find playwright-report -name "*.xml" 2>/dev/null | head -3 | xargs grep -l "failure\|error" 2>/dev/null | head -3 | xargs cat 2>/dev/null | head -100 || true
-          echo "=== End of failures ==="
+          echo "=== JUnit XML (first 200 lines) ==="
+          cat playwright-report/results.xml 2>/dev/null | head -200 || echo "(no results.xml)"
+          echo "=== test-results directory ==="
+          find test-results -maxdepth 3 -type f 2>/dev/null | head -20 || echo "(empty)"
+          echo "=== stderr / error logs ==="
+          find test-results -name "*.txt" -o -name "stderr" 2>/dev/null | head -3 | xargs cat 2>/dev/null | head -100 || true
 
       - name: Upload test results
         if: always()
