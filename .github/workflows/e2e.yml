@@ -86,6 +86,7 @@ jobs:
           VITE_PAYPAL_CLIENT_ID: sb-e2e-dummy-paypal-client-id
           VITE_API_BASE: http://127.0.0.1:3000/api
           VITE_API_BASE_URL: http://127.0.0.1:3000/api
+          VITE_E2E: 'true'
 
       - name: Show failed test summary
         if: failure()

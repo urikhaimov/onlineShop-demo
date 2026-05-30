@@ -217,6 +217,34 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, [hardClear]);
 
+  // ── E2E bypass (build-time flag takes priority over demo mode) ────────────
+  // VITE_E2E=true is set in .env.e2e so every page uses reactive auth state
+  // (user starts null, isAuthReady always true) without the demo-admin
+  // synthetic user. Auth pages render their forms; protected pages redirect.
+  // Harness tests override useAuth() at the module level, so they still get
+  // the admin context injected by the fixture.
+  if (import.meta.env.VITE_E2E === 'true') {
+    const e2eAbility = defineAbilityFor({
+      user: (user ?? ({} as any)) as User,
+      role: (role ?? 'admin') as any,
+    });
+    return (
+      <AuthContext.Provider
+        value={{
+          user,
+          role: (role ?? 'admin') as any,
+          ability: e2eAbility,
+          isAuthReady: true,
+          signInWithEmail,
+          hardClear,
+          logout,
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
   // ── Demo Admin bypass ──────────────────────────────────────────────────────
   // Returns a fully-formed admin context with a synthetic user — no real
   // Firebase session, no network calls. Uses module-level constants so the
@@ -227,7 +255,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     );
   }
 
-  // Optional E2E bypass
+  // Optional runtime E2E bypass (window.__E2E_ALLOW__ set by harness)
   if (typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true) {
     const e2eAbility = defineAbilityFor({
       user: (user ?? ({} as any)) as User,

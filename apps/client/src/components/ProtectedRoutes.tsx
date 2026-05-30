@@ -28,8 +28,10 @@ export const ProtectedRoute: React.FC<Props> = ({ children }) => {
     }
   }, [loading, user, location, setRedirectTo, setMessage]);
 
-  // Demo mode: AuthProvider already provides a synthetic admin user
-  if (isDemoAdmin()) return <>{children}</>;
+  // Demo mode: AuthProvider already provides a synthetic admin user.
+  // Skipped in E2E (VITE_E2E=true) so harness-injected useAuth() controls access.
+  if (isDemoAdmin() && import.meta.env.VITE_E2E !== 'true')
+    return <>{children}</>;
 
   if (loading) {
     return (
@@ -80,8 +82,10 @@ export const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
     }
   }, [loading, user, isAdminRole, location, setRedirectTo, setMessage]);
 
-  // Demo mode: synthetic admin context is already injected by AuthProvider
-  if (isDemoAdmin()) return <>{children}</>;
+  // Demo mode: synthetic admin context is already injected by AuthProvider.
+  // Skipped in E2E (VITE_E2E=true) so harness-injected useAuth() controls access.
+  if (isDemoAdmin() && import.meta.env.VITE_E2E !== 'true')
+    return <>{children}</>;
 
   if (loading) {
     return (
