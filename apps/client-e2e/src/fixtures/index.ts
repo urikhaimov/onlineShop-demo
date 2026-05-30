@@ -15,19 +15,23 @@ type AppFixtures = {
   admin: Page;
 };
 
-// ─── Extended test ───────────────────────────────────────────────────────────
-
-export const test = base.extend<AppFixtures>({
-  // Override the base page so __E2E_ALLOW__ is set on every page — including
-  // bare { page } tests. AuthContext checks this flag before demoMode so that
-  // auth pages see an unauthenticated user and render their forms correctly.
+// ─── Step 1: override the built-in `page` in its own layer ──────────────────
+// Extending without a type parameter ensures Playwright picks up the page
+// override correctly (no type-parameter interference with the fixture lookup).
+// This injects window.__E2E_ALLOW__=true before every navigation so that
+// AuthContext skips the demoMode bypass and uses reactive auth state instead.
+const baseWithE2E = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript(() => {
       (window as any).__E2E_ALLOW__ = true;
     });
     await use(page);
   },
+});
 
+// ─── Step 2: add app-specific fixtures on top ────────────────────────────────
+
+export const test = baseWithE2E.extend<AppFixtures>({
   // Full harness — most tests use this
   app: async ({ page }, use) => {
     await installHarness(page);
