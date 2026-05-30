@@ -456,7 +456,9 @@ test.describe('Protected routes', () => {
       }
     });
     await page.goto('/checkout', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2_000);
+    // Client-side redirect via React Router — wait for URL change instead of
+    // a fixed timeout (fixed delays are unreliable on slow CI runners).
+    await page.waitForURL(/\/login/i, { timeout: 15_000 }).catch(() => {});
     const url = page.url();
     const isOnLogin = /\/login/i.test(url);
     const hasLoginForm = await page.getByTestId('login-form').count();
