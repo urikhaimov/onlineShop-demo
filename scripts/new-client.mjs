@@ -17,6 +17,7 @@ import readline from 'readline/promises';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -158,6 +159,12 @@ async function main() {
     `https://${clientSlug}-api.up.railway.app/api`,
   );
 
+  // ── 6b. Admin API key ────────────────────────────────────────────────────────
+  const adminApiKey = await ask(
+    'ADMIN_API_KEY (leave empty to auto-generate)',
+    randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, ''),
+  );
+
   // ── 7. Vercel token ──────────────────────────────────────────────────────────
   step(7, 'Vercel Deployment');
   const vercelToken = await ask('Vercel personal access token (vercel.com/account/tokens)', '');
@@ -221,6 +228,8 @@ async function main() {
       : frontendOrigin,
     // Admin
     ADMINS_LIST: adminEmail,
+    ADMIN_API_KEY: adminApiKey,
+    DEFAULT_CURRENCY: invoiceLocale.startsWith('he') ? 'ILS' : 'USD',
   };
 
   // ── Save client config ───────────────────────────────────────────────────────
@@ -317,14 +326,15 @@ async function main() {
   // ── Summary ──────────────────────────────────────────────────────────────────
   banner('Summary');
   console.log(`
-  Client:    ${storeName} (${clientSlug})
-  Admin:     ${adminEmail}
-  Firebase:  ${firebaseProjectId}
-  Storage:   ${storageBucket}
-  PayPal:    ${paypalEnv} mode
-  Email:     ${sendgridKey ? `SendGrid → ${mailFrom}` : 'Not configured (add SENDGRID_API_KEY later)'}
-  Invoice:   ${invoiceLocale}${vatRate ? `, VAT ${vatRate}%` : ''}
-  URL:       ${frontendOrigin}
+  Client:      ${storeName} (${clientSlug})
+  Admin:       ${adminEmail}
+  Firebase:    ${firebaseProjectId}
+  Storage:     ${storageBucket}
+  PayPal:      ${paypalEnv} mode
+  Email:       ${sendgridKey ? `SendGrid → ${mailFrom}` : 'Not configured (add SENDGRID_API_KEY later)'}
+  Invoice:     ${invoiceLocale}${vatRate ? `, VAT ${vatRate}%` : ''}
+  URL:         ${frontendOrigin}
+  Admin key:   ${adminApiKey.slice(0, 8)}... (saved in .env.backend)
 
   Files saved:
   ├── clients/${clientSlug}/config.json
