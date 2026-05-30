@@ -9,6 +9,8 @@ on:
       - 'libs/**'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/workflows/e2e.yml'
+      - '.env.e2e'
   pull_request:
     branches: [main, nx-refactor]
   schedule:
