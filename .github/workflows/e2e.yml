@@ -74,7 +74,9 @@ jobs:
           PW_PORT: 5173
           E2E: '1'
           NODE_ENV: test
-          # Firebase (dummy values — all calls are mocked by Playwright harness)
+          # Demo mode: bypasses Firebase Auth entirely (no token calls, no redirects)
+          VITE_DEMO_ADMIN: 'true'
+          # Firebase config (still needed for SDK init, but no real auth calls happen)
           VITE_FIREBASE_API_KEY: AIzaSyE2E_DUMMY_KEY_FOR_CI_TESTS_ONLY
           VITE_FIREBASE_AUTH_DOMAIN: e2e-dummy-project.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: e2e-dummy-project
@@ -82,9 +84,16 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
           VITE_FIREBASE_APP_ID: '1:000000000000:web:e2etestdummyappid'
           VITE_PAYPAL_CLIENT_ID: sb-e2e-dummy-paypal-client-id
-          VITE_DEMO_ADMIN: 'false'
           VITE_API_BASE: http://127.0.0.1:3000/api
           VITE_API_BASE_URL: http://127.0.0.1:3000/api
+
+      - name: Show failed test summary
+        if: failure()
+        run: |
+          echo "=== Playwright test failures ==="
+          find test-results -name "*.txt" 2>/dev/null | head -5 | xargs cat 2>/dev/null || true
+          find playwright-report -name "*.xml" 2>/dev/null | head -3 | xargs grep -l "failure\|error" 2>/dev/null | head -3 | xargs cat 2>/dev/null | head -100 || true
+          echo "=== End of failures ==="
 
       - name: Upload test results
         if: always()
