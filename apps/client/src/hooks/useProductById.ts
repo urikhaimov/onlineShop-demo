@@ -10,7 +10,11 @@ export function useProductById(id?: string) {
     queryKey: ['product', id],
     queryFn: async () => {
       if (!id) throw new Error('Product ID is required');
-      if (isDemoAdmin()) {
+      // In E2E the harness sets __E2E_ALLOW__ and stubs REST endpoints.
+      // Skip Firestore so those stubs work even when VITE_DEMO_ADMIN=true.
+      const isE2E =
+        typeof window !== 'undefined' && (window as any).__E2E_ALLOW__;
+      if (isDemoAdmin() && !isE2E) {
         const snap = await getDoc(doc(db, 'products', id));
         if (!snap.exists()) throw new Error('Product not found');
         return { id: snap.id, ...snap.data() } as IProduct;

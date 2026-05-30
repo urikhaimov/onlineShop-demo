@@ -10,7 +10,9 @@ export function useProduct(productId?: string) {
     queryKey: ['product', productId],
     queryFn: async () => {
       if (!productId) return null;
-      if (isDemoAdmin()) {
+      const isE2E =
+        typeof window !== 'undefined' && (window as any).__E2E_ALLOW__;
+      if (isDemoAdmin() && !isE2E) {
         const snap = await getDoc(doc(db, 'products', productId));
         if (!snap.exists()) return null;
         return { id: snap.id, ...snap.data() } as IProduct;
