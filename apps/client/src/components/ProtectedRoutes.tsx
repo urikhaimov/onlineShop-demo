@@ -3,15 +3,14 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 import { useAuth } from '../hooks/useAuth';
 import { useRedirect } from '../context/RedirectContext';
+import { isDemoAdmin } from '../lib/demo-mode';
 
 type Props = { children: React.ReactNode };
 
 /**
  * Renders children only when the user is authenticated.
- * Auth state comes entirely from AuthContext:
- *  - demo mode:  AuthProvider provides a synthetic admin user (non-null)
- *  - E2E bare:   AuthProvider returns null user → redirect to /login
- *  - E2E harness: useAuth module is intercepted → returns admin user
+ * In demo mode the check is bypassed — AuthProvider already supplies a
+ * synthetic admin user, so guarding here would be redundant.
  */
 export const ProtectedRoute: React.FC<Props> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -28,6 +27,9 @@ export const ProtectedRoute: React.FC<Props> = ({ children }) => {
       notified.current = true;
     }
   }, [loading, user, location, setRedirectTo, setMessage]);
+
+  // Demo mode: AuthProvider already provides a synthetic admin user
+  if (isDemoAdmin()) return <>{children}</>;
 
   if (loading) {
     return (
@@ -77,6 +79,9 @@ export const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
       notified.current = true;
     }
   }, [loading, user, isAdminRole, location, setRedirectTo, setMessage]);
+
+  // Demo mode: synthetic admin context is already injected by AuthProvider
+  if (isDemoAdmin()) return <>{children}</>;
 
   if (loading) {
     return (
