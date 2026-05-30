@@ -52,7 +52,8 @@ test.describe('Invoice PDF generation', () => {
     'Needs live API — run locally with npm run dev:api',
   );
 
-  test('create → webhook → download invoice PDF', async (_fixtures, testInfo) => {
+  // eslint-disable-next-line no-empty-pattern
+  test('create → webhook → download invoice PDF', async ({}, testInfo) => {
     const paypalOrderId = `E2ETEST${Date.now()}`;
     const api = await request.newContext({ baseURL: API });
 
