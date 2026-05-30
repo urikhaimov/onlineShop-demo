@@ -44,7 +44,7 @@ function step(n, text) {
   console.log(`\n\x1b[36m[${n}]\x1b[0m ${text}`);
 }
 
-function ok(text) { console.log(`  \x1b[32m✓\x1b[0m ${text}`); }
+function ok(text)   { console.log(`  \x1b[32m✓\x1b[0m ${text}`); }
 function info(text) { console.log(`  \x1b[33m→\x1b[0m ${text}`); }
 function warn(text) { console.log(`  \x1b[31m!\x1b[0m ${text}`); }
 
@@ -64,13 +64,9 @@ async function vercelRequest(method, path, body, token) {
 }
 
 async function createVercelProject(token, projectName, gitRepo, envVars) {
-  // Create project linked to GitHub repo
   const project = await vercelRequest('POST', '/v9/projects', {
     name: projectName,
-    gitRepository: {
-      type: 'github',
-      repo: gitRepo, // e.g. "urikhaimov/onlineShop-demo"
-    },
+    gitRepository: { type: 'github', repo: gitRepo },
     framework: 'vite',
     rootDirectory: 'apps/client',
     buildCommand: 'npx nx build client --configuration=production',
@@ -79,7 +75,6 @@ async function createVercelProject(token, projectName, gitRepo, envVars) {
 
   ok(`Vercel project created: ${project.name} (id: ${project.id})`);
 
-  // Add all env vars
   const envPayload = Object.entries(envVars).map(([key, value]) => ({
     key,
     value,
@@ -100,49 +95,71 @@ async function main() {
 
   // ── 1. Client info ──────────────────────────────────────────────────────────
   step(1, 'Client Information');
-  const storeName   = await ask('Store name', 'My Online Store');
-  const clientSlug  = await ask('Client slug (URL-safe)', slug(storeName));
-  const adminEmail  = await ask('Admin email (client\'s login)');
-  const domain      = await ask('Custom domain (optional, press Enter to skip)');
+  const storeName  = await ask('Store name', 'My Online Store');
+  const clientSlug = await ask('Client slug (URL-safe)', slug(storeName));
+  const adminEmail = await ask('Admin email (client\'s login)');
+  const domain     = await ask('Custom domain (optional, press Enter to skip)');
+
+  const frontendOrigin = domain
+    ? `https://${domain}`
+    : `https://${clientSlug}-shop.vercel.app`;
 
   // ── 2. Firebase ─────────────────────────────────────────────────────────────
   step(2, 'Firebase Configuration');
   console.log('  ℹ  Create a new Firebase project at console.firebase.google.com');
   console.log('     Then paste the values from Project Settings → Your apps → Config\n');
-  const firebaseApiKey    = await ask('VITE_FIREBASE_API_KEY');
+  const firebaseApiKey     = await ask('VITE_FIREBASE_API_KEY');
   const firebaseAuthDomain = await ask('VITE_FIREBASE_AUTH_DOMAIN');
-  const firebaseProjectId = await ask('VITE_FIREBASE_PROJECT_ID');
-  const firebaseBucket    = await ask('VITE_FIREBASE_STORAGE_BUCKET');
-  const firebaseSenderId  = await ask('VITE_FIREBASE_MESSAGING_SENDER_ID');
-  const firebaseAppId     = await ask('VITE_FIREBASE_APP_ID');
+  const firebaseProjectId  = await ask('VITE_FIREBASE_PROJECT_ID');
+  const firebaseBucket     = await ask('VITE_FIREBASE_STORAGE_BUCKET');
+  const firebaseSenderId   = await ask('VITE_FIREBASE_MESSAGING_SENDER_ID');
+  const firebaseAppId      = await ask('VITE_FIREBASE_APP_ID');
+
+  // Storage bucket — default to modern .firebasestorage.app format
+  const storageBucket = firebaseBucket ||
+    (firebaseProjectId ? `${firebaseProjectId}.firebasestorage.app` : '');
 
   console.log('\n  ℹ  Now generate a Firebase Admin service account:');
-  console.log('     Firebase Console → Project Settings → Service accounts → Generate new private key\n');
-  const fbAdminProjectId   = firebaseProjectId;
-  const fbAdminClientEmail = await ask('FB_ADMIN_CLIENT_EMAIL');
-  const fbAdminPrivateKey  = await ask('FB_ADMIN_PRIVATE_KEY (paste full key, \\n for newlines)');
+  console.log('     Firebase Console → Project Settings → Service accounts → Generate new private key');
+  console.log('     You can paste the full JSON blob OR the individual fields.\n');
+  const fbAdminJson        = await ask('FB_ADMIN_SERVICE_ACCOUNT_JSON (paste full JSON, or leave empty to use individual fields)');
+  let fbAdminClientEmail   = '';
+  let fbAdminPrivateKey    = '';
+  if (!fbAdminJson) {
+    fbAdminClientEmail = await ask('FB_ADMIN_CLIENT_EMAIL');
+    fbAdminPrivateKey  = await ask('FB_ADMIN_PRIVATE_KEY (paste full key, \\n for newlines)');
+  }
 
   // ── 3. PayPal ────────────────────────────────────────────────────────────────
   step(3, 'PayPal Configuration');
   console.log('  ℹ  Client should create a PayPal developer account and create an app\n');
-  const paypalEnv       = await ask('Sandbox or Live?', 'sandbox');
-  const paypalClientId  = await ask('PAYPAL_CLIENT_ID');
-  const paypalSecret    = await ask('PAYPAL_CLIENT_SECRET');
-  const paypalSandbox   = paypalEnv.toLowerCase() === 'sandbox' ? 'true' : 'false';
+  const paypalEnv      = await ask('Sandbox or Live?', 'sandbox');
+  const paypalClientId = await ask('PAYPAL_CLIENT_ID');
+  const paypalSecret   = await ask('PAYPAL_CLIENT_SECRET');
+  const paypalSandbox  = paypalEnv.toLowerCase() === 'sandbox' ? 'true' : 'false';
 
   // ── 4. Email ─────────────────────────────────────────────────────────────────
   step(4, 'Email (SendGrid)');
-  console.log('  ℹ  Client should create a free SendGrid account for their emails\n');
-  const sendgridKey   = await ask('SENDGRID_API_KEY (or press Enter to skip)');
-  const emailFrom     = await ask('EMAIL_FROM', adminEmail);
+  console.log('  ℹ  Client needs a SendGrid account with a verified sender address\n');
+  const sendgridKey  = await ask('SENDGRID_API_KEY (or press Enter to skip)');
+  const mailFrom     = await ask('Sender email (must be verified in SendGrid)', adminEmail);
+  const mailFromName = await ask('Sender display name', storeName);
 
-  // ── 5. API URL ───────────────────────────────────────────────────────────────
-  step(5, 'Railway API URL');
+  // ── 5. Store & invoice settings ──────────────────────────────────────────────
+  step(5, 'Store & Invoice Settings');
+  const invoiceLocale = await ask('Invoice language (he-IL / en-IL)', 'he-IL');
+  const vatRate       = await ask('VAT rate percent (e.g. 17, or leave empty to skip)', '');
+
+  // ── 6. API URL ───────────────────────────────────────────────────────────────
+  step(6, 'Railway API URL');
   console.log('  ℹ  You will get this URL after creating the Railway service\n');
-  const apiUrl = await ask('VITE_API_BASE (e.g. https://client-api.up.railway.app/api)', '');
+  const apiUrl = await ask(
+    'VITE_API_BASE (e.g. https://client-api.up.railway.app/api)',
+    `https://${clientSlug}-api.up.railway.app/api`,
+  );
 
-  // ── 6. Vercel token ──────────────────────────────────────────────────────────
-  step(6, 'Vercel Deployment');
+  // ── 7. Vercel token ──────────────────────────────────────────────────────────
+  step(7, 'Vercel Deployment');
   const vercelToken = await ask('Vercel personal access token (vercel.com/account/tokens)', '');
   const gitRepo     = await ask('GitHub repo (owner/repo)', 'urikhaimov/onlineShop-demo');
 
@@ -154,32 +171,56 @@ async function main() {
     VITE_FIREBASE_STORAGE_BUCKET: firebaseBucket,
     VITE_FIREBASE_MESSAGING_SENDER_ID: firebaseSenderId,
     VITE_FIREBASE_APP_ID: firebaseAppId,
-    VITE_API_BASE: apiUrl || `https://${clientSlug}-api.up.railway.app/api`,
+    VITE_API_BASE: apiUrl,
     VITE_PAYPAL_CLIENT_ID: paypalClientId,
     VITE_DEMO_ADMIN: 'false',
   };
 
   const backendEnv = {
     NODE_ENV: 'production',
-    FB_ADMIN_PROJECT_ID: fbAdminProjectId,
-    FB_ADMIN_CLIENT_EMAIL: fbAdminClientEmail,
-    FB_ADMIN_PRIVATE_KEY: fbAdminPrivateKey,
-    FIREBASE_STORAGE_BUCKET: firebaseBucket,
-    GCLOUD_PROJECT: fbAdminProjectId,
-    GOOGLE_CLOUD_PROJECT: fbAdminProjectId,
+    // Firebase Admin credentials
+    FB_ADMIN_PROJECT_ID: firebaseProjectId,
+    ...(fbAdminJson
+      ? { FB_ADMIN_SERVICE_ACCOUNT_JSON: fbAdminJson }
+      : {
+          FB_ADMIN_CLIENT_EMAIL: fbAdminClientEmail,
+          FB_ADMIN_PRIVATE_KEY: fbAdminPrivateKey,
+        }),
+    // Firebase project identifiers
+    GCLOUD_PROJECT: firebaseProjectId,
+    GOOGLE_CLOUD_PROJECT: firebaseProjectId,
+    // Storage
+    ADMIN_STORAGE_BUCKET: storageBucket,
+    FIREBASE_STORAGE_BUCKET: storageBucket,
+    // PayPal
     PAYPAL_CLIENT_ID: paypalClientId,
     PAYPAL_CLIENT_SECRET: paypalSecret,
     PAYPAL_SANDBOX: paypalSandbox,
-    ADMINS_LIST: adminEmail,
-    ...(sendgridKey ? { SENDGRID_API_KEY: sendgridKey, EMAIL_PROVIDER: 'sendgrid' } : {}),
-    EMAIL_FROM: emailFrom,
     SEND_PAYPAL_EMAILS_FROM_ORDERS: 'true',
-    FRONTEND_ORIGIN: domain
-      ? `https://${domain}`
-      : `https://${clientSlug}.vercel.app`,
+    // Email
+    ...(sendgridKey
+      ? {
+          SENDGRID_API_KEY: sendgridKey,
+          MAIL_PROVIDER: 'sendgrid',
+          SENDGRID_SANDBOX: 'false',
+        }
+      : {}),
+    MAIL_FROM: mailFrom,
+    MAIL_FROM_NAME: mailFromName,
+    MAIL_BRAND_NAME: storeName,
+    EMAIL_FROM: `${mailFromName} <${mailFrom}>`,
+    // Store & invoice
+    STORE_NAME: storeName,
+    INVOICE_LOCALE: invoiceLocale,
+    ...(vatRate ? { VAT_RATE: (Number(vatRate) / 100).toString() } : {}),
+    // URLs
+    PUBLIC_BASE_URL: frontendOrigin,
+    FRONTEND_ORIGIN: frontendOrigin,
     ALLOWED_ORIGINS: domain
-      ? `https://${domain},https://${clientSlug}.vercel.app`
-      : `https://${clientSlug}.vercel.app`,
+      ? `${frontendOrigin},https://${clientSlug}-shop.vercel.app`
+      : frontendOrigin,
+    // Admin
+    ADMINS_LIST: adminEmail,
   };
 
   // ── Save client config ───────────────────────────────────────────────────────
@@ -202,7 +243,9 @@ async function main() {
     adminEmail,
     domain: domain || null,
     firebaseProjectId,
+    storageBucket,
     paypalSandbox: paypalEnv.toLowerCase() === 'sandbox',
+    invoiceLocale,
     createdAt: new Date().toISOString(),
   };
   fs.writeFileSync(path.join(clientDir, 'config.json'), JSON.stringify(config, null, 2));
@@ -219,13 +262,13 @@ async function main() {
       if (domain) info(`Add domain ${domain} in Vercel → Project → Domains`);
     } catch (e) {
       warn(`Vercel setup failed: ${e.message}`);
-      info('Set up Vercel manually — env file saved at clients/${clientSlug}/.env.frontend');
+      info(`Set up Vercel manually — env file saved at clients/${clientSlug}/.env.frontend`);
     }
   } else {
     info('No Vercel token — set up manually:');
     info('1. vercel.com → Add New Project → Import Git Repository');
     info(`2. Project name: ${clientSlug}-shop`);
-    info('3. Copy env vars from: clients/' + clientSlug + '/.env.frontend');
+    info(`3. Copy env vars from: clients/${clientSlug}/.env.frontend`);
   }
 
   // ── Railway instructions ─────────────────────────────────────────────────────
@@ -240,6 +283,7 @@ async function main() {
   7. After deploy, copy the Railway URL and update:
      - VITE_API_BASE in Vercel to: https://<railway-url>/api
      - FRONTEND_ORIGIN in Railway to match your Vercel URL
+     - PUBLIC_BASE_URL in Railway to match your Vercel URL
   `);
 
   // ── Firebase setup ───────────────────────────────────────────────────────────
@@ -251,12 +295,24 @@ async function main() {
      - ${clientSlug}-shop.vercel.app
      ${domain ? `- ${domain}` : ''}
   4. Firestore → Create database (production mode)
-  5. Deploy security rules:
+  5. Storage → Get Started (production mode, creates ${storageBucket})
+  6. Deploy security rules:
      firebase use ${firebaseProjectId}
      firebase deploy --only firestore:rules
-  6. Create admin user:
+  7. Create admin user:
      node scripts/set-admin.js ${adminEmail}
   `);
+
+  // ── SendGrid reminder ────────────────────────────────────────────────────────
+  if (sendgridKey) {
+    banner('SendGrid Setup (manual)');
+    console.log(`
+  1. Go to app.sendgrid.com → Settings → Sender Authentication
+  2. Single Sender Verification → Create a Sender
+  3. Verify: ${mailFrom}
+  4. Once verified, emails will send from: ${mailFromName} <${mailFrom}>
+    `);
+  }
 
   // ── Summary ──────────────────────────────────────────────────────────────────
   banner('Summary');
@@ -264,8 +320,11 @@ async function main() {
   Client:    ${storeName} (${clientSlug})
   Admin:     ${adminEmail}
   Firebase:  ${firebaseProjectId}
+  Storage:   ${storageBucket}
   PayPal:    ${paypalEnv} mode
-  Email:     ${sendgridKey ? 'SendGrid configured' : 'Not configured (add SENDGRID_API_KEY later)'}
+  Email:     ${sendgridKey ? `SendGrid → ${mailFrom}` : 'Not configured (add SENDGRID_API_KEY later)'}
+  Invoice:   ${invoiceLocale}${vatRate ? `, VAT ${vatRate}%` : ''}
+  URL:       ${frontendOrigin}
 
   Files saved:
   ├── clients/${clientSlug}/config.json
