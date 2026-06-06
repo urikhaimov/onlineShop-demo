@@ -1,5 +1,6 @@
 // ✅ Zustand store extracted from LocalReducer and LocalUIReducer
 import { create } from 'zustand';
+import { registerStoreReset } from '../state/resetRegistry';
 
 interface UserProfileToastStore {
   toastOpen: boolean;
@@ -41,3 +42,13 @@ export const useUserProfileUIStore = create<UserProfileUIStore>((set) => ({
   setUploading: (value) => set({ avatarUploading: value }),
   setDeleteDialog: (open) => set({ deleteDialogOpen: open }),
 }));
+
+// Reset on logout — user-specific UI state must not leak to the next user.
+registerStoreReset(() => useUserProfileToastStore.getState().resetToast());
+registerStoreReset(() =>
+  useUserProfileUIStore.setState({
+    avatarVer: 0,
+    avatarUploading: false,
+    deleteDialogOpen: false,
+  }),
+);

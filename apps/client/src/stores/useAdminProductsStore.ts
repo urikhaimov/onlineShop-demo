@@ -5,6 +5,7 @@ import type {
   Updater,
 } from '@tanstack/react-table';
 import type { IProduct } from '@common/types';
+import { registerStoreReset } from '../state/resetRegistry';
 
 export interface AdminProductsStore {
   products: IProduct[];
@@ -54,3 +55,15 @@ export const useAdminProductsStore = create<AdminProductsStore>((set, get) => ({
     set({ columnFilters: next });
   },
 }));
+
+// Reset on logout — clears cached admin data and table state across sessions.
+registerStoreReset(() =>
+  useAdminProductsStore.setState({
+    products: [],
+    loading: false,
+    snackbarOpen: false,
+    sorting: [],
+    columnFilters: [],
+    filtersOpen: false,
+  }),
+);

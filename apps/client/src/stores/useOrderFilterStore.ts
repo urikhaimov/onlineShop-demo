@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerStoreReset } from '../state/resetRegistry';
 
 export const ORDER_TOTAL_MIN = 0;
 export const ORDER_TOTAL_MAX = 100000;
@@ -54,3 +55,6 @@ export const useOrderFilterStore = create<OrderFilterState>((set) => ({
       maxTotal: ORDER_TOTAL_MAX,
     }),
 }));
+
+// Reset filters on logout so one user's filter state doesn't leak to the next.
+registerStoreReset(() => useOrderFilterStore.getState().resetFilters());

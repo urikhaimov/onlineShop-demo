@@ -57,6 +57,8 @@ export function defineCategoryColumns(
             component="img"
             src={String(imageUrl)}
             alt={fallbackName} // now guaranteed string
+            loading="lazy"
+            decoding="async"
             sx={{
               width: 48,
               height: 48,

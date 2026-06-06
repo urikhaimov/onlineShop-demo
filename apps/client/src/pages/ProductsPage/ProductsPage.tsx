@@ -86,7 +86,7 @@ export default function ProductsPage() {
   // Theme
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
-  const { themeSettings } = useThemeStore();
+  const themeSettings = useThemeStore((s) => s.themeSettings);
   const isDark =
     themeSettings?.darkMode ?? (theme.palette.mode === 'dark' ? true : false);
   const spacingScale = Number(themeSettings?.spacingScale ?? 1);

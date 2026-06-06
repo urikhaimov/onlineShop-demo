@@ -8,7 +8,7 @@ export const storesConfig: Record<string, StoreConfig> = {
     font: 'Noto Sans Hebrew',
     layout: 'grid',
     currency: CDefaultCurrency,
-    stripeKey: 'pk_test_tech_1234',
+    paypalClientId: '',
     mode: 'light',
   },
   'fashion-boutique': {
@@ -19,7 +19,7 @@ export const storesConfig: Record<string, StoreConfig> = {
     font: 'Playfair Display',
     layout: 'list',
     currency: CDefaultCurrency,
-    stripeKey: 'pk_test_fashion_5678',
+    paypalClientId: '',
     mode: 'dark',
   },
 };

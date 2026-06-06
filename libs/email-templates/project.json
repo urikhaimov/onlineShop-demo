@@ -1,16 +1,18 @@
 {
   "name": "email-templates",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/email-templates/src",
+  "projectType": "library",
+  "tags": [],
   "targets": {
     "build": {
-      "executor": "@nx/esbuild:esbuild",
-      "outputs": ["{workspaceRoot}/dist/libs/email-templates"],
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
       "options": {
-        "main": "libs/email-templates/src/index.ts",
-        "platform": "node",
-        "format": ["cjs"],
         "outputPath": "dist/libs/email-templates",
+        "main": "libs/email-templates/src/index.ts",
         "tsConfig": "libs/email-templates/tsconfig.lib.json",
-        "external": ["uglify-js", "uglify-js/*", "mjml", "handlebars"]
+        "assets": ["libs/email-templates/*.md"]
       }
     }
   }

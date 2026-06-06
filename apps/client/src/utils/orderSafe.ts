@@ -185,7 +185,7 @@ export function itemsFromOrder(order: any): Array<{
         ? it.price
         : undefined;
 
-    // Fallbacks for minor-unit fields (Stripe style or custom)
+    // Fallbacks for minor-unit fields (custom or provider-specific)
     const minorCandidates = [
       it?.unitAmount,
       it?.unit_amount,

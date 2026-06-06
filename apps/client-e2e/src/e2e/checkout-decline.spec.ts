@@ -1,54 +1,46 @@
 import { test, expect } from '@playwright/test';
 import { installHarness, ensureCheckoutForm } from './_harness';
 
-test('declined card shows friendly error and stays on /checkout', async ({
+test('declined payment shows friendly error and stays on /checkout', async ({
   page,
 }) => {
   await installHarness(page);
 
-  // Simulate a decline from Stripe
-  await page.addInitScript(() => {
-    const makeDecline = () => ({
-      elements: () => ({ create: () => ({ mount() {}, destroy() {} }) }),
-      confirmPayment: async () => ({
-        error: {
-          type: 'card_error',
-          code: 'card_declined',
-          message: 'Your card was declined.',
-        },
-        paymentIntent: { id: 'pi_decl', status: 'requires_payment_method' },
+  // Override the capture endpoint to simulate a PayPal decline
+  await page.route(
+    (url) => {
+      try {
+        return /\/capture-?paypal-?order/i.test(new URL(url).pathname);
+      } catch {
+        return false;
+      }
+    },
+    (route) =>
+      route.fulfill({
+        status: 422,
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({
+          message: 'Payment declined by PayPal.',
+          statusCode: 422,
+        }),
       }),
-      confirmCardPayment: async () => ({
-        error: {
-          type: 'card_error',
-          code: 'card_declined',
-          message: 'Your card was declined.',
-        },
-        paymentIntent: { id: 'pi_decl', status: 'requires_payment_method' },
-      }),
-    });
-    Object.defineProperty(makeDecline, 'version', {
-      value: 'basil',
-      enumerable: true,
-    });
-    (window as any).Stripe = makeDecline;
-  });
+  );
 
-  const pay = await ensureCheckoutForm(page, { fallbackAction: 'decline' }); // 👈 stay on /checkout + show error
+  const pay = await ensureCheckoutForm(page, { fallbackAction: 'decline' });
 
   await page
     .locator('input[name="ownerName"]')
     .first()
     .fill('אורי חיימוב')
     .catch(() => {
-      // ignore if already filled
+      // ignore
     });
   await page
     .locator('input[name="shippingAddress.city"]')
     .first()
     .fill('ת״א')
     .catch(() => {
-      // ignore if already filled
+      // ignore
     });
 
   await pay.click();

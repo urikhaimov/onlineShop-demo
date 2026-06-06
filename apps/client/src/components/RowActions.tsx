@@ -19,6 +19,8 @@ export type RowAction<T> = {
   onClick: (ctx: T) => void;
   disabled?: (ctx: T) => boolean;
   tooltip?: (ctx: T) => string;
+  /** Render with a destructive/danger visual style */
+  danger?: boolean;
 };
 
 export type RowActionsProps<T> = {
@@ -50,17 +52,7 @@ export default function RowActions<T>({
   };
   const handleClose = () => setAnchorEl(null);
 
-  const isValidAnchor = React.useCallback((el: HTMLElement | null) => {
-    if (!el) return false;
-    if (!document.body.contains(el)) return false;
-    return el.getClientRects().length > 0;
-  }, []);
-
-  React.useEffect(() => {
-    if (anchorEl && !isValidAnchor(anchorEl)) setAnchorEl(null);
-  }, [anchorEl, isValidAnchor]);
-
-  const open = isValidAnchor(anchorEl);
+  const open = Boolean(anchorEl);
   const useMenu = renderMode === 'menu' || (renderMode === 'auto' && isBelow);
 
   if (useMenu) {
@@ -75,7 +67,7 @@ export default function RowActions<T>({
         </IconButton>
 
         <Menu
-          anchorEl={open ? anchorEl : undefined}
+          anchorEl={anchorEl}
           open={open}
           onClose={handleClose}
           keepMounted

@@ -5,6 +5,7 @@ import {
   Updater,
 } from '@tanstack/react-table';
 import { TOrder } from '@common/types';
+import { registerStoreReset } from '../state/resetRegistry';
 
 interface OrdersPageState {
   orders: TOrder[];
@@ -48,3 +49,14 @@ export const useOrdersPageStore = create<OrdersPageState>((set, get) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
   setMobileFiltersOpen: (open) => set({ mobileFiltersOpen: open }),
 }));
+
+// Reset on logout — orders array is per-user; must not leak to next session.
+registerStoreReset(() =>
+  useOrdersPageStore.setState({
+    orders: [],
+    loading: true,
+    sorting: [],
+    columnFilters: [],
+    mobileFiltersOpen: false,
+  }),
+);

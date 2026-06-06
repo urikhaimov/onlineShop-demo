@@ -1,10 +1,7 @@
 // src/theme/getMuiTheme.ts
 // MUI v5-compatible (works on v6/7 the same way)
 // If you're on v6/7 you can import { extendTheme } (non-experimental).
-import {
-  experimental_extendTheme as extendTheme,
-  type PaletteOptions,
-} from '@mui/material/styles';
+import { extendTheme, type PaletteOptions } from '@mui/material/styles';
 import type { ThemeSettings } from '../api/theme';
 
 const DARK_BG = {
@@ -183,7 +180,7 @@ export function getMuiTheme(settings: ThemeSettings) {
           head: ({ theme }) => ({
             // subtle head background for contrast in dark mode
             backgroundColor:
-              (theme.vars || theme).palette.mode === 'dark'
+              theme.palette.mode === 'dark'
                 ? 'rgba(255,255,255,0.03)'
                 : 'rgba(0,0,0,0.02)',
           }),

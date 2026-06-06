@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import api from '../api/axiosInstance';
 import { TOrder as Order } from '@common/types';
+import { isDemoAdmin } from '../lib/demo-mode';
 export const useOrderDetails = (id?: string, enabled = true) => {
   const [downloading, setDownloading] = useState(false);
 
@@ -18,7 +19,7 @@ export const useOrderDetails = (id?: string, enabled = true) => {
       const res = await api.get(`/orders/${id}`);
       return res.data;
     },
-    enabled: !!id && enabled,
+    enabled: !!id && enabled && !isDemoAdmin(),
     staleTime: 5 * 60 * 1000,
   });
 

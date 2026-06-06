@@ -17,10 +17,11 @@ env:
   # App/Tests env
   NODE_ENV: test
   CI: true
-  # Stripe (from repo secrets)
-  STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-  STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-  STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+  # PayPal (from repo secrets — fallback to safe dummies for jest mocks)
+  PAYPAL_CLIENT_ID: ${{ secrets.PAYPAL_CLIENT_ID || 'test_dummy_client_id' }}
+  PAYPAL_CLIENT_SECRET: ${{ secrets.PAYPAL_CLIENT_SECRET || 'test_dummy_secret' }}
+  PAYPAL_WEBHOOK_ID: ${{ secrets.PAYPAL_WEBHOOK_ID || 'test_dummy_webhook_id' }}
+  PAYPAL_SANDBOX: 'true'
   # Mailer: keep tests quiet in CI (no real SMTP)
   MAIL_MODE: json
   EMAIL_FROM: ci@example.test

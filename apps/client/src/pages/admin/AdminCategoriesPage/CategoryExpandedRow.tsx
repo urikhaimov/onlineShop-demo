@@ -27,6 +27,8 @@ export default function CategoryExpandedRow({ category }: Props) {
             component="img"
             src={imageUrl}
             alt={name ?? 'Category'}
+            loading="lazy"
+            decoding="async"
             sx={{
               width: 80,
               height: 80,

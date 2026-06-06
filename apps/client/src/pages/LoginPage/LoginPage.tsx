@@ -17,10 +17,12 @@ import {
 import { Google, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useRedirect } from '../../context/RedirectContext';
 import type { LoginFormData } from '../../services/schemas/auth.schema';
 import { signInWithGoogleOrLink } from '../../auth/auth-google';
+import { isDemoAdmin } from '../../lib/demo-mode';
 
 type LoginFormInputs = { email: string; password: string };
 
@@ -55,6 +57,14 @@ const LoginPage = () => {
       navigate(fromState || redirectTo || fallback, { replace: true });
     }
   }, [user, redirectTo, location.state, navigate]);
+
+  // Demo mode: no login needed — go straight to the app.
+  // Skip in E2E (__E2E_ALLOW__) so auth-form tests can still run.
+  const isE2E =
+    typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true;
+  if (isDemoAdmin() && !isE2E) {
+    return <Navigate to={redirectTo || '/'} replace />;
+  }
 
   const onSubmit = async (data: LoginFormData) => {
     try {
@@ -95,18 +105,25 @@ const LoginPage = () => {
           </Box>
 
           {message && (
-            <Typography variant="body2" color="error" textAlign="center" mb={2}>
+            <Typography
+              variant="body2"
+              color="error"
+              textAlign="center"
+              mb={2}
+              data-testid="login-error"
+            >
               {message}
             </Typography>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)}>
+          <form onSubmit={handleSubmit(onSubmit)} data-testid="login-form">
             <Stack spacing={3}>
               <TextField
                 label="Email"
                 fullWidth
                 inputRef={emailRef}
                 autoFocus
+                inputProps={{ 'data-testid': 'login-email' }}
                 {...register('email', { required: 'Email is required' })}
                 error={!!errors.email}
                 helperText={errors.email?.message}
@@ -116,6 +133,7 @@ const LoginPage = () => {
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
                 fullWidth
+                inputProps={{ 'data-testid': 'login-password' }}
                 {...register('password', { required: 'Password is required' })}
                 error={!!errors.password}
                 helperText={errors.password?.message}
@@ -140,6 +158,7 @@ const LoginPage = () => {
                 color="primary"
                 fullWidth
                 disabled={isSubmitting}
+                data-testid="login-submit"
                 sx={{ py: 1.5, fontWeight: 600 }}
               >
                 {isSubmitting ? 'Logging in...' : 'Log in'}
@@ -165,8 +184,9 @@ const LoginPage = () => {
             variant="outlined"
             fullWidth
             startIcon={<Google />}
+            sx={{ textTransform: 'none', fontWeight: 500 }}
           >
-            Sign in with Google
+            Log in with Google
           </Button>
 
           <motion.div

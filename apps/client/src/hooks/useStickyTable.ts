@@ -8,6 +8,7 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { useState, useEffect } from 'react';
+import { tableFilters } from '../components/StickyTable/tableFilters';
 
 interface UseStickyTableOptions<T> {
   data: T[] | undefined;
@@ -40,6 +41,7 @@ export function useStickyTable<T>({
     getPaginationRowModel: getPaginationRowModel(),
     enableSorting: true,
     enableColumnFilters: true,
+    filterFns: tableFilters,
   });
 
   useEffect(() => {

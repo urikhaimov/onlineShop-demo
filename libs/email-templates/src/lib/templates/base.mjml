@@ -1,0 +1,139 @@
+<mjml>
+  <mj-head>
+    <mj-attributes>
+      <mj-all
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'"
+      />
+      <!-- Flip text / buttons based on RTL -->
+      <mj-text
+        font-size="14px"
+        line-height="1.6"
+        color="#1F2937"
+        align="{{#if isRtl}}right{{else}}left{{/if}}"
+      />
+      <mj-button
+        font-size="14px"
+        padding="0"
+        inner-padding="12px 20px"
+        background-color="#111827"
+        color="#ffffff"
+        border-radius="8px"
+        align="{{#if isRtl}}right{{else}}left{{/if}}"
+      />
+      <mj-section padding="0" />
+      <mj-column padding="0" />
+    </mj-attributes>
+
+    <!-- Set document direction + lang -->
+    <mj-html-attributes>
+      <mj-selector path="html">
+        <mj-html-attribute
+          name="dir"
+          value="{{#if isRtl}}rtl{{else}}ltr{{/if}}"
+        />
+        {{#if isRtl}}
+        <mj-html-attribute name="lang" value="he" />
+        {{else}}
+        <mj-html-attribute name="lang" value="en" />
+        {{/if}}
+      </mj-selector>
+    </mj-html-attributes>
+
+    <!-- Helpers + RTL utility -->
+    <mj-style inline="inline">
+      .muted {
+        color: #6b7280;
+      }
+      .hr {
+        border-top: 1px solid #e5e7eb;
+        margin: 16px 0;
+      }
+      .small {
+        font-size: 12px;
+      }
+      .kbd {
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          'Liberation Mono', 'Courier New', monospace;
+        background: #f3f4f6;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .card {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      table.items {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      table.items th,
+      table.items td {
+        padding: 8px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      table.summary td {
+        padding: 4px 0;
+      }
+
+      /* RTL container – makes Gmail/Outlook behave */
+      .rtl {
+        direction: rtl;
+        text-align: right;
+      }
+      .rtl * {
+        text-align: right;
+      }
+    </mj-style>
+  </mj-head>
+
+  <!-- Flip overall flow via css-class; also set section direction -->
+  <mj-body background-color="#F9FAFB" css-class="{{#if isRtl}}rtl{{/if}}">
+    <mj-section
+      full-width="full-width"
+      background-color="#111827"
+      direction="{{#if isRtl}}rtl{{else}}ltr{{/if}}"
+    >
+      <mj-column padding="16px 24px">
+        <mj-text
+          font-size="18px"
+          font-weight="700"
+          color="#ffffff"
+          align="{{#if isRtl}}right{{else}}left{{/if}}"
+          padding="0"
+        >{{brandName}}</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section
+      padding="0 16px 24px 16px"
+      direction="{{#if isRtl}}rtl{{else}}ltr{{/if}}"
+    >
+      <mj-column>
+        <mj-wrapper css-class="card" padding="16px">
+          <!-- ::BODY:: -->
+        </mj-wrapper>
+
+        {{#if supportEmail}}
+        <mj-text
+          align="center"
+          class="muted small"
+          padding="16px 0 0 0"
+        >
+          {{#if isRtl}}יש שאלות? כתבו לנו:{{else}}Questions? Contact us:{{/if}}
+          <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>
+        </mj-text>
+        {{/if}}
+
+        <mj-text align="center" class="small muted" padding="8px 0 0 0">
+          {{#if privacyUrl}}
+          © {{ year }} {{ brandName }} · <a href="{{privacyUrl}}">Privacy</a>
+          {{else}}
+          © {{ year }} {{ brandName }}
+          {{/if}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

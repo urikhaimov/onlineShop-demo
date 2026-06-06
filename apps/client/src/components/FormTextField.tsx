@@ -1,6 +1,6 @@
 // components/FormTextField.tsx
 import * as React from 'react';
-import { TextField, type TextFieldProps } from '@mui/material';
+import { MenuItem, TextField, type TextFieldProps } from '@mui/material';
 import {
   Controller,
   type Control,
@@ -13,13 +13,18 @@ import {
   type UseFormRegisterReturn,
 } from 'react-hook-form';
 
-type FormChangeEvent =
+export type FormChangeEvent =
   | React.SyntheticEvent
   | React.ChangeEvent<HTMLInputElement>;
 
+type SelectOption = {
+  label: React.ReactNode;
+  value: string | number;
+};
+
 type BaseProps<T extends FieldValues> = Omit<
   TextFieldProps,
-  'defaultValue' | 'name' | 'value' | 'onChange'
+  'defaultValue' | 'name'
 > & {
   label: string;
 
@@ -42,6 +47,11 @@ type BaseProps<T extends FieldValues> = Omit<
     onChange: (value: unknown) => void,
   ) => void;
 
+  /** Alias for MUI's `select` prop */
+  isSelect?: boolean;
+  /** Auto-generate <MenuItem/> children from a simple option list */
+  selectOptions?: ReadonlyArray<SelectOption>;
+
   children?: React.ReactNode; // for select MenuItems
 };
 
@@ -56,11 +66,23 @@ function InnerFormTextField<T extends FieldValues>(
     register,
     errorObject,
     onChangeCustom,
+    isSelect,
+    selectOptions,
     children,
     ...rest
   }: BaseProps<T>,
   ref: React.Ref<HTMLInputElement>,
 ) {
+  const selectMode = isSelect ?? rest.select;
+  const renderedChildren =
+    selectMode && selectOptions
+      ? selectOptions.map((opt) => (
+          <MenuItem key={String(opt.value)} value={opt.value}>
+            {opt.label}
+          </MenuItem>
+        ))
+      : children;
+
   // Controlled path whenever control + name are present
   if (control && name) {
     return (
@@ -71,7 +93,7 @@ function InnerFormTextField<T extends FieldValues>(
         render={({ field, fieldState }) => {
           const value = formatValue
             ? formatValue(field.value)
-            : (field.value ?? (rest.select ? '' : ''));
+            : (field.value ?? (selectMode ? '' : ''));
           const helper =
             fieldState.error?.message ??
             (typeof rest.helperText === 'string' ? rest.helperText : undefined);
@@ -79,6 +101,7 @@ function InnerFormTextField<T extends FieldValues>(
           return (
             <TextField
               {...rest}
+              select={selectMode}
               label={label}
               value={value}
               error={!!fieldState.error}
@@ -103,7 +126,7 @@ function InnerFormTextField<T extends FieldValues>(
               InputLabelProps={{ shrink: true }}
               fullWidth={rest.fullWidth ?? true}
             >
-              {rest.select ? children : undefined}
+              {selectMode ? renderedChildren : undefined}
             </TextField>
           );
         }}
@@ -116,6 +139,7 @@ function InnerFormTextField<T extends FieldValues>(
     <TextField
       {...rest}
       {...register}
+      select={selectMode}
       label={label}
       error={!!errorObject}
       helperText={
@@ -127,7 +151,7 @@ function InnerFormTextField<T extends FieldValues>(
       inputRef={ref}
       fullWidth={rest.fullWidth ?? true}
     >
-      {rest.select ? children : undefined}
+      {selectMode ? renderedChildren : undefined}
     </TextField>
   );
 }

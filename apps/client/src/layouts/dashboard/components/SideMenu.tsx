@@ -77,7 +77,7 @@ export default function SideMenu() {
             sx={{ cursor: 'pointer' }}
           >
             <Avatar
-              src={user.photoURL || '/default-avatar.png'}
+              src={user.photoURL ?? undefined}
               sx={{ width: 32, height: 32 }}
             />
 

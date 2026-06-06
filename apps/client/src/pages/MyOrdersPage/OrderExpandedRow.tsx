@@ -44,28 +44,27 @@ function mapStatus(status?: string): TOrder['status'] {
   switch ((status || '').toLowerCase()) {
     case 'paid':
     case 'succeeded':
-      return 'confirmed';
+    case 'confirmed':
+      return 'paid';
     case 'open':
+    case 'pending':
     case 'processing':
     case 'requires_confirmation':
     case 'requires_action':
-      return 'pending';
+      return 'open';
     case 'canceled':
     case 'cancelled':
+      return 'canceled';
     case 'refunded':
-      return 'cancelled';
+      return 'refunded';
+    case 'authorized':
+      return 'authorized';
+    case 'shipped':
+      return 'shipped';
+    case 'delivered':
+      return 'delivered';
     default:
-      // keep whatever came if it already matches app statuses
-      if (
-        status === 'pending' ||
-        status === 'confirmed' ||
-        status === 'shipped' ||
-        status === 'delivered' ||
-        status === 'cancelled'
-      ) {
-        return status as TOrder['status'];
-      }
-      return 'pending';
+      return 'open';
   }
 }
 
@@ -91,7 +90,7 @@ function useNormalizedOrder(order: TOrder): TOrder {
         ? totalFromTotalMajor
         : totalFromMinor;
 
-  // Flatten Stripe-style shipping into TOrderAddress
+  // Flatten nested shipping address into TOrderAddress
   // Accept both { shippingAddress: { address: {...}, name, phone } } and already-flat shapes
   const s: any = (order as any).shippingAddress || {};
   const addr = s.address || s || {};
@@ -113,7 +112,7 @@ function useNormalizedOrder(order: TOrder): TOrder {
       ? order.payment
       : {
           method: 'card',
-          status: mapStatus(order.status) === 'confirmed' ? 'paid' : 'unpaid',
+          status: mapStatus(order.status) === 'paid' ? 'paid' : 'unpaid',
           transactionId: order.paymentIntentId,
           currency,
           receipt_email: order.email ?? undefined,

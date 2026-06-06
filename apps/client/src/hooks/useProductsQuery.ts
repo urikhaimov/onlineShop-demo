@@ -27,6 +27,10 @@ type QueryOptions = {
   refetchOnMount?: boolean | 'always';
   /** Disable/enable refetch on window focus (default false here) */
   refetchOnWindowFocus?: boolean;
+  /** Disable/enable refetch when reconnecting (default react-query default) */
+  refetchOnReconnect?: boolean | 'always';
+  /** Kept for callsite compatibility; placeholderData handles it via keepPreviousData */
+  keepPreviousData?: boolean;
 };
 
 /** treat '', null, undefined, 'undefined', 'null' as "empty" */
@@ -140,6 +144,7 @@ export function useProductsQuery(
     staleTime: options?.staleTime ?? 30_000,
     refetchOnMount: options?.refetchOnMount ?? false,
     refetchOnWindowFocus: options?.refetchOnWindowFocus ?? false,
+    refetchOnReconnect: options?.refetchOnReconnect ?? true,
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
   });

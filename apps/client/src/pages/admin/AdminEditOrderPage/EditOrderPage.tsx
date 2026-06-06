@@ -38,7 +38,7 @@ import { useSnackbar } from 'notistack';
 import {
   ORDER_STATUS,
   type TOrderStatus,
-  type StripePaymentIntentStatus,
+  type TPaymentStatus,
 } from '@common/types';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ function statusToCanon(s?: string): TOrderStatus {
   return 'open';
 }
 
-function deriveProviderStatus(canon: TOrderStatus): StripePaymentIntentStatus {
+function deriveProviderStatus(canon: TOrderStatus): TPaymentStatus {
   if (canon === 'paid') return 'succeeded';
   if (canon === 'canceled') return 'canceled';
   return 'processing';
@@ -167,7 +167,7 @@ function normalizeForView(order: Order): Order {
 
 /** FirestoreDate → ISO string (or undefined) for PATCH delivery.eta */
 function toIsoString(v: any): string | undefined {
-  if (v == null) return undefined;
+  if (v === null || v === undefined) return undefined;
   if (typeof v === 'string') return v;
   if (v instanceof Date) return v.toISOString();
   if (typeof v?.toDate === 'function') {
@@ -184,6 +184,7 @@ function toIsoString(v: any): string | undefined {
 
 type UpdateOrderVars = Partial<{
   status: TOrderStatus;
+  previousStatus: TOrderStatus | undefined;
   notes: string | null;
   delivery: { provider?: string; trackingNumber?: string; eta?: string };
   notifyCustomer?: boolean;
@@ -217,6 +218,12 @@ export default function EditOrderPage() {
   useEffect(() => {
     orderRef.current = order;
   }, [order]);
+
+  // Keep raw order for sending un-normalized fields (e.g. previousStatus)
+  const rawOrderRef = useRef<typeof rawOrder>(rawOrder);
+  useEffect(() => {
+    rawOrderRef.current = rawOrder;
+  }, [rawOrder]);
 
   // RHF v8
   const {
@@ -252,7 +259,9 @@ export default function EditOrderPage() {
     submittingRef.current = true;
 
     try {
-      const previousStatus = orderRef.current?.status;
+      const previousStatus =
+        (rawOrderRef.current?.status as TOrderStatus | undefined) ??
+        orderRef.current?.status;
 
       // Build a MINIMAL PATCH body that matches UpdateOrderDto on the server
       const etaStr = toIsoString((formData as any).delivery?.eta);
@@ -273,6 +282,7 @@ export default function EditOrderPage() {
 
       const patch: UpdateOrderVars = {
         status: formData.status as TOrderStatus,
+        previousStatus: previousStatus as TOrderStatus | undefined,
         notes: formData.notes ?? null,
         delivery,
         notifyCustomer,

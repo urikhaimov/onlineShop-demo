@@ -5,6 +5,7 @@ import type {
   SortingState,
   Updater,
 } from '@tanstack/react-table';
+import { registerStoreReset } from '../state/resetRegistry';
 
 export type OrderStatus =
   | 'all'
@@ -118,3 +119,11 @@ export const useAdminOrdersStore = create<AdminOrdersStore>((set, get) => ({
 
   resetFilters: () => set({ filters: initialAdminOrderFilters }),
 }));
+
+// Reset on logout — prevents one admin's filter state leaking to next session.
+registerStoreReset(() => {
+  const s = useAdminOrdersStore.getState();
+  s.resetFilters();
+  s.setSorting([]);
+  s.setColumnFilters([]);
+});

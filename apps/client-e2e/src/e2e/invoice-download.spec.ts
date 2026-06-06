@@ -6,7 +6,7 @@ import {
 } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
-import { triggerSucceeded, withStripeListen } from '../utils/stripe';
+import { triggerPayPalCaptureCompleted } from '../utils/paypal';
 
 const API_HOST = process.env.API_HOST ?? 'http://127.0.0.1:3000';
 const API_PREFIX = process.env.API_PREFIX ?? 'api';
@@ -16,11 +16,11 @@ const API = process.env.API_BASE_URL ?? `${API_HOST}/${API_PREFIX}`;
 async function waitForInvoiceReady(
   api: APIRequestContext,
   orderId: string,
-  timeoutMs = 90_000, // generous for Windows + CLI
+  timeoutMs = 90_000,
 ) {
   const start = Date.now();
   const candidates = [
-    `/payments/orders/${orderId}/invoice`, // your server’s route
+    `/payments/orders/${orderId}/invoice`,
     `/invoices/${orderId}.pdf`,
     `/invoice/${orderId}.pdf`,
     `/invoices/order/${orderId}.pdf`,
@@ -32,7 +32,7 @@ async function waitForInvoiceReady(
   let lastStatus = 0;
   while (Date.now() - start < timeoutMs) {
     for (const p of candidates) {
-      const res = await api.head(p); // HEAD is cheaper and enough for existence
+      const res = await api.head(p);
       lastStatus = res.status();
       if (res.ok()) return p;
     }
@@ -46,21 +46,21 @@ async function waitForInvoiceReady(
 test.describe('Invoice PDF generation', () => {
   test.setTimeout(120_000);
 
+  // Requires a live API at port 3000 — skip in CI (no backend running)
+  test.skip(
+    !!process.env.CI,
+    'Needs live API — run locally with npm run dev:api',
+  );
+
+  // eslint-disable-next-line no-empty-pattern
   test('create → webhook → download invoice PDF', async ({}, testInfo) => {
-    const orderId = `e2e-invoice-${Date.now()}`;
+    const paypalOrderId = `E2ETEST${Date.now()}`;
     const api = await request.newContext({ baseURL: API });
 
-    // If you want to spawn the Stripe CLI from the test, keep this wrapper.
-    // If you already run `stripe listen` in a separate terminal, you can
-    // call triggerSucceeded directly and skip withStripeListen.
-    await withStripeListen(async () => {
-      await triggerSucceeded(orderId, 'e2e@example.com'); // sets metadata.orderId
-    });
+    await triggerPayPalCaptureCompleted(api, paypalOrderId, 'e2e@example.com');
 
-    // Wait until the invoice route appears
-    const invoicePath = await waitForInvoiceReady(api, orderId);
+    const invoicePath = await waitForInvoiceReady(api, paypalOrderId);
 
-    // Now actually download the PDF
     const res = await api.get(invoicePath);
     expect(res.ok(), `GET ${invoicePath} => ${res.status()}`).toBeTruthy();
 
@@ -70,7 +70,7 @@ test.describe('Invoice PDF generation', () => {
     );
     expect(buf.byteLength).toBeGreaterThan(1024);
 
-    const out = path.join(testInfo.outputDir, `invoice_${orderId}.pdf`);
+    const out = path.join(testInfo.outputDir, `invoice_${paypalOrderId}.pdf`);
     await fs.promises.writeFile(out, buf);
     testInfo.attach('invoice', { body: buf, contentType: 'application/pdf' });
     console.log('Saved:', out);

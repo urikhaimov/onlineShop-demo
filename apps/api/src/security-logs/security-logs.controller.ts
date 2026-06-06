@@ -1,43 +1,30 @@
-import { Controller, Get } from '@nestjs/common';
-
-export interface SecurityLog {
-  id: string;
-  timestamp: string; // ISO string
-  email?: string;
-  uid?: string;
-  type: string;
-  details: string;
-  collection: string;
-  affectedDocId: string;
-}
-
-// Dummy example data
-const dummyLogs: SecurityLog[] = [
-  {
-    id: '1',
-    timestamp: new Date().toISOString(),
-    email: 'user@example.com',
-    type: 'LOGIN_FAILURE',
-    details: 'Failed login attempt from IP 123.45.67.89',
-    collection: 'users',
-    affectedDocId: 'user_1',
-  },
-  {
-    id: '2',
-    timestamp: new Date().toISOString(),
-    uid: 'user_2',
-    type: 'ORDER_EDIT',
-    details: 'Order 12345 status changed to shipped',
-    collection: 'orders',
-    affectedDocId: 'order_12345',
-  },
-];
+import {
+  Controller,
+  DefaultValuePipe,
+  Get,
+  Inject,
+  ParseIntPipe,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { SecurityLog, SecurityLogsService } from './security-logs.service';
 
 @Controller('admin/security-logs')
+@UseGuards(FirebaseAuthGuard, RolesGuard)
+@Roles('admin', 'superadmin')
 export class SecurityLogsController {
+  constructor(
+    @Inject(SecurityLogsService)
+    private readonly svc: SecurityLogsService,
+  ) {}
+
   @Get()
-  getSecurityLogs(): SecurityLog[] {
-    // Replace with real DB fetch in production
-    return dummyLogs;
+  list(
+    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number,
+  ): Promise<SecurityLog[]> {
+    return this.svc.list(limit);
   }
 }

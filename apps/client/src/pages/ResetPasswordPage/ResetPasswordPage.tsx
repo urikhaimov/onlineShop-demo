@@ -30,14 +30,23 @@ export default function ResetPasswordPage() {
 
     const normalizedEmail = email.trim().replace(/\s+/g, '').toLowerCase();
 
-    try {
-      // Hosted UI flow: after the user clicks "Save" → Firebase redirects to /login
-      const actionCodeSettings = {
-        url: `${window.location.origin}/login`,
-        handleCodeInApp: false, // IMPORTANT: hosted page, not in-app
-      };
+    const tryReset = async (withContinueUrl: boolean) => {
+      const opts = withContinueUrl
+        ? { url: `${window.location.origin}/login`, handleCodeInApp: false }
+        : undefined;
+      await sendPasswordResetEmail(auth, normalizedEmail, opts);
+    };
 
-      await sendPasswordResetEmail(auth, normalizedEmail, actionCodeSettings);
+    try {
+      try {
+        await tryReset(true);
+      } catch (err: any) {
+        if (err?.code === 'auth/unauthorized-continue-uri') {
+          await tryReset(false);
+        } else {
+          throw err;
+        }
+      }
       setSuccessMessage(
         `Password reset email sent to ${normalizedEmail}. Please check your inbox (and Spam).`,
       );
@@ -47,7 +56,7 @@ export default function ResetPasswordPage() {
         code === 'auth/invalid-email'
           ? 'Invalid email address.'
           : code === 'auth/user-not-found'
-            ? 'No user found with this email in this Firebase project.'
+            ? 'No user found with this email.'
             : code === 'auth/too-many-requests'
               ? 'Too many attempts. Try again later.'
               : 'Failed to send reset email.';
@@ -83,13 +92,18 @@ export default function ResetPasswordPage() {
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+          data-testid="reset-password-form"
+        >
           <Stack spacing={3} mt={2}>
             <TextField
               label="Email"
               type="email"
               autoComplete="email"
               fullWidth
+              inputProps={{ 'data-testid': 'reset-email' }}
               {...register('email', {
                 required: 'Email is required',
                 // allow spaces; we strip them before sending
@@ -106,6 +120,7 @@ export default function ResetPasswordPage() {
               variant="contained"
               fullWidth
               disabled={isSubmitting}
+              data-testid="reset-submit"
               sx={{ py: 1.5, fontWeight: 600 }}
             >
               {isSubmitting ? 'Sending…' : 'Send Reset Link'}

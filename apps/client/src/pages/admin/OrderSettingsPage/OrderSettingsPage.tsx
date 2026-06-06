@@ -24,6 +24,8 @@ import {
 } from '../../../services/ability.service';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
+import { isDemoAdmin } from '../../../lib/demo-mode';
+import NotFound from '../../../components/NotFound';
 
 type FormValues = { shipping: number; taxRate: number; discount: number };
 
@@ -111,6 +113,19 @@ export default function OrderSettingsPage() {
       enqueueSnackbar(msg, { variant: 'error', autoHideDuration: 4000 });
     }
   };
+
+  if (isDemoAdmin()) {
+    return (
+      <PageLayout
+        action={EAbilityActions.MANAGE}
+        subject={EAbilitySubjects.SETTINGS}
+      >
+        <Box p={2} display="flex" justifyContent="center">
+          <NotFound message="Order settings are not available in demo mode." />
+        </Box>
+      </PageLayout>
+    );
+  }
 
   if (isLoading) return <LoadingProgress />;
 

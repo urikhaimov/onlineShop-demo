@@ -18,6 +18,7 @@ import {
   People as PeopleIcon,
   Receipt as ReceiptIcon,
   Security as SecurityIcon,
+  RocketLaunch as RocketLaunchIcon,
   SettingsRounded as SettingsRoundedIcon,
   InfoRounded as InfoRoundedIcon,
   HelpRounded as HelpRoundedIcon,
@@ -58,6 +59,11 @@ export default function MenuContent() {
           label: t('admin.dashboardHome'),
           icon: <AdminPanelSettingsIcon />,
           path: '/admin',
+        },
+        {
+          label: t('admin.setupWizard', { defaultValue: 'Setup Wizard' }),
+          icon: <RocketLaunchIcon />,
+          path: '/admin/setup',
         },
         {
           label: t('admin.categories'),

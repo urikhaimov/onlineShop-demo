@@ -8,11 +8,12 @@ export default function ImageGallery({ images }: { images: string[] }) {
 
   return (
     <Box display="flex" flexDirection="column" gap={2}>
-      {/* Main Image */}
+      {/* Main Image — eager because it's the LCP element on the product page */}
       <Box
         component="img"
         src={images[selectedIndex]}
         alt={`Main image ${selectedIndex}`}
+        decoding="async"
         sx={{
           width: '100%',
           maxHeight: 500,
@@ -40,6 +41,8 @@ export default function ImageGallery({ images }: { images: string[] }) {
             component="img"
             src={url}
             alt={`Thumbnail ${i}`}
+            loading="lazy"
+            decoding="async"
             onClick={() => setSelectedIndex(i)}
             sx={{
               width: 60,

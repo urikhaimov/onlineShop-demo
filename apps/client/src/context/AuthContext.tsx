@@ -24,12 +24,29 @@ import { EUserRole } from '@common/types';
 import { defineAbilityFor } from '../services/ability.service';
 import { runAllStoreResets } from '../state/resetRegistry';
 import { useQueryClient } from '@tanstack/react-query';
+import { isDemoAdmin, DEMO_ADMIN_USER } from '../lib/demo-mode';
+
+// Stable module-level constants so the demo context value never changes reference.
+const _DEMO_NOOP = () => Promise.resolve();
+const _DEMO_ABILITY = defineAbilityFor({
+  user: DEMO_ADMIN_USER as unknown as User,
+  role: 'admin',
+});
+const _DEMO_CTX: AuthContextType = {
+  user: DEMO_ADMIN_USER as unknown as User,
+  role: 'admin',
+  ability: _DEMO_ABILITY,
+  isAuthReady: true,
+  signInWithEmail: _DEMO_NOOP,
+  hardClear: _DEMO_NOOP,
+  logout: _DEMO_NOOP,
+};
 
 /** Simple role helper exported for consumers (e.g., ability.service) */
 export const isAdmin = (role: EUserRole | string | null | undefined): boolean =>
   role === 'admin' || role === EUserRole.ADMIN || role === 'ADMIN';
 
-type RoleString = 'viewer' | 'editor' | 'admin' | null;
+type RoleString = 'viewer' | 'editor' | 'admin' | 'superadmin' | null;
 
 export type AuthContextType = {
   user: User | null;
@@ -45,6 +62,10 @@ export type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  // Computed once per mount — never changes at runtime.
+  // Kept outside state so consumers get a stable reference with no re-renders.
+  const demoMode = isDemoAdmin();
+
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<RoleString>(null); // ✅ lowercase role
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -58,7 +79,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const normalizeRole = (raw: any): RoleString => {
     const lower = typeof raw === 'string' ? raw.toLowerCase() : null;
-    if (lower === 'viewer' || lower === 'editor' || lower === 'admin')
+    if (
+      lower === 'viewer' ||
+      lower === 'editor' ||
+      lower === 'admin' ||
+      lower === 'superadmin'
+    )
       return lower;
     return null;
   };
@@ -86,19 +112,29 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const hardClear: AuthContextType['hardClear'] = useCallback(async () => {
     try {
       runAllStoreResets();
-    } catch {}
+    } catch {
+      // ignore
+    }
     try {
       queryClient.clear();
-    } catch {}
+    } catch {
+      // ignore
+    }
     try {
       indexedDB.deleteDatabase('firebaseLocalStorageDb');
-    } catch {}
+    } catch {
+      // ignore
+    }
     try {
       sessionStorage.clear();
-    } catch {}
+    } catch {
+      // ignore
+    }
     try {
       localStorage.clear();
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, [queryClient]);
 
   const hardClearAndKick = useCallback(async () => {
@@ -125,22 +161,38 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [readRoleFromClaims, hardClearAndKick],
   );
 
-  // Listener: detects user + claim updates
+  // Warn once when demo mode is active (visible in DevTools console)
   useEffect(() => {
+    if (!demoMode) return;
+    console.warn(
+      '%c[DEMO MODE] Admin bypass active — no real Firebase session.\n' +
+        'This feature is NEVER present in production builds.',
+      'color: #ff9800; font-weight: bold; font-size: 13px;',
+    );
+  }, [demoMode]);
+
+  // Listener: detects user + claim updates — skipped in demo mode
+  useEffect(() => {
+    if (demoMode) {
+      // Mark ready immediately; synthetic context is returned below
+      setIsAuthReady(true);
+      return;
+    }
     const unsub = onIdTokenChanged(auth, async (u) => {
       setUser(u ?? null);
       await readRoleFromClaims(u ?? null, false);
       setIsAuthReady(true);
     });
     return unsub;
-  }, [readRoleFromClaims]);
+  }, [readRoleFromClaims, demoMode]);
 
-  // Bootstrap flow: if signed-in but role is missing, try to ensure it
+  // Bootstrap flow: if signed-in but role is missing, try to ensure it — skipped in demo mode
   useEffect(() => {
-    if (user && role == null) {
+    if (demoMode) return;
+    if (user && role === null) {
       void ensureRoleIfMissing(user);
     }
-  }, [user, role, ensureRoleIfMissing]);
+  }, [user, role, ensureRoleIfMissing, demoMode]);
 
   const ability = useMemo(() => defineAbilityFor({ user, role }), [user, role]);
 
@@ -156,19 +208,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       await fbSignOut(auth);
     } catch {
+      // ignore
     } finally {
       setUser(null);
       setRole(null);
       setIsAuthReady(true);
       await hardClear();
-      if (typeof window !== 'undefined') {
-        window.location.assign('/login');
-      }
     }
   }, [hardClear]);
 
-  // Optional E2E bypass
-  if (typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true) {
+  // ── E2E bypass — must run BEFORE demoMode ─────────────────────────────────
+  // Two signals: build-time VITE_E2E=true (set via .env.e2e) OR runtime
+  // window.__E2E_ALLOW__ (injected by the Playwright page fixture).
+  // Either one means: return reactive auth state (user starts null,
+  // isAuthReady=true). Auth pages see an unauthenticated user and render
+  // their forms; harness tests override useAuth() at module level anyway.
+  const isE2E =
+    import.meta.env.VITE_E2E === 'true' ||
+    (typeof window !== 'undefined' && (window as any).__E2E_ALLOW__ === true);
+
+  if (isE2E) {
     const e2eAbility = defineAbilityFor({
       user: (user ?? ({} as any)) as User,
       role: (role ?? 'admin') as any,
@@ -187,6 +246,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
       >
         {children}
       </AuthContext.Provider>
+    );
+  }
+
+  // ── Demo Admin bypass ──────────────────────────────────────────────────────
+  // Returns a fully-formed admin context with a synthetic user — no real
+  // Firebase session, no network calls. Uses module-level constants so the
+  // Provider value never changes reference and consumers don't re-render.
+  if (demoMode) {
+    return (
+      <AuthContext.Provider value={_DEMO_CTX}>{children}</AuthContext.Provider>
     );
   }
 

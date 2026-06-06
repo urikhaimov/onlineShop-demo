@@ -11,7 +11,13 @@ interface Props {
   control: Control<ThemeSettings>;
 }
 
-const FONT_OPTIONS = ['Noto Sans Hebrew', 'Open Sans', 'Inter', 'Orbitron', 'Poppins'];
+const FONT_OPTIONS = [
+  'Noto Sans Hebrew',
+  'Open Sans',
+  'Inter',
+  'Orbitron',
+  'Poppins',
+];
 
 export default function FontSelectWithControls({ control }: Props) {
   return (
@@ -26,9 +32,9 @@ export default function FontSelectWithControls({ control }: Props) {
           value: font,
         }))}
         onChangeCustom={(e, onChange) => {
-          const value = e.target.value;
+          const value = (e.target as HTMLInputElement).value;
           onChange(value);
-          loadGoogleFont(value as string);
+          loadGoogleFont(value);
         }}
       />
 

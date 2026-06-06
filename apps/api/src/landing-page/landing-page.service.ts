@@ -1,5 +1,5 @@
 // apps/api/src/landing-page/landing-page.service.ts
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Firestore } from '@google-cloud/firestore';
 import type { LandingPageData, TBentoCard } from '@common/types';
 
@@ -9,7 +9,7 @@ const DEFAULT_CARDS: TBentoCard[] = [
   { title: 'Eco materials', body: 'Consciously sourced' },
   { title: '4.9 ★', body: '2,400+ reviews' },
   { title: 'New drops', body: 'Every Friday 10:00' },
-  { title: 'Secure checkout', body: 'Stripe + 3D Secure' },
+  { title: 'Secure checkout', body: 'PayPal secured' },
 ];
 
 const DEFAULT_DATA: LandingPageData = {
@@ -31,7 +31,7 @@ const DEFAULT_DATA: LandingPageData = {
 
 @Injectable()
 export class LandingPageService {
-  constructor(private readonly db: Firestore) {}
+  constructor(@Inject(Firestore) private readonly db: Firestore) {}
 
   private docRef() {
     // ✅ Use the plural path that exists in your DB

@@ -14,5 +14,7 @@ export function useAllCategories() {
       const response = await axiosInstance.get('/categories');
       return response.data;
     },
+    staleTime: 30 * 60 * 1000, // 30 min — categories change rarely
+    gcTime: 60 * 60 * 1000,
   });
 }

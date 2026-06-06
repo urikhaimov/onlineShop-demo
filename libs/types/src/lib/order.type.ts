@@ -69,11 +69,8 @@ export type TOrderItem = {
   image?: string;
 };
 
-/**
- * Stripe PaymentIntent status union (subset; keep string fallback
- * to stay resilient to SDK updates).
- */
-export type StripePaymentIntentStatus =
+/** Payment status union — provider-agnostic; keep string fallback for resilience. */
+export type TPaymentStatus =
   | 'requires_payment_method'
   | 'requires_confirmation'
   | 'requires_action'
@@ -83,29 +80,30 @@ export type StripePaymentIntentStatus =
   | 'succeeded'
   | string;
 
+/** @deprecated Use TPaymentStatus */
+export type StripePaymentIntentStatus = TPaymentStatus;
+
 export type TOrderPayment = {
-  /** e.g. 'card' */
+  /** e.g. 'card' or 'paypal' */
   method: string;
 
   /**
-   * For compatibility with existing UI, you can still infer "paid"/"unpaid"
-   * from this Stripe status:
-   *   paid   := status === 'succeeded'
-   *   unpaid := otherwise
+   * paid   := status === 'succeeded' | 'COMPLETED'
+   * unpaid := otherwise
    */
-  status: StripePaymentIntentStatus;
+  status: TPaymentStatus;
 
-  /** Stripe PaymentIntent id (often equals order id) */
+  /** Provider transaction / order id */
   transactionId?: string;
 
   /** Optional currency stored with payment */
   currency?: CurrencyCode;
 
-  /** Email used for Stripe receipt (if set) */
+  /** Email for payment receipt (if set) */
   receipt_email?: string;
 
-  /** Backend extras written by OrdersService (optional) */
-  provider?: 'stripe' | string;
+  /** Payment provider (e.g. 'paypal') */
+  provider?: 'paypal' | string;
   totalMinor?: number; // cents/agorot
   totalMajor?: number; // major units mirror
 };

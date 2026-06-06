@@ -89,12 +89,12 @@ jest.mock('@common/firebase', () => ({
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Global helper to mount raw-body middleware on a specific route
-// Use in specs:  global.applyStripeRaw(app, '/api/payments/webhooks/stripe')
-//                global.applyStripeRaw(app, '/api/webhooks/wolt')
+// Use in specs:  global.applyWebhookRaw(app, '/api/webhooks/paypal')
+//                global.applyWebhookRaw(app, '/api/webhooks/wolt')
 // ─────────────────────────────────────────────────────────────────────────────
 import * as bodyParser from 'body-parser';
 
-(global as any).applyStripeRaw = (app: any, route: string) => {
+(global as any).applyWebhookRaw = (app: any, route: string) => {
   // IMPORTANT: raw BEFORE JSON, only on the webhook route
   const rawMw = bodyParser.raw({ type: '*/*', limit: '2mb' });
   const ensureRaw = (req: any, _res: any, next: any) => {
@@ -121,7 +121,7 @@ beforeAll(() => {
   ) {
     const msg = String(message ?? '');
     if (/Webhook signature verification failed:/i.test(msg)) {
-      return; // swallow expected Stripe signature noise in tests
+      return; // swallow expected webhook signature noise in tests
     }
     return _origError.apply(this, [message, ...rest]);
   });
@@ -148,7 +148,7 @@ afterAll(() => {
 // Make store & helpers visible on global for specs
 declare global {
   // Helper that mounts raw-body on a specific route (must be called before app.init())
-  var applyStripeRaw: (app: any, route: string) => void;
+  var applyWebhookRaw: (app: any, route: string) => void;
 
   // In-memory Firestore backing store
   var __firestoreStore: Map<string, any>;

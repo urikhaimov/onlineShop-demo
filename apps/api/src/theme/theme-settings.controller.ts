@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Put, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Put,
+  Patch,
+  Post,
+} from '@nestjs/common';
+import { Firestore } from '@google-cloud/firestore';
 import { UpdateThemeSettingsDto } from './dto/update-theme-settings.dto';
 import { ProductCardVariant } from '@common/types';
 
@@ -9,8 +18,6 @@ export interface ThemeSettings {
   fontFamily?: string;
   borderRadius: number;
   spacingScale: number;
-
-  // Optional extended settings
   maxWidth?: string;
   storeName?: string;
   font?: string;
@@ -24,43 +31,51 @@ export interface ThemeSettings {
   stickyHeader?: boolean;
 }
 
-// NOTE: spacingScale should be a multiplier (1 = default). 8 here would blow up spacing.
 const defaultThemeSettings: ThemeSettings = {
   primaryColor: '#1976d2',
   secondaryColor: '#dc004e',
   darkMode: false,
   fontFamily: 'Arial',
   borderRadius: 2,
-  spacingScale: 1, // ← important (your frontend multiplies 8 * spacingScale * factor)
+  spacingScale: 1,
 };
 
 @Controller('theme/settings')
 export class ThemeSettingsController {
-  private currentSettings: ThemeSettings = { ...defaultThemeSettings };
+  constructor(@Inject(Firestore) private readonly db: Firestore) {}
+
+  private docRef() {
+    return this.db.collection('settings').doc('theme');
+  }
 
   @Get()
-  getThemeSettings(): ThemeSettings {
-    return this.currentSettings;
+  async getThemeSettings(): Promise<ThemeSettings> {
+    const snap = await this.docRef().get();
+    if (!snap.exists) return { ...defaultThemeSettings };
+    return { ...defaultThemeSettings, ...(snap.data() as ThemeSettings) };
   }
 
-  // Full/Idempotent update from client (what your frontend is calling)
   @Put()
-  putThemeSettings(@Body() dto: UpdateThemeSettingsDto): ThemeSettings {
-    this.currentSettings = { ...this.currentSettings, ...dto };
-    return this.currentSettings;
+  async putThemeSettings(
+    @Body() dto: UpdateThemeSettingsDto,
+  ): Promise<ThemeSettings> {
+    const current = await this.getThemeSettings();
+    const updated = { ...current, ...dto };
+    await this.docRef().set(updated);
+    return updated;
   }
 
-  // Optional: partial update
   @Patch()
-  patchThemeSettings(@Body() dto: UpdateThemeSettingsDto): ThemeSettings {
-    this.currentSettings = { ...this.currentSettings, ...dto };
-    return this.currentSettings;
+  async patchThemeSettings(
+    @Body() dto: UpdateThemeSettingsDto,
+  ): Promise<ThemeSettings> {
+    await this.docRef().set(dto, { merge: true });
+    return this.getThemeSettings();
   }
 
-  // Optional: reset to defaults
   @Post('reset')
-  resetThemeSettings(): ThemeSettings {
-    this.currentSettings = { ...defaultThemeSettings };
-    return this.currentSettings;
+  async resetThemeSettings(): Promise<ThemeSettings> {
+    await this.docRef().set(defaultThemeSettings);
+    return { ...defaultThemeSettings };
   }
 }

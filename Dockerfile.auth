@@ -1,0 +1,22 @@
+# ── Build stage ──────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN NX_DAEMON=false npx nx build auth --configuration=production
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+# Auth MS has no generated package.json — install prod deps from workspace root
+COPY package*.json ./
+RUN npm ci --omit=dev --ignore-scripts
+
+COPY --from=builder /app/dist/apps/ms/auth ./dist/apps/ms/auth
+
+EXPOSE 4002
+CMD ["node", "dist/apps/ms/auth/main.js"]

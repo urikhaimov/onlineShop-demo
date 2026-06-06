@@ -1,0 +1,11 @@
+node_modules
+dist
+.nx
+.git
+coverage
+**/.env
+**/.env.*
+apps/client
+apps/client-e2e
+apps/api-e2e
+sg-test

@@ -5,9 +5,9 @@ name: Build CI
 
 on:
   push:
-    branches: [ "nx" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "nx" ]
+    branches: [ "main" ]
 
 jobs:
   build:

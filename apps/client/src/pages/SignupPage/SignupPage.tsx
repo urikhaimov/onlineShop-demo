@@ -92,11 +92,16 @@ export default function SignupPage() {
             <Typography variant="h6">Join My Online Store</Typography>
           </Box>
 
-          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            noValidate
+            data-testid="signup-form"
+          >
             <Stack spacing={3}>
               <TextField
                 label="Name"
                 fullWidth
+                inputProps={{ 'data-testid': 'signup-name' }}
                 {...register('name', { required: 'Name is required' })}
                 error={!!errors.name}
                 helperText={errors.name?.message}
@@ -106,6 +111,7 @@ export default function SignupPage() {
                 label="Email"
                 type="email"
                 fullWidth
+                inputProps={{ 'data-testid': 'signup-email' }}
                 {...register('email', { required: 'Email is required' })}
                 error={!!errors.email}
                 helperText={errors.email?.message}
@@ -115,6 +121,7 @@ export default function SignupPage() {
                 label="Password"
                 type="password"
                 fullWidth
+                inputProps={{ 'data-testid': 'signup-password' }}
                 {...register('password', {
                   required: 'Password is required',
                   minLength: 6,
@@ -127,6 +134,7 @@ export default function SignupPage() {
                 label="Confirm Password"
                 type="password"
                 fullWidth
+                inputProps={{ 'data-testid': 'signup-confirm-password' }}
                 {...register('confirmPassword', {
                   required: 'Please confirm your password',
                   validate: (value) =>
@@ -141,6 +149,7 @@ export default function SignupPage() {
                 variant="contained"
                 fullWidth
                 disabled={isSubmitting}
+                data-testid="signup-submit"
                 sx={{ py: 1.5, fontWeight: 600 }}
               >
                 {isSubmitting ? 'Signing up...' : 'Sign Up'}

@@ -30,7 +30,7 @@ export const MIN_MINOR_BY_CURRENCY: Record<string, number> = {
   usd: 50,
   eur: 50,
   gbp: 30,
-  ils: 200, // Stripe minimum for ILS (₪2.00)
+  ils: 200, // PayPal minimum for ILS (₪2.00)
   aud: 50,
   cad: 50,
   chf: 50,
@@ -44,7 +44,7 @@ export const MIN_MINOR_BY_CURRENCY: Record<string, number> = {
   vnd: 12000,
 };
 
-/** Clamp a MINOR amount up to Stripe’s minimum for the given currency */
+/** Clamp a MINOR amount up to the minimum for the given currency */
 export function clampMinorForCurrency(minor: number, currency: string): number {
   const cur = (currency || 'usd').toLowerCase();
   const n = Math.max(0, Math.round(Number(minor) || 0));

@@ -27,7 +27,7 @@ describe('WoltWebhookController (e2e)', () => {
     app.setGlobalPrefix(apiPrefix);
 
     // Mount raw-body ONLY for this route, BEFORE JSON (helper is defined in setupFiles)
-    (global as any).applyStripeRaw(app, `/${apiPrefix}/webhooks/wolt`);
+    (global as any).applyWebhookRaw(app, `/${apiPrefix}/webhooks/wolt`);
 
     await app.init();
   });

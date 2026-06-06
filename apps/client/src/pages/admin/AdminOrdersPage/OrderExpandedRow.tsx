@@ -5,7 +5,7 @@ import type {
   TOrder,
   TOrderStatus,
   TOrderPayment,
-  StripePaymentIntentStatus,
+  TPaymentStatus,
 } from '@common/types';
 
 import OrderCustomer from '../../../components/orders/OrderCustomer';
@@ -68,7 +68,7 @@ function statusToCanon(s?: string): TOrderStatus {
   if (raw === 'confirmed') return 'paid';
   if (raw === 'cancelled') return 'canceled';
 
-  // provider / Stripe-inspired statuses
+  // provider statuses (PayPal/generic)
   if (raw === 'succeeded') return 'paid';
   if (raw === 'canceled') return 'canceled';
   if (
@@ -84,15 +84,15 @@ function statusToCanon(s?: string): TOrderStatus {
   return 'open';
 }
 
-// When order.payment is missing, derive a Stripe-like status (type-safe)
-function deriveProviderStatus(canon: TOrderStatus): StripePaymentIntentStatus {
+// When order.payment is missing, derive a payment status from the canonical order status
+function deriveProviderStatus(canon: TOrderStatus): TPaymentStatus {
   if (canon === 'paid') return 'succeeded';
   if (canon === 'canceled') return 'canceled';
   // not paid yet -> something pending
   return 'processing';
 }
 
-// Flatten Stripe-style shipping into our flat view model
+// Flatten nested shipping address into our flat view model
 function flattenShipping(order: TOrder) {
   const s: any = order.shippingAddress || {};
   const addr = s.address || s || {};
@@ -135,7 +135,7 @@ function useNormalizedOrder(order: TOrder): TOrder {
       ? order.payment
       : {
           method: 'card',
-          status: deriveProviderStatus(canonStatus), // ✅ Stripe-typed status
+          status: deriveProviderStatus(canonStatus),
           transactionId: order.paymentIntentId,
           currency,
           receipt_email: order.email ?? undefined,

@@ -37,23 +37,9 @@ export async function installHarness(page: Page) {
     );
   };
 
-  // make the UI render + stripe stub (success by default, tests can override)
+  // make the UI render (PayPal SDK loads as an iframe; no global stub needed)
   await page.addInitScript(() => {
     (window as any).__E2E_ALLOW__ = true;
-    const make = () => ({
-      elements: () => ({ create: () => ({ mount() {}, destroy() {} }) }),
-      confirmPayment: async () => ({
-        paymentIntent: { id: 'pi_test_123', status: 'succeeded' },
-      }),
-      confirmCardPayment: async () => ({
-        paymentIntent: { id: 'pi_test_123', status: 'succeeded' },
-      }),
-    });
-    Object.defineProperty(make, 'version', {
-      value: 'basil',
-      enumerable: true,
-    });
-    (window as any).Stripe = make;
   });
 
   // kill login redirects
@@ -142,7 +128,7 @@ export async function installHarness(page: Page) {
     },
     async (route) => {
       const js = `
-        export function useAuth(){return {user:{id:'u_test',email:'test@example.com',roles:['admin']},loading:false,error:null,signIn:async()=>{},signOut:async()=>{}}}
+        export function useAuth(){return {user:{id:'u_test',email:'test@example.com',roles:['admin']},role:'admin',loading:false,isAuthReady:true,error:null,signIn:async()=>{},signOut:async()=>{},logout:async()=>{}}}
         export default useAuth;`;
       await route.fulfill({
         status: 200,
@@ -228,7 +214,9 @@ export async function installHarness(page: Page) {
       localStorage.setItem('useCartStore', zustand);
       localStorage.setItem('cart-store', zustand);
       localStorage.setItem('use-cart-store', zustand);
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, demo);
 
   // tiny API stubs
@@ -323,10 +311,10 @@ export async function installHarness(page: Page) {
       const url = route.request().url();
       const path = getPath(url).toLowerCase();
       if (
-        /(create-?payment-?intent|payment-?intent|client-?secret|\/stripe\/(create|intent|payment))/i.test(
+        /\/(create-?paypal-?order|capture-?paypal-?order|orders\/save-draft)/i.test(
           path,
         ) ||
-        /\/orders\/public\/pi_/i.test(path)
+        /\/orders\/public\/[A-Z0-9]{8}/i.test(path)
       )
         return route.fallback();
       if (matchesDetail(url)) {
@@ -358,7 +346,7 @@ export async function installHarness(page: Page) {
     },
   );
 
-  // payment intent & public polling
+  // PayPal order creation, capture, draft-save & public polling stubs
   const isSameOrigin = (u: string) => {
     try {
       return new URL(u).origin.startsWith('http://127.0.0.1');
@@ -368,14 +356,13 @@ export async function installHarness(page: Page) {
   };
   const isDevModulePath = (p: string) =>
     p.startsWith('/src/') || p.startsWith('/@fs/') || p.startsWith('/@id/');
+
   await page.route(
     (url) => {
       if (!isSameOrigin(url.toString())) return false;
       const { pathname } = new URL(url);
       if (isDevModulePath(pathname)) return false;
-      return /(create-?payment-?intent|payment-?intent|client-?secret|\/stripe\/(create|intent|payment))/i.test(
-        pathname,
-      );
+      return /\/create-?paypal-?order/i.test(pathname);
     },
     (route) => {
       const rt = route.request().resourceType();
@@ -383,7 +370,7 @@ export async function installHarness(page: Page) {
       return route.fulfill({
         status: 200,
         headers: { 'content-type': 'application/json; charset=utf-8' },
-        body: JSON.stringify({ clientSecret: 'pi_secret_test_123' }),
+        body: JSON.stringify({ orderId: 'TESTPAYPALORDER1' }),
       });
     },
   );
@@ -393,9 +380,7 @@ export async function installHarness(page: Page) {
       if (!isSameOrigin(url.toString())) return false;
       const { pathname } = new URL(url);
       if (isDevModulePath(pathname)) return false;
-      return /(?:^|\/)api\/orders\/public\/pi_|(?:^|\/)orders\/public\/pi_/i.test(
-        pathname,
-      );
+      return /\/capture-?paypal-?order/i.test(pathname);
     },
     (route) => {
       const rt = route.request().resourceType();
@@ -403,7 +388,43 @@ export async function installHarness(page: Page) {
       return route.fulfill({
         status: 200,
         headers: { 'content-type': 'application/json; charset=utf-8' },
-        body: JSON.stringify({ state: 'succeeded', orderId: 'ord_test_001' }),
+        body: JSON.stringify({ ok: true, status: 'COMPLETED' }),
+      });
+    },
+  );
+
+  await page.route(
+    (url) => {
+      if (!isSameOrigin(url.toString())) return false;
+      const { pathname } = new URL(url);
+      if (isDevModulePath(pathname)) return false;
+      return /\/orders\/save-draft/i.test(pathname);
+    },
+    (route) => {
+      const rt = route.request().resourceType();
+      if (rt !== 'fetch' && rt !== 'xhr') return route.continue();
+      return route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ ok: true }),
+      });
+    },
+  );
+
+  await page.route(
+    (url) => {
+      if (!isSameOrigin(url.toString())) return false;
+      const { pathname } = new URL(url);
+      if (isDevModulePath(pathname)) return false;
+      return /\/orders\/public\/[A-Z0-9]{8,}/i.test(pathname);
+    },
+    (route) => {
+      const rt = route.request().resourceType();
+      if (rt !== 'fetch' && rt !== 'xhr') return route.continue();
+      return route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ state: 'paid', orderId: 'ord_test_001' }),
       });
     },
   );
@@ -421,14 +442,18 @@ export async function ensureCheckoutForm(
   const action = opts?.fallbackAction ?? 'success';
 
   // navigate to checkout and ensure "place-order" exists, inject fallback if needed
-  await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await page
-    .goto('/checkout', { waitUntil: 'domcontentloaded' })
-    .catch(() => {});
+  await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => {
+    // ignore
+  });
+  await page.goto('/checkout', { waitUntil: 'domcontentloaded' }).catch(() => {
+    // ignore
+  });
   if (!/\/checkout(\/)?$/i.test(new URL(page.url()).pathname)) {
     await page
       .goto('/#/checkout', { waitUntil: 'domcontentloaded' })
-      .catch(() => {});
+      .catch(() => {
+        // ignore
+      });
   }
 
   let pay = page.getByTestId('place-order');

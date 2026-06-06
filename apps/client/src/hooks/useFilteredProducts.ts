@@ -7,7 +7,7 @@ interface FilterState {
   lastDoc: any;
   loading: boolean;
   hasMore: boolean;
-  searchTerm: string;
+  search: string;
   selectedCategoryId: string;
   createdAfter: Dayjs | null;
   minPrice: number;
@@ -20,6 +20,7 @@ interface FilterState {
   sorting: any;
   columnFilters: any;
   snackbarOpen: boolean;
+  inStockOnly: boolean;
 }
 
 type TimestampLike = string | Date | { toDate: () => Date } | null | undefined;
@@ -58,7 +59,9 @@ export const useFilteredProducts = (
       const inDate = !state.createdAfter
         ? true
         : (() => {
-            const productDate = parseProductDate(p.createdAt);
+            const productDate = parseProductDate(
+              p.metadata?.createdAt as TimestampLike,
+            );
             const afterDate = state.createdAfter?.toDate?.();
             return productDate && afterDate
               ? productDate.getTime() >= afterDate.getTime()

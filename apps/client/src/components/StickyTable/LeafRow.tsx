@@ -50,6 +50,11 @@ export default function LeafRow<T extends object>({
 }: LeafRowProps<T>) {
   const theme = useTheme();
 
+  // When row expansion is enabled, the expand toggle cell sits at right:RIGHT_GAP.
+  // Sticky-right data columns must be offset by (EXPAND_COL_WIDTH + RIGHT_GAP) so
+  // they don't overlap the expand cell and block pointer events on mobile.
+  const stickyRightGap = enableRowExpansion ? EXPAND_COL_WIDTH + RIGHT_GAP : 0;
+
   // NOTE: we do NOT use transform on <tr> (tables can't be transformed reliably).
   const { attributes, listeners, setNodeRef } = useSortable({
     id: String(row.id),
@@ -67,7 +72,9 @@ export default function LeafRow<T extends object>({
         {row.getVisibleCells().map((cell) => {
           if (cell.column.id === '__reorder__') {
             const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
-            const stickySx = toSxArray(getStickyStyles(theme, meta));
+            const stickySx = toSxArray(
+              getStickyStyles(theme, meta, stickyRightGap),
+            );
             const hiddenSx = toSxArray(responsiveVisibility(meta));
             return (
               <TableCell
@@ -110,7 +117,9 @@ export default function LeafRow<T extends object>({
           }
 
           const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
-          const stickySx = toSxArray(getStickyStyles(theme, meta));
+          const stickySx = toSxArray(
+            getStickyStyles(theme, meta, stickyRightGap),
+          );
           const hiddenSx = toSxArray(responsiveVisibility(meta));
           return (
             <TableCell

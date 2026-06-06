@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "5.0",
     "target": "ES2023",
     "module": "esnext",
     "moduleResolution": "Node",
@@ -26,9 +27,10 @@
       "@common/firebase": ["libs/firebase/src/index.ts"],
       "@common/types": ["libs/types/src/index.ts"],
       "@common/utils": ["libs/utils/src/index.ts"],
-      "auth-client": ["libs/auth-client/src/index.ts"],
       "@email-templates": ["libs/email-templates/src/index.ts"],
-      "@email-templates/*": ["libs/email-templates/src/*"]
+      "@email-templates/*": ["libs/email-templates/src/*"],
+      "auth-client": ["libs/auth-client/src/index.ts"],
+      "email-templates": ["libs/email-templates/src/index.ts"]
     }
   },
   "include": ["env.d.ts", "apps/**/*.ts", "libs/**/*.ts"]

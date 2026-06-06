@@ -35,7 +35,7 @@ function normalizeOrderStatus(
   const s = String(raw ?? '').toLowerCase();
   if (s && STATUS_MAP[s]) return STATUS_MAP[s];
 
-  // fallback to Stripe provider state when order.status missing
+  // fallback to payment provider state when order.status missing
   switch (provider) {
     case 'succeeded':
       return 'paid';

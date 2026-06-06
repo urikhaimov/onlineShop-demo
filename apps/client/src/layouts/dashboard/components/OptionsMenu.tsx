@@ -53,7 +53,6 @@ export default function OptionsMenu() {
     setBusy(true);
     try {
       await logout();
-      // logout() already clears state; navigate is a nice extra
       navigate(ROUTES.LOGIN, { replace: true });
     } catch (error) {
       console.error('Logout failed:', error);
@@ -101,6 +100,7 @@ export default function OptionsMenu() {
         <StyledListItemButton
           onClick={handleLogout}
           disabled={busy} // ✨ NEW
+          data-testid="logout-btn"
           sx={{
             [`& .${listItemIconClasses.root}`]: { ml: 'auto', minWidth: 0 },
           }}

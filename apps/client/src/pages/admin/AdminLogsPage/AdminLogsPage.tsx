@@ -18,6 +18,8 @@ import { SelectChangeEvent } from '@mui/material';
 import { useLogs } from '../../../hooks/useLogs';
 import type { SecurityLog } from '../../../api/logs';
 import LoadingProgress from '../../../components/LoadingProgress';
+import { isDemoAdmin } from '../../../lib/demo-mode';
+import NotFound from '../../../components/NotFound';
 
 const CATEGORY_OPTIONS = [
   { id: '', label: 'All' },
@@ -35,6 +37,17 @@ const AdminLogsPage: React.FC = () => {
   };
 
   const logsArray: SecurityLog[] = logs ?? [];
+
+  if (isDemoAdmin()) {
+    return (
+      <Box sx={{ maxWidth: 1000, mx: 'auto', px: 2, py: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Admin Logs
+        </Typography>
+        <NotFound message="Logs are not available in demo mode." />
+      </Box>
+    );
+  }
 
   return (
     <Box

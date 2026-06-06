@@ -145,6 +145,7 @@ const SortableImage = ({
       >
         <CardMedia
           component="img"
+          loading="lazy"
           image={image.url}
           sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />

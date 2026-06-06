@@ -1,2 +1,3 @@
 #!/bin/bash
+export PATH="/c/Program Files/nodejs:$PATH"
 npx --no -- commitlint --edit "${1}"

@@ -39,7 +39,7 @@ export function defineAbilityFor({
   role,
 }: {
   user: User | null;
-  role: EUserRole | null;
+  role: EUserRole | string | null;
 }) {
   const { can, cannot, build } = new AbilityBuilder(createMongoAbility);
 
@@ -60,8 +60,6 @@ export function defineAbilityFor({
     cannot([EAbilityActions.READ], EAbilitySubjects.LOGIN);
   } else {
     can([EAbilityActions.READ], EAbilitySubjects.LOGIN);
-    // If product page is public, uncomment:
-    // can([EAbilityActions.READ], EAbilitySubjects.PRODUCT);
   }
 
   can([EAbilityActions.READ], EAbilitySubjects.HOME);

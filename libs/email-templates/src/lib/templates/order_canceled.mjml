@@ -1,0 +1,47 @@
+<!-- ── Hero ── -->
+<mj-section padding="8px 0 0 0">
+  <mj-column>
+    <mj-text align="center" font-size="40px" padding="24px 0 4px 0" line-height="1">❌</mj-text>
+    <mj-text align="center" font-size="22px" font-weight="700" color="#111827" padding="0 0 4px 0">
+      {{#if isRtl}}ההזמנה בוטלה{{else}}Order Cancelled{{/if}}
+    </mj-text>
+    <mj-text align="center" font-size="13px" color="#6b7280" padding="0 0 4px 0">
+      {{#if isRtl}}הזמנה מספר{{else}}Order{{/if}}
+    </mj-text>
+    <mj-text align="center" font-size="14px" font-weight="700" color="#111827" padding="0 0 20px 0">
+      #{{orderId}}
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<!-- ── Message ── -->
+<mj-section padding="0 0 16px 0">
+  <mj-column>
+    <mj-divider border-color="#e5e7eb" border-width="1px" padding="0 0 16px 0" />
+    <mj-text font-size="14px" color="#6b7280" align="center" padding="0 0 16px 0">
+      {{#if isRtl}}
+        זו טעות או יש שאלות? השיבו למייל הזה ונשמח לעזור.
+      {{else}}
+        Was this a mistake or do you have questions? Just reply to this email.
+      {{/if}}
+    </mj-text>
+
+    {{#if brandUrl}}
+    <mj-button
+      href="{{brandUrl}}/my-orders"
+      align="center"
+      inner-padding="14px 32px"
+      font-size="15px"
+      font-weight="600"
+      border-radius="8px"
+      background-color="#F3F4F6"
+      color="#111827"
+      padding="0"
+      rel="noopener"
+      target="_blank"
+    >
+      {{#if isRtl}}ההזמנות שלי{{else}}View My Orders{{/if}}
+    </mj-button>
+    {{/if}}
+  </mj-column>
+</mj-section>

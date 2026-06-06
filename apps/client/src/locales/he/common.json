@@ -9,6 +9,7 @@
   },
   "admin": {
     "dashboardHome": "בית הניהול",
+    "setupWizard": "אשף הגדרות",
     "categories": "קטגוריות",
     "users": "משתמשים",
     "products": "מוצרים",
@@ -26,7 +27,8 @@
     "openAria": "פתח תפריט",
     "profile": "פרופיל",
     "account": "חשבון",
-    "logout": "התנתקות"
+    "logout": "התנתקות",
+    "loggingOut": "מתנתק…"
   },
   "actions": {
     "edit": "עריכה",
@@ -39,7 +41,18 @@
     "clear": "נקה",
     "close": "סגור",
     "openFilters": "פתח מסננים",
-    "addToCart": "הוסף לעגלה"
+    "addToCart": "הוסף לעגלה",
+    "retry": "נסה שנית",
+    "exportCsv": "ייצוא CSV"
+  },
+  "a11y": {
+    "openFilters": "פתח מסננים",
+    "resetFilters": "איפוס מסננים",
+    "tableView": "תצוגת טבלה",
+    "cardsView": "תצוגת כרטיסים"
+  },
+  "errors": {
+    "failedToLoadOrders": "טעינת ההזמנות נכשלה."
   },
   "toasts": {
     "addedToCart": "הוסף לעגלה"
@@ -47,7 +60,8 @@
   "validation": {
     "name_required": "יש להזין שם.",
     "name_minLen": "השם חייב להכיל לפחות 2 תווים.",
-    "price_required": "יש להזין מחיר."
+    "price_required": "יש להזין מחיר.",
+    "min2": "קצר מדי"
   },
   "table": {
     "image": "תמונה",
@@ -96,6 +110,7 @@
     "delivered": "סופק"
   },
   "orders": {
+    "search": "מספר הזמנה",
     "status": {
       "pending": "ממתין",
       "confirmed": "אושר",
@@ -132,6 +147,7 @@
     "dialog": {
       "title": "למחוק קטגוריה?",
       "warning": "הפעולה תמחק את הקטגוריה לצמיתות ולא ניתנת לביטול.",
+      "warningCascade": "הפעולה תמחק לצמיתות את הקטגוריה וכל המוצרים שבה. לא ניתן לבטל פעולה זו.",
       "confirm": "האם למחוק את הקטגוריה {{name}}?",
       "cancel": "ביטול",
       "deleting": "מוחק…",
@@ -158,6 +174,7 @@
   "adminCategoriesForm": {
     "name": "שם",
     "description": "תיאור",
+    "image": "תמונה",
     "update": "עדכון קטגוריה",
     "create": "יצירת קטגוריה"
   },
@@ -191,6 +208,7 @@
     "Story": "Story"
   },
   "adminOrdersPage": {
+    "title": "הזמנות",
     "failedToDeleteFallback": "מחיקת ההזמנה נכשלה.",
     "failedToLoad": "טעינת הזמנות נכשלה: {{message}}",
     "notFound": "לא נמצאו הזמנות",
@@ -283,12 +301,22 @@
     "stock": "מלאי",
     "category": "קטגוריה",
     "invalidCategory": "מזהה קטגוריה שגוי: {{id}}",
-    "images": "תמונות"
+    "images": "תמונות",
+    "imagesHint": "גרור או לחץ להעלאה (מקסימום 5MB לכל תמונה). מקומות פנויים: {{count}}",
+    "descriptionPlaceholder": "כתוב תיאור קצר ומושך…"
   },
   "adminProductsPage": {
     "title": "ניהול מוצרים",
     "addProduct": "הוסף מוצר",
-    "snackbarReordered": "סדר המוצרים עודכן"
+    "snackbarReordered": "סדר המוצרים עודכן",
+    "dialog": {
+      "title": "למחוק מוצר?",
+      "warning": "הפעולה תמחק את המוצר לצמיתות ולא ניתנת לביטול.",
+      "confirm": "האם למחוק את {{name}}?",
+      "cancel": "ביטול",
+      "deleting": "מוחק…",
+      "delete": "מחיקה"
+    }
   },
   "adminProducts": {
     "actions": {
@@ -386,7 +414,11 @@
     "thankYouTitle": "תודה על ההזמנה!",
     "thankYouBody": "קיבלנו את התשלום וההזמנה בתהליך טיפול.",
     "goHome": "חזרה לדף הבית",
-    "viewOrders": "הצג את ההזמנות שלי"
+    "viewOrders": "הצג את ההזמנות שלי",
+    "items": "פריטים",
+    "qty": "כמות",
+    "failedToLoad": "טעינת טופס התשלום נכשלה. אנא נסה שוב מאוחר יותר.",
+    "settingsFallback": "טעינת הגדרות ההזמנה נכשלה. משתמש בברירות מחדל."
   },
   "checkoutForm": {
     "paymentDetails": "פרטי תשלום",
@@ -395,6 +427,7 @@
     "passportId": "מספר דרכון",
     "passportIdRequired": "נדרש מספר דרכון",
     "payNow": "שלם עכשיו",
+    "paypalCanceled": "התשלום בוטל.",
     "errors": {
       "stripeNotReady": "Stripe עדיין לא מוכן",
       "paymentFailed": "התשלום נכשל",
@@ -404,6 +437,8 @@
     "shippingAddress": "כתובת משלוח",
     "fullName": "שם מלא",
     "fullNameRequired": "יש להזין שם מלא",
+    "email": "אימייל",
+    "emailRequired": "יש להזין כתובת אימייל",
     "phone": "טלפון",
     "phoneRequired": "יש להזין מספר טלפון",
     "street": "רחוב",
