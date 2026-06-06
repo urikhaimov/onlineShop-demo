@@ -24,6 +24,7 @@ import {
   ShoppingCart,
   CheckCircle,
   Payment,
+  LocalShipping,
 } from '@mui/icons-material';
 import axiosInstance from '../../../api/axiosInstance';
 import { useForm, Controller } from 'react-hook-form';
@@ -47,6 +48,7 @@ const STEPS = [
   { label: 'Landing Page', icon: <Image /> },
   { label: 'Order Settings', icon: <ShoppingCart /> },
   { label: 'PayPal', icon: <Payment /> },
+  { label: 'Wolt Drive', icon: <LocalShipping /> },
   { label: 'Done!', icon: <CheckCircle /> },
 ];
 
@@ -410,7 +412,88 @@ function PayPalStep({
   );
 }
 
-// ─── Step 6: Done ─────────────────────────────────────────────────────────────
+// ─── Step 6: Wolt Drive ───────────────────────────────────────────────────────
+function WoltStep({
+  onNext,
+  onBack,
+}: {
+  onNext: (data: Record<string, unknown>) => void;
+  onBack: () => void;
+}) {
+  const vars = [
+    {
+      key: 'WOLT_MERCHANT_ID',
+      desc: 'Your Wolt merchant ID — from the Wolt Drive dashboard',
+    },
+    {
+      key: 'WOLT_MERCHANT_KEY',
+      desc: 'API key for authenticating delivery requests',
+    },
+    {
+      key: 'WOLT_VENUE_ID',
+      desc: 'The venue/pickup location ID from your Wolt account',
+    },
+    {
+      key: 'WOLT_WEBHOOK_SECRET',
+      desc: 'Webhook signing secret for verifying Wolt status events',
+    },
+    {
+      key: 'WOLT_CURRENCY',
+      desc: 'Currency code sent with orders (e.g. ILS)',
+    },
+  ];
+
+  return (
+    <Stack spacing={3}>
+      <Typography variant="body2" color="text.secondary">
+        Wolt Drive dispatches a courier automatically when a PayPal payment is
+        captured. These credentials must be added as environment variables in{' '}
+        <strong>Railway → your service → Variables</strong>.
+      </Typography>
+
+      <Alert severity="info" sx={{ fontSize: 13 }}>
+        Get your credentials from the{' '}
+        <strong>Wolt Drive merchant dashboard</strong>. No code changes needed —
+        just add the variables below and redeploy.
+      </Alert>
+
+      <Stack spacing={1.5}>
+        {vars.map(({ key, desc }) => (
+          <Paper key={key} variant="outlined" sx={{ p: 1.5, borderRadius: 1 }}>
+            <Typography
+              variant="body2"
+              fontFamily="monospace"
+              fontWeight={700}
+              color="primary.main"
+            >
+              {key}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {desc}
+            </Typography>
+          </Paper>
+        ))}
+      </Stack>
+
+      <Divider />
+
+      <Stack direction="row" spacing={2}>
+        <Button variant="outlined" onClick={onBack} sx={{ flex: 1 }}>
+          Back
+        </Button>
+        <Button variant="contained" onClick={() => onNext({})} sx={{ flex: 2 }}>
+          I've added them
+        </Button>
+      </Stack>
+
+      <Button variant="text" size="small" onClick={() => onNext({})}>
+        Skip (configure later)
+      </Button>
+    </Stack>
+  );
+}
+
+// ─── Step 7: Done ─────────────────────────────────────────────────────────────
 function DoneStep({ storeName }: { storeName: string }) {
   const navigate = useNavigate();
 
@@ -536,6 +619,7 @@ export default function AdminSetupWizardPage() {
           sandbox: data.sandbox !== false,
         });
       }
+      // step 5 (Wolt) is env-var only — no API call needed
       setActiveStep((s) => s + 1);
     } catch {
       enqueueSnackbar(
@@ -598,7 +682,13 @@ export default function AdminSetupWizardPage() {
             onBack={() => setActiveStep(3)}
           />
         )}
-        {!saving && activeStep === 5 && <DoneStep storeName={storeName} />}
+        {!saving && activeStep === 5 && (
+          <WoltStep
+            onNext={(d) => save(5, d)}
+            onBack={() => setActiveStep(4)}
+          />
+        )}
+        {!saving && activeStep === 6 && <DoneStep storeName={storeName} />}
       </Paper>
     </Box>
   );
