@@ -15,6 +15,8 @@ import { OrdersLifecycleService } from './services/orders-lifecycle.service';
 import { OrdersDraftsService } from './services/orders-drafts.service';
 import { OrdersPaymentFlowService } from './services/orders-payment-flow.service';
 import { OrdersWebhookService } from './services/orders-webhook.service';
+import { WoltDriveService } from './services/wolt-drive.service';
+import { OrdersWoltWebhookController } from './orders.wolt-webhook.controller';
 
 import { MailerModule } from '../mailer';
 import { InvoiceService } from '../invoice/invoice.service';
@@ -26,6 +28,7 @@ import { PayPalModule } from '../paypal/paypal.module';
     OrdersController,
     OrdersPublicController,
     OrdersPayPalWebhookController,
+    OrdersWoltWebhookController,
   ],
   providers: [
     OrdersService,
@@ -38,6 +41,7 @@ import { PayPalModule } from '../paypal/paypal.module';
     OrdersPaymentFlowService,
     OrdersWebhookService,
     InvoiceService,
+    WoltDriveService,
   ],
   exports: [OrdersService],
 })

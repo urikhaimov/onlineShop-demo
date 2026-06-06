@@ -11,6 +11,7 @@ import { OrdersPricingService } from './orders-pricing.service';
 import { PayPalPaymentsService, PayPalOrder } from './paypal-payments.service';
 import { OrderNotificationsService } from './order-notifications.service';
 import { OrdersDraftsService } from './orders-drafts.service';
+import { WoltDriveService } from './wolt-drive.service';
 
 import { defined, nowIso, stripUndefinedDeep } from '../utils/orders.helpers';
 import {
@@ -42,6 +43,10 @@ export class OrdersPaymentFlowService {
 
     @Inject(OrdersDraftsService)
     private readonly drafts: OrdersDraftsService,
+
+    @Optional()
+    @Inject(WoltDriveService)
+    private readonly wolt: WoltDriveService | undefined,
   ) {}
 
   async createPayPalOrder(input: {
@@ -135,6 +140,31 @@ export class OrdersPaymentFlowService {
       customer: input.customer,
       shippingAddress: input.shippingAddress,
     });
+
+    if (this.wolt) {
+      void this.wolt
+        .dispatchDelivery(order)
+        .then(async (delivery) => {
+          if (delivery?.id) {
+            await this.repo.saveOrderMerge(order.id, {
+              delivery: {
+                provider: 'wolt',
+                trackingNumber: delivery.id,
+                ...(delivery.tracking?.url
+                  ? { trackingUrl: delivery.tracking.url }
+                  : {}),
+                ...(delivery.estimated_dropoff_time
+                  ? { eta: delivery.estimated_dropoff_time }
+                  : {}),
+              },
+              updatedAt: nowIso(),
+            });
+          }
+        })
+        .catch((e: Error) =>
+          this.logger.warn(`[Wolt] dispatchDelivery failed: ${e?.message}`),
+        );
+    }
 
     await this.drafts.cleanupOldDrafts(userId, order.id, true);
     return { ok: true, status: 'succeeded', order };
